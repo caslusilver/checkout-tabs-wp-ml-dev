@@ -107,6 +107,15 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
 #### Protocol: b5474b2
 
+## [v3.1.33] - 2026-01-05
+
+### Changed
+- Popup (Fancybox): bloqueia fechar ao clicar fora (fecha via X; ESC mantém).
+- Tabs “Login” / “Criar uma conta”: sem moldura, contraste melhor e cores configuráveis no admin (CSS vars).
+- CPF fictício (modal): melhora sincronização com `billing_cpf` (fallback selector) e adiciona logs no console/logger para diagnosticar quando o debug visual não aparece.
+
+#### Protocol: 022aa1a
+
 ## [Unreleased]
 
 ## Notas de Publicação (ainda não executadas)

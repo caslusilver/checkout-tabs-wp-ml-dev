@@ -56,6 +56,9 @@ function checkout_tabs_wp_ml_render_admin_page(): void {
 	$webhook_value = esc_url((string) get_option('checkout_tabs_wp_ml_webhook_url', checkout_tabs_wp_ml_get_webhook_url()));
 	$debug_enabled = ((int) get_option('checkout_tabs_wp_ml_debug', 0) === 1);
 	$allow_fake_cpf = ((int) get_option('checkout_tabs_wp_ml_allow_fake_cpf', 0) === 1);
+	$ui_primary = sanitize_hex_color((string) get_option('checkout_tabs_wp_ml_ui_primary', '#0075ff')) ?: '#0075ff';
+	$ui_login_bg = sanitize_hex_color((string) get_option('checkout_tabs_wp_ml_ui_login_bg', '#f5f5f5')) ?: '#f5f5f5';
+	$ui_text = sanitize_hex_color((string) get_option('checkout_tabs_wp_ml_ui_text', '#111111')) ?: '#111111';
 
 	echo '<div class="wrap">';
 	echo '<h1>Checkout Tabs ML</h1>';
@@ -99,6 +102,17 @@ function checkout_tabs_wp_ml_render_admin_page(): void {
 		echo ' Exibir opção “Gerar CPF fictício” no popup de cadastro (checkout)';
 		echo '</label>';
 		echo '<p class="description">Use para reduzir objeção de privacidade. O CPF será matematicamente válido e definitivo no perfil.</p>';
+		echo '</td>';
+		echo '</tr>';
+		echo '<tr>';
+		echo '<th scope="row">UI (cores do popup)</th>';
+		echo '<td>';
+		echo '<div style="display:flex; gap: 16px; flex-wrap: wrap; align-items: center;">';
+		echo '<label style="display:flex; gap:8px; align-items:center;">Azul (primário) <input type="color" name="checkout_tabs_wp_ml_ui_primary" value="' . esc_attr($ui_primary) . '" /></label>';
+		echo '<label style="display:flex; gap:8px; align-items:center;">Cinza (login) <input type="color" name="checkout_tabs_wp_ml_ui_login_bg" value="' . esc_attr($ui_login_bg) . '" /></label>';
+		echo '<label style="display:flex; gap:8px; align-items:center;">Texto <input type="color" name="checkout_tabs_wp_ml_ui_text" value="' . esc_attr($ui_text) . '" /></label>';
+		echo '</div>';
+		echo '<p class="description">Controla contraste e cores das abas e botões no popup de login/cadastro.</p>';
 		echo '</td>';
 		echo '</tr>';
 		echo '</table>';

@@ -35,6 +35,20 @@ add_action('wp_enqueue_scripts', function () {
 		['checkout-tabs-wp-ml-checkout-ui'],
 		$version
 	);
+	wp_enqueue_style(
+		'checkout-tabs-wp-ml-login-popup',
+		CHECKOUT_TABS_WP_ML_URL . 'assets/css/login-popup.css',
+		['checkout-tabs-wp-ml-checkout-ui'],
+		$version
+	);
+
+	$ui_primary = sanitize_hex_color((string) get_option('checkout_tabs_wp_ml_ui_primary', '#0075ff')) ?: '#0075ff';
+	$ui_login_bg = sanitize_hex_color((string) get_option('checkout_tabs_wp_ml_ui_login_bg', '#f5f5f5')) ?: '#f5f5f5';
+	$ui_text = sanitize_hex_color((string) get_option('checkout_tabs_wp_ml_ui_text', '#111111')) ?: '#111111';
+	wp_add_inline_style(
+		'checkout-tabs-wp-ml-login-popup',
+		':root{--ctwpml-ui-primary:' . $ui_primary . ';--ctwpml-ui-login_bg:' . $ui_login_bg . ';--ctwpml-ui-text:' . $ui_text . ';}'
+	);
 
 	// Script de máscara: manter comportamento do snippet (carrega apenas se não houver outro).
 	if (!wp_script_is('jquery-mask', 'enqueued') && !wp_script_is('jquery-mask.min', 'enqueued') && !wp_script_is('jquery-maskmoney', 'enqueued')) {

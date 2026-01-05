@@ -162,13 +162,37 @@
     }
 
     function isCpfLocked() {
+      var $cpf = getBillingCpfInput();
+      if (!$cpf.length) return false;
       // Se o checkout marcou readonly, espelhamos no modal.
-      return $('#billing_cpf').is('[readonly]') || $('#billing_cpf').is(':disabled');
+      return $cpf.is('[readonly]') || $cpf.is(':disabled');
+    }
+
+    function getBillingCpfInput() {
+      var $cpf = $('#billing_cpf');
+      if ($cpf.length) return $cpf;
+      $cpf = $('input[name="billing_cpf"]').first();
+      if ($cpf.length) return $cpf;
+      return $();
+    }
+
+    function logAny(message, data) {
+      try {
+        if (typeof state.log === 'function') {
+          state.log(message, data || {}, 'CTWPML');
+          return;
+        }
+      } catch (e) {}
+      try {
+        if (data) console.log('[CTWPML]', message, data);
+        else console.log('[CTWPML]', message);
+      } catch (e) {}
     }
 
     function syncCpfUiFromCheckout() {
       var locked = isCpfLocked();
-      var cpfVal = $('#billing_cpf').val() || '';
+      var $cpf = getBillingCpfInput();
+      var cpfVal = $cpf.length ? $cpf.val() || '' : '';
       $('#ctwpml-input-cpf').val(formatCpf(cpfVal));
       $('#ctwpml-input-cpf').prop('readonly', locked);
 
@@ -196,6 +220,11 @@
         src: '#login-popup',
         type: 'inline',
         touch: false,
+        // Evita fechar clicando fora (UX no checkout). ESC continua funcionando.
+        clickOutside: false,
+        clickSlide: false,
+        // Compatibilidade: algumas versões usam closeClickOutside.
+        closeClickOutside: false,
         smallBtn: false,
         toolbar: false,
         buttons: [],
@@ -898,7 +927,14 @@
       if (fone) $('#billing_cellphone').val(phoneDigits(fone)).trigger('change');
 
       var cpf = cpfDigitsOnly($('#ctwpml-input-cpf').val());
-      if (cpf) $('#billing_cpf').val(cpf).trigger('change');
+      if (cpf) {
+        var $cpf = getBillingCpfInput();
+        if ($cpf.length) {
+          $cpf.val(cpf).trigger('change');
+        } else {
+          logAny('applyFormToCheckout: campo billing_cpf não encontrado.', { cpf: cpf });
+        }
+      }
     }
 
     function ensureEntryPointButton() {
@@ -945,7 +981,12 @@
       var f = formatCpf($i.val());
       if ($i.val() !== f) $i.val(f);
       // Mantém checkout sincronizado
-      $('#billing_cpf').val(cpfDigitsOnly(f)).trigger('change');
+      var $cpf = getBillingCpfInput();
+      if ($cpf.length) {
+        $cpf.val(cpfDigitsOnly(f)).trigger('change');
+      } else {
+        logAny('CPF sync: campo billing_cpf não encontrado no checkout.', { value: cpfDigitsOnly(f) });
+      }
     });
 
     $(document).on('click', '#ctwpml-generate-cpf-modal', function (e) {
@@ -954,13 +995,20 @@
       var allow = !!(state.params && (state.params.allow_fake_cpf === 1 || state.params.allow_fake_cpf === '1'));
       if (!allow) return;
 
+      logAny('CPF fictício (modal): usuário clicou em gerar.', {});
       var ok = window.confirm('Atenção: o CPF gerado é definitivo e não poderá ser alterado depois.');
       if (!ok) return;
 
       var cpf = generateFakeCpfDigits();
       $('#ctwpml-input-cpf').val(formatCpf(cpf));
       $('#ctwpml-cpf-hint').show();
-      $('#billing_cpf').val(cpf).trigger('change');
+      var $cpf = getBillingCpfInput();
+      if ($cpf.length) {
+        $cpf.val(cpf).trigger('change');
+        logAny('CPF fictício (modal): aplicado no checkout.', { cpf: cpf });
+      } else {
+        logAny('CPF fictício (modal): NÃO encontrou campo billing_cpf no checkout.', { cpf: cpf });
+      }
     });
 
     $(document).on('click', '#ctwpml-delete-address', function (e) {

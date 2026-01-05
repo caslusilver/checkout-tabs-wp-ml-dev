@@ -64,4 +64,20 @@ add_action('admin_init', function () {
 		},
 		'default'           => 0,
 	]);
+
+	register_setting(CHECKOUT_TABS_WP_ML_SETTINGS_GROUP, 'checkout_tabs_wp_ml_ui_primary', [
+		'type'              => 'string',
+		'sanitize_callback' => 'sanitize_hex_color',
+		'default'           => '#0075ff',
+	]);
+	register_setting(CHECKOUT_TABS_WP_ML_SETTINGS_GROUP, 'checkout_tabs_wp_ml_ui_login_bg', [
+		'type'              => 'string',
+		'sanitize_callback' => 'sanitize_hex_color',
+		'default'           => '#f5f5f5',
+	]);
+	register_setting(CHECKOUT_TABS_WP_ML_SETTINGS_GROUP, 'checkout_tabs_wp_ml_ui_text', [
+		'type'              => 'string',
+		'sanitize_callback' => 'sanitize_hex_color',
+		'default'           => '#111111',
+	]);
 });

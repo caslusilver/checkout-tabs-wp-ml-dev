@@ -1,0 +1,147 @@
+:root {
+  --ctwpml-ui-primary: #0075ff;
+  --ctwpml-ui-login_bg: #f5f5f5;
+  --ctwpml-ui-text: #111111;
+}
+
+.ctwpml-login-popup {
+  position: relative;
+  width: 100%;
+  padding: 20px;
+  border-radius: 10px;
+  background-color: #fff;
+  box-sizing: border-box;
+  max-width: 440px;
+  margin: 20px auto;
+  color: var(--ctwpml-ui-text);
+}
+
+.ctwpml-auth-tabs {
+  display: flex;
+  gap: 10px;
+  margin: 0 0 12px;
+}
+
+.ctwpml-auth-tab {
+  flex: 1;
+  padding: 10px;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  font-weight: 800;
+  cursor: pointer;
+  color: var(--ctwpml-ui-primary);
+}
+
+.ctwpml-auth-tab[data-tab='login'] {
+  color: var(--ctwpml-ui-text);
+}
+
+.ctwpml-auth-tab.is-active[data-tab='login'] {
+  background: var(--ctwpml-ui-login_bg);
+  color: var(--ctwpml-ui-text);
+}
+
+.ctwpml-auth-tab.is-active[data-tab='signup'] {
+  background: var(--ctwpml-ui-primary);
+  color: #fff;
+}
+
+.ctwpml-auth-title {
+  color: var(--ctwpml-ui-text);
+  margin: 0 0 12px;
+}
+
+.ctwpml-auth-subtitle {
+  color: var(--ctwpml-ui-text);
+  font-family: Arial, sans-serif;
+  text-align: center;
+  margin: 0 0 18px;
+}
+
+.ctwpml-auth-divider {
+  display: flex;
+  align-items: center;
+  margin: 16px 0;
+}
+
+.ctwpml-auth-divider-line {
+  flex: 1;
+  height: 2px;
+  background-color: var(--ctwpml-ui-text);
+  opacity: 0.6;
+}
+
+.ctwpml-auth-divider-text {
+  margin: 0 10px;
+  color: var(--ctwpml-ui-text);
+  font-weight: 800;
+}
+
+.ctwpml-auth-form {
+  width: 100%;
+  max-width: 400px;
+  margin: 0 auto;
+}
+
+.ctwpml-auth-form label {
+  color: var(--ctwpml-ui-text);
+  display: block;
+  margin-bottom: 6px;
+  font-weight: 700;
+}
+
+.ctwpml-auth-form input {
+  display: block;
+  width: 100%;
+  margin-bottom: 10px;
+  padding: 10px;
+  border-radius: 3px;
+  border: 1px solid #979797;
+  color: var(--ctwpml-ui-text);
+}
+
+.ctwpml-auth-cpf-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.ctwpml-auth-link {
+  color: var(--ctwpml-ui-primary);
+  text-decoration: none;
+  font-weight: 800;
+}
+
+.ctwpml-auth-hint {
+  color: var(--ctwpml-ui-text);
+  font-size: 12px;
+  line-height: 1.35;
+  margin: -4px 0 12px;
+}
+
+.ctwpml-auth-submit {
+  background-color: var(--ctwpml-ui-primary);
+  color: #fff;
+  border: 0;
+  cursor: pointer;
+  display: block;
+  width: 100%;
+  margin-top: 10px;
+  padding: 10px;
+  border-radius: 3px;
+  font-weight: 800;
+}
+
+.ctwpml-auth-submit[disabled] {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.ctwpml-auth-msg {
+  margin-top: 10px;
+  font-weight: 800;
+}
+
+
