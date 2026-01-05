@@ -47,6 +47,11 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 - Docs: adicionado arquivo `REFERENCIA-ESTADO-ATUAL-E-ROLLBACK-GIT-UPDATER.md` para registrar o estado que funcionou, evidências e próximos passos de depuração do CEP.
 - Debug (front): correção para o painel "Ver Logs" aparecer corretamente quando o toggle de Debug estiver ativo (normalização do `cc_params.debug` e detecção robusta no JS).
 
+## [v3.1.24] - 2026-01-05
+
+### Changed
+- Preparação para destravar o fluxo do CEP (não avança após consulta) com instrumentação/diagnóstico adicional; manter compatibilidade e UX atuais (painel admin, abas sem reload e botões Avançar/Voltar visíveis em mobile/desktop).
+
 ## [Unreleased]
 
 ## Notas de Publicação (ainda não executadas)
