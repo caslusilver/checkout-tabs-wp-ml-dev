@@ -23,13 +23,17 @@
 
       $('body').append(
         '' +
-          '<div id="debug-panel-button">Ver Logs</div>' +
-          '<div id="debug-panel">' +
-          '  <button id="debug-panel-close">×</button>' +
-          '  <h3>Logs de Debug</h3>' +
-          '  <button id="copy-logs" style="margin-bottom: 10px;">Copiar Logs</button>' +
-          '  <button id="clear-logs" style="margin-bottom: 10px; margin-left: 10px;">Limpar</button>' +
-          '  <pre id="debug-log-content"></pre>' +
+          '<div id="debug-panel-button" style="position:fixed;right:12px;bottom:12px;z-index:999999;background:#111;color:#fff;border-radius:999px;padding:10px 14px;font-weight:800;cursor:pointer;border:1px solid rgba(255,255,255,0.12);box-shadow:0 10px 30px rgba(0,0,0,0.35);">Ver Logs</div>' +
+          '<div id="debug-panel" style="position:fixed;right:12px;bottom:58px;z-index:999999;width:min(720px,calc(100vw - 24px));max-width:720px;height:min(520px,calc(100vh - 90px));background:#111;color:#fff;border-radius:12px;padding:12px;border:1px solid rgba(255,255,255,0.12);box-shadow:0 10px 30px rgba(0,0,0,0.35);display:none;overflow:hidden;">' +
+          '  <div style="display:flex;justify-content:space-between;gap:10px;align-items:center;margin-bottom:10px;">' +
+          '    <div style="font-weight:800;">CTWPML Debug</div>' +
+          '    <div style="display:flex;gap:8px;align-items:center;">' +
+          '      <button type="button" id="copy-logs" style="border:0;border-radius:999px;padding:6px 10px;font-weight:700;cursor:pointer;">Copiar</button>' +
+          '      <button type="button" id="clear-logs" style="border:0;border-radius:999px;padding:6px 10px;font-weight:700;cursor:pointer;">Limpar</button>' +
+          '      <button type="button" id="debug-panel-close" style="border:0;border-radius:999px;padding:6px 10px;font-weight:700;cursor:pointer;">Fechar</button>' +
+          '    </div>' +
+          '  </div>' +
+          '  <textarea id="debug-log-content" readonly style="width:100%;height:calc(100% - 48px);background:#0b0b0b;color:#d1d5db;border:1px solid rgba(255,255,255,0.12);border-radius:10px;padding:10px;box-sizing:border-box;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,\\\"Liberation Mono\\\",\\\"Courier New\\\",monospace;font-size:12px;line-height:1.35;resize:none;"></textarea>' +
           '</div>'
       );
 
@@ -42,7 +46,7 @@
       });
 
       $('#copy-logs').on('click', function () {
-        var logContent = $('#debug-log-content').text();
+        var logContent = $('#debug-log-content').val() || '';
         if (navigator.clipboard && navigator.clipboard.writeText) {
           navigator.clipboard.writeText(logContent).then(function () {
             alert('Logs copiados para a área de transferência!');
@@ -51,7 +55,7 @@
       });
 
       $('#clear-logs').on('click', function () {
-        $('#debug-log-content').empty();
+        $('#debug-log-content').val('');
         if (window.console && console.clear) console.clear();
       });
     }
@@ -117,21 +121,47 @@
       if (data) console.log(data);
 
       if ($('#debug-log-content').length) {
-        var logItem = document.createElement('div');
-        logItem.textContent = logMessage;
-
+        var ta = $('#debug-log-content');
+        var line = logMessage;
         if (data) {
-          var pre = document.createElement('pre');
-          pre.textContent = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
-          pre.style.marginLeft = '20px';
-          pre.style.color = '#0066cc';
-          logItem.appendChild(pre);
+          try {
+            line += '\n' + (typeof data === 'string' ? data : JSON.stringify(data, null, 2));
+          } catch (e) {
+            line += '\n' + String(data);
+          }
         }
-
-        $('#debug-log-content').append(logItem);
-        $('#debug-log-content').scrollTop($('#debug-log-content')[0].scrollHeight);
+        var cur = ta.val() || '';
+        ta.val(cur ? cur + '\n' + line : line);
+        ta.scrollTop(ta[0].scrollHeight);
       }
     };
+
+    // Inicializa UI imediatamente para garantir visibilidade mesmo se outros scripts quebrarem depois.
+    if (debugMode) {
+      ensureDebugPanel();
+
+      if (!window.__CTWPML_DEBUG_CAPTURED) {
+        window.__CTWPML_DEBUG_CAPTURED = true;
+        window.addEventListener('error', function (e) {
+          try {
+            state.log(
+              'ERROR     window.error: ' + (e && e.message ? e.message : 'unknown'),
+              { filename: e && e.filename, lineno: e && e.lineno, colno: e && e.colno },
+              'ERROR'
+            );
+          } catch (_) {}
+        });
+        window.addEventListener('unhandledrejection', function (e) {
+          try {
+            state.log(
+              'ERROR     unhandledrejection',
+              { reason: e && e.reason ? (e.reason.message || e.reason) : 'unknown' },
+              'ERROR'
+            );
+          } catch (_) {}
+        });
+      }
+    }
   };
 })(window);
 

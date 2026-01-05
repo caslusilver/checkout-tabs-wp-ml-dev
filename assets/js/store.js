@@ -141,6 +141,7 @@
               resolve(true);
             } else {
               var msg = (responseData && responseData.message) || 'Erro desconhecido ao salvar dados do frete.';
+              state.log('ERROR     store_webhook_shipping retornou success=false', response, 'ERROR');
               $('.cep-erro').show().text('Erro ao salvar dados do frete: ' + msg);
               resolve(false);
             }

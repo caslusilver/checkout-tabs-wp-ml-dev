@@ -65,6 +65,21 @@
       $('#ctwpml-address-modal-overlay').css('display', 'flex');
     }
 
+    function openLoginPopup() {
+      // Usa Fancybox existente no site (sem duplicar libs).
+      if (isLoggedIn()) return;
+      if (!($.fancybox && typeof $.fancybox.open === 'function')) return;
+      if (!$('#login-popup').length) return;
+      $.fancybox.open({
+        src: '#login-popup',
+        type: 'inline',
+        touch: false,
+        smallBtn: false,
+        toolbar: false,
+        buttons: [],
+      });
+    }
+
     function closeModal() {
       $('#ctwpml-address-modal-overlay').hide();
     }
@@ -183,6 +198,18 @@
       ensureEntryPointButton();
       if ($('#ctwpml-open-address-modal').length || tries > 20) clearInterval(t);
     }, 500);
+
+    // NOVO: iniciar fluxo automaticamente ao entrar no /checkout.
+    // - logado: abre modal ML
+    // - deslogado: abre popup de login (Fancybox)
+    setTimeout(function () {
+      try {
+        if (isLoggedIn()) openModal();
+        else openLoginPopup();
+      } catch (e) {
+        // ignora
+      }
+    }, 800);
   };
 })(window);
 
