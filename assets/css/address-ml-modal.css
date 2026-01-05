@@ -285,11 +285,33 @@
 .ctwpml-form-group textarea {
   width: 100%;
   border: 1px solid var(--ctwpml-input-border);
-  border-radius: 6px;
+  border-radius: 3px;
   padding: 12px;
   font-size: 15px;
   outline: none;
   background: #fff;
+}
+
+.ctwpml-form-group.is-error input,
+.ctwpml-form-group.is-error textarea {
+  border-color: #dc2626 !important;
+}
+
+.ctwpml-form-group.is-error input:focus,
+.ctwpml-form-group.is-error textarea:focus {
+  box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.18);
+}
+
+.ctwpml-type-option.is-error {
+  color: #dc2626 !important;
+}
+
+.ctwpml-inline-hint {
+  margin-top: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #b45309 !important;
+  line-height: 1.35;
 }
 
 .ctwpml-link-right {

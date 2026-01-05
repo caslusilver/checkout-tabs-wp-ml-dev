@@ -89,6 +89,15 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
 #### Protocol: 2df16d5
 
+## [v3.1.31] - 2026-01-05
+
+### Changed
+- Modal ML: consulta de CEP também no `blur` (OK/Next no mobile), prevenção de reconsulta repetida por CEP, validação com campos em vermelho + aviso quando Rua/Avenida não vier da API, e `border-radius: 3px` nos inputs.
+- Popup (deslogado): nova aba “Criar conta” (nome/e-mail/CPF) com opção configurável “Gerar CPF fictício” (CPF matematicamente válido + aviso de definitividade) e cadastro via AJAX.
+- CPF: agora é definitivo no perfil (`billing_cpf`) com bloqueio de alteração (front + server-side), exceto administradores.
+
+#### Protocol: 9dc7a72
+
 ## [Unreleased]
 
 ## Notas de Publicação (ainda não executadas)

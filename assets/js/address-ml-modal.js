@@ -9,6 +9,8 @@
     var lastCepOnly = '';
     var isClearingCep = false;
     var lastBillingCepOnly = '';
+    var cepConsultedFor = '';
+    var cepConsultInFlight = false;
     var selectedAddressId = null;
     var addressesCache = [];
     var isSavingAddress = false;
@@ -71,7 +73,11 @@
           '            </div>' +
           '          </div>' +
           '        </div>' +
-          '        <div class="ctwpml-form-group"><label for="ctwpml-input-rua">Rua / Avenida</label><input id="ctwpml-input-rua" type="text" placeholder="Ex.: Avenida..." /></div>' +
+          '        <div class="ctwpml-form-group" id="ctwpml-group-rua">' +
+          '          <label for="ctwpml-input-rua">Rua / Avenida</label>' +
+          '          <input id="ctwpml-input-rua" type="text" placeholder="Ex.: Avenida..." />' +
+          '          <div class="ctwpml-inline-hint" id="ctwpml-rua-hint" style="display:none;"></div>' +
+          '        </div>' +
           '        <div class="ctwpml-form-group"><label for="ctwpml-input-numero">Número</label><input id="ctwpml-input-numero" type="text" placeholder="Ex.: 123" /></div>' +
           '        <div class="ctwpml-form-group"><label for="ctwpml-input-comp">Complemento (opcional)</label><input id="ctwpml-input-comp" type="text" placeholder="Ex.: Apto 201" /></div>' +
           '        <div class="ctwpml-form-group"><label for="ctwpml-input-info">Informações adicionais (opcional)</label><textarea id="ctwpml-input-info" rows="3" placeholder="Ex.: Entre ruas..."></textarea></div>' +
@@ -88,7 +94,7 @@
           '          <div class="ctwpml-contact-title">Dados de contato</div>' +
           '          <div class="ctwpml-contact-subtitle">Se houver algum problema no envio, você receberá uma ligação neste número.</div>' +
           '          <div class="ctwpml-form-group"><label for="ctwpml-input-nome">Nome completo</label><input id="ctwpml-input-nome" type="text" /></div>' +
-          '          <div class="ctwpml-form-group"><label for="ctwpml-input-fone">Telefone de contato</label><input id="ctwpml-input-fone" type="text" /></div>' +
+          '          <div class="ctwpml-form-group"><label for="ctwpml-input-fone">Seu WhatsApp</label><input id="ctwpml-input-fone" type="text" /></div>' +
           '          <a href="#" class="ctwpml-delete-link" id="ctwpml-delete-address" style="display:none;">Excluir endereço</a>' +
           '        </div>' +
           '      </div>' +
@@ -158,6 +164,9 @@
       $('#ctwpml-btn-secondary').text('Voltar');
       selectedAddressId = null;
       $('#ctwpml-delete-address').hide();
+      lastCepOnly = '';
+      cepConsultedFor = '';
+      cepConsultInFlight = false;
       // Limpa campos, mas mantém nome/telefone (facilita UX no checkout).
       $('#ctwpml-input-cep').val('');
       $('#ctwpml-input-rua').val('');
@@ -165,6 +174,8 @@
       $('#ctwpml-input-comp').val('');
       $('#ctwpml-input-info').val('');
       setCepConfirmVisible(false);
+      setRuaHint('', false);
+      clearFormErrors();
       setTypeSelection('');
       var first = ($('#billing_first_name').val() || '').trim();
       var last = ($('#billing_last_name').val() || '').trim();
@@ -187,12 +198,17 @@
       $('#ctwpml-delete-address').show();
 
       $('#ctwpml-input-cep').val(formatCep(item.cep || ''));
+      lastCepOnly = cepDigits(item.cep || '');
+      cepConsultedFor = lastCepOnly;
+      cepConsultInFlight = false;
       $('#ctwpml-input-rua').val(String(item.address_1 || ''));
       $('#ctwpml-input-numero').val(String(item.number || ''));
       $('#ctwpml-input-comp').val(String(item.complement || ''));
       $('#ctwpml-input-info').val(String(item.extra_info || ''));
       setCepConfirm(String(item.city || ''), String(item.state || ''), String(item.neighborhood || ''));
       setTypeSelection(String(item.label || ''));
+      setRuaHint('', false);
+      clearFormErrors();
 
       // Nome/telefone continuam vindo do checkout.
       var first = ($('#billing_first_name').val() || '').trim();
@@ -207,6 +223,75 @@
       $('#ctwpml-type-work').removeClass('is-active');
       if (label === 'casa') $('#ctwpml-type-home').addClass('is-active');
       if (label === 'trabalho') $('#ctwpml-type-work').addClass('is-active');
+    }
+
+    function setRuaHint(message, visible) {
+      var $hint = $('#ctwpml-rua-hint');
+      if (!$hint.length) return;
+      if (!visible) {
+        $hint.hide().text('');
+        return;
+      }
+      $hint.text(String(message || '')).show();
+    }
+
+    function clearFormErrors() {
+      $('#ctwpml-view-form .ctwpml-form-group').removeClass('is-error');
+      $('#ctwpml-view-form .ctwpml-type-option').removeClass('is-error');
+    }
+
+    function setFieldError(selectorOrGroupId, isError) {
+      var $el = $(selectorOrGroupId);
+      if (!$el.length) return;
+      if (isError) $el.addClass('is-error');
+      else $el.removeClass('is-error');
+    }
+
+    function validateForm() {
+      clearFormErrors();
+      var ok = true;
+
+      var cepOnly = cepDigits($('#ctwpml-input-cep').val());
+      if (cepOnly.length !== 8) {
+        setFieldError('#ctwpml-input-cep', true);
+        ok = false;
+      }
+
+      var rua = ($('#ctwpml-input-rua').val() || '').trim();
+      if (!rua) {
+        setFieldError('#ctwpml-group-rua', true);
+        setRuaHint('Não encontramos Rua/Avenida automaticamente. Preencha manualmente com atenção.', true);
+        ok = false;
+      }
+
+      // Campos obrigatórios server-side vêm do checkout (bairro/cidade/UF). Se estiverem vazios,
+      // forçamos o usuário a revisar o CEP/consulta.
+      var city = ($('#billing_city').val() || '').trim();
+      var st = ($('#billing_state').val() || '').trim();
+      if (!city || !st) {
+        setFieldError('#ctwpml-input-cep', true);
+        ok = false;
+      }
+
+      var labelOk = $('#ctwpml-type-home').hasClass('is-active') || $('#ctwpml-type-work').hasClass('is-active');
+      if (!labelOk) {
+        $('#ctwpml-type-home, #ctwpml-type-work').addClass('is-error');
+        ok = false;
+      }
+
+      var name = ($('#ctwpml-input-nome').val() || '').trim();
+      if (!name) {
+        setFieldError('#ctwpml-input-nome', true);
+        ok = false;
+      }
+
+      var phone = phoneDigits($('#ctwpml-input-fone').val());
+      if (phone.length < 10) {
+        setFieldError('#ctwpml-input-fone', true);
+        ok = false;
+      }
+
+      return ok;
     }
 
     function getAddressById(id) {
@@ -500,7 +585,12 @@
       if (!dados) return;
 
       // Preenche inputs do modal.
-      if (dados.logradouro) $('#ctwpml-input-rua').val(String(dados.logradouro));
+      if (dados.logradouro) {
+        $('#ctwpml-input-rua').val(String(dados.logradouro));
+        setRuaHint('', false);
+      } else {
+        setRuaHint('Não encontramos Rua/Avenida automaticamente. Preencha manualmente com atenção.', true);
+      }
       if (dados.numero) $('#ctwpml-input-numero').val(String(dados.numero));
       if (dados.complemento) $('#ctwpml-input-comp').val(String(dados.complemento));
 
@@ -525,6 +615,8 @@
     function consultCepAndFillForm() {
       var cepOnlyDigits = cepDigits($('#ctwpml-input-cep').val());
       if (cepOnlyDigits.length !== 8) return;
+      if (cepConsultInFlight) return;
+      if (cepConsultedFor && cepConsultedFor === cepOnlyDigits) return;
 
       // Preenche o checkout antes para manter consistência de estado.
       $('#billing_postcode').val(cepOnlyDigits).trigger('change');
@@ -543,6 +635,7 @@
       if (typeof state.log === 'function') state.log('WEBHOOK_OUT (ML) Consultando CEP para preencher formulário...', payload, 'WEBHOOK_OUT');
 
       // Chama o mesmo webhook do plugin, sem armazenar no servidor ainda.
+      cepConsultInFlight = true;
       $.ajax({
         url: state.params.webhook_url,
         type: 'POST',
@@ -553,11 +646,14 @@
         xhrFields: { withCredentials: false },
         data: JSON.stringify(payload),
         success: function (data) {
+          cepConsultInFlight = false;
+          cepConsultedFor = cepOnlyDigits;
           if (typeof state.log === 'function') state.log('WEBHOOK_IN (ML) Resposta recebida.', data, 'WEBHOOK_IN');
           fillFormFromApiData(data);
           persistAddressPayload(data);
         },
         error: function (jqXHR, textStatus, errorThrown) {
+          cepConsultInFlight = false;
           if (typeof state.log === 'function')
             state.log(
               'WEBHOOK_IN (ML) Erro na consulta do CEP (' + textStatus + ').',
@@ -640,6 +736,8 @@
         $('#billing_city').val('').trigger('change');
         $('#billing_state').val('').trigger('change');
         $('#billing_complemento').val('').trigger('change');
+        cepConsultedFor = '';
+        cepConsultInFlight = false;
       } finally {
         isClearingCep = false;
       }
@@ -672,9 +770,15 @@
     function prefillFormFromCheckout() {
       var cepVal = formatCep($('#billing_postcode').val());
       $('#ctwpml-input-cep').val(cepVal);
+      lastCepOnly = cepDigits(cepVal);
+      lastBillingCepOnly = lastCepOnly;
+      cepConsultedFor = lastCepOnly;
+      cepConsultInFlight = false;
       $('#ctwpml-input-rua').val((($('#billing_address_1').val() || '') || '').trim());
       $('#ctwpml-input-numero').val((($('#billing_number').val() || '') || '').trim());
       $('#ctwpml-input-comp').val((($('#billing_complemento').val() || '') || '').trim());
+      setRuaHint('', false);
+      clearFormErrors();
 
       var first = ($('#billing_first_name').val() || '').trim();
       var last = ($('#billing_last_name').val() || '').trim();
@@ -781,6 +885,9 @@
     });
     $(document).on('click', '#ctwpml-btn-primary', function () {
       if ($('#ctwpml-view-form').is(':visible')) {
+        if (!validateForm()) {
+          return;
+        }
         applyFormToCheckout();
         saveAddressFromForm(function (res) {
           if (!res || !res.ok) {
@@ -830,6 +937,17 @@
       cepDebounceTimer = setTimeout(function () {
         consultCepAndFillForm();
       }, 250);
+    });
+
+    // Mobile: ao sair do campo (OK/Next no teclado), dispara consulta se CEP tiver 8 dígitos.
+    $(document).on('blur', '#ctwpml-input-cep', function () {
+      consultCepAndFillForm();
+    });
+
+    // Ao editar qualquer campo, remove estado de erro para feedback imediato.
+    $(document).on('input change', '#ctwpml-view-form input, #ctwpml-view-form textarea', function () {
+      $(this).closest('.ctwpml-form-group').removeClass('is-error');
+      if ($(this).is('#ctwpml-input-rua')) setRuaHint('', false);
     });
 
     // Se o usuário alterar o CEP direto no checkout (fora do modal), limpamos os campos também.

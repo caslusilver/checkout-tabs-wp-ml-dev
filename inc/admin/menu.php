@@ -55,6 +55,7 @@ function checkout_tabs_wp_ml_render_admin_page(): void {
 
 	$webhook_value = esc_url((string) get_option('checkout_tabs_wp_ml_webhook_url', checkout_tabs_wp_ml_get_webhook_url()));
 	$debug_enabled = ((int) get_option('checkout_tabs_wp_ml_debug', 0) === 1);
+	$allow_fake_cpf = ((int) get_option('checkout_tabs_wp_ml_allow_fake_cpf', 0) === 1);
 
 	echo '<div class="wrap">';
 	echo '<h1>Checkout Tabs ML</h1>';
@@ -88,6 +89,16 @@ function checkout_tabs_wp_ml_render_admin_page(): void {
 			$webhook_value .
 			'" placeholder="https://..." />';
 		echo '<p class="description">Endpoint externo para consulta de CEP/frete.</p>';
+		echo '</td>';
+		echo '</tr>';
+		echo '<tr>';
+		echo '<th scope="row">Permitir CPF fictício</th>';
+		echo '<td>';
+		echo '<label>';
+		echo '<input type="checkbox" name="checkout_tabs_wp_ml_allow_fake_cpf" value="1" ' . ($allow_fake_cpf ? 'checked' : '') . ' />';
+		echo ' Exibir opção “Gerar CPF fictício” no popup de cadastro (checkout)';
+		echo '</label>';
+		echo '<p class="description">Use para reduzir objeção de privacidade. O CPF será matematicamente válido e definitivo no perfil.</p>';
 		echo '</td>';
 		echo '</tr>';
 		echo '</table>';

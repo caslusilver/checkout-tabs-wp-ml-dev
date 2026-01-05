@@ -33,6 +33,15 @@ function checkout_tabs_wp_ml_is_debug_enabled(): bool {
 	return $enabled;
 }
 
+function checkout_tabs_wp_ml_allow_fake_cpf(): bool {
+	$enabled = (int) checkout_tabs_wp_ml_get_option('allow_fake_cpf', 0) === 1;
+	/**
+	 * Permite sobrescrever por ambiente (dev/test/prod) sem alterar wp_options.
+	 */
+	$enabled = (bool) apply_filters('checkout_tabs_wp_ml_allow_fake_cpf', $enabled);
+	return $enabled;
+}
+
 add_action('admin_init', function () {
 	register_setting(CHECKOUT_TABS_WP_ML_SETTINGS_GROUP, 'checkout_tabs_wp_ml_webhook_url', [
 		'type'              => 'string',
@@ -41,6 +50,14 @@ add_action('admin_init', function () {
 	]);
 
 	register_setting(CHECKOUT_TABS_WP_ML_SETTINGS_GROUP, 'checkout_tabs_wp_ml_debug', [
+		'type'              => 'integer',
+		'sanitize_callback' => static function ($value) {
+			return !empty($value) ? 1 : 0;
+		},
+		'default'           => 0,
+	]);
+
+	register_setting(CHECKOUT_TABS_WP_ML_SETTINGS_GROUP, 'checkout_tabs_wp_ml_allow_fake_cpf', [
 		'type'              => 'integer',
 		'sanitize_callback' => static function ($value) {
 			return !empty($value) ? 1 : 0;

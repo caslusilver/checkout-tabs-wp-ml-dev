@@ -113,9 +113,16 @@ add_action('wp_enqueue_scripts', function () {
 		true
 	);
 	wp_enqueue_script(
+		'checkout-tabs-wp-ml-login-signup',
+		CHECKOUT_TABS_WP_ML_URL . 'assets/js/login-signup.js',
+		['jquery'],
+		$version,
+		true
+	);
+	wp_enqueue_script(
 		'checkout-tabs-wp-ml-main',
 		CHECKOUT_TABS_WP_ML_URL . 'assets/js/checkout-tabs.js',
-		['checkout-tabs-wp-ml-address-ml-modal'],
+		['checkout-tabs-wp-ml-address-ml-modal', 'checkout-tabs-wp-ml-login-signup'],
 		$version,
 		true
 	);
@@ -128,6 +135,8 @@ add_action('wp_enqueue_scripts', function () {
 		'nonce'      => wp_create_nonce('store_webhook_shipping'),
 		'addresses_nonce' => wp_create_nonce('ctwpml_addresses'),
 		'address_payload_nonce' => wp_create_nonce('ctwpml_address_payload'),
+		'allow_fake_cpf' => checkout_tabs_wp_ml_allow_fake_cpf() ? 1 : 0,
+		'signup_nonce' => wp_create_nonce('ctwpml_signup'),
 		'webhook_url'=> checkout_tabs_wp_ml_get_webhook_url(),
 	]);
 });
