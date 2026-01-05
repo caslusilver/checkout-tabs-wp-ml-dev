@@ -68,6 +68,13 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 - Ajustes nas telas ML: correção de contraste (textos escuros como no layout original), adição do link "Editar endereço" na tela 1, e auto-preenchimento do formulário ao digitar CEP (consulta webhook e aplica campos no modal + `billing_*`).
 - Debug visual: adicionada opção de override para exibir painel via `?ctwpml_debug=1` ou `localStorage.ctwpml_debug=1`, mesmo quando `cc_params` não for injetado (ajuda a diagnosticar conflitos de scripts/cache).
 
+## [v3.1.28] - 2026-01-05
+
+### Changed
+- Próximo release para consolidar o novo fluxo ML no checkout (login obrigatório + endereços), e continuar a depuração do CEP com base nos logs do painel (sem regressão do painel admin, debug visual e “Atualizar Cache”).
+
+#### Protocol: e7bf9b7
+
 ## [Unreleased]
 
 ## Notas de Publicação (ainda não executadas)
