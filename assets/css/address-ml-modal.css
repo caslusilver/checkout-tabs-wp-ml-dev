@@ -123,7 +123,7 @@
 }
 
 .ctwpml-address h3 {
-  font-size: 16px;
+  font-size: 17px;
   font-weight: 700;
   margin: 0 0 6px;
   color: #333 !important;
@@ -131,7 +131,7 @@
 
 .ctwpml-address p {
   margin: 0;
-  font-size: 13px;
+  font-size: 14px;
   color: var(--ctwpml-ml-text-gray) !important;
   line-height: 1.4;
 }
@@ -186,12 +186,76 @@
 .ctwpml-btn {
   width: 100%;
   border: 0;
-  border-radius: 8px;
+  border-radius: 3px;
   padding: 14px;
   font-weight: 700;
   font-size: 15px;
   cursor: pointer;
   opacity: 1 !important;
+}
+
+.ctwpml-btn[disabled] {
+  opacity: 0.55 !important;
+  cursor: default;
+}
+
+.ctwpml-type-label {
+  margin: 10px 0 14px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #333 !important;
+}
+
+.ctwpml-type-option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  user-select: none;
+  color: #333 !important;
+}
+
+.ctwpml-type-radio {
+  width: 20px;
+  height: 20px;
+  border: 2px solid #cfcfcf;
+  border-radius: 50%;
+  box-sizing: border-box;
+  background: transparent;
+  flex: 0 0 auto;
+}
+
+.ctwpml-type-option.is-active .ctwpml-type-radio {
+  border: 6px solid var(--ctwpml-ml-blue);
+}
+
+.ctwpml-contact-section {
+  border-top: 1px solid #eee;
+  padding-top: 16px;
+  margin-top: 18px;
+}
+
+.ctwpml-contact-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #333 !important;
+  margin-bottom: 4px;
+}
+
+.ctwpml-contact-subtitle {
+  font-size: 13px;
+  color: var(--ctwpml-ml-text-gray) !important;
+  margin-bottom: 16px;
+}
+
+.ctwpml-delete-link {
+  display: inline-block;
+  margin-top: 6px;
+  color: #b42318 !important;
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 600;
 }
 
 .ctwpml-btn-primary {

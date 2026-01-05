@@ -11,6 +11,7 @@
     var lastBillingCepOnly = '';
     var selectedAddressId = null;
     var addressesCache = [];
+    var isSavingAddress = false;
 
     function cepDigits(value) {
       return String(value || '').replace(/\D/g, '').slice(0, 8);
@@ -74,8 +75,22 @@
           '        <div class="ctwpml-form-group"><label for="ctwpml-input-numero">Número</label><input id="ctwpml-input-numero" type="text" placeholder="Ex.: 123" /></div>' +
           '        <div class="ctwpml-form-group"><label for="ctwpml-input-comp">Complemento (opcional)</label><input id="ctwpml-input-comp" type="text" placeholder="Ex.: Apto 201" /></div>' +
           '        <div class="ctwpml-form-group"><label for="ctwpml-input-info">Informações adicionais (opcional)</label><textarea id="ctwpml-input-info" rows="3" placeholder="Ex.: Entre ruas..."></textarea></div>' +
-          '        <div class="ctwpml-form-group"><label for="ctwpml-input-nome">Nome completo</label><input id="ctwpml-input-nome" type="text" /></div>' +
-          '        <div class="ctwpml-form-group"><label for="ctwpml-input-fone">Telefone de contato</label><input id="ctwpml-input-fone" type="text" /></div>' +
+          '        <div class="ctwpml-type-label">Este é o seu trabalho ou sua casa?</div>' +
+          '        <div class="ctwpml-type-option" id="ctwpml-type-home" role="button" tabindex="0">' +
+          '          <div class="ctwpml-type-radio"></div>' +
+          '          <span>🏠 Casa</span>' +
+          '        </div>' +
+          '        <div class="ctwpml-type-option" id="ctwpml-type-work" role="button" tabindex="0">' +
+          '          <div class="ctwpml-type-radio"></div>' +
+          '          <span>💼 Trabalho</span>' +
+          '        </div>' +
+          '        <div class="ctwpml-contact-section">' +
+          '          <div class="ctwpml-contact-title">Dados de contato</div>' +
+          '          <div class="ctwpml-contact-subtitle">Se houver algum problema no envio, você receberá uma ligação neste número.</div>' +
+          '          <div class="ctwpml-form-group"><label for="ctwpml-input-nome">Nome completo</label><input id="ctwpml-input-nome" type="text" /></div>' +
+          '          <div class="ctwpml-form-group"><label for="ctwpml-input-fone">Telefone de contato</label><input id="ctwpml-input-fone" type="text" /></div>' +
+          '          <a href="#" class="ctwpml-delete-link" id="ctwpml-delete-address" style="display:none;">Excluir endereço</a>' +
+          '        </div>' +
           '      </div>' +
           '    </div>' +
           '    <div class="ctwpml-footer">' +
@@ -142,6 +157,7 @@
       $('#ctwpml-btn-primary').text('Salvar');
       $('#ctwpml-btn-secondary').text('Voltar');
       selectedAddressId = null;
+      $('#ctwpml-delete-address').hide();
       // Limpa campos, mas mantém nome/telefone (facilita UX no checkout).
       $('#ctwpml-input-cep').val('');
       $('#ctwpml-input-rua').val('');
@@ -149,6 +165,7 @@
       $('#ctwpml-input-comp').val('');
       $('#ctwpml-input-info').val('');
       setCepConfirmVisible(false);
+      setTypeSelection('');
       var first = ($('#billing_first_name').val() || '').trim();
       var last = ($('#billing_last_name').val() || '').trim();
       $('#ctwpml-input-nome').val((first + ' ' + last).trim());
@@ -167,6 +184,7 @@
       $('#ctwpml-view-form').show();
       $('#ctwpml-btn-primary').text('Salvar');
       $('#ctwpml-btn-secondary').text('Voltar');
+      $('#ctwpml-delete-address').show();
 
       $('#ctwpml-input-cep').val(formatCep(item.cep || ''));
       $('#ctwpml-input-rua').val(String(item.address_1 || ''));
@@ -174,12 +192,21 @@
       $('#ctwpml-input-comp').val(String(item.complement || ''));
       $('#ctwpml-input-info').val(String(item.extra_info || ''));
       setCepConfirm(String(item.city || ''), String(item.state || ''), String(item.neighborhood || ''));
+      setTypeSelection(String(item.label || ''));
 
       // Nome/telefone continuam vindo do checkout.
       var first = ($('#billing_first_name').val() || '').trim();
       var last = ($('#billing_last_name').val() || '').trim();
-      $('#ctwpml-input-nome').val((first + ' ' + last).trim());
+      $('#ctwpml-input-nome').val(String(item.receiver_name || (first + ' ' + last)).trim());
       $('#ctwpml-input-fone').val(formatPhone((($('#billing_cellphone').val() || '') || '').trim()));
+    }
+
+    function setTypeSelection(label) {
+      label = String(label || '').toLowerCase();
+      $('#ctwpml-type-home').removeClass('is-active');
+      $('#ctwpml-type-work').removeClass('is-active');
+      if (label === 'casa') $('#ctwpml-type-home').addClass('is-active');
+      if (label === 'trabalho') $('#ctwpml-type-work').addClass('is-active');
     }
 
     function getAddressById(id) {
@@ -195,58 +222,112 @@
       renderAddressList();
     }
 
+    function normalizeStringForKey(s) {
+      return String(s || '')
+        .toLowerCase()
+        .trim()
+        .replace(/\s+/g, ' ')
+        .replace(/[^\w\s-]/g, '');
+    }
+
+    function addressFingerprint(it) {
+      if (!it) return '';
+      return [
+        normalizeStringForKey(it.label),
+        normalizeStringForKey(it.cep),
+        normalizeStringForKey(it.address_1),
+        normalizeStringForKey(it.number),
+        normalizeStringForKey(it.complement),
+        normalizeStringForKey(it.neighborhood),
+        normalizeStringForKey(it.city),
+        normalizeStringForKey(it.state),
+      ].join('|');
+    }
+
+    function dedupeAddresses(items) {
+      if (!Array.isArray(items)) return [];
+      var out = [];
+      var seen = {};
+      for (var i = 0; i < items.length; i++) {
+        var it = items[i] || {};
+        var fp = addressFingerprint(it);
+        if (!fp) {
+          out.push(it);
+          continue;
+        }
+        if (seen[fp]) continue;
+        seen[fp] = true;
+        out.push(it);
+      }
+      return out;
+    }
+
+    function formatFullAddressLine(it) {
+      it = it || {};
+      var label = (it.label || '').trim();
+      var number = (it.number || '').trim();
+      var prefix = '';
+      if (label) prefix = label + (number ? ' ' + number : '');
+      else if (number) prefix = number;
+
+      var location = [];
+      if (it.neighborhood) location.push(it.neighborhood);
+      if (it.city) location.push(it.city);
+      if (it.state) location.push(it.state);
+
+      var line = '';
+      if (prefix) line += prefix;
+      if (prefix && location.length) line += ' - ';
+      line += location.join(', ');
+      if (it.cep) line += (line ? ', ' : '') + 'CEP ' + formatCep(it.cep);
+      return line;
+    }
+
     function renderAddressList() {
       var $list = $('#ctwpml-address-list');
       if (!$list.length) return;
 
-      // Sempre inclui o endereço do checkout como opção.
-      var items = [];
-      items.push({
-        id: '__checkout__',
-        title: $('#ctwpml-addr-title').text() || 'Endereço do checkout',
-        line: $('#ctwpml-addr-line').text() || '',
-        name: $('#ctwpml-addr-name').text() || '',
-      });
-
-      for (var i = 0; i < addressesCache.length; i++) {
-        var it = addressesCache[i] || {};
-        var title = (it.address_1 || 'Endereço') + (it.number ? ' ' + it.number : '');
-        var line = [it.neighborhood, it.city, it.state, it.cep ? 'CEP ' + formatCep(it.cep) : ''].filter(Boolean).join(', ');
-        items.push({
-          id: it.id,
-          title: title,
-          line: line,
-          name: '',
-        });
+      var items = dedupeAddresses(addressesCache);
+      if (!items.length) {
+        // Se não houver endereços, vai direto pro formulário (como no fluxo oficial).
+        showFormForNewAddress();
+        return;
       }
 
-      if (!selectedAddressId) selectedAddressId = items.length ? items[0].id : '__checkout__';
+      if (!selectedAddressId) selectedAddressId = items[0].id;
 
       var html = '';
       for (var j = 0; j < items.length; j++) {
-        var row = items[j];
-        var selected = String(row.id) === String(selectedAddressId);
+        var it = items[j] || {};
+        var selected = String(it.id) === String(selectedAddressId);
+        var title = (it.address_1 || 'Endereço') + (it.number ? ' ' + it.number : '');
+        var line = formatFullAddressLine(it);
+        var receiverName = (it.receiver_name || '').trim();
+        if (!receiverName) {
+          // Compatibilidade com endereços antigos: usa o nome do checkout se existir.
+          receiverName = ($('#billing_first_name').val() || '').trim();
+          var ln = ($('#billing_last_name').val() || '').trim();
+          receiverName = (receiverName + ' ' + ln).trim();
+        }
         html +=
           '' +
           '<div class="ctwpml-card ' +
           (selected ? 'is-selected' : '') +
           '" data-address-id="' +
-          String(row.id) +
+          String(it.id) +
           '" style="cursor:pointer; margin-bottom: 12px;">' +
           '  <div class="ctwpml-radio-selected"></div>' +
           '  <div class="ctwpml-address">' +
           '    <h3>' +
-          escapeHtml(String(row.title || '')) +
+          escapeHtml(String(title || '')) +
           '</h3>' +
           '    <p>' +
-          escapeHtml(String(row.line || '')) +
+          escapeHtml(String(line || '')) +
           '</p>' +
-          (row.name ? '<p style="margin-top:6px;">' + escapeHtml(String(row.name)) + '</p>' : '') +
-          (row.id !== '__checkout__'
-            ? '    <a href="#" class="ctwpml-edit-link ctwpml-edit-saved-address" data-address-id="' +
-              String(row.id) +
-              '">Editar endereço</a>'
-            : '    <a href="#" class="ctwpml-edit-link" id="ctwpml-edit-address">Editar endereço</a>') +
+          (receiverName ? '<p style="margin-top:5px;">' + escapeHtml(String(receiverName)) + '</p>' : '') +
+          '    <a href="#" class="ctwpml-edit-link ctwpml-edit-saved-address" data-address-id="' +
+          String(it.id) +
+          '">Editar endereço</a>' +
           '  </div>' +
           '</div>';
       }
@@ -279,7 +360,7 @@
         },
         success: function (resp) {
           if (resp && resp.success && resp.data && Array.isArray(resp.data.items)) {
-            addressesCache = resp.data.items;
+            addressesCache = dedupeAddresses(resp.data.items);
           } else {
             addressesCache = [];
           }
@@ -298,11 +379,23 @@
         done({ ok: false, message: 'AJAX indisponível.' });
         return;
       }
+      if (isSavingAddress) {
+        done({ ok: false, message: 'Salvando... aguarde.' });
+        return;
+      }
+      isSavingAddress = true;
+      $('#ctwpml-btn-primary').prop('disabled', true);
 
       var cepOnly = cepDigits($('#ctwpml-input-cep').val());
+      var label = '';
+      if ($('#ctwpml-type-home').hasClass('is-active')) label = 'Casa';
+      if ($('#ctwpml-type-work').hasClass('is-active')) label = 'Trabalho';
+
+      var receiverName = ($('#ctwpml-input-nome').val() || '').trim();
       var address = {
-        id: selectedAddressId && selectedAddressId !== '__checkout__' ? selectedAddressId : '',
-        label: '',
+        id: selectedAddressId ? selectedAddressId : '',
+        label: label,
+        receiver_name: receiverName,
         cep: cepOnly,
         address_1: ($('#ctwpml-input-rua').val() || '').trim(),
         number: ($('#ctwpml-input-numero').val() || '').trim(),
@@ -323,8 +416,10 @@
           address: address,
         },
         success: function (resp) {
+          isSavingAddress = false;
+          $('#ctwpml-btn-primary').prop('disabled', false);
           if (resp && resp.success && resp.data) {
-            if (Array.isArray(resp.data.items)) addressesCache = resp.data.items;
+            if (Array.isArray(resp.data.items)) addressesCache = dedupeAddresses(resp.data.items);
             if (resp.data.item && resp.data.item.id) selectedAddressId = resp.data.item.id;
             done({ ok: true });
           } else {
@@ -332,7 +427,38 @@
           }
         },
         error: function () {
+          isSavingAddress = false;
+          $('#ctwpml-btn-primary').prop('disabled', false);
           done({ ok: false, message: 'Erro ao salvar endereço.' });
+        },
+      });
+    }
+
+    function deleteAddress(addressId, done) {
+      done = typeof done === 'function' ? done : function () {};
+      if (!state.params || !state.params.ajax_url || !state.params.addresses_nonce) {
+        done({ ok: false, message: 'AJAX indisponível.' });
+        return;
+      }
+      $.ajax({
+        url: state.params.ajax_url,
+        type: 'POST',
+        dataType: 'json',
+        data: {
+          action: 'ctwpml_delete_address',
+          _ajax_nonce: state.params.addresses_nonce,
+          id: String(addressId || ''),
+        },
+        success: function (resp) {
+          if (resp && resp.success && resp.data && Array.isArray(resp.data.items)) {
+            addressesCache = dedupeAddresses(resp.data.items);
+            done({ ok: true });
+          } else {
+            done({ ok: false, message: (resp && resp.data) || 'Erro ao excluir endereço.' });
+          }
+        },
+        error: function () {
+          done({ ok: false, message: 'Erro ao excluir endereço.' });
         },
       });
     }
@@ -615,6 +741,30 @@
       showFormForEditAddress(id);
     });
 
+    $(document).on('click', '#ctwpml-type-home', function (e) {
+      e.preventDefault();
+      setTypeSelection('Casa');
+    });
+    $(document).on('click', '#ctwpml-type-work', function (e) {
+      e.preventDefault();
+      setTypeSelection('Trabalho');
+    });
+
+    $(document).on('click', '#ctwpml-delete-address', function (e) {
+      e.preventDefault();
+      if (!selectedAddressId) return;
+      if (!window.confirm('Excluir este endereço?')) return;
+      deleteAddress(selectedAddressId, function (res) {
+        if (!res || !res.ok) {
+          alert((res && res.message) || 'Erro ao excluir endereço.');
+          return;
+        }
+        selectedAddressId = null;
+        showList();
+        renderAddressList();
+      });
+    });
+
     $(document).on('click', '#ctwpml-address-list .ctwpml-card', function (e) {
       // Se clicar no link, não trata como seleção aqui.
       if ($(e.target).closest('a').length) return;
@@ -642,7 +792,7 @@
         });
       } else {
         // Continuar: aplica o endereço selecionado (se for salvo) e segue o fluxo atual.
-        if (selectedAddressId && selectedAddressId !== '__checkout__') {
+        if (selectedAddressId) {
           var it = getAddressById(selectedAddressId);
           if (it) {
             $('#billing_postcode').val(String(it.cep || '')).trigger('change');

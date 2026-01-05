@@ -82,6 +82,13 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
 #### Protocol: 197cae6
 
+## [v3.1.30] - 2026-01-05
+
+### Changed
+- Modal ML: lista sem “Endereço do checkout”, card mostra endereço completo + nome de quem recebe, formulário com seleção Casa/Trabalho e seção “Dados de contato”, botão “Excluir endereço”, e deduplicação/idempotência (bloqueio de multi-clique + dedup no back-end).
+
+#### Protocol: 2df16d5
+
 ## [Unreleased]
 
 ## Notas de Publicação (ainda não executadas)

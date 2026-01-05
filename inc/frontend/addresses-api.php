@@ -47,6 +47,7 @@ function ctwpml_addresses_sanitize_item(array $in): array {
 	$item = [
 		'id'           => sanitize_text_field((string) ($in['id'] ?? '')),
 		'label'        => sanitize_text_field((string) ($in['label'] ?? '')),
+		'receiver_name' => sanitize_text_field((string) ($in['receiver_name'] ?? '')),
 		'cep'          => $cep_digits,
 		'address_1'    => sanitize_text_field((string) ($in['address_1'] ?? '')),
 		'number'       => sanitize_text_field((string) ($in['number'] ?? '')),
@@ -58,12 +59,33 @@ function ctwpml_addresses_sanitize_item(array $in): array {
 	];
 
 	// Truncar campos para evitar abusos.
-	foreach (['label', 'address_1', 'number', 'complement', 'neighborhood', 'city', 'state'] as $k) {
+	foreach (['label', 'receiver_name', 'address_1', 'number', 'complement', 'neighborhood', 'city', 'state'] as $k) {
 		$item[$k] = mb_substr($item[$k], 0, 120);
 	}
 	$item['extra_info'] = mb_substr($item['extra_info'], 0, 300);
 
 	return $item;
+}
+
+function ctwpml_addresses_norm_key(string $value): string {
+	$value = trim(mb_strtolower($value));
+	$value = remove_accents($value);
+	$value = preg_replace('/\s+/', ' ', $value);
+	$value = preg_replace('/[^\p{L}\p{N}\s-]+/u', '', $value);
+	return trim($value);
+}
+
+function ctwpml_addresses_fingerprint(array $item): string {
+	return implode('|', [
+		ctwpml_addresses_norm_key((string) ($item['label'] ?? '')),
+		ctwpml_addresses_norm_key((string) ($item['cep'] ?? '')),
+		ctwpml_addresses_norm_key((string) ($item['address_1'] ?? '')),
+		ctwpml_addresses_norm_key((string) ($item['number'] ?? '')),
+		ctwpml_addresses_norm_key((string) ($item['complement'] ?? '')),
+		ctwpml_addresses_norm_key((string) ($item['neighborhood'] ?? '')),
+		ctwpml_addresses_norm_key((string) ($item['city'] ?? '')),
+		ctwpml_addresses_norm_key((string) ($item['state'] ?? '')),
+	]);
 }
 
 function ctwpml_addresses_generate_id(): string {
@@ -125,6 +147,24 @@ add_action('wp_ajax_ctwpml_save_address', function () {
 		}
 	}
 
+	// Dedup/idempotência: se já existe um endereço com a mesma assinatura, trata como update.
+	if (!$is_update) {
+		$fp = ctwpml_addresses_fingerprint($item);
+		foreach ($items as $idx => $existing) {
+			if (!is_array($existing)) {
+				continue;
+			}
+			if (ctwpml_addresses_fingerprint($existing) === $fp) {
+				$item['id'] = (string) ($existing['id'] ?? '');
+				$items[$idx] = array_merge($existing, $item, [
+					'updated_at' => current_time('mysql'),
+				]);
+				$is_update = true;
+				break;
+			}
+		}
+	}
+
 	if (!$is_update) {
 		$item['id'] = ctwpml_addresses_generate_id();
 		$item['created_at'] = current_time('mysql');
@@ -137,6 +177,37 @@ add_action('wp_ajax_ctwpml_save_address', function () {
 	wp_send_json_success([
 		'item'  => $item,
 		'items' => ctwpml_addresses_get_all($user_id),
+	]);
+});
+
+add_action('wp_ajax_ctwpml_delete_address', function () {
+	if (!is_user_logged_in()) {
+		wp_send_json_error('Usuário não autenticado.');
+	}
+
+	check_ajax_referer('ctwpml_addresses', '_ajax_nonce');
+
+	$user_id = get_current_user_id();
+	$id = isset($_POST['id']) ? sanitize_text_field((string) wp_unslash($_POST['id'])) : '';
+	if ($id === '') {
+		wp_send_json_error('ID inválido.');
+	}
+
+	$items = ctwpml_addresses_get_all($user_id);
+	$out = [];
+	$deleted = false;
+	foreach ($items as $it) {
+		if (is_array($it) && isset($it['id']) && (string) $it['id'] === $id) {
+			$deleted = true;
+			continue;
+		}
+		$out[] = $it;
+	}
+	ctwpml_addresses_save_all($user_id, $out);
+
+	wp_send_json_success([
+		'deleted' => $deleted,
+		'items'   => ctwpml_addresses_get_all($user_id),
 	]);
 });
 
