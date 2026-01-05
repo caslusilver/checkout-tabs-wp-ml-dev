@@ -75,6 +75,13 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
 #### Protocol: e7bf9b7
 
+## [v3.1.29] - 2026-01-05
+
+### Changed
+- Modal ML: contraste e estados de seleção (rádio cinza/azul + borda azul só no selecionado), ao alterar CEP limpa campos do endereço, máscara de celular `XX - X XXXX-XXXX`, e persistência do payload completo do webhook em `user_meta` (`ctwpml_address_payload`) com logs no painel de debug.
+
+#### Protocol: 197cae6
+
 ## [Unreleased]
 
 ## Notas de Publicação (ainda não executadas)

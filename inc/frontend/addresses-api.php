@@ -12,6 +12,7 @@ if (!defined('ABSPATH')) {
  */
 
 const CTWPML_ADDRESSES_META_KEY = 'ctwpml_saved_addresses';
+const CTWPML_ADDRESS_PAYLOAD_META_KEY = 'ctwpml_address_payload';
 
 function ctwpml_addresses_get_all(int $user_id): array {
 	$raw = get_user_meta($user_id, CTWPML_ADDRESSES_META_KEY, true);
@@ -136,6 +137,57 @@ add_action('wp_ajax_ctwpml_save_address', function () {
 	wp_send_json_success([
 		'item'  => $item,
 		'items' => ctwpml_addresses_get_all($user_id),
+	]);
+});
+
+/**
+ * Salva o payload completo retornado pelo webhook (para reutilizar em etapas futuras
+ * sem precisar consultar novamente).
+ *
+ * Meta key: ctwpml_address_payload
+ * Estrutura: ['raw' => mixed, 'normalized' => mixed, 'captured_at' => string]
+ */
+add_action('wp_ajax_ctwpml_save_address_payload', function () {
+	if (!is_user_logged_in()) {
+		wp_send_json_error('Usuário não autenticado.');
+	}
+
+	check_ajax_referer('ctwpml_address_payload', '_ajax_nonce');
+
+	$user_id = get_current_user_id();
+
+	$raw_json = isset($_POST['raw_json']) ? (string) wp_unslash($_POST['raw_json']) : '';
+	$normalized_json = isset($_POST['normalized_json']) ? (string) wp_unslash($_POST['normalized_json']) : '';
+
+	$raw = null;
+	if ($raw_json !== '') {
+		$raw = json_decode($raw_json, true);
+		if (json_last_error() !== JSON_ERROR_NONE) {
+			wp_send_json_error('Payload raw_json inválido (JSON).');
+		}
+	}
+
+	$normalized = null;
+	if ($normalized_json !== '') {
+		$normalized = json_decode($normalized_json, true);
+		if (json_last_error() !== JSON_ERROR_NONE) {
+			wp_send_json_error('Payload normalized_json inválido (JSON).');
+		}
+	}
+
+	// Limite de segurança: evita meta gigantesco.
+	// Se o payload vier muito grande, preferimos truncar e ainda assim salvar algo auditável.
+	$blob = [
+		'raw'         => $raw,
+		'normalized'  => $normalized,
+		'captured_at' => current_time('mysql'),
+	];
+
+	update_user_meta($user_id, CTWPML_ADDRESS_PAYLOAD_META_KEY, $blob);
+
+	wp_send_json_success([
+		'meta_key' => CTWPML_ADDRESS_PAYLOAD_META_KEY,
+		'saved'    => true,
 	]);
 });
 

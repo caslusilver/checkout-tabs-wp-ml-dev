@@ -6,6 +6,9 @@
   window.CCCheckoutTabs.setupAddressModal = function setupAddressModal(state) {
     var $ = state.$;
     var cepDebounceTimer = null;
+    var lastCepOnly = '';
+    var isClearingCep = false;
+    var lastBillingCepOnly = '';
     var selectedAddressId = null;
     var addressesCache = [];
 
@@ -17,6 +20,20 @@
       var digits = cepDigits(value);
       if (digits.length <= 5) return digits;
       return digits.slice(0, 5) + '-' + digits.slice(5);
+    }
+
+    function phoneDigits(value) {
+      return String(value || '').replace(/\D/g, '').slice(0, 11);
+    }
+
+    // Formato pedido: "XX - X XXXX-XXXX" (11 dígitos).
+    function formatPhone(value) {
+      var d = phoneDigits(value);
+      if (!d) return '';
+      if (d.length <= 2) return d;
+      if (d.length <= 3) return d.slice(0, 2) + ' - ' + d.slice(2);
+      if (d.length <= 7) return d.slice(0, 2) + ' - ' + d.slice(2, 3) + ' ' + d.slice(3);
+      return d.slice(0, 2) + ' - ' + d.slice(2, 3) + ' ' + d.slice(3, 7) + '-' + d.slice(7);
     }
 
     function isLoggedIn() {
@@ -135,7 +152,7 @@
       var first = ($('#billing_first_name').val() || '').trim();
       var last = ($('#billing_last_name').val() || '').trim();
       $('#ctwpml-input-nome').val((first + ' ' + last).trim());
-      $('#ctwpml-input-fone').val((($('#billing_cellphone').val() || '') || '').trim());
+      $('#ctwpml-input-fone').val(formatPhone((($('#billing_cellphone').val() || '') || '').trim()));
     }
 
     function showFormForEditAddress(addressId) {
@@ -162,7 +179,7 @@
       var first = ($('#billing_first_name').val() || '').trim();
       var last = ($('#billing_last_name').val() || '').trim();
       $('#ctwpml-input-nome').val((first + ' ' + last).trim());
-      $('#ctwpml-input-fone').val((($('#billing_cellphone').val() || '') || '').trim());
+      $('#ctwpml-input-fone').val(formatPhone((($('#billing_cellphone').val() || '') || '').trim()));
     }
 
     function getAddressById(id) {
@@ -211,14 +228,12 @@
         var selected = String(row.id) === String(selectedAddressId);
         html +=
           '' +
-          '<div class="ctwpml-card" data-address-id="' +
+          '<div class="ctwpml-card ' +
+          (selected ? 'is-selected' : '') +
+          '" data-address-id="' +
           String(row.id) +
           '" style="cursor:pointer; margin-bottom: 12px;">' +
-          '  <div class="' +
-          (selected ? 'ctwpml-radio-selected' : 'ctwpml-radio-selected') +
-          '" style="' +
-          (selected ? '' : 'border-color: rgba(52,131,250,0.35);') +
-          '"></div>' +
+          '  <div class="ctwpml-radio-selected"></div>' +
           '  <div class="ctwpml-address">' +
           '    <h3>' +
           escapeHtml(String(row.title || '')) +
@@ -414,6 +429,7 @@
         success: function (data) {
           if (typeof state.log === 'function') state.log('WEBHOOK_IN (ML) Resposta recebida.', data, 'WEBHOOK_IN');
           fillFormFromApiData(data);
+          persistAddressPayload(data);
         },
         error: function (jqXHR, textStatus, errorThrown) {
           if (typeof state.log === 'function')
@@ -424,6 +440,90 @@
             );
         },
       });
+    }
+
+    function normalizeApiPayload(raw) {
+      if (!raw) return null;
+      if (typeof state.normalizarRespostaAPI === 'function') {
+        try {
+          return state.normalizarRespostaAPI(raw);
+        } catch (e) {
+          return raw;
+        }
+      }
+      return raw;
+    }
+
+    function persistAddressPayload(raw) {
+      if (!raw) return;
+      if (!state.params || !state.params.ajax_url || !state.params.address_payload_nonce) return;
+      if (!isLoggedIn()) return;
+
+      var normalized = normalizeApiPayload(raw);
+      var out = {
+        raw: raw,
+        normalized: normalized,
+      };
+
+      if (typeof state.log === 'function') {
+        state.log('ADDRESS_PAYLOAD_SAVE_OUT (ML) Salvando payload no perfil...', out, 'STORE_OUT');
+      }
+
+      $.ajax({
+        url: state.params.ajax_url,
+        type: 'POST',
+        dataType: 'json',
+        data: {
+          action: 'ctwpml_save_address_payload',
+          _ajax_nonce: state.params.address_payload_nonce,
+          raw_json: JSON.stringify(raw),
+          normalized_json: JSON.stringify(normalized),
+        },
+        success: function (resp) {
+          if (typeof state.log === 'function') {
+            state.log('ADDRESS_PAYLOAD_SAVE_IN (ML) Resultado do save.', resp, 'STORE_IN');
+          }
+        },
+        error: function (jqXHR, textStatus, errorThrown) {
+          if (typeof state.log === 'function') {
+            state.log(
+              'ADDRESS_PAYLOAD_SAVE_IN (ML) Erro ao salvar payload (' + textStatus + ').',
+              { status: jqXHR.status, error: errorThrown, responseText: jqXHR.responseText },
+              'STORE_IN'
+            );
+          }
+        },
+      });
+    }
+
+    function clearAddressFieldsOnCepChange() {
+      if (isClearingCep) return;
+      isClearingCep = true;
+      try {
+        // Modal inputs
+        $('#ctwpml-input-rua').val('');
+        $('#ctwpml-input-numero').val('');
+        $('#ctwpml-input-comp').val('');
+        $('#ctwpml-input-info').val('');
+        setCepConfirmVisible(false);
+
+        // Checkout fields (limpa tudo exceto o CEP)
+        $('#billing_address_1').val('').trigger('change');
+        $('#billing_number').val('').trigger('change');
+        $('#billing_neighborhood').val('').trigger('change');
+        $('#billing_city').val('').trigger('change');
+        $('#billing_state').val('').trigger('change');
+        $('#billing_complemento').val('').trigger('change');
+      } finally {
+        isClearingCep = false;
+      }
+    }
+
+    function onBillingCepChanged() {
+      var only = cepDigits($('#billing_postcode').val());
+      if (only === lastBillingCepOnly) return;
+      lastBillingCepOnly = only;
+      clearAddressFieldsOnCepChange();
     }
 
     function refreshFromCheckoutFields() {
@@ -453,7 +553,7 @@
       var first = ($('#billing_first_name').val() || '').trim();
       var last = ($('#billing_last_name').val() || '').trim();
       $('#ctwpml-input-nome').val((first + ' ' + last).trim());
-      $('#ctwpml-input-fone').val((($('#billing_cellphone').val() || '') || '').trim());
+      $('#ctwpml-input-fone').val(formatPhone((($('#billing_cellphone').val() || '') || '').trim()));
 
       // Confirmação visual usando campos do checkout (se já preenchidos)
       var cidade = ($('#billing_city').val() || '').trim();
@@ -483,7 +583,7 @@
       }
 
       var fone = ($('#ctwpml-input-fone').val() || '').trim();
-      if (fone) $('#billing_cellphone').val(fone).trigger('change');
+      if (fone) $('#billing_cellphone').val(phoneDigits(fone)).trigger('change');
     }
 
     function ensureEntryPointButton() {
@@ -570,10 +670,30 @@
       var formatted = formatCep($input.val());
       if ($input.val() !== formatted) $input.val(formatted);
 
+      var only = cepDigits($input.val());
+      if (only !== lastCepOnly) {
+        lastCepOnly = only;
+        clearAddressFieldsOnCepChange();
+      }
+
       if (cepDebounceTimer) clearTimeout(cepDebounceTimer);
       cepDebounceTimer = setTimeout(function () {
         consultCepAndFillForm();
       }, 250);
+    });
+
+    // Se o usuário alterar o CEP direto no checkout (fora do modal), limpamos os campos também.
+    $(document).on('input change', '#billing_postcode', function () {
+      onBillingCepChanged();
+    });
+
+    // Máscara/regex do celular no modal (XX - X XXXX-XXXX)
+    $(document).on('input', '#ctwpml-input-fone', function () {
+      var $input = $('#ctwpml-input-fone');
+      var formatted = formatPhone($input.val());
+      if ($input.val() !== formatted) $input.val(formatted);
+      // Mantém o campo real do checkout com dígitos (máscaras do tema/plugin podem formatar depois).
+      $('#billing_cellphone').val(phoneDigits(formatted)).trigger('change');
     });
 
     // Reforço: quando a estrutura de abas é criada, injeta o botão de entrada.

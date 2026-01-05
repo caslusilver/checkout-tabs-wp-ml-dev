@@ -89,7 +89,7 @@
 .ctwpml-section-title {
   font-size: 18px;
   font-weight: 600;
-  color: #333;
+  color: #333 !important;
   margin: 8px 0 14px;
 }
 
@@ -100,29 +100,39 @@
   padding: 16px;
   display: flex;
   gap: 12px;
-  border-left: 4px solid var(--ctwpml-ml-blue);
+  border-left: 4px solid transparent;
 }
 
 .ctwpml-radio-selected {
   width: 20px;
   height: 20px;
-  border: 6px solid var(--ctwpml-ml-blue);
+  border: 2px solid #cfcfcf;
   border-radius: 50%;
   margin-top: 2px;
   flex: 0 0 auto;
+  background: transparent;
+  box-sizing: border-box;
+}
+
+.ctwpml-card.is-selected {
+  border-left-color: var(--ctwpml-ml-blue);
+}
+
+.ctwpml-card.is-selected .ctwpml-radio-selected {
+  border: 6px solid var(--ctwpml-ml-blue);
 }
 
 .ctwpml-address h3 {
   font-size: 16px;
   font-weight: 700;
   margin: 0 0 6px;
-  color: #333;
+  color: #333 !important;
 }
 
 .ctwpml-address p {
   margin: 0;
   font-size: 13px;
-  color: var(--ctwpml-ml-text-gray);
+  color: var(--ctwpml-ml-text-gray) !important;
   line-height: 1.4;
 }
 
@@ -181,16 +191,17 @@
   font-weight: 700;
   font-size: 15px;
   cursor: pointer;
+  opacity: 1 !important;
 }
 
 .ctwpml-btn-primary {
-  background: var(--ctwpml-ml-blue);
-  color: #fff;
+  background: var(--ctwpml-ml-blue) !important;
+  color: #fff !important;
 }
 
 .ctwpml-btn-secondary {
-  background: rgba(52, 131, 250, 0.12);
-  color: var(--ctwpml-ml-blue);
+  background: rgba(52, 131, 250, 0.12) !important;
+  color: var(--ctwpml-ml-blue) !important;
 }
 
 .ctwpml-form-group {
@@ -203,7 +214,7 @@
   font-size: 13px;
   font-weight: 600;
   margin-bottom: 6px;
-  color: #333;
+  color: #333 !important;
 }
 
 .ctwpml-form-group input,

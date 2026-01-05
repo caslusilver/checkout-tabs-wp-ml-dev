@@ -127,6 +127,7 @@ add_action('wp_enqueue_scripts', function () {
 		'ajax_url'   => admin_url('admin-ajax.php'),
 		'nonce'      => wp_create_nonce('store_webhook_shipping'),
 		'addresses_nonce' => wp_create_nonce('ctwpml_addresses'),
+		'address_payload_nonce' => wp_create_nonce('ctwpml_address_payload'),
 		'webhook_url'=> checkout_tabs_wp_ml_get_webhook_url(),
 	]);
 });
