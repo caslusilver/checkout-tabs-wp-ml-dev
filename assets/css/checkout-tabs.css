@@ -43,19 +43,23 @@ body.woocommerce-checkout form.checkout .checkout-tab:not(.active) {
 .checkout-next-btn,
 .checkout-back-btn {
   border-radius: 3px !important;
+  /* Hardening contra temas/Elementor que deixam invisível sem hover (mobile não tem hover) */
+  opacity: 1 !important;
+  visibility: visible !important;
+  filter: none !important;
 }
 
 .checkout-next-btn {
   margin-top: 20px;
   padding: 10px 20px;
-  background: #0075ff;
-  color: #fff;
+  background: #0075ff !important;
+  color: #fff !important;
   border: none;
   cursor: pointer;
   font-weight: 500;
 }
 .checkout-next-btn:hover:not(:disabled) {
-  background: #005bc7;
+  background: #005bc7 !important;
 }
 .checkout-next-btn:disabled {
   background-color: #ccc !important;
@@ -67,7 +71,7 @@ body.woocommerce-checkout form.checkout .checkout-tab:not(.active) {
 }
 
 .checkout-back-btn {
-  background: #e2edfb;
+  background: #e2edfb !important;
   color: #005bc7 !important;
   font-weight: 500;
   margin-right: 10px;
@@ -77,7 +81,7 @@ body.woocommerce-checkout form.checkout .checkout-tab:not(.active) {
   margin-top: 0;
 }
 .checkout-back-btn:hover:not(:disabled) {
-  background: #9dcaff;
+  background: #9dcaff !important;
 }
 
 /* Container de botões */

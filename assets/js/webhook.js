@@ -238,7 +238,8 @@
     };
 
     state.bindCepAdvance = function bindCepAdvance() {
-      $('#btn-avancar-para-endereco').on('click', function (e) {
+      // Delegado para suportar renderização tardia (Elementor) e re-render do Woo fragments.
+      $(document).on('click', '#btn-avancar-para-endereco', function (e) {
         e.preventDefault();
         state.actionStartTime = performance.now();
         state.log('ACTION    Clique em "Avançar" (CEP -> Endereço) para consultar CEP/Frete', null, 'ACTION');
@@ -278,7 +279,7 @@
     };
 
     // UX: quando alterar CEP, ocultar erro
-    $('#billing_postcode').on('change', function () {
+    $(document).on('change', '#billing_postcode', function () {
       var cep = ($(this).val() || '').replace(/\D/g, '');
       if (cep.length === 8) $('.cep-erro').hide();
       else $('.cep-erro').hide();

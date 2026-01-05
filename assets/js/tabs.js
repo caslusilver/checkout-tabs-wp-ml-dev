@@ -25,12 +25,70 @@
       '#billing_complemento_field',
     ];
 
-    function ensureCepErrorMessage() {
-      if (!$('#billing_postcode_field .cep-erro').length) {
-        $('#billing_postcode_field').append(
-          '<div class="cep-erro">CEP não encontrado. Por favor, verifique e tente novamente.</div>'
-        );
+    function findInsertionAnchor() {
+      // Estratégia de fallback para suportar checkout clássico + templates (ex.: Elementor)
+      // Retorna: { $el, strategy, selector }
+      var candidates = [
+        { selector: '#customer_details .col-1 .woocommerce-billing-fields__field-wrapper', strategy: 'insertBefore' },
+        { selector: '#customer_details .woocommerce-billing-fields__field-wrapper', strategy: 'insertBefore' },
+        { selector: 'form.checkout #customer_details', strategy: 'prepend' },
+        { selector: 'body.woocommerce-checkout form.checkout', strategy: 'prepend' },
+        { selector: 'form.checkout', strategy: 'prepend' },
+      ];
+
+      for (var i = 0; i < candidates.length; i++) {
+        var c = candidates[i];
+        var $el = $(c.selector).first();
+        if ($el.length) return { $el: $el, strategy: c.strategy, selector: c.selector };
       }
+      return { $el: $(), strategy: 'none', selector: '' };
+    }
+
+    function ensureTabsRoot() {
+      var $existing = $('#cc-checkout-tabs-root');
+      if ($existing.length) return $existing;
+
+      var anchor = findInsertionAnchor();
+      if (!anchor.$el.length) return $();
+
+      state.tabsInsertionAnchor = {
+        selector: anchor.selector,
+        strategy: anchor.strategy,
+      };
+      state.log(
+        'INIT      Anchor para inserir abas encontrado: selector="' +
+          anchor.selector +
+          '", strategy="' +
+          anchor.strategy +
+          '".',
+        null,
+        'INIT'
+      );
+
+      var $root = $('<div id="cc-checkout-tabs-root"></div>');
+      if (anchor.strategy === 'insertBefore') $root.insertBefore(anchor.$el);
+      else if (anchor.strategy === 'prepend') anchor.$el.prepend($root);
+      else anchor.$el.append($root);
+
+      return $root;
+    }
+
+    function safeAppendToTab(selector, tabId) {
+      var $field = $(selector);
+      if (!$field.length) return false;
+      var $tab = $('#' + tabId);
+      if (!$tab.length) return false;
+      $field.appendTo($tab);
+      return true;
+    }
+
+    function ensureCepErrorMessage() {
+      if (!$('#billing_postcode_field').length) return;
+      if ($('#billing_postcode_field .cep-erro').length) return;
+
+      $('#billing_postcode_field').append(
+        '<div class="cep-erro">CEP não encontrado. Por favor, verifique e tente novamente.</div>'
+      );
     }
 
     state.updateProgressBar = function updateProgressBar(tabId) {
@@ -78,8 +136,46 @@
     state.buildTabsAndMoveFields = function buildTabsAndMoveFields() {
       ensureCepErrorMessage();
 
+      var $tabsRoot = ensureTabsRoot();
+      if (!$tabsRoot.length) {
+        state.ccTabsInitAttempts = (state.ccTabsInitAttempts || 0) + 1;
+        state.log(
+          'INIT      Tentativa ' +
+            state.ccTabsInitAttempts +
+            ' de inicialização das abas falhou (anchor não encontrado). Tentando novamente...',
+          null,
+          'INIT'
+        );
+        state.log(
+          'INIT      Detalhe diagnóstico: ' +
+            JSON.stringify({
+              hasFormCheckout: !!$('form.checkout').length,
+              hasCustomerDetails: !!$('#customer_details').length,
+              hasBillingWrapper: !!$('.woocommerce-billing-fields__field-wrapper').length,
+            }),
+          null,
+          'INIT'
+        );
+        state.log(
+          'AVISO     Não foi possível inserir as abas: nenhum anchor do checkout foi encontrado (checkout em template não suportado ou markup inesperado).',
+          null,
+          'INIT'
+        );
+
+        // Elementor/temas podem renderizar o checkout após o DOMReady.
+        // Retry curto para capturar o markup assim que existir, sem travar a página.
+        if (state.ccTabsInitAttempts <= 20) {
+          setTimeout(function () {
+            state.buildTabsAndMoveFields();
+          }, 250);
+        } else {
+          state.log('AVISO     Abortando retries de init (limite atingido).', null, 'INIT');
+        }
+        return;
+      }
+
       if (!$('#tab-dados-pessoais').length) {
-        $(
+        $tabsRoot.append(
           '' +
             '<div id="tab-dados-pessoais" class="checkout-tab active">' +
             '  <h3>Dados Pessoais</h3>' +
@@ -89,11 +185,11 @@
             '  </div>' +
             '  <p class="frete-info" style="margin-top:6px;">Preencha seus dados corretamente e garanta que seu WhatsApp esteja correto para facilitar nosso contato.</p>' +
             '</div>'
-        ).insertBefore('#customer_details .col-1 .woocommerce-billing-fields__field-wrapper');
+        );
       }
 
       if (!$('#tab-cep').length) {
-        $(
+        $tabsRoot.append(
           '' +
             '<div id="tab-cep" class="checkout-tab">' +
             '  <h3 class="cep-title">Informe seu CEP</h3>' +
@@ -103,11 +199,11 @@
             '  </div>' +
             '  <p class="cep-description">Precisamos do seu CEP para calcular o frete e preencher seu endereço automaticamente.</p>' +
             '</div>'
-        ).insertAfter('#tab-dados-pessoais');
+        );
       }
 
       if (!$('#tab-dados-entrega').length) {
-        $(
+        $tabsRoot.append(
           '' +
             '<div id="tab-dados-entrega" class="checkout-tab">' +
             '  <h3>Endereço</h3>' +
@@ -117,11 +213,11 @@
             '  </div>' +
             '  <p class="frete-info" style="margin-top:8px;">Falta pouco para finalizar seu pedido...</p>' +
             '</div>'
-        ).insertAfter('#tab-cep');
+        );
       }
 
       if (!$('#tab-resumo-frete').length) {
-        $(
+        $tabsRoot.append(
           '' +
             '<div id="tab-resumo-frete" class="checkout-tab">' +
             '  <h3>Resumo do Pedido e Frete</h3>' +
@@ -130,11 +226,11 @@
             '    <div class="progress-indicator" id="progressIndicatorResumo"></div>' +
             '  </div>' +
             '</div>'
-        ).insertAfter('#tab-dados-entrega');
+        );
       }
 
       if (!$('#tab-pagamento').length) {
-        $(
+        $tabsRoot.append(
           '' +
             '<div id="tab-pagamento" class="checkout-tab">' +
             '  <h3>Pagamento</h3>' +
@@ -143,15 +239,15 @@
             '    <div class="progress-indicator" id="progressIndicatorPagamento"></div>' +
             '  </div>' +
             '</div>'
-        ).insertAfter('#tab-resumo-frete');
+        );
       }
 
       $.each(dadosPessoaisFields, function (_, selector) {
-        $(selector).appendTo('#tab-dados-pessoais');
+        safeAppendToTab(selector, 'tab-dados-pessoais');
       });
-      $('#billing_postcode_field').appendTo('#tab-cep');
+      safeAppendToTab('#billing_postcode_field', 'tab-cep');
       $.each(dadosEntregaFields, function (_, selector) {
-        $(selector).appendTo('#tab-dados-entrega');
+        safeAppendToTab(selector, 'tab-dados-entrega');
       });
 
       // mover #order_review / order notes / cupom / payment para abas corretas
@@ -277,7 +373,8 @@
     };
 
     state.bindNavigation = function bindNavigation() {
-      $('#btn-avancar-para-cep').on('click', function (e) {
+      // Delegado para suportar renderização tardia (Elementor) e re-render do Woo fragments.
+      $(document).on('click', '#btn-avancar-para-cep', function (e) {
         e.preventDefault();
         state.actionStartTime = performance.now();
         state.log('ACTION    Clique em "Avançar" (Dados Pessoais -> CEP)', null, 'ACTION');
@@ -297,7 +394,7 @@
         state.updatePlaceOrderButtonState();
       });
 
-      $('#btn-voltar-dados').on('click', function (e) {
+      $(document).on('click', '#btn-voltar-dados', function (e) {
         e.preventDefault();
         state.log('ACTION    Clique em "Voltar" (CEP -> Dados Pessoais)', null, 'ACTION');
         $('#tab-cep').removeClass('active').hide();
@@ -306,7 +403,7 @@
         state.updatePlaceOrderButtonState();
       });
 
-      $('#btn-voltar-cep').on('click', function (e) {
+      $(document).on('click', '#btn-voltar-cep', function (e) {
         e.preventDefault();
         state.log('ACTION    Clique em "Voltar" (Endereço -> CEP)', null, 'ACTION');
         $('#tab-dados-entrega').removeClass('active').hide();
@@ -315,7 +412,7 @@
         state.updatePlaceOrderButtonState();
       });
 
-      $('#btn-avancar-para-resumo').on('click', function (e) {
+      $(document).on('click', '#btn-avancar-para-resumo', function (e) {
         e.preventDefault();
         state.actionStartTime = performance.now();
         state.log('ACTION    Clique em "Avançar para o Resumo" (Endereço -> Resumo/Frete)', null, 'ACTION');
@@ -337,7 +434,7 @@
         state.updatePlaceOrderButtonState();
       });
 
-      $('#btn-voltar-endereco').on('click', function (e) {
+      $(document).on('click', '#btn-voltar-endereco', function (e) {
         e.preventDefault();
         state.log('ACTION    Clique em "Voltar" (Resumo/Frete -> Endereço)', null, 'ACTION');
         $('#tab-resumo-frete').removeClass('active').hide();
@@ -346,7 +443,7 @@
         state.updatePlaceOrderButtonState();
       });
 
-      $('#btn-avancar-para-pagamento').on('click', function (e) {
+      $(document).on('click', '#btn-avancar-para-pagamento', function (e) {
         e.preventDefault();
         state.actionStartTime = performance.now();
         state.log('ACTION    Clique em "Avançar para Pagamento" (Resumo/Frete -> Pagamento)', null, 'ACTION');
@@ -356,7 +453,7 @@
         state.updatePlaceOrderButtonState();
       });
 
-      $('#btn-voltar-resumo').on('click', function (e) {
+      $(document).on('click', '#btn-voltar-resumo', function (e) {
         e.preventDefault();
         state.log('ACTION    Clique em "Voltar" (Pagamento -> Resumo/Frete)', null, 'ACTION');
         $('#tab-pagamento').removeClass('active').hide();

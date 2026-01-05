@@ -24,6 +24,25 @@ add_action('admin_menu', function () {
 	);
 });
 
+add_action('admin_enqueue_scripts', function ($hook_suffix) {
+	// Para menu top-level, o hook segue o padrão "toplevel_page_{slug}"
+	if ($hook_suffix !== 'toplevel_page_' . CHECKOUT_TABS_WP_ML_SETTINGS_PAGE) {
+		return;
+	}
+
+	wp_enqueue_script(
+		'checkout-tabs-wp-ml-admin-tabs',
+		CHECKOUT_TABS_WP_ML_URL . 'assets/js/admin-tabs.js',
+		['jquery'],
+		checkout_tabs_wp_ml_get_version(),
+		true
+	);
+
+	wp_localize_script('checkout-tabs-wp-ml-admin-tabs', 'CTWPMLAdminTabs', [
+		'page' => CHECKOUT_TABS_WP_ML_SETTINGS_PAGE,
+	]);
+});
+
 function checkout_tabs_wp_ml_render_admin_page(): void {
 	if (!current_user_can('manage_woocommerce')) {
 		return;
@@ -43,20 +62,23 @@ function checkout_tabs_wp_ml_render_admin_page(): void {
 	echo '<nav class="nav-tab-wrapper">';
 	echo '<a href="' .
 		esc_url(admin_url('admin.php?page=' . CHECKOUT_TABS_WP_ML_SETTINGS_PAGE . '&tab=integracoes')) .
-		'" class="nav-tab ' .
+		'" class="nav-tab ctwpml-admin-tab ' .
 		($tab === 'integracoes' ? 'nav-tab-active' : '') .
-		'">Integrações</a>';
+		'" data-tab="integracoes">Integrações</a>';
 	echo '<a href="' .
 		esc_url(admin_url('admin.php?page=' . CHECKOUT_TABS_WP_ML_SETTINGS_PAGE . '&tab=debug')) .
-		'" class="nav-tab ' .
+		'" class="nav-tab ctwpml-admin-tab ' .
 		($tab === 'debug' ? 'nav-tab-active' : '') .
-		'">Debug</a>';
+		'" data-tab="debug">Debug</a>';
 	echo '</nav>';
 
 	echo '<form method="post" action="options.php" style="margin-top: 16px;">';
 	settings_fields(CHECKOUT_TABS_WP_ML_SETTINGS_GROUP);
 
-	if ($tab === 'integracoes') {
+	echo '<div id="ctwpml-admin-tabs-content">';
+
+	$style_integracoes = ($tab === 'integracoes') ? '' : 'display:none;';
+	echo '<div class="ctwpml-admin-tab-panel" data-tab="integracoes" style="' . esc_attr($style_integracoes) . '">';
 		echo '<h2 class="title">Integrações</h2>';
 		echo '<table class="form-table" role="presentation">';
 		echo '<tr>';
@@ -69,9 +91,10 @@ function checkout_tabs_wp_ml_render_admin_page(): void {
 		echo '</td>';
 		echo '</tr>';
 		echo '</table>';
-	}
+	echo '</div>';
 
-	if ($tab === 'debug') {
+	$style_debug = ($tab === 'debug') ? '' : 'display:none;';
+	echo '<div class="ctwpml-admin-tab-panel" data-tab="debug" style="' . esc_attr($style_debug) . '">';
 		echo '<h2 class="title">Debug</h2>';
 		echo '<table class="form-table" role="presentation">';
 		echo '<tr>';
@@ -85,7 +108,9 @@ function checkout_tabs_wp_ml_render_admin_page(): void {
 		echo '</td>';
 		echo '</tr>';
 		echo '</table>';
-	}
+	echo '</div>';
+
+	echo '</div>';
 
 	submit_button('Salvar');
 	echo '</form>';

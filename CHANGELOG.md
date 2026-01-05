@@ -34,6 +34,12 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 - Admin: adicionado menu principal **Checkout Tabs ML** com abas **Integrações** (Webhook URL) e **Debug** (toggle) para facilitar habilitar logs e gerenciar integrações.
 - Admin: "Atualizar Cache" (Git Updater) ajustado para ficar igual ao `packing-panel-woo-dev` (link em `plugin_row_meta` com ícone/spinner + notices no WP admin).
 
+## [v3.1.22] - 2026-01-05
+
+### Changed
+- Admin: abas do painel (Integrações/Debug) agora alternam sem reload da página (UX via JS, mantendo URL com `?tab=`).
+- Front: hardening de CSS dos botões **Avançar/Voltar** para impedir que temas/Elementor deixem invisível sem hover (corrige mobile).
+
 ## [Unreleased]
 
 ## Notas de Publicação (ainda não executadas)
