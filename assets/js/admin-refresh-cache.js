@@ -2,6 +2,23 @@ jQuery(function ($) {
   'use strict';
 
   var lastScroll = 0;
+  var SCROLL_KEY = 'ctwpml_plugins_scroll_y';
+  var RELOAD_KEY = 'ctwpml_plugins_reload_after_cache';
+
+  function tryRestoreScroll() {
+    try {
+      var y = window.sessionStorage ? sessionStorage.getItem(SCROLL_KEY) : null;
+      if (y === null || typeof y === 'undefined') return;
+      var yy = parseInt(String(y), 10);
+      if (isNaN(yy)) return;
+      if (window.sessionStorage) sessionStorage.removeItem(SCROLL_KEY);
+      setTimeout(function () {
+        $(window).scrollTop(yy);
+      }, 80);
+    } catch (e) {}
+  }
+
+  tryRestoreScroll();
 
   function ctwpmlNotice(message, type) {
     type = type || 'success';
@@ -74,20 +91,17 @@ jQuery(function ($) {
           }
           ctwpmlNotice(msg, 'success');
 
-          // Importante: checagens imediatas podem estourar rate limit quando o Git Updater
-          // não está autenticado. Só tentamos check imediato se o backend detectar token.
+          // Recarrega a tela (equivalente ao F5) para refletir atualizações imediatamente,
+          // preservando o scroll para não atrapalhar a UX.
           try {
-            var hasToken = !!(response && response.data && response.data.has_github_token);
-            if (hasToken && window.wp && wp.updates && typeof wp.updates.checkPluginUpdates === 'function') {
-              ctwpmlNotice('Token detectado. Verificando atualizações...', 'success');
-              wp.updates.checkPluginUpdates();
-            } else {
-              ctwpmlNotice(
-                'Cache limpo. Para evitar rate limit, a checagem imediata foi desativada. Aguarde a próxima checagem do Git Updater.',
-                'success'
-              );
+            if (window.sessionStorage) {
+              sessionStorage.setItem(SCROLL_KEY, String(lastScroll));
+              sessionStorage.setItem(RELOAD_KEY, '1');
             }
           } catch (e) {}
+          setTimeout(function () {
+            window.location.reload();
+          }, 250);
         } else {
           ctwpmlNotice((response && response.data) || 'Erro ao atualizar cache.', 'error');
         }

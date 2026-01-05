@@ -50,6 +50,17 @@
 .ctwpml-modal textarea {
   color: #111 !important;
   background: #fff !important;
+  border-radius: 3px !important;
+}
+.ctwpml-login-banner {
+  background: rgba(52, 131, 250, 0.10);
+  color: #1f2937 !important;
+  border: 1px solid rgba(52, 131, 250, 0.22);
+  border-radius: 3px;
+  padding: 10px 12px;
+  font-weight: 700;
+  font-size: 13px;
+  margin: 8px 0 14px;
 }
 
 .ctwpml-modal input::placeholder,

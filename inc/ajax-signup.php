@@ -47,6 +47,7 @@ add_action('wp_ajax_nopriv_ctwpml_signup', function () {
 
 	$name = isset($_POST['name']) ? sanitize_text_field((string) wp_unslash($_POST['name'])) : '';
 	$email = isset($_POST['email']) ? sanitize_email((string) wp_unslash($_POST['email'])) : '';
+	$email = strtolower(trim($email));
 	$cpf = isset($_POST['cpf']) ? ctwpml_cpf_digits((string) wp_unslash($_POST['cpf'])) : '';
 
 	if ($name === '' || $email === '' || $cpf === '') {

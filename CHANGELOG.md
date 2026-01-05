@@ -98,6 +98,15 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
 #### Protocol: 9dc7a72
 
+## [v3.1.32] - 2026-01-05
+
+### Changed
+- Admin (Plugins): botão “Atualizar Cache” agora faz reload automático após limpar cache, preservando o scroll, para refletir atualizações sem F5 manual.
+- Popup (deslogado): normalização do e-mail no cadastro (evita “e-mail inválido” indevido) + melhora na mensagem de erro do AJAX.
+- Modal ML: adiciona banner “logado como {email}” na tela de endereço, inclui campo CPF após WhatsApp (com máscara e opção “Gerar CPF fictício” quando habilitado), e aplica `border-radius: 3px` também nos inputs do modal/popup.
+
+#### Protocol: b5474b2
+
 ## [Unreleased]
 
 ## Notas de Publicação (ainda não executadas)

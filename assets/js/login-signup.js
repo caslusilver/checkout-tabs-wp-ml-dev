@@ -101,7 +101,7 @@
       if (!ajaxUrl || !nonce) return;
 
       var name = ($('#ctwpml-signup-name').val() || '').trim();
-      var email = ($('#ctwpml-signup-email').val() || '').trim();
+      var email = ($('#ctwpml-signup-email').val() || '').trim().toLowerCase();
       var cpf = cpfDigits($('#ctwpml-signup-cpf').val());
 
       var $msg = $('#ctwpml-signup-msg');
@@ -133,8 +133,12 @@
           var m = (resp && resp.data && resp.data.message) || (resp && resp.data) || 'Erro ao criar conta.';
           setMsg($msg, m, true);
         },
-        error: function () {
-          setMsg($msg, 'Erro ao criar conta.', true);
+        error: function (xhr) {
+          var m = 'Erro ao criar conta.';
+          if (xhr && xhr.responseJSON && xhr.responseJSON.data) {
+            m = xhr.responseJSON.data.message || xhr.responseJSON.data;
+          }
+          setMsg($msg, m, true);
         },
         complete: function () {
           $('#ctwpml-signup-submit').prop('disabled', false);

@@ -61,6 +61,7 @@
           '      </div>' +
           '      <div id="ctwpml-view-form" style="display:none;">' +
           '        <div class="ctwpml-section-title">Adicione um endereço</div>' +
+          '        <div id="ctwpml-login-banner" class="ctwpml-login-banner" style="display:none;"></div>' +
           '        <div class="ctwpml-form-group">' +
           '          <label for="ctwpml-input-cep">CEP</label>' +
           '          <input id="ctwpml-input-cep" type="text" placeholder="00000-000" inputmode="numeric" autocomplete="postal-code" />' +
@@ -95,6 +96,14 @@
           '          <div class="ctwpml-contact-subtitle">Se houver algum problema no envio, você receberá uma ligação neste número.</div>' +
           '          <div class="ctwpml-form-group"><label for="ctwpml-input-nome">Nome completo</label><input id="ctwpml-input-nome" type="text" /></div>' +
           '          <div class="ctwpml-form-group"><label for="ctwpml-input-fone">Seu WhatsApp</label><input id="ctwpml-input-fone" type="text" /></div>' +
+          '          <div class="ctwpml-form-group" id="ctwpml-group-cpf">' +
+          '            <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">' +
+          '              <label for="ctwpml-input-cpf" style="margin:0;">CPF</label>' +
+          '              <a class="ctwpml-link-right" href="#" id="ctwpml-generate-cpf-modal" style="position:static; display:none;">Gerar CPF fictício</a>' +
+          '            </div>' +
+          '            <input id="ctwpml-input-cpf" type="text" placeholder="000.000.000-00" inputmode="numeric" autocomplete="off" />' +
+          '            <div class="ctwpml-inline-hint" id="ctwpml-cpf-hint" style="display:none;">Este CPF é fictício e serve apenas para identificar seus pedidos. Guarde este número caso precise retirar encomendas nos Correios.</div>' +
+          '          </div>' +
           '          <a href="#" class="ctwpml-delete-link" id="ctwpml-delete-address" style="display:none;">Excluir endereço</a>' +
           '        </div>' +
           '      </div>' +
@@ -106,6 +115,65 @@
           '  </div>' +
           '</div>'
       );
+    }
+
+    function syncLoginBanner() {
+      var email = (state.params && state.params.user_email) ? String(state.params.user_email) : '';
+      if (!email) {
+        $('#ctwpml-login-banner').hide().text('');
+        return;
+      }
+      $('#ctwpml-login-banner')
+        .text('Bem-vindo, você está logado como ' + email + '.')
+        .show();
+    }
+
+    function cpfDigitsOnly(value) {
+      return String(value || '').replace(/\D/g, '').slice(0, 11);
+    }
+
+    function formatCpf(value) {
+      var d = cpfDigitsOnly(value);
+      if (d.length <= 3) return d;
+      if (d.length <= 6) return d.slice(0, 3) + '.' + d.slice(3);
+      if (d.length <= 9) return d.slice(0, 3) + '.' + d.slice(3, 6) + '.' + d.slice(6);
+      return d.slice(0, 3) + '.' + d.slice(3, 6) + '.' + d.slice(6, 9) + '-' + d.slice(9);
+    }
+
+    function calcCpfVerifier(baseDigits, startWeight) {
+      var sum = 0;
+      for (var i = 0; i < baseDigits.length; i++) {
+        sum += parseInt(baseDigits[i], 10) * (startWeight - i);
+      }
+      var r = (sum * 10) % 11;
+      return r === 10 ? 0 : r;
+    }
+
+    function generateFakeCpfDigits() {
+      while (true) {
+        var base = '';
+        for (var i = 0; i < 9; i++) base += String(Math.floor(Math.random() * 10));
+        if (/^(\d)\1{8}$/.test(base)) continue;
+        var d1 = calcCpfVerifier(base, 10);
+        var d2 = calcCpfVerifier(base + String(d1), 11);
+        var cpf = base + String(d1) + String(d2);
+        if (!(/^(\d)\1{10}$/.test(cpf))) return cpf;
+      }
+    }
+
+    function isCpfLocked() {
+      // Se o checkout marcou readonly, espelhamos no modal.
+      return $('#billing_cpf').is('[readonly]') || $('#billing_cpf').is(':disabled');
+    }
+
+    function syncCpfUiFromCheckout() {
+      var locked = isCpfLocked();
+      var cpfVal = $('#billing_cpf').val() || '';
+      $('#ctwpml-input-cpf').val(formatCpf(cpfVal));
+      $('#ctwpml-input-cpf').prop('readonly', locked);
+
+      var allow = !!(state.params && (state.params.allow_fake_cpf === 1 || state.params.allow_fake_cpf === '1'));
+      $('#ctwpml-generate-cpf-modal').css('display', allow && !locked ? 'inline-block' : 'none');
     }
 
     function openModal() {
@@ -154,6 +222,8 @@
       $('#ctwpml-btn-secondary').text('Voltar');
       selectedAddressId = null;
       prefillFormFromCheckout();
+      syncLoginBanner();
+      syncCpfUiFromCheckout();
     }
 
     function showFormForNewAddress() {
@@ -181,6 +251,8 @@
       var last = ($('#billing_last_name').val() || '').trim();
       $('#ctwpml-input-nome').val((first + ' ' + last).trim());
       $('#ctwpml-input-fone').val(formatPhone((($('#billing_cellphone').val() || '') || '').trim()));
+      syncLoginBanner();
+      syncCpfUiFromCheckout();
     }
 
     function showFormForEditAddress(addressId) {
@@ -215,6 +287,8 @@
       var last = ($('#billing_last_name').val() || '').trim();
       $('#ctwpml-input-nome').val(String(item.receiver_name || (first + ' ' + last)).trim());
       $('#ctwpml-input-fone').val(formatPhone((($('#billing_cellphone').val() || '') || '').trim()));
+      syncLoginBanner();
+      syncCpfUiFromCheckout();
     }
 
     function setTypeSelection(label) {
@@ -288,6 +362,13 @@
       var phone = phoneDigits($('#ctwpml-input-fone').val());
       if (phone.length < 10) {
         setFieldError('#ctwpml-input-fone', true);
+        ok = false;
+      }
+
+      // CPF obrigatório no fluxo (se já estiver locked, estará preenchido via checkout).
+      var cpf = cpfDigitsOnly($('#ctwpml-input-cpf').val());
+      if (cpf.length !== 11) {
+        setFieldError('#ctwpml-group-cpf', true);
         ok = false;
       }
 
@@ -784,6 +865,7 @@
       var last = ($('#billing_last_name').val() || '').trim();
       $('#ctwpml-input-nome').val((first + ' ' + last).trim());
       $('#ctwpml-input-fone').val(formatPhone((($('#billing_cellphone').val() || '') || '').trim()));
+      syncCpfUiFromCheckout();
 
       // Confirmação visual usando campos do checkout (se já preenchidos)
       var cidade = ($('#billing_city').val() || '').trim();
@@ -814,6 +896,9 @@
 
       var fone = ($('#ctwpml-input-fone').val() || '').trim();
       if (fone) $('#billing_cellphone').val(phoneDigits(fone)).trigger('change');
+
+      var cpf = cpfDigitsOnly($('#ctwpml-input-cpf').val());
+      if (cpf) $('#billing_cpf').val(cpf).trigger('change');
     }
 
     function ensureEntryPointButton() {
@@ -852,6 +937,30 @@
     $(document).on('click', '#ctwpml-type-work', function (e) {
       e.preventDefault();
       setTypeSelection('Trabalho');
+    });
+
+    // CPF (modal): máscara + geração fictícia
+    $(document).on('input', '#ctwpml-input-cpf', function () {
+      var $i = $('#ctwpml-input-cpf');
+      var f = formatCpf($i.val());
+      if ($i.val() !== f) $i.val(f);
+      // Mantém checkout sincronizado
+      $('#billing_cpf').val(cpfDigitsOnly(f)).trigger('change');
+    });
+
+    $(document).on('click', '#ctwpml-generate-cpf-modal', function (e) {
+      e.preventDefault();
+      if (isCpfLocked()) return;
+      var allow = !!(state.params && (state.params.allow_fake_cpf === 1 || state.params.allow_fake_cpf === '1'));
+      if (!allow) return;
+
+      var ok = window.confirm('Atenção: o CPF gerado é definitivo e não poderá ser alterado depois.');
+      if (!ok) return;
+
+      var cpf = generateFakeCpfDigits();
+      $('#ctwpml-input-cpf').val(formatCpf(cpf));
+      $('#ctwpml-cpf-hint').show();
+      $('#billing_cpf').val(cpf).trigger('change');
     });
 
     $(document).on('click', '#ctwpml-delete-address', function (e) {
