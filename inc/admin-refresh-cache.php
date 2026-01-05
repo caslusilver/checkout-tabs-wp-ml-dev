@@ -9,12 +9,30 @@ if (!defined('ABSPATH')) {
  * Segue o framework anexado.
  */
 
-// Link "Atualizar Cache" na lista de ações do plugin
-add_filter('plugin_action_links_' . plugin_basename(CHECKOUT_TABS_WP_ML_FILE), function ($links) {
+// Link "Atualizar Cache" na linha de meta (abaixo da descrição), igual ao packing-panel.
+add_filter('plugin_row_meta', function ($plugin_meta, $plugin_file) {
+	$expected_basename = plugin_basename(CHECKOUT_TABS_WP_ML_FILE);
+	if ($plugin_file !== $expected_basename) {
+		return $plugin_meta;
+	}
+
+	// Git Updater precisa estar disponível para fazer sentido mostrar o link.
+	if (!class_exists('Fragen\\Singleton')) {
+		return $plugin_meta;
+	}
+
 	$nonce = wp_create_nonce('gu-refresh-cache');
-	$links[] = '<a href="#" class="gu-refresh-cache-btn" data-nonce="' . esc_attr($nonce) . '">Atualizar Cache</a>';
-	return $links;
-});
+	$plugin_meta[] = sprintf(
+		'<a href="#" class="gu-refresh-cache-btn" data-nonce="%s">
+			<span class="dashicons dashicons-update" style="font-size: 16px; vertical-align: middle; margin-right: 3px;"></span>
+			<span class="gu-refresh-text">Atualizar Cache</span>
+			<span class="spinner" style="float: none; margin: 0 0 0 5px; visibility: hidden;"></span>
+		</a>',
+		esc_attr($nonce)
+	);
+
+	return $plugin_meta;
+}, 10, 2);
 
 // Enfileirar JS apenas na tela de plugins
 add_action('admin_enqueue_scripts', function ($hook) {
@@ -41,7 +59,7 @@ add_action('wp_ajax_gu_refresh_cache', function () {
 		wp_send_json_error('Sem permissão para executar esta ação.');
 	}
 
-	check_ajax_referer('gu-refresh-cache');
+	check_ajax_referer('gu-refresh-cache', '_ajax_nonce');
 
 	if (!class_exists('Fragen\\Singleton')) {
 		wp_send_json_error('Git Updater não encontrado (Fragen\\Singleton ausente).');

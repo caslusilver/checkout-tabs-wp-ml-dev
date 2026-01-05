@@ -28,6 +28,12 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 ### Security
 - Para automação/publicação via scripts locais (PowerShell), a variável de ambiente esperada é **`GITHUB_TOKEN`** (não inserir token em arquivos, commits ou changelog).
 
+## [v3.1.21] - 2026-01-05
+
+### Changed
+- Admin: adicionado menu principal **Checkout Tabs ML** com abas **Integrações** (Webhook URL) e **Debug** (toggle) para facilitar habilitar logs e gerenciar integrações.
+- Admin: "Atualizar Cache" (Git Updater) ajustado para ficar igual ao `packing-panel-woo-dev` (link em `plugin_row_meta` com ícone/spinner + notices no WP admin).
+
 ## [Unreleased]
 
 ## Notas de Publicação (ainda não executadas)
