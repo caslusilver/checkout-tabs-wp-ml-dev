@@ -1,0 +1,60 @@
+/* Checkout Tabs WP ML - Debug panel (exibido apenas quando debug=true) */
+
+#debug-panel-button {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  z-index: 9999;
+  background: #ff5722;
+  color: #fff;
+  padding: 10px 15px;
+  border-radius: 5px;
+  cursor: pointer;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+  font-size: 14px;
+  font-family: sans-serif;
+}
+
+#debug-panel {
+  position: fixed;
+  bottom: 70px;
+  right: 20px;
+  width: 80%;
+  max-width: 600px;
+  height: 400px;
+  background: #fff;
+  z-index: 9999;
+  display: none;
+  overflow: auto;
+  padding: 15px;
+  border-radius: 5px;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.2);
+  border: 1px solid #ddd;
+  font-family: sans-serif;
+}
+
+#debug-log-content {
+  background: #f5f5f5;
+  padding: 10px;
+  border: 1px solid #ddd;
+  height: 300px;
+  overflow: auto;
+  font-family: monospace;
+  font-size: 12px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+#debug-panel-close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: transparent;
+  border: none;
+  font-size: 18px;
+  color: #000;
+  cursor: pointer;
+}
+
+

@@ -1,0 +1,217 @@
+/* Checkout Tabs WP ML - Tabs + botões + layout base */
+
+/* Opções de frete */
+#shipping_method li,
+.woocommerce-shipping-methods li,
+.e-checkout__shipping-methods li {
+  background: #f9fafa;
+  border-radius: 4px;
+  margin-bottom: 10px;
+  padding: 10px;
+  cursor: pointer;
+  transition: background 0.3s;
+}
+
+#shipping_method li.active,
+#shipping_method li.selected,
+.woocommerce-shipping-methods li.active,
+.woocommerce-shipping-methods li.selected,
+.e-checkout__shipping-methods li.active,
+.e-checkout__shipping-methods li.selected {
+  color: #000;
+  border: 1px solid #0075ff;
+  background-color: #e2edfb;
+}
+
+/* Abas do checkout */
+.checkout-tab {
+  display: none;
+}
+.checkout-tab.active {
+  display: block;
+}
+
+/* Hotfix (v3.1.9): contorna plugins/temas que aplicam display:none !important */
+body.woocommerce-checkout form.checkout .checkout-tab {
+  display: block;
+}
+body.woocommerce-checkout form.checkout .checkout-tab:not(.active) {
+  display: none;
+}
+
+/* Botões */
+.checkout-next-btn,
+.checkout-back-btn {
+  border-radius: 3px !important;
+}
+
+.checkout-next-btn {
+  margin-top: 20px;
+  padding: 10px 20px;
+  background: #0075ff;
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  font-weight: 500;
+}
+.checkout-next-btn:hover:not(:disabled) {
+  background: #005bc7;
+}
+.checkout-next-btn:disabled {
+  background-color: #ccc !important;
+  cursor: not-allowed !important;
+  opacity: 0.7;
+}
+.checkout-next-btn:disabled span {
+  color: #fff !important;
+}
+
+.checkout-back-btn {
+  background: #e2edfb;
+  color: #005bc7 !important;
+  font-weight: 500;
+  margin-right: 10px;
+  padding: 10px 20px;
+  border: none;
+  cursor: pointer;
+  margin-top: 0;
+}
+.checkout-back-btn:hover:not(:disabled) {
+  background: #9dcaff;
+}
+
+/* Container de botões */
+.tab-buttons {
+  display: block !important;
+  width: 100% !important;
+  margin-top: 30px !important;
+}
+
+@media (min-width: 769px) {
+  .tab-buttons {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 10px !important;
+  }
+  .tab-buttons .checkout-next-btn,
+  .tab-buttons .checkout-back-btn {
+    width: 100% !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .checkout-next-btn,
+  .checkout-back-btn {
+    width: 100%;
+    margin-right: 0;
+  }
+
+  .tab-buttons {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 0;
+    width: 100%;
+    margin-top: 20px;
+  }
+
+  #tab-dados-pessoais,
+  #tab-cep,
+  #tab-dados-entrega,
+  #tab-resumo-frete,
+  #tab-pagamento {
+    display: flex;
+    flex-direction: column;
+  }
+
+  #tab-pagamento .woocommerce-additional-fields__field-wrapper,
+  #tab-pagamento .woocommerce-info.woocommerce-coupon-message,
+  #tab-pagamento .checkout_coupon,
+  #tab-pagamento #payment {
+    order: 0;
+  }
+
+  #tab-pagamento .tab-buttons {
+    order: 1;
+    margin-top: 0;
+  }
+
+  #tab-pagamento #payment {
+    display: flex;
+    flex-direction: column;
+  }
+  #tab-pagamento #payment .payment_methods {
+    order: 0;
+    margin-bottom: 20px;
+  }
+  #tab-pagamento #payment .payment-total-dup {
+    order: 1;
+    margin-bottom: 10px;
+    margin-top: 0;
+  }
+  #tab-pagamento #payment .place-order {
+    order: 2;
+    margin-bottom: 0;
+    margin-top: 0;
+  }
+
+  #tab-pagamento h3,
+  #tab-pagamento .progress-container {
+    order: 0;
+  }
+}
+
+/* Barra de progresso */
+.progress-container {
+  position: relative;
+  width: 100%;
+  height: 3px;
+  background-color: #e0e0e0;
+  border-radius: 4px;
+  margin-top: 5px;
+  margin-bottom: 20px;
+}
+.progress-bar {
+  height: 100%;
+  background-color: #33e480;
+  border-radius: 4px;
+  width: 0%;
+  transition: width 0.3s ease-in-out;
+}
+.progress-indicator {
+  position: absolute;
+  top: -4px;
+  width: 11px;
+  height: 11px;
+  background-color: #33e480;
+  border-radius: 50%;
+  transform: translateX(-50%);
+  transition: left 0.3s ease-in-out;
+}
+
+/* Ajustes adicionais (desktop) */
+@media (min-width: 769px) {
+  #billing_first_name_field,
+  #billing_cellphone_field,
+  #billing_last_name_field {
+    width: 100% !important;
+    max-width: none !important;
+  }
+
+  #tab-dados-entrega .woocommerce-billing-fields__field-wrapper {
+    display: flex !important;
+    flex-wrap: wrap !important;
+  }
+
+  #tab-dados-entrega #billing_address_1_field {
+    order: 1 !important;
+    flex: 0 0 100% !important;
+  }
+
+  #tab-dados-entrega #billing_number_field {
+    order: 2 !important;
+    flex: 0 0 100% !important;
+  }
+}
+
+
