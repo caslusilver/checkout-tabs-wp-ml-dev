@@ -67,25 +67,27 @@ jQuery(function ($) {
             $icon.attr('class', originalClass).css('color', '');
           }, 3000);
 
-          ctwpmlNotice((response && response.data) || 'Cache atualizado com sucesso!', 'success');
+          var msg = 'Cache atualizado com sucesso!';
+          if (response && response.data) {
+            if (typeof response.data === 'string') msg = response.data;
+            else if (response.data.message) msg = response.data.message;
+          }
+          ctwpmlNotice(msg, 'success');
 
-          // Atualiza a tela de Plugins sem reload (quando possível).
-          // Em wp-admin/plugins.php o core expõe wp.updates.checkPluginUpdates().
+          // Importante: checagens imediatas podem estourar rate limit quando o Git Updater
+          // não está autenticado. Só tentamos check imediato se o backend detectar token.
           try {
-            if (window.wp && wp.updates && typeof wp.updates.checkPluginUpdates === 'function') {
-              ctwpmlNotice('Cache limpo. Verificando atualizações...', 'success');
+            var hasToken = !!(response && response.data && response.data.has_github_token);
+            if (hasToken && window.wp && wp.updates && typeof wp.updates.checkPluginUpdates === 'function') {
+              ctwpmlNotice('Token detectado. Verificando atualizações...', 'success');
               wp.updates.checkPluginUpdates();
             } else {
-              // Fallback: recarrega a página para refletir atualizações encontradas.
-              setTimeout(function () {
-                window.location.reload();
-              }, 800);
+              ctwpmlNotice(
+                'Cache limpo. Para evitar rate limit, a checagem imediata foi desativada. Aguarde a próxima checagem do Git Updater.',
+                'success'
+              );
             }
-          } catch (e) {
-            setTimeout(function () {
-              window.location.reload();
-            }, 800);
-          }
+          } catch (e) {}
         } else {
           ctwpmlNotice((response && response.data) || 'Erro ao atualizar cache.', 'error');
         }

@@ -25,6 +25,7 @@ require_once CHECKOUT_TABS_WP_ML_DIR . 'inc/version.php';
 require_once CHECKOUT_TABS_WP_ML_DIR . 'inc/settings.php';
 require_once CHECKOUT_TABS_WP_ML_DIR . 'inc/admin/menu.php';
 require_once CHECKOUT_TABS_WP_ML_DIR . 'inc/frontend/login-popup.php';
+require_once CHECKOUT_TABS_WP_ML_DIR . 'inc/frontend/addresses-api.php';
 require_once CHECKOUT_TABS_WP_ML_DIR . 'inc/enqueue.php';
 require_once CHECKOUT_TABS_WP_ML_DIR . 'inc/ajax-store-webhook-shipping.php';
 require_once CHECKOUT_TABS_WP_ML_DIR . 'inc/shipping-rates-override.php';

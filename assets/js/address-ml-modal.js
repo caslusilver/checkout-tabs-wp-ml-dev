@@ -5,6 +5,19 @@
 
   window.CCCheckoutTabs.setupAddressModal = function setupAddressModal(state) {
     var $ = state.$;
+    var cepDebounceTimer = null;
+    var selectedAddressId = null;
+    var addressesCache = [];
+
+    function cepDigits(value) {
+      return String(value || '').replace(/\D/g, '').slice(0, 8);
+    }
+
+    function formatCep(value) {
+      var digits = cepDigits(value);
+      if (digits.length <= 5) return digits;
+      return digits.slice(0, 5) + '-' + digits.slice(5);
+    }
 
     function isLoggedIn() {
       return !!(state.params && (state.params.is_logged_in === 1 || state.params.is_logged_in === '1'));
@@ -24,22 +37,21 @@
           '    <div class="ctwpml-modal-body">' +
           '      <div id="ctwpml-view-list">' +
           '        <div class="ctwpml-section-title">Escolha onde você quer receber sua compra</div>' +
-          '        <div class="ctwpml-card">' +
-          '          <div class="ctwpml-radio-selected"></div>' +
-          '          <div class="ctwpml-address">' +
-          '            <h3 id="ctwpml-addr-title">Endereço do checkout</h3>' +
-          '            <p id="ctwpml-addr-line"></p>' +
-          '            <p id="ctwpml-addr-name" style="margin-top:6px;"></p>' +
-          '            <a href="#" class="ctwpml-edit-link" id="ctwpml-edit-address">Editar endereço</a>' +
-          '          </div>' +
-          '        </div>' +
+          '        <div id="ctwpml-address-list"></div>' +
           '      </div>' +
           '      <div id="ctwpml-view-form" style="display:none;">' +
           '        <div class="ctwpml-section-title">Adicione um endereço</div>' +
           '        <div class="ctwpml-form-group">' +
           '          <label for="ctwpml-input-cep">CEP</label>' +
-          '          <input id="ctwpml-input-cep" type="text" placeholder="Ex.: 05410001" inputmode="numeric" />' +
+          '          <input id="ctwpml-input-cep" type="text" placeholder="00000-000" inputmode="numeric" autocomplete="postal-code" />' +
           '          <a class="ctwpml-link-right" href="#" id="ctwpml-nao-sei-cep">Não sei meu CEP</a>' +
+          '          <div id="ctwpml-cep-confirm" class="ctwpml-cep-confirm" aria-live="polite">' +
+          '            <div class="ctwpml-cep-icon">📍</div>' +
+          '            <div>' +
+          '              <div class="ctwpml-cep-text" id="ctwpml-cep-confirm-text"></div>' +
+          '              <div class="ctwpml-cep-subtext" id="ctwpml-cep-confirm-subtext"></div>' +
+          '            </div>' +
+          '          </div>' +
           '        </div>' +
           '        <div class="ctwpml-form-group"><label for="ctwpml-input-rua">Rua / Avenida</label><input id="ctwpml-input-rua" type="text" placeholder="Ex.: Avenida..." /></div>' +
           '        <div class="ctwpml-form-group"><label for="ctwpml-input-numero">Número</label><input id="ctwpml-input-numero" type="text" placeholder="Ex.: 123" /></div>' +
@@ -62,7 +74,10 @@
       if (!isLoggedIn()) return;
       ensureModal();
       refreshFromCheckoutFields();
-      showList();
+      loadAddresses(function () {
+        showList();
+        renderAddressList();
+      });
       $('#ctwpml-address-modal-overlay').css('display', 'flex');
     }
 
@@ -99,7 +114,237 @@
       $('#ctwpml-view-form').show();
       $('#ctwpml-btn-primary').text('Salvar');
       $('#ctwpml-btn-secondary').text('Voltar');
+      selectedAddressId = null;
       prefillFormFromCheckout();
+    }
+
+    function showFormForNewAddress() {
+      $('#ctwpml-modal-title').text('Adicionar endereço');
+      $('#ctwpml-view-list').hide();
+      $('#ctwpml-view-form').show();
+      $('#ctwpml-btn-primary').text('Salvar');
+      $('#ctwpml-btn-secondary').text('Voltar');
+      selectedAddressId = null;
+      // Limpa campos, mas mantém nome/telefone (facilita UX no checkout).
+      $('#ctwpml-input-cep').val('');
+      $('#ctwpml-input-rua').val('');
+      $('#ctwpml-input-numero').val('');
+      $('#ctwpml-input-comp').val('');
+      $('#ctwpml-input-info').val('');
+      setCepConfirmVisible(false);
+      var first = ($('#billing_first_name').val() || '').trim();
+      var last = ($('#billing_last_name').val() || '').trim();
+      $('#ctwpml-input-nome').val((first + ' ' + last).trim());
+      $('#ctwpml-input-fone').val((($('#billing_cellphone').val() || '') || '').trim());
+    }
+
+    function showFormForEditAddress(addressId) {
+      var item = getAddressById(addressId);
+      if (!item) {
+        showFormForNewAddress();
+        return;
+      }
+      selectedAddressId = item.id;
+      $('#ctwpml-modal-title').text('Editar endereço');
+      $('#ctwpml-view-list').hide();
+      $('#ctwpml-view-form').show();
+      $('#ctwpml-btn-primary').text('Salvar');
+      $('#ctwpml-btn-secondary').text('Voltar');
+
+      $('#ctwpml-input-cep').val(formatCep(item.cep || ''));
+      $('#ctwpml-input-rua').val(String(item.address_1 || ''));
+      $('#ctwpml-input-numero').val(String(item.number || ''));
+      $('#ctwpml-input-comp').val(String(item.complement || ''));
+      $('#ctwpml-input-info').val(String(item.extra_info || ''));
+      setCepConfirm(String(item.city || ''), String(item.state || ''), String(item.neighborhood || ''));
+
+      // Nome/telefone continuam vindo do checkout.
+      var first = ($('#billing_first_name').val() || '').trim();
+      var last = ($('#billing_last_name').val() || '').trim();
+      $('#ctwpml-input-nome').val((first + ' ' + last).trim());
+      $('#ctwpml-input-fone').val((($('#billing_cellphone').val() || '') || '').trim());
+    }
+
+    function getAddressById(id) {
+      if (!id) return null;
+      for (var i = 0; i < addressesCache.length; i++) {
+        if (addressesCache[i] && String(addressesCache[i].id) === String(id)) return addressesCache[i];
+      }
+      return null;
+    }
+
+    function setSelectedAddressId(id) {
+      selectedAddressId = id || null;
+      renderAddressList();
+    }
+
+    function renderAddressList() {
+      var $list = $('#ctwpml-address-list');
+      if (!$list.length) return;
+
+      // Sempre inclui o endereço do checkout como opção.
+      var items = [];
+      items.push({
+        id: '__checkout__',
+        title: $('#ctwpml-addr-title').text() || 'Endereço do checkout',
+        line: $('#ctwpml-addr-line').text() || '',
+        name: $('#ctwpml-addr-name').text() || '',
+      });
+
+      for (var i = 0; i < addressesCache.length; i++) {
+        var it = addressesCache[i] || {};
+        var title = (it.address_1 || 'Endereço') + (it.number ? ' ' + it.number : '');
+        var line = [it.neighborhood, it.city, it.state, it.cep ? 'CEP ' + formatCep(it.cep) : ''].filter(Boolean).join(', ');
+        items.push({
+          id: it.id,
+          title: title,
+          line: line,
+          name: '',
+        });
+      }
+
+      if (!selectedAddressId) selectedAddressId = items.length ? items[0].id : '__checkout__';
+
+      var html = '';
+      for (var j = 0; j < items.length; j++) {
+        var row = items[j];
+        var selected = String(row.id) === String(selectedAddressId);
+        html +=
+          '' +
+          '<div class="ctwpml-card" data-address-id="' +
+          String(row.id) +
+          '" style="cursor:pointer; margin-bottom: 12px;">' +
+          '  <div class="' +
+          (selected ? 'ctwpml-radio-selected' : 'ctwpml-radio-selected') +
+          '" style="' +
+          (selected ? '' : 'border-color: rgba(52,131,250,0.35);') +
+          '"></div>' +
+          '  <div class="ctwpml-address">' +
+          '    <h3>' +
+          escapeHtml(String(row.title || '')) +
+          '</h3>' +
+          '    <p>' +
+          escapeHtml(String(row.line || '')) +
+          '</p>' +
+          (row.name ? '<p style="margin-top:6px;">' + escapeHtml(String(row.name)) + '</p>' : '') +
+          (row.id !== '__checkout__'
+            ? '    <a href="#" class="ctwpml-edit-link ctwpml-edit-saved-address" data-address-id="' +
+              String(row.id) +
+              '">Editar endereço</a>'
+            : '    <a href="#" class="ctwpml-edit-link" id="ctwpml-edit-address">Editar endereço</a>') +
+          '  </div>' +
+          '</div>';
+      }
+      $list.html(html);
+    }
+
+    function escapeHtml(s) {
+      return String(s || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/\"/g, '&quot;')
+        .replace(/\'/g, '&#039;');
+    }
+
+    function loadAddresses(done) {
+      done = typeof done === 'function' ? done : function () {};
+      if (!state.params || !state.params.ajax_url || !state.params.addresses_nonce) {
+        addressesCache = [];
+        done();
+        return;
+      }
+      $.ajax({
+        url: state.params.ajax_url,
+        type: 'POST',
+        dataType: 'json',
+        data: {
+          action: 'ctwpml_get_addresses',
+          _ajax_nonce: state.params.addresses_nonce,
+        },
+        success: function (resp) {
+          if (resp && resp.success && resp.data && Array.isArray(resp.data.items)) {
+            addressesCache = resp.data.items;
+          } else {
+            addressesCache = [];
+          }
+          done();
+        },
+        error: function () {
+          addressesCache = [];
+          done();
+        },
+      });
+    }
+
+    function saveAddressFromForm(done) {
+      done = typeof done === 'function' ? done : function () {};
+      if (!state.params || !state.params.ajax_url || !state.params.addresses_nonce) {
+        done({ ok: false, message: 'AJAX indisponível.' });
+        return;
+      }
+
+      var cepOnly = cepDigits($('#ctwpml-input-cep').val());
+      var address = {
+        id: selectedAddressId && selectedAddressId !== '__checkout__' ? selectedAddressId : '',
+        label: '',
+        cep: cepOnly,
+        address_1: ($('#ctwpml-input-rua').val() || '').trim(),
+        number: ($('#ctwpml-input-numero').val() || '').trim(),
+        complement: ($('#ctwpml-input-comp').val() || '').trim(),
+        neighborhood: ($('#billing_neighborhood').val() || '').trim(),
+        city: ($('#billing_city').val() || '').trim(),
+        state: ($('#billing_state').val() || '').trim(),
+        extra_info: ($('#ctwpml-input-info').val() || '').trim(),
+      };
+
+      $.ajax({
+        url: state.params.ajax_url,
+        type: 'POST',
+        dataType: 'json',
+        data: {
+          action: 'ctwpml_save_address',
+          _ajax_nonce: state.params.addresses_nonce,
+          address: address,
+        },
+        success: function (resp) {
+          if (resp && resp.success && resp.data) {
+            if (Array.isArray(resp.data.items)) addressesCache = resp.data.items;
+            if (resp.data.item && resp.data.item.id) selectedAddressId = resp.data.item.id;
+            done({ ok: true });
+          } else {
+            done({ ok: false, message: (resp && resp.data) || 'Erro ao salvar endereço.' });
+          }
+        },
+        error: function () {
+          done({ ok: false, message: 'Erro ao salvar endereço.' });
+        },
+      });
+    }
+
+    function setCepConfirmVisible(visible) {
+      var $box = $('#ctwpml-cep-confirm');
+      if (!$box.length) return;
+      if (visible) $box.addClass('is-visible');
+      else $box.removeClass('is-visible');
+    }
+
+    function setCepConfirm(city, uf, bairro) {
+      var c = (city || '').trim();
+      var s = (uf || '').trim();
+      var b = (bairro || '').trim();
+
+      if (!c && !s && !b) {
+        setCepConfirmVisible(false);
+        return;
+      }
+
+      // Linha principal: "Cidade, UF"
+      var title = [c, s].filter(Boolean).join(', ');
+      var subtitle = b ? b : '';
+      $('#ctwpml-cep-confirm-text').text(title);
+      $('#ctwpml-cep-confirm-subtext').text(subtitle);
+      setCepConfirmVisible(true);
     }
 
     function fillFormFromApiData(raw) {
@@ -118,6 +363,13 @@
       if (dados.numero) $('#ctwpml-input-numero').val(String(dados.numero));
       if (dados.complemento) $('#ctwpml-input-comp').val(String(dados.complemento));
 
+      // Confirmação visual do CEP (Cidade/UF/Bairro)
+      // Suporta chaves normalizadas (localidade/uf/bairro) e alternativas comuns.
+      var cidade = dados.localidade || dados.cidade || dados.city || '';
+      var uf = dados.uf || dados.estado || dados.state || '';
+      var bairro = dados.bairro || dados.neighborhood || '';
+      setCepConfirm(String(cidade || ''), String(uf || ''), String(bairro || ''));
+
       // Preenche campos do checkout também (inclui campos que não existem no modal).
       if (dados.logradouro) $('#billing_address_1').val(String(dados.logradouro)).trigger('change');
       if (dados.numero) $('#billing_number').val(String(dados.numero)).trigger('change');
@@ -130,14 +382,14 @@
     }
 
     function consultCepAndFillForm() {
-      var cepDigits = ($('#ctwpml-input-cep').val() || '').replace(/\D/g, '');
-      if (cepDigits.length !== 8) return;
+      var cepOnlyDigits = cepDigits($('#ctwpml-input-cep').val());
+      if (cepOnlyDigits.length !== 8) return;
 
       // Preenche o checkout antes para manter consistência de estado.
-      $('#billing_postcode').val(cepDigits).trigger('change');
+      $('#billing_postcode').val(cepOnlyDigits).trigger('change');
 
       var payload = {
-        cep: cepDigits,
+        cep: cepOnlyDigits,
         evento: 'consultaEnderecoFrete',
         whatsapp:
           typeof state.removerMascaraWhatsApp === 'function'
@@ -192,7 +444,8 @@
     }
 
     function prefillFormFromCheckout() {
-      $('#ctwpml-input-cep').val((($('#billing_postcode').val() || '').replace(/\D/g, '') || '').trim());
+      var cepVal = formatCep($('#billing_postcode').val());
+      $('#ctwpml-input-cep').val(cepVal);
       $('#ctwpml-input-rua').val((($('#billing_address_1').val() || '') || '').trim());
       $('#ctwpml-input-numero').val((($('#billing_number').val() || '') || '').trim());
       $('#ctwpml-input-comp').val((($('#billing_complemento').val() || '') || '').trim());
@@ -201,6 +454,12 @@
       var last = ($('#billing_last_name').val() || '').trim();
       $('#ctwpml-input-nome').val((first + ' ' + last).trim());
       $('#ctwpml-input-fone').val((($('#billing_cellphone').val() || '') || '').trim());
+
+      // Confirmação visual usando campos do checkout (se já preenchidos)
+      var cidade = ($('#billing_city').val() || '').trim();
+      var uf = ($('#billing_state').val() || '').trim();
+      var bairro = ($('#billing_neighborhood').val() || '').trim();
+      setCepConfirm(cidade, uf, bairro);
     }
 
     function applyFormToCheckout() {
@@ -246,20 +505,58 @@
     });
     $(document).on('click', '#ctwpml-edit-address', function (e) {
       e.preventDefault();
+      // Editar endereço do checkout (não persiste)
       showForm();
     });
+
+    $(document).on('click', '.ctwpml-edit-saved-address', function (e) {
+      e.preventDefault();
+      var id = $(this).data('address-id');
+      showFormForEditAddress(id);
+    });
+
+    $(document).on('click', '#ctwpml-address-list .ctwpml-card', function (e) {
+      // Se clicar no link, não trata como seleção aqui.
+      if ($(e.target).closest('a').length) return;
+      var id = $(this).data('address-id');
+      setSelectedAddressId(id);
+    });
     $(document).on('click', '#ctwpml-btn-secondary', function () {
-      if ($('#ctwpml-view-form').is(':visible')) showList();
-      else showForm();
+      if ($('#ctwpml-view-form').is(':visible')) {
+        showList();
+        renderAddressList();
+      } else {
+        showFormForNewAddress();
+      }
     });
     $(document).on('click', '#ctwpml-btn-primary', function () {
       if ($('#ctwpml-view-form').is(':visible')) {
         applyFormToCheckout();
-        closeModal();
-        // Usa o fluxo atual do plugin para consultar CEP + salvar frete + avançar.
-        $('#btn-avancar-para-endereco').trigger('click');
+        saveAddressFromForm(function (res) {
+          if (!res || !res.ok) {
+            alert((res && res.message) || 'Erro ao salvar endereço.');
+            return;
+          }
+          showList();
+          renderAddressList();
+        });
       } else {
+        // Continuar: aplica o endereço selecionado (se for salvo) e segue o fluxo atual.
+        if (selectedAddressId && selectedAddressId !== '__checkout__') {
+          var it = getAddressById(selectedAddressId);
+          if (it) {
+            $('#billing_postcode').val(String(it.cep || '')).trigger('change');
+            if (it.address_1) $('#billing_address_1').val(String(it.address_1)).trigger('change');
+            if (it.number) $('#billing_number').val(String(it.number)).trigger('change');
+            if (it.complement) $('#billing_complemento').val(String(it.complement)).trigger('change');
+            if (it.neighborhood) $('#billing_neighborhood').val(String(it.neighborhood)).trigger('change');
+            if (it.city) $('#billing_city').val(String(it.city)).trigger('change');
+            if (it.state) $('#billing_state').val(String(it.state)).trigger('change');
+            refreshFromCheckoutFields();
+          }
+        }
         closeModal();
+        $('#btn-avancar-para-endereco').trigger('click');
       }
     });
     $(document).on('click', '#ctwpml-nao-sei-cep', function (e) {
@@ -268,8 +565,15 @@
     });
 
     // Tela 2: ao preencher o CEP, consulta webhook e preenche campos automaticamente.
-    $(document).on('change', '#ctwpml-input-cep', function () {
-      consultCepAndFillForm();
+    $(document).on('input', '#ctwpml-input-cep', function () {
+      var $input = $('#ctwpml-input-cep');
+      var formatted = formatCep($input.val());
+      if ($input.val() !== formatted) $input.val(formatted);
+
+      if (cepDebounceTimer) clearTimeout(cepDebounceTimer);
+      cepDebounceTimer = setTimeout(function () {
+        consultCepAndFillForm();
+      }, 250);
     });
 
     // Reforço: quando a estrutura de abas é criada, injeta o botão de entrada.

@@ -30,7 +30,31 @@
   display: flex;
   flex-direction: column;
   /* Garantir contraste mesmo se tema aplicar cor global clara */
-  color: #333;
+  color: #111;
+}
+
+.ctwpml-modal * {
+  /* Evita que temas apliquem texto branco/global dentro do modal */
+  color: inherit;
+}
+
+.ctwpml-modal a {
+  color: var(--ctwpml-ml-blue);
+}
+
+.ctwpml-modal a:visited {
+  color: var(--ctwpml-ml-blue);
+}
+
+.ctwpml-modal input,
+.ctwpml-modal textarea {
+  color: #111 !important;
+  background: #fff !important;
+}
+
+.ctwpml-modal input::placeholder,
+.ctwpml-modal textarea::placeholder {
+  color: #6b7280 !important;
 }
 
 .ctwpml-modal-header {
@@ -100,6 +124,36 @@
   font-size: 13px;
   color: var(--ctwpml-ml-text-gray);
   line-height: 1.4;
+}
+
+.ctwpml-cep-confirm {
+  display: none;
+  margin-top: 10px;
+  font-size: 13px;
+  color: #111;
+  line-height: 1.35;
+}
+
+.ctwpml-cep-confirm.is-visible {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.ctwpml-cep-confirm .ctwpml-cep-icon {
+  flex: 0 0 auto;
+  margin-top: 2px;
+  color: #111;
+}
+
+.ctwpml-cep-confirm .ctwpml-cep-text {
+  color: #111;
+  font-weight: 600;
+}
+
+.ctwpml-cep-confirm .ctwpml-cep-subtext {
+  color: var(--ctwpml-ml-text-gray);
+  font-weight: 500;
 }
 
 .ctwpml-edit-link {

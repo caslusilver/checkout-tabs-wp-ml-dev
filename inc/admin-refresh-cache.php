@@ -65,6 +65,30 @@ add_action('wp_ajax_gu_refresh_cache', function () {
 		wp_send_json_error('Git Updater não encontrado (Fragen\\Singleton ausente).');
 	}
 
+	/**
+	 * Best-effort: detectar se há token do GitHub configurado no Git Updater.
+	 * Evita disparar checagens imediatas em instalações sem autenticação (rate limit).
+	 */
+	$has_github_token = false;
+	$detect_token_from_array = static function ($arr): bool {
+		if (!is_array($arr)) {
+			return false;
+		}
+		foreach ($arr as $k => $v) {
+			$key = strtolower((string) $k);
+			if (strpos($key, 'github') === false) {
+				continue;
+			}
+			if (strpos($key, 'token') === false && strpos($key, 'access') === false) {
+				continue;
+			}
+			if (is_string($v) && trim($v) !== '') {
+				return true;
+			}
+		}
+		return false;
+	};
+
 	try {
 		/** @var object $settings */
 		$settings = Fragen\Singleton::get_instance(
@@ -74,6 +98,32 @@ add_action('wp_ajax_gu_refresh_cache', function () {
 
 		if (is_object($settings) && method_exists($settings, 'delete_all_cached_data')) {
 			$settings->delete_all_cached_data();
+		}
+
+		// Heurística: tenta achar token no objeto Settings.
+		if (is_object($settings)) {
+			foreach (['github_access_token', 'github_api_token', 'github_token', 'github_access', 'token'] as $prop) {
+				if (isset($settings->$prop) && is_string($settings->$prop) && trim($settings->$prop) !== '') {
+					$has_github_token = true;
+					break;
+				}
+			}
+			// Alguns setups guardam opções em arrays/props internos.
+			if (!$has_github_token) {
+				foreach (['options', 'config', 'settings'] as $prop) {
+					if (isset($settings->$prop) && is_array($settings->$prop) && $detect_token_from_array($settings->$prop)) {
+						$has_github_token = true;
+						break;
+					}
+				}
+			}
+		}
+
+		// Heurística alternativa: tenta achar token em options do WP.
+		if (!$has_github_token) {
+			$has_github_token = $detect_token_from_array(get_option('git_updater', []))
+				|| $detect_token_from_array(get_option('git_updater_settings', []))
+				|| $detect_token_from_array(get_option('git_updater_api', []));
 		}
 
 		/**
@@ -86,7 +136,10 @@ add_action('wp_ajax_gu_refresh_cache', function () {
 			wp_cron();
 		}
 
-		wp_send_json_success('Cache atualizado com sucesso!');
+		wp_send_json_success([
+			'message' => 'Cache atualizado com sucesso!',
+			'has_github_token' => $has_github_token,
+		]);
 	} catch (Exception $e) {
 		wp_send_json_error($e->getMessage());
 	}
