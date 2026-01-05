@@ -10,22 +10,26 @@
   color: var(--ctwpml-ui-text);
 }
 
-.ctwpml-login-popup h3 {
+/* Estilos padrão por hierarquia (sobrescritos pelo inline CSS se configurado no admin) */
+.ctwpml-login-popup .ctwpml-popup-h1 {
   color: #000;
-  font-weight: 900;
+  font-weight: 800;
+  font-size: 24px;
   margin: 0 0 12px;
 }
 
-.ctwpml-login-popup h4 {
-  color: #fff;
+.ctwpml-login-popup .ctwpml-popup-h2 {
+  color: #333;
+  font-weight: 400;
+  font-size: 16px;
+  margin: 0 0 18px;
 }
 
-.ctwpml-login-popup h5 {
-  color: var(--ctwpml-ui-primary);
-}
-
-.ctwpml-login-popup h6 {
-  color: var(--ctwpml-ui-text);
+.ctwpml-login-popup .ctwpml-popup-h3 {
+  color: #666;
+  font-weight: 600;
+  font-size: 14px;
+  margin: 0 0 6px;
 }
 
 .ctwpml-auth-tabs {
@@ -45,8 +49,7 @@
   color: var(--ctwpml-ui-primary);
 }
 
-.ctwpml-auth-tab h5,
-.ctwpml-auth-tab h6 {
+.ctwpml-auth-tab .ctwpml-popup-h3 {
   margin: 0;
   font-weight: inherit;
 }

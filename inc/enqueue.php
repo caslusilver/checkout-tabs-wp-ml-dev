@@ -45,10 +45,43 @@ add_action('wp_enqueue_scripts', function () {
 	$ui_primary = sanitize_hex_color((string) get_option('checkout_tabs_wp_ml_ui_primary', '#0075ff')) ?: '#0075ff';
 	$ui_login_bg = sanitize_hex_color((string) get_option('checkout_tabs_wp_ml_ui_login_bg', '#f5f5f5')) ?: '#f5f5f5';
 	$ui_text = sanitize_hex_color((string) get_option('checkout_tabs_wp_ml_ui_text', '#111111')) ?: '#111111';
-	wp_add_inline_style(
-		'checkout-tabs-wp-ml-login-popup',
-		'.ctwpml-login-popup{--ctwpml-ui-primary:' . $ui_primary . ';--ctwpml-ui-login_bg:' . $ui_login_bg . ';--ctwpml-ui-text:' . $ui_text . ';}'
-	);
+	
+	// Carregar estilos customizados por hierarquia (H1, H2, H3)
+	$levels = ['h1', 'h2', 'h3'];
+	$defaults = [
+		'h1' => ['color' => '#000000', 'bg' => 'transparent', 'font' => 'Arial', 'weight' => '800', 'size' => 24, 'padding' => '0 0 12px 0', 'margin' => '0', 'align' => 'left'],
+		'h2' => ['color' => '#333333', 'bg' => 'transparent', 'font' => 'Arial', 'weight' => '400', 'size' => 16, 'padding' => '0', 'margin' => '0 0 18px 0', 'align' => 'left'],
+		'h3' => ['color' => '#666666', 'bg' => 'transparent', 'font' => 'Arial', 'weight' => '600', 'size' => 14, 'padding' => '0', 'margin' => '0 0 6px 0', 'align' => 'left'],
+	];
+	
+	$custom_css = '.ctwpml-login-popup{--ctwpml-ui-primary:' . $ui_primary . ';--ctwpml-ui-login_bg:' . $ui_login_bg . ';--ctwpml-ui-text:' . $ui_text . ';}';
+	
+	foreach ($levels as $level) {
+		$color = sanitize_hex_color((string) get_option("checkout_tabs_wp_ml_style_{$level}_color", $defaults[$level]['color'])) ?: $defaults[$level]['color'];
+		$bg = get_option("checkout_tabs_wp_ml_style_{$level}_bg", $defaults[$level]['bg']);
+		if ($bg !== 'transparent') {
+			$bg = sanitize_hex_color((string) $bg) ?: $defaults[$level]['bg'];
+		}
+		$font = sanitize_text_field((string) get_option("checkout_tabs_wp_ml_style_{$level}_font", $defaults[$level]['font']));
+		$weight = sanitize_text_field((string) get_option("checkout_tabs_wp_ml_style_{$level}_weight", $defaults[$level]['weight']));
+		$size = absint(get_option("checkout_tabs_wp_ml_style_{$level}_size", $defaults[$level]['size']));
+		$padding = sanitize_text_field((string) get_option("checkout_tabs_wp_ml_style_{$level}_padding", $defaults[$level]['padding']));
+		$margin = sanitize_text_field((string) get_option("checkout_tabs_wp_ml_style_{$level}_margin", $defaults[$level]['margin']));
+		$align = sanitize_text_field((string) get_option("checkout_tabs_wp_ml_style_{$level}_align", $defaults[$level]['align']));
+		
+		$custom_css .= ".ctwpml-login-popup .ctwpml-popup-{$level}{";
+		$custom_css .= "color:{$color}!important;";
+		$custom_css .= "background-color:{$bg}!important;";
+		$custom_css .= "font-family:{$font}!important;";
+		$custom_css .= "font-weight:{$weight}!important;";
+		$custom_css .= "font-size:{$size}px!important;";
+		$custom_css .= "padding:{$padding}!important;";
+		$custom_css .= "margin:{$margin}!important;";
+		$custom_css .= "text-align:{$align}!important;";
+		$custom_css .= "}";
+	}
+	
+	wp_add_inline_style('checkout-tabs-wp-ml-login-popup', $custom_css);
 
 	// Script de máscara: manter comportamento do snippet (carrega apenas se não houver outro).
 	if (!wp_script_is('jquery-mask', 'enqueued') && !wp_script_is('jquery-mask.min', 'enqueued') && !wp_script_is('jquery-maskmoney', 'enqueued')) {

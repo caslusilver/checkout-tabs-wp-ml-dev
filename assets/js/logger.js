@@ -125,7 +125,7 @@
       }
 
       var phaseLabel = (phase + '          ').slice(0, 10);
-      var logMessage = '[' + timestamp + '] ' + phaseLabel + ' ' + message + timingInfo;
+      var logMessage = '[CTWPML] [' + timestamp + '] ' + phaseLabel + ' ' + message + timingInfo;
 
       console.log(logMessage);
       if (data) console.log(data);
@@ -143,6 +143,26 @@
         var cur = ta.val() || '';
         ta.val(cur ? cur + '\n' + line : line);
         ta.scrollTop(ta[0].scrollHeight);
+      }
+
+      // Enviar log ao backend para exibição no admin
+      if (state.params && state.params.ajax_url) {
+        var payload = new FormData();
+        payload.append('action', 'ctwpml_save_log');
+        payload.append('level', phase === 'ERROR' ? 'error' : 'info');
+        payload.append('message', logMessage);
+        payload.append('timestamp', Date.now());
+
+        // Usar sendBeacon (assíncrono, não bloqueia) ou fetch com keepalive
+        if (navigator.sendBeacon) {
+          navigator.sendBeacon(state.params.ajax_url, payload);
+        } else if (window.fetch) {
+          fetch(state.params.ajax_url, {
+            method: 'POST',
+            body: payload,
+            keepalive: true,
+          }).catch(function () {});
+        }
       }
     };
 

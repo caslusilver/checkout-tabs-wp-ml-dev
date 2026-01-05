@@ -123,6 +123,17 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
 #### Protocol: 9fc3da8
 
+## [v3.2.0] - 2026-01-05
+
+### Changed
+- Cria aba "Styles" no admin com editor completo de estilos por hierarquia (H1/H2/H3: cor, fundo, fonte, peso, tamanho, padding, margin, alinhamento - 24 campos total).
+- Reverte headings do popup para classes CSS neutras (`.ctwpml-popup-h1/h2/h3`).
+- Garante prioridade CSS com `!important` e alta especificidade para sobrescrever cores globais do site (Primary, Secondary, Text, Accent).
+- Integra logs frontend em tempo real na aba Debug com textarea, auto-refresh a cada 5s, botões copiar/limpar, e filtragem automática (apenas eventos do checkout com prefixo `[CTWPML]`).
+- Logs são armazenados em transient (expira em 1h, limite de 200 entradas FIFO).
+
+#### Protocol: 9dd199c
+
 ## [Unreleased]
 
 ## Notas de Publicação (ainda não executadas)

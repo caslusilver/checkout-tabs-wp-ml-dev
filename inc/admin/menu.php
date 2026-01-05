@@ -38,6 +38,14 @@ add_action('admin_enqueue_scripts', function ($hook_suffix) {
 		true
 	);
 
+	wp_enqueue_script(
+		'checkout-tabs-wp-ml-admin-debug',
+		CHECKOUT_TABS_WP_ML_URL . 'assets/js/admin-debug.js',
+		['jquery', 'checkout-tabs-wp-ml-admin-tabs'],
+		checkout_tabs_wp_ml_get_version(),
+		true
+	);
+
 	wp_localize_script('checkout-tabs-wp-ml-admin-tabs', 'CTWPMLAdminTabs', [
 		'page' => CHECKOUT_TABS_WP_ML_SETTINGS_PAGE,
 	]);
@@ -49,7 +57,7 @@ function checkout_tabs_wp_ml_render_admin_page(): void {
 	}
 
 	$tab = isset($_GET['tab']) ? sanitize_key((string) $_GET['tab']) : 'integracoes';
-	if (!in_array($tab, ['integracoes', 'debug'], true)) {
+	if (!in_array($tab, ['integracoes', 'styles', 'debug'], true)) {
 		$tab = 'integracoes';
 	}
 
@@ -69,6 +77,11 @@ function checkout_tabs_wp_ml_render_admin_page(): void {
 		'" class="nav-tab ctwpml-admin-tab ' .
 		($tab === 'integracoes' ? 'nav-tab-active' : '') .
 		'" data-tab="integracoes">Integrações</a>';
+	echo '<a href="' .
+		esc_url(admin_url('admin.php?page=' . CHECKOUT_TABS_WP_ML_SETTINGS_PAGE . '&tab=styles')) .
+		'" class="nav-tab ctwpml-admin-tab ' .
+		($tab === 'styles' ? 'nav-tab-active' : '') .
+		'" data-tab="styles">Styles</a>';
 	echo '<a href="' .
 		esc_url(admin_url('admin.php?page=' . CHECKOUT_TABS_WP_ML_SETTINGS_PAGE . '&tab=debug')) .
 		'" class="nav-tab ctwpml-admin-tab ' .
@@ -118,6 +131,31 @@ function checkout_tabs_wp_ml_render_admin_page(): void {
 		echo '</table>';
 	echo '</div>';
 
+	// Aba Styles
+	$style_styles = ($tab === 'styles') ? '' : 'display:none;';
+	echo '<div class="ctwpml-admin-tab-panel" data-tab="styles" style="' . esc_attr($style_styles) . '">';
+		echo '<h2 class="title">Styles do Popup</h2>';
+		echo '<p class="description">Configure os estilos visuais do popup de login/cadastro por hierarquia de texto. Essas configurações sobrescrevem as cores globais do site.</p>';
+		
+		// H1 - Títulos principais
+		echo '<h3 style="margin-top:24px; border-bottom:1px solid #ccc; padding-bottom:8px;">H1 - Títulos Principais</h3>';
+		echo '<table class="form-table" role="presentation">';
+		checkout_tabs_wp_ml_render_style_fields('h1');
+		echo '</table>';
+		
+		// H2 - Subtítulos/Descrições
+		echo '<h3 style="margin-top:24px; border-bottom:1px solid #ccc; padding-bottom:8px;">H2 - Subtítulos e Descrições</h3>';
+		echo '<table class="form-table" role="presentation">';
+		checkout_tabs_wp_ml_render_style_fields('h2');
+		echo '</table>';
+		
+		// H3 - Labels e textos auxiliares
+		echo '<h3 style="margin-top:24px; border-bottom:1px solid #ccc; padding-bottom:8px;">H3 - Labels e Textos Auxiliares</h3>';
+		echo '<table class="form-table" role="presentation">';
+		checkout_tabs_wp_ml_render_style_fields('h3');
+		echo '</table>';
+	echo '</div>';
+
 	$style_debug = ($tab === 'debug') ? '' : 'display:none;';
 	echo '<div class="ctwpml-admin-tab-panel" data-tab="debug" style="' . esc_attr($style_debug) . '">';
 		echo '<h2 class="title">Debug</h2>';
@@ -133,6 +171,34 @@ function checkout_tabs_wp_ml_render_admin_page(): void {
 		echo '</td>';
 		echo '</tr>';
 		echo '</table>';
+		
+		// Seção de Logs em Tempo Real
+		echo '<h3 style="margin-top:24px; border-bottom:1px solid #ccc; padding-bottom:8px;">Logs do Checkout (Tempo Real)</h3>';
+		echo '<p class="description">Logs capturados do frontend (apenas eventos do checkout). Atualiza automaticamente a cada 5 segundos.</p>';
+		
+		// Carregar logs do transient
+		$logs = get_transient('ctwpml_debug_logs');
+		if (!is_array($logs)) {
+			$logs = [];
+		}
+		
+		$formatted_logs = [];
+		foreach ($logs as $log) {
+			$time = isset($log['time']) ? date('H:i:s', intval($log['time'] / 1000)) : '00:00:00';
+			$level = strtoupper(isset($log['level']) ? $log['level'] : 'INFO');
+			$msg = isset($log['msg']) ? $log['msg'] : '';
+			$formatted_logs[] = "[{$time}] [{$level}] {$msg}";
+		}
+		
+		$log_content = implode("\n", $formatted_logs);
+		
+		echo '<textarea id="ctwpml-debug-logs-textarea" readonly style="width:100%; height:400px; font-family:monospace; font-size:12px; background:#0b0b0b; color:#d1d5db; border:1px solid #ccc; border-radius:4px; padding:10px; box-sizing:border-box; resize:vertical;">' . esc_textarea($log_content) . '</textarea>';
+		
+		echo '<div style="margin-top:10px; display:flex; gap:10px;">';
+		echo '<button type="button" id="ctwpml-copy-logs-btn" class="button">Copiar Logs</button>';
+		echo '<button type="button" id="ctwpml-clear-logs-btn" class="button">Limpar Logs</button>';
+		echo '<span id="ctwpml-logs-status" style="line-height:28px; color:#666;"></span>';
+		echo '</div>';
 	echo '</div>';
 
 	echo '</div>';
@@ -140,6 +206,109 @@ function checkout_tabs_wp_ml_render_admin_page(): void {
 	submit_button('Salvar');
 	echo '</form>';
 	echo '</div>';
+}
+
+/**
+ * Helper para renderizar campos de estilo por hierarquia
+ */
+function checkout_tabs_wp_ml_render_style_fields(string $level): void {
+	$defaults = [
+		'h1' => ['color' => '#000000', 'bg' => 'transparent', 'font' => 'Arial', 'weight' => '800', 'size' => '24', 'padding' => '0 0 12px 0', 'margin' => '0', 'align' => 'left'],
+		'h2' => ['color' => '#333333', 'bg' => 'transparent', 'font' => 'Arial', 'weight' => '400', 'size' => '16', 'padding' => '0', 'margin' => '0 0 18px 0', 'align' => 'left'],
+		'h3' => ['color' => '#666666', 'bg' => 'transparent', 'font' => 'Arial', 'weight' => '600', 'size' => '14', 'padding' => '0', 'margin' => '0 0 6px 0', 'align' => 'left'],
+	];
+	
+	$fonts = ['Arial', 'Helvetica', 'Verdana', 'Georgia', 'Times New Roman', 'Courier New', 'Roboto', 'Open Sans', 'Lato', 'Montserrat'];
+	$weights = ['300' => 'Light (300)', '400' => 'Normal (400)', '600' => 'Semi-Bold (600)', '700' => 'Bold (700)', '800' => 'Extra-Bold (800)'];
+	$aligns = ['left' => 'Esquerda', 'center' => 'Centro', 'right' => 'Direita'];
+	
+	$color = sanitize_hex_color((string) get_option("checkout_tabs_wp_ml_style_{$level}_color", $defaults[$level]['color'])) ?: $defaults[$level]['color'];
+	$bg = sanitize_hex_color((string) get_option("checkout_tabs_wp_ml_style_{$level}_bg", $defaults[$level]['bg'])) ?: $defaults[$level]['bg'];
+	$font = sanitize_text_field((string) get_option("checkout_tabs_wp_ml_style_{$level}_font", $defaults[$level]['font']));
+	$weight = sanitize_text_field((string) get_option("checkout_tabs_wp_ml_style_{$level}_weight", $defaults[$level]['weight']));
+	$size = absint(get_option("checkout_tabs_wp_ml_style_{$level}_size", $defaults[$level]['size']));
+	$padding = sanitize_text_field((string) get_option("checkout_tabs_wp_ml_style_{$level}_padding", $defaults[$level]['padding']));
+	$margin = sanitize_text_field((string) get_option("checkout_tabs_wp_ml_style_{$level}_margin", $defaults[$level]['margin']));
+	$align = sanitize_text_field((string) get_option("checkout_tabs_wp_ml_style_{$level}_align", $defaults[$level]['align']));
+	
+	// Cor do texto
+	echo '<tr>';
+	echo '<th scope="row"><label for="checkout_tabs_wp_ml_style_' . $level . '_color">Cor do Texto</label></th>';
+	echo '<td>';
+	echo '<input type="color" id="checkout_tabs_wp_ml_style_' . $level . '_color" name="checkout_tabs_wp_ml_style_' . $level . '_color" value="' . esc_attr($color) . '" />';
+	echo '</td>';
+	echo '</tr>';
+	
+	// Cor de fundo
+	echo '<tr>';
+	echo '<th scope="row"><label for="checkout_tabs_wp_ml_style_' . $level . '_bg">Cor de Fundo</label></th>';
+	echo '<td>';
+	echo '<input type="color" id="checkout_tabs_wp_ml_style_' . $level . '_bg" name="checkout_tabs_wp_ml_style_' . $level . '_bg" value="' . esc_attr($bg) . '" />';
+	echo '<p class="description">Use "transparent" para sem fundo (digite manualmente após salvar).</p>';
+	echo '</td>';
+	echo '</tr>';
+	
+	// Fonte
+	echo '<tr>';
+	echo '<th scope="row"><label for="checkout_tabs_wp_ml_style_' . $level . '_font">Fonte</label></th>';
+	echo '<td>';
+	echo '<select id="checkout_tabs_wp_ml_style_' . $level . '_font" name="checkout_tabs_wp_ml_style_' . $level . '_font">';
+	foreach ($fonts as $f) {
+		echo '<option value="' . esc_attr($f) . '" ' . selected($font, $f, false) . '>' . esc_html($f) . '</option>';
+	}
+	echo '</select>';
+	echo '</td>';
+	echo '</tr>';
+	
+	// Peso
+	echo '<tr>';
+	echo '<th scope="row"><label for="checkout_tabs_wp_ml_style_' . $level . '_weight">Peso (Grossura)</label></th>';
+	echo '<td>';
+	echo '<select id="checkout_tabs_wp_ml_style_' . $level . '_weight" name="checkout_tabs_wp_ml_style_' . $level . '_weight">';
+	foreach ($weights as $val => $label) {
+		echo '<option value="' . esc_attr($val) . '" ' . selected($weight, $val, false) . '>' . esc_html($label) . '</option>';
+	}
+	echo '</select>';
+	echo '</td>';
+	echo '</tr>';
+	
+	// Tamanho
+	echo '<tr>';
+	echo '<th scope="row"><label for="checkout_tabs_wp_ml_style_' . $level . '_size">Tamanho (px)</label></th>';
+	echo '<td>';
+	echo '<input type="number" id="checkout_tabs_wp_ml_style_' . $level . '_size" name="checkout_tabs_wp_ml_style_' . $level . '_size" value="' . esc_attr($size) . '" min="8" max="72" step="1" style="width:80px;" />';
+	echo '</td>';
+	echo '</tr>';
+	
+	// Padding
+	echo '<tr>';
+	echo '<th scope="row"><label for="checkout_tabs_wp_ml_style_' . $level . '_padding">Espaçamento Interno (padding)</label></th>';
+	echo '<td>';
+	echo '<input type="text" id="checkout_tabs_wp_ml_style_' . $level . '_padding" name="checkout_tabs_wp_ml_style_' . $level . '_padding" value="' . esc_attr($padding) . '" class="regular-text" placeholder="Ex: 10px 20px" />';
+	echo '<p class="description">Formato CSS: top right bottom left (ex: "10px 20px" ou "5px 10px 5px 10px").</p>';
+	echo '</td>';
+	echo '</tr>';
+	
+	// Margin
+	echo '<tr>';
+	echo '<th scope="row"><label for="checkout_tabs_wp_ml_style_' . $level . '_margin">Espaçamento Externo (margin)</label></th>';
+	echo '<td>';
+	echo '<input type="text" id="checkout_tabs_wp_ml_style_' . $level . '_margin" name="checkout_tabs_wp_ml_style_' . $level . '_margin" value="' . esc_attr($margin) . '" class="regular-text" placeholder="Ex: 0 0 12px 0" />';
+	echo '<p class="description">Formato CSS: top right bottom left.</p>';
+	echo '</td>';
+	echo '</tr>';
+	
+	// Alinhamento
+	echo '<tr>';
+	echo '<th scope="row"><label for="checkout_tabs_wp_ml_style_' . $level . '_align">Alinhamento</label></th>';
+	echo '<td>';
+	echo '<select id="checkout_tabs_wp_ml_style_' . $level . '_align" name="checkout_tabs_wp_ml_style_' . $level . '_align">';
+	foreach ($aligns as $val => $label) {
+		echo '<option value="' . esc_attr($val) . '" ' . selected($align, $val, false) . '>' . esc_html($label) . '</option>';
+	}
+	echo '</select>';
+	echo '</td>';
+	echo '</tr>';
 }
 
 

@@ -80,4 +80,76 @@ add_action('admin_init', function () {
 		'sanitize_callback' => 'sanitize_hex_color',
 		'default'           => '#111111',
 	]);
+
+	// Registrar 24 options de estilo (8 propriedades × 3 hierarquias)
+	$levels = ['h1', 'h2', 'h3'];
+	$defaults = [
+		'h1' => ['color' => '#000000', 'bg' => 'transparent', 'font' => 'Arial', 'weight' => '800', 'size' => 24, 'padding' => '0 0 12px 0', 'margin' => '0', 'align' => 'left'],
+		'h2' => ['color' => '#333333', 'bg' => 'transparent', 'font' => 'Arial', 'weight' => '400', 'size' => 16, 'padding' => '0', 'margin' => '0 0 18px 0', 'align' => 'left'],
+		'h3' => ['color' => '#666666', 'bg' => 'transparent', 'font' => 'Arial', 'weight' => '600', 'size' => 14, 'padding' => '0', 'margin' => '0 0 6px 0', 'align' => 'left'],
+	];
+
+	foreach ($levels as $level) {
+		// Cor do texto
+		register_setting(CHECKOUT_TABS_WP_ML_SETTINGS_GROUP, "checkout_tabs_wp_ml_style_{$level}_color", [
+			'type'              => 'string',
+			'sanitize_callback' => 'sanitize_hex_color',
+			'default'           => $defaults[$level]['color'],
+		]);
+
+		// Cor de fundo
+		register_setting(CHECKOUT_TABS_WP_ML_SETTINGS_GROUP, "checkout_tabs_wp_ml_style_{$level}_bg", [
+			'type'              => 'string',
+			'sanitize_callback' => static function ($value) {
+				// Permitir "transparent" ou hex color
+				if ($value === 'transparent') {
+					return 'transparent';
+				}
+				return sanitize_hex_color($value) ?: 'transparent';
+			},
+			'default'           => $defaults[$level]['bg'],
+		]);
+
+		// Fonte
+		register_setting(CHECKOUT_TABS_WP_ML_SETTINGS_GROUP, "checkout_tabs_wp_ml_style_{$level}_font", [
+			'type'              => 'string',
+			'sanitize_callback' => 'sanitize_text_field',
+			'default'           => $defaults[$level]['font'],
+		]);
+
+		// Peso
+		register_setting(CHECKOUT_TABS_WP_ML_SETTINGS_GROUP, "checkout_tabs_wp_ml_style_{$level}_weight", [
+			'type'              => 'string',
+			'sanitize_callback' => 'sanitize_text_field',
+			'default'           => $defaults[$level]['weight'],
+		]);
+
+		// Tamanho (px)
+		register_setting(CHECKOUT_TABS_WP_ML_SETTINGS_GROUP, "checkout_tabs_wp_ml_style_{$level}_size", [
+			'type'              => 'integer',
+			'sanitize_callback' => 'absint',
+			'default'           => $defaults[$level]['size'],
+		]);
+
+		// Padding
+		register_setting(CHECKOUT_TABS_WP_ML_SETTINGS_GROUP, "checkout_tabs_wp_ml_style_{$level}_padding", [
+			'type'              => 'string',
+			'sanitize_callback' => 'sanitize_text_field',
+			'default'           => $defaults[$level]['padding'],
+		]);
+
+		// Margin
+		register_setting(CHECKOUT_TABS_WP_ML_SETTINGS_GROUP, "checkout_tabs_wp_ml_style_{$level}_margin", [
+			'type'              => 'string',
+			'sanitize_callback' => 'sanitize_text_field',
+			'default'           => $defaults[$level]['margin'],
+		]);
+
+		// Alinhamento
+		register_setting(CHECKOUT_TABS_WP_ML_SETTINGS_GROUP, "checkout_tabs_wp_ml_style_{$level}_align", [
+			'type'              => 'string',
+			'sanitize_callback' => 'sanitize_text_field',
+			'default'           => $defaults[$level]['align'],
+		]);
+	}
 });
