@@ -108,7 +108,8 @@ add_action('wp_enqueue_scripts', function () {
 	);
 
 	wp_localize_script('checkout-tabs-wp-ml-main', 'cc_params', [
-		'debug'      => checkout_tabs_wp_ml_is_debug_enabled(),
+		// Passar como 1/0 evita ambiguidades (ex.: 'true'/'false') no JS.
+		'debug'      => checkout_tabs_wp_ml_is_debug_enabled() ? 1 : 0,
 		'ajax_url'   => admin_url('admin-ajax.php'),
 		'nonce'      => wp_create_nonce('store_webhook_shipping'),
 		'webhook_url'=> checkout_tabs_wp_ml_get_webhook_url(),

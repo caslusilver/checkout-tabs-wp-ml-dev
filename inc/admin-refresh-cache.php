@@ -76,7 +76,13 @@ add_action('wp_ajax_gu_refresh_cache', function () {
 			$settings->delete_all_cached_data();
 		}
 
-		if (function_exists('wp_cron')) {
+		/**
+		 * Importante: Rodar `wp_cron()` aqui pode disparar checagens imediatas do Git Updater
+		 * e contribuir para estourar o rate limit da API do GitHub em instalações sem token.
+		 * Por padrão, NÃO rodamos cron automaticamente após limpar o cache.
+		 */
+		$run_cron = (bool) apply_filters('checkout_tabs_wp_ml_gu_refresh_cache_run_cron', false);
+		if ($run_cron && function_exists('wp_cron')) {
 			wp_cron();
 		}
 

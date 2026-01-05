@@ -5,7 +5,7 @@
 
   window.CCCheckoutTabs.setupLogger = function setupLogger(state) {
     var $ = state.$;
-    var debugMode = !!state.params.debug;
+    var debugMode = state.params && (state.params.debug === true || state.params.debug === 1 || state.params.debug === '1');
 
     state.currentPhase = '';
     state.actionStartTime = 0;
