@@ -30,6 +30,7 @@
           '            <h3 id="ctwpml-addr-title">Endereço do checkout</h3>' +
           '            <p id="ctwpml-addr-line"></p>' +
           '            <p id="ctwpml-addr-name" style="margin-top:6px;"></p>' +
+          '            <a href="#" class="ctwpml-edit-link" id="ctwpml-edit-address">Editar endereço</a>' +
           '          </div>' +
           '        </div>' +
           '      </div>' +
@@ -99,6 +100,78 @@
       $('#ctwpml-btn-primary').text('Salvar');
       $('#ctwpml-btn-secondary').text('Voltar');
       prefillFormFromCheckout();
+    }
+
+    function fillFormFromApiData(raw) {
+      if (!raw) return;
+      // Reutiliza normalização do webhook.js (já registrada em state).
+      var dados = raw;
+      if (typeof state.normalizarRespostaAPI === 'function') {
+        dados = state.normalizarRespostaAPI(raw);
+      } else if (Array.isArray(raw)) {
+        dados = raw.length ? raw[0] : null;
+      }
+      if (!dados) return;
+
+      // Preenche inputs do modal.
+      if (dados.logradouro) $('#ctwpml-input-rua').val(String(dados.logradouro));
+      if (dados.numero) $('#ctwpml-input-numero').val(String(dados.numero));
+      if (dados.complemento) $('#ctwpml-input-comp').val(String(dados.complemento));
+
+      // Preenche campos do checkout também (inclui campos que não existem no modal).
+      if (dados.logradouro) $('#billing_address_1').val(String(dados.logradouro)).trigger('change');
+      if (dados.numero) $('#billing_number').val(String(dados.numero)).trigger('change');
+      if (dados.bairro) $('#billing_neighborhood').val(String(dados.bairro)).trigger('change');
+      if (dados.localidade) $('#billing_city').val(String(dados.localidade)).trigger('change');
+      if (dados.uf) $('#billing_state').val(String(dados.uf)).trigger('change');
+      if (dados.complemento) $('#billing_complemento').val(String(dados.complemento)).trigger('change');
+
+      refreshFromCheckoutFields();
+    }
+
+    function consultCepAndFillForm() {
+      var cepDigits = ($('#ctwpml-input-cep').val() || '').replace(/\D/g, '');
+      if (cepDigits.length !== 8) return;
+
+      // Preenche o checkout antes para manter consistência de estado.
+      $('#billing_postcode').val(cepDigits).trigger('change');
+
+      var payload = {
+        cep: cepDigits,
+        evento: 'consultaEnderecoFrete',
+        whatsapp:
+          typeof state.removerMascaraWhatsApp === 'function'
+            ? state.removerMascaraWhatsApp($('#ctwpml-input-fone').val() || $('#billing_cellphone').val())
+            : (String($('#billing_cellphone').val() || '').replace(/\D/g, '')),
+        cpf: String($('#billing_cpf').val() || '').replace(/\D/g, ''),
+        nome: ($('#ctwpml-input-nome').val() || ($('#billing_first_name').val() + ' ' + $('#billing_last_name').val()) || '').trim(),
+      };
+
+      if (typeof state.log === 'function') state.log('WEBHOOK_OUT (ML) Consultando CEP para preencher formulário...', payload, 'WEBHOOK_OUT');
+
+      // Chama o mesmo webhook do plugin, sem armazenar no servidor ainda.
+      $.ajax({
+        url: state.params.webhook_url,
+        type: 'POST',
+        contentType: 'application/json',
+        dataType: 'json',
+        timeout: 15000,
+        crossDomain: true,
+        xhrFields: { withCredentials: false },
+        data: JSON.stringify(payload),
+        success: function (data) {
+          if (typeof state.log === 'function') state.log('WEBHOOK_IN (ML) Resposta recebida.', data, 'WEBHOOK_IN');
+          fillFormFromApiData(data);
+        },
+        error: function (jqXHR, textStatus, errorThrown) {
+          if (typeof state.log === 'function')
+            state.log(
+              'WEBHOOK_IN (ML) Erro na consulta do CEP (' + textStatus + ').',
+              { status: jqXHR.status, error: errorThrown, responseText: jqXHR.responseText },
+              'WEBHOOK_IN'
+            );
+        },
+      });
     }
 
     function refreshFromCheckoutFields() {
@@ -171,6 +244,10 @@
     $(document).on('click', '#ctwpml-modal-back', function () {
       closeModal();
     });
+    $(document).on('click', '#ctwpml-edit-address', function (e) {
+      e.preventDefault();
+      showForm();
+    });
     $(document).on('click', '#ctwpml-btn-secondary', function () {
       if ($('#ctwpml-view-form').is(':visible')) showList();
       else showForm();
@@ -188,6 +265,11 @@
     $(document).on('click', '#ctwpml-nao-sei-cep', function (e) {
       e.preventDefault();
       alert('Fluxo “Não sei meu CEP” será implementado na próxima etapa (3).');
+    });
+
+    // Tela 2: ao preencher o CEP, consulta webhook e preenche campos automaticamente.
+    $(document).on('change', '#ctwpml-input-cep', function () {
+      consultCepAndFillForm();
     });
 
     // Reforço: quando a estrutura de abas é criada, injeta o botão de entrada.

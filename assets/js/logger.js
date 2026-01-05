@@ -5,7 +5,17 @@
 
   window.CCCheckoutTabs.setupLogger = function setupLogger(state) {
     var $ = state.$;
-    var debugMode = state.params && (state.params.debug === true || state.params.debug === 1 || state.params.debug === '1');
+    var forceDebug = false;
+    try {
+      forceDebug = new URLSearchParams(window.location.search).get('ctwpml_debug') === '1';
+    } catch (e) {}
+    try {
+      if (!forceDebug && window.localStorage && localStorage.getItem('ctwpml_debug') === '1') forceDebug = true;
+    } catch (e) {}
+
+    var debugMode =
+      forceDebug ||
+      (state.params && (state.params.debug === true || state.params.debug === 1 || state.params.debug === '1'));
 
     state.currentPhase = '';
     state.actionStartTime = 0;

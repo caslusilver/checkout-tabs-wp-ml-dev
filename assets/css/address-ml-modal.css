@@ -29,6 +29,8 @@
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  /* Garantir contraste mesmo se tema aplicar cor global clara */
+  color: #333;
 }
 
 .ctwpml-modal-header {
@@ -90,6 +92,7 @@
   font-size: 16px;
   font-weight: 700;
   margin: 0 0 6px;
+  color: #333;
 }
 
 .ctwpml-address p {
@@ -97,6 +100,15 @@
   font-size: 13px;
   color: var(--ctwpml-ml-text-gray);
   line-height: 1.4;
+}
+
+.ctwpml-edit-link {
+  display: inline-block;
+  margin-top: 12px;
+  color: var(--ctwpml-ml-blue);
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 600;
 }
 
 .ctwpml-footer {
