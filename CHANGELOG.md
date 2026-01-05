@@ -52,6 +52,11 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 ### Changed
 - Preparação para destravar o fluxo do CEP (não avança após consulta) com instrumentação/diagnóstico adicional; manter compatibilidade e UX atuais (painel admin, abas sem reload e botões Avançar/Voltar visíveis em mobile/desktop).
 
+## [v3.1.25] - 2026-01-05
+
+### Changed
+- Correção do avanço do CEP (não depende mais de `updated_checkout` para trocar de aba após salvar frete) e adição do modal "Meus endereços" estilo Mercado Livre (telas 1–2) sobre o checkout para usuários logados, preenchendo `billing_*` e reutilizando o fluxo atual do webhook/checkout. Também melhora o botão "Atualizar Cache" para disparar checagem de atualizações na tela de Plugins após limpar cache.
+
 ## [Unreleased]
 
 ## Notas de Publicação (ainda não executadas)

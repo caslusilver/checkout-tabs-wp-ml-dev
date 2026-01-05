@@ -1,0 +1,163 @@
+/* Checkout Tabs WP ML - Modal Endereços (estilo ML) */
+
+:root {
+  --ctwpml-brand-orange: #ff8500;
+  --ctwpml-header-text: #0c0829;
+  --ctwpml-ml-blue: #3483fa;
+  --ctwpml-ml-bg: #ebebeb;
+  --ctwpml-ml-text-gray: #666666;
+  --ctwpml-ml-white: #ffffff;
+  --ctwpml-input-border: #dddddd;
+}
+
+.ctwpml-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  z-index: 10001;
+  display: none;
+  align-items: center;
+  justify-content: center;
+}
+
+.ctwpml-modal {
+  width: 100%;
+  max-width: 412px;
+  height: 92vh;
+  background: var(--ctwpml-ml-bg);
+  border-radius: 10px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.ctwpml-modal-header {
+  background: var(--ctwpml-brand-orange);
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.ctwpml-modal-back {
+  background: transparent;
+  border: 0;
+  font-size: 22px;
+  color: var(--ctwpml-header-text);
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.ctwpml-modal-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--ctwpml-header-text);
+}
+
+.ctwpml-modal-body {
+  padding: 16px;
+  overflow: auto;
+  flex: 1;
+}
+
+.ctwpml-section-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #333;
+  margin: 8px 0 14px;
+}
+
+.ctwpml-card {
+  background: var(--ctwpml-ml-white);
+  border-radius: 6px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  padding: 16px;
+  display: flex;
+  gap: 12px;
+  border-left: 4px solid var(--ctwpml-ml-blue);
+}
+
+.ctwpml-radio-selected {
+  width: 20px;
+  height: 20px;
+  border: 6px solid var(--ctwpml-ml-blue);
+  border-radius: 50%;
+  margin-top: 2px;
+  flex: 0 0 auto;
+}
+
+.ctwpml-address h3 {
+  font-size: 16px;
+  font-weight: 700;
+  margin: 0 0 6px;
+}
+
+.ctwpml-address p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ctwpml-ml-text-gray);
+  line-height: 1.4;
+}
+
+.ctwpml-footer {
+  padding: 14px 16px;
+  background: var(--ctwpml-ml-bg);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ctwpml-btn {
+  width: 100%;
+  border: 0;
+  border-radius: 8px;
+  padding: 14px;
+  font-weight: 700;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.ctwpml-btn-primary {
+  background: var(--ctwpml-ml-blue);
+  color: #fff;
+}
+
+.ctwpml-btn-secondary {
+  background: rgba(52, 131, 250, 0.12);
+  color: var(--ctwpml-ml-blue);
+}
+
+.ctwpml-form-group {
+  margin-bottom: 16px;
+  position: relative;
+}
+
+.ctwpml-form-group label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 6px;
+  color: #333;
+}
+
+.ctwpml-form-group input,
+.ctwpml-form-group textarea {
+  width: 100%;
+  border: 1px solid var(--ctwpml-input-border);
+  border-radius: 6px;
+  padding: 12px;
+  font-size: 15px;
+  outline: none;
+  background: #fff;
+}
+
+.ctwpml-link-right {
+  position: absolute;
+  right: 0;
+  top: 0;
+  color: var(--ctwpml-ml-blue);
+  text-decoration: none;
+  font-size: 13px;
+}
+
+

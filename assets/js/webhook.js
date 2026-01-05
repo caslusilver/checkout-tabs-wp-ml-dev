@@ -265,10 +265,14 @@
         state.setProcessingState(true, 'cep_button_click');
         $('#tab-cep').addClass('cep-loading');
 
-        $(document.body).one('updated_checkout', state.handleUpdatedCheckoutForCepAdvance);
-
         state.consultarCepEFrete().then(function (ok) {
-          if (!ok) {
+          if (ok) {
+            // IMPORTANTE: não depender de `updated_checkout` aqui, pois o Woo pode disparar
+            // `updated_checkout` automático (digitando CEP) e consumir listeners `.one()`,
+            // impedindo o avanço mesmo com store OK.
+            state.handleUpdatedCheckoutForCepAdvance();
+            return;
+          } else {
             $btn.removeClass('btn-processing');
             state.setProcessingState(false, 'cep_chain_fail');
             state.updatePlaceOrderButtonState();

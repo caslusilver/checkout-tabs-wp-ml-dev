@@ -19,6 +19,7 @@
     if (window.CCCheckoutTabs.setupStore) window.CCCheckoutTabs.setupStore(state);
     if (window.CCCheckoutTabs.setupWebhook) window.CCCheckoutTabs.setupWebhook(state);
     if (window.CCCheckoutTabs.setupWooEvents) window.CCCheckoutTabs.setupWooEvents(state);
+    if (window.CCCheckoutTabs.setupAddressModal) window.CCCheckoutTabs.setupAddressModal(state);
 
     // bootstrap (ordem importa)
     if (state.buildTabsAndMoveFields) state.buildTabsAndMoveFields();

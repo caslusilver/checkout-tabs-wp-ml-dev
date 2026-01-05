@@ -29,6 +29,12 @@ add_action('wp_enqueue_scripts', function () {
 		['checkout-tabs-wp-ml-checkout-ui'],
 		$version
 	);
+	wp_enqueue_style(
+		'checkout-tabs-wp-ml-address-ml-modal',
+		CHECKOUT_TABS_WP_ML_URL . 'assets/css/address-ml-modal.css',
+		['checkout-tabs-wp-ml-checkout-ui'],
+		$version
+	);
 
 	// Script de máscara: manter comportamento do snippet (carrega apenas se não houver outro).
 	if (!wp_script_is('jquery-mask', 'enqueued') && !wp_script_is('jquery-mask.min', 'enqueued') && !wp_script_is('jquery-maskmoney', 'enqueued')) {
@@ -100,9 +106,16 @@ add_action('wp_enqueue_scripts', function () {
 		true
 	);
 	wp_enqueue_script(
+		'checkout-tabs-wp-ml-address-ml-modal',
+		CHECKOUT_TABS_WP_ML_URL . 'assets/js/address-ml-modal.js',
+		['checkout-tabs-wp-ml-woocommerce-events'],
+		$version,
+		true
+	);
+	wp_enqueue_script(
 		'checkout-tabs-wp-ml-main',
 		CHECKOUT_TABS_WP_ML_URL . 'assets/js/checkout-tabs.js',
-		['checkout-tabs-wp-ml-woocommerce-events'],
+		['checkout-tabs-wp-ml-address-ml-modal'],
 		$version,
 		true
 	);
@@ -110,6 +123,7 @@ add_action('wp_enqueue_scripts', function () {
 	wp_localize_script('checkout-tabs-wp-ml-main', 'cc_params', [
 		// Passar como 1/0 evita ambiguidades (ex.: 'true'/'false') no JS.
 		'debug'      => checkout_tabs_wp_ml_is_debug_enabled() ? 1 : 0,
+		'is_logged_in' => is_user_logged_in() ? 1 : 0,
 		'ajax_url'   => admin_url('admin-ajax.php'),
 		'nonce'      => wp_create_nonce('store_webhook_shipping'),
 		'webhook_url'=> checkout_tabs_wp_ml_get_webhook_url(),

@@ -68,6 +68,24 @@ jQuery(function ($) {
           }, 3000);
 
           ctwpmlNotice((response && response.data) || 'Cache atualizado com sucesso!', 'success');
+
+          // Atualiza a tela de Plugins sem reload (quando possível).
+          // Em wp-admin/plugins.php o core expõe wp.updates.checkPluginUpdates().
+          try {
+            if (window.wp && wp.updates && typeof wp.updates.checkPluginUpdates === 'function') {
+              ctwpmlNotice('Cache limpo. Verificando atualizações...', 'success');
+              wp.updates.checkPluginUpdates();
+            } else {
+              // Fallback: recarrega a página para refletir atualizações encontradas.
+              setTimeout(function () {
+                window.location.reload();
+              }, 800);
+            }
+          } catch (e) {
+            setTimeout(function () {
+              window.location.reload();
+            }, 800);
+          }
         } else {
           ctwpmlNotice((response && response.data) || 'Erro ao atualizar cache.', 'error');
         }
