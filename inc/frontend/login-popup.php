@@ -27,15 +27,15 @@ add_action('wp_footer', function () {
 	<div id="login-popup" class="ctwpml-login-popup" style="display:none;">
 		<span class="popup-close-button" style="position:absolute; top:14px; right:14px; font-size:24px; cursor:pointer;">×</span>
 		<div class="ctwpml-auth-tabs">
-			<button type="button" class="ctwpml-auth-tab is-active" data-tab="login">Login</button>
-			<button type="button" class="ctwpml-auth-tab" data-tab="signup">Criar uma conta</button>
+			<button type="button" class="ctwpml-auth-tab is-active" data-tab="login"><h6 style="margin:0;">Login</h6></button>
+			<button type="button" class="ctwpml-auth-tab" data-tab="signup"><h5 style="margin:0;">Criar uma conta</h5></button>
 		</div>
 
 		<div class="ctwpml-auth-panel" data-tab="login">
-			<h2 class="ctwpml-auth-title">Login</h2>
-			<p class="ctwpml-auth-subtitle">
+			<h3 class="ctwpml-auth-title">Login</h3>
+			<h6 class="ctwpml-auth-subtitle">
 				Faça login para escolher e salvar seu endereço de entrega.
-			</p>
+			</h6>
 
 			<div style="text-align:center; margin-bottom: 16px;">
 				<?php echo do_shortcode('[nextend_social_login]'); ?>
@@ -62,10 +62,10 @@ add_action('wp_footer', function () {
 		</div>
 
 		<div class="ctwpml-auth-panel" data-tab="signup" style="display:none;">
-			<h2 class="ctwpml-auth-title">Criar uma conta</h2>
-			<p class="ctwpml-auth-subtitle">
+			<h3 class="ctwpml-auth-title">Criar uma conta</h3>
+			<h6 class="ctwpml-auth-subtitle">
 				Crie sua conta para salvar seus endereços e acompanhar seus pedidos.
-			</p>
+			</h6>
 
 			<form id="ctwpml-signup-form" class="ctwpml-auth-form">
 				<label for="ctwpml-signup-name">Nome</label>

@@ -116,6 +116,13 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
 #### Protocol: 022aa1a
 
+## [v3.1.34] - 2026-01-05
+
+### Changed
+- Popup: cores agora não vazam para o site (CSS vars escopadas em `.ctwpml-login-popup`), e HTML foi reestruturado com headings para facilitar estilização via Elementor (H3 título preto, H5 azul, H6). Mantém cores configuráveis no admin sem impactar outras áreas.
+
+#### Protocol: 9fc3da8
+
 ## [Unreleased]
 
 ## Notas de Publicação (ainda não executadas)

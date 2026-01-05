@@ -1,9 +1,3 @@
-:root {
-  --ctwpml-ui-primary: #0075ff;
-  --ctwpml-ui-login_bg: #f5f5f5;
-  --ctwpml-ui-text: #111111;
-}
-
 .ctwpml-login-popup {
   position: relative;
   width: 100%;
@@ -13,6 +7,24 @@
   box-sizing: border-box;
   max-width: 440px;
   margin: 20px auto;
+  color: var(--ctwpml-ui-text);
+}
+
+.ctwpml-login-popup h3 {
+  color: #000;
+  font-weight: 900;
+  margin: 0 0 12px;
+}
+
+.ctwpml-login-popup h4 {
+  color: #fff;
+}
+
+.ctwpml-login-popup h5 {
+  color: var(--ctwpml-ui-primary);
+}
+
+.ctwpml-login-popup h6 {
   color: var(--ctwpml-ui-text);
 }
 
@@ -33,6 +45,12 @@
   color: var(--ctwpml-ui-primary);
 }
 
+.ctwpml-auth-tab h5,
+.ctwpml-auth-tab h6 {
+  margin: 0;
+  font-weight: inherit;
+}
+
 .ctwpml-auth-tab[data-tab='login'] {
   color: var(--ctwpml-ui-text);
 }
@@ -48,7 +66,7 @@
 }
 
 .ctwpml-auth-title {
-  color: var(--ctwpml-ui-text);
+  color: #000;
   margin: 0 0 12px;
 }
 

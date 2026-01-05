@@ -47,7 +47,7 @@ add_action('wp_enqueue_scripts', function () {
 	$ui_text = sanitize_hex_color((string) get_option('checkout_tabs_wp_ml_ui_text', '#111111')) ?: '#111111';
 	wp_add_inline_style(
 		'checkout-tabs-wp-ml-login-popup',
-		':root{--ctwpml-ui-primary:' . $ui_primary . ';--ctwpml-ui-login_bg:' . $ui_login_bg . ';--ctwpml-ui-text:' . $ui_text . ';}'
+		'.ctwpml-login-popup{--ctwpml-ui-primary:' . $ui_primary . ';--ctwpml-ui-login_bg:' . $ui_login_bg . ';--ctwpml-ui-text:' . $ui_text . ';}'
 	);
 
 	// Script de máscara: manter comportamento do snippet (carrega apenas se não houver outro).
