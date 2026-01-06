@@ -54,7 +54,8 @@ add_action('wp_enqueue_scripts', function () {
 		'h3' => ['color' => '#666666', 'bg' => 'transparent', 'font' => 'Arial', 'weight' => '600', 'size' => 14, 'padding' => '0', 'margin' => '0 0 6px 0', 'align' => 'left'],
 	];
 	
-	$custom_css = '.ctwpml-login-popup{--ctwpml-ui-primary:' . $ui_primary . ';--ctwpml-ui-login_bg:' . $ui_login_bg . ';--ctwpml-ui-text:' . $ui_text . ';}';
+	// Aumenta especificidade para sobrescrever Elementor: duplica classes (0,2,0 -> 0,4,0)
+	$custom_css = '.ctwpml-login-popup.ctwpml-login-popup{--ctwpml-ui-primary:' . $ui_primary . ';--ctwpml-ui-login_bg:' . $ui_login_bg . ';--ctwpml-ui-text:' . $ui_text . ';z-index:999999!important;}';
 	
 	foreach ($levels as $level) {
 		// Verificar checkboxes de transparência
@@ -73,7 +74,8 @@ add_action('wp_enqueue_scripts', function () {
 		$margin = sanitize_text_field((string) get_option("checkout_tabs_wp_ml_style_{$level}_margin", $defaults[$level]['margin']));
 		$align = sanitize_text_field((string) get_option("checkout_tabs_wp_ml_style_{$level}_align", $defaults[$level]['align']));
 		
-		$custom_css .= ".ctwpml-login-popup .ctwpml-popup-{$level}{";
+		// Duplica classes para aumentar especificidade (0,3,0)
+		$custom_css .= ".ctwpml-login-popup.ctwpml-login-popup .ctwpml-popup-{$level}{";
 		$custom_css .= "color:{$color}!important;";
 		$custom_css .= "background-color:{$bg}!important;";
 		$custom_css .= "font-family:{$font}!important;";

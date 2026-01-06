@@ -68,6 +68,10 @@
           }
           var m = (resp && resp.data && resp.data.message) || (resp && resp.data) || 'Erro ao criar conta.';
           setMsg($msg, m, true);
+          // Reseta reCAPTCHA após erro
+          if (typeof grecaptcha !== 'undefined') {
+            try { grecaptcha.reset(); } catch(e) {}
+          }
         },
         error: function (xhr) {
           var m = 'Erro ao criar conta.';
@@ -75,6 +79,10 @@
             m = xhr.responseJSON.data.message || xhr.responseJSON.data;
           }
           setMsg($msg, m, true);
+          // Reseta reCAPTCHA após erro
+          if (typeof grecaptcha !== 'undefined') {
+            try { grecaptcha.reset(); } catch(e) {}
+          }
         },
         complete: function () {
           $('#ctwpml-signup-submit').prop('disabled', false);

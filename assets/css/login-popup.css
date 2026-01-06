@@ -1,13 +1,19 @@
-.ctwpml-login-popup {
-  position: relative;
-  width: 100%;
-  padding: 20px;
-  border-radius: 10px;
-  background-color: #fff;
-  box-sizing: border-box;
-  max-width: 440px;
-  margin: 20px auto;
-  color: var(--ctwpml-ui-text);
+/* Aumenta especificidade e isola de estilos Elementor */
+.ctwpml-login-popup.ctwpml-login-popup {
+  position: relative !important;
+  width: 100% !important;
+  padding: 20px !important;
+  border-radius: 10px !important;
+  background-color: #fff !important;
+  box-sizing: border-box !important;
+  max-width: 440px !important;
+  margin: 20px auto !important;
+  color: var(--ctwpml-ui-text) !important;
+  /* Reset Elementor globals */
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
+  line-height: 1.5 !important;
+  letter-spacing: normal !important;
+  text-transform: none !important;
 }
 
 /* Estilos padrão por hierarquia (sobrescritos pelo inline CSS se configurado no admin) */

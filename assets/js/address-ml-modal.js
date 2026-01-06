@@ -43,6 +43,41 @@
       return !!(state.params && (state.params.is_logged_in === 1 || state.params.is_logged_in === '1'));
     }
 
+    // Spinner azul + blur backdrop para operações AJAX
+    function showModalSpinner() {
+      if (!$('#ctwpml-modal-spinner').length) {
+        $('#ctwpml-address-modal-overlay').append(
+          '<div id="ctwpml-modal-spinner" style="' +
+            'position:fixed;' +
+            'top:0;left:0;width:100%;height:100%;' +
+            'background:rgba(0,0,0,0.3);' +
+            'backdrop-filter:blur(2px);' +
+            '-webkit-backdrop-filter:blur(2px);' +
+            'display:flex;align-items:center;justify-content:center;' +
+            'z-index:99999;' +
+            '">' +
+            '<div class="ctwpml-spinner" style="' +
+              'width:50px;height:50px;' +
+              'border:4px solid rgba(0,117,255,0.2);' +
+              'border-top-color:#0075ff;' +
+              'border-radius:50%;' +
+              'animation:ctwpml-spin 0.8s linear infinite;' +
+            '"></div>' +
+            '</div>'
+        );
+      } else {
+        $('#ctwpml-modal-spinner').show();
+      }
+      // Bloqueia interação
+      $('body').css('pointer-events', 'none');
+      $('#ctwpml-modal-spinner').css('pointer-events', 'auto');
+    }
+
+    function hideModalSpinner() {
+      $('#ctwpml-modal-spinner').hide();
+      $('body').css('pointer-events', '');
+    }
+
     function ensureModal() {
       if ($('#ctwpml-address-modal-overlay').length) return;
 
@@ -229,11 +264,11 @@
               }
             }
 
-            logMessage('Dados de contato carregados (WhatsApp, CPF)');
+            logAny('Dados de contato carregados (WhatsApp, CPF)');
           }
         },
         error: function () {
-          logMessage('Erro ao carregar dados de contato', {}, 'ERROR');
+          logAny('Erro ao carregar dados de contato', {});
         },
       });
     }
@@ -247,6 +282,8 @@
       var whatsapp = $('#ctwpml-input-fone').val() || '';
       var cpf = $('#ctwpml-input-cpf').val() || '';
 
+      showModalSpinner();
+
       $.ajax({
         url: state.params.ajax_url,
         type: 'POST',
@@ -257,17 +294,20 @@
         },
         success: function (response) {
           if (response && response.success) {
-            logMessage('Dados de contato salvos (WhatsApp, CPF)', response.data);
+            logAny('Dados de contato salvos (WhatsApp, CPF)', response.data);
             if (response.data && response.data.cpf_locked) {
               $('#ctwpml-input-cpf').prop('readonly', true);
               $('#ctwpml-generate-cpf-modal').hide();
             }
           }
-          if (callback) callback();
+          if (callback) callback(response);
         },
         error: function () {
-          logMessage('Erro ao salvar dados de contato', {}, 'ERROR');
+          logAny('Erro ao salvar dados de contato', {});
           if (callback) callback();
+        },
+        complete: function () {
+          hideModalSpinner();
         },
       });
     }
@@ -653,6 +693,7 @@
       }
       isSavingAddress = true;
       $('#ctwpml-btn-primary').prop('disabled', true);
+      showModalSpinner();
 
       var cepOnly = cepDigits($('#ctwpml-input-cep').val());
       var label = '';
@@ -698,6 +739,9 @@
           isSavingAddress = false;
           $('#ctwpml-btn-primary').prop('disabled', false);
           done({ ok: false, message: 'Erro ao salvar endereço.' });
+        },
+        complete: function () {
+          hideModalSpinner();
         },
       });
     }
@@ -1064,9 +1108,23 @@
 
     $(document).on('click', '#ctwpml-generate-cpf-modal', function (e) {
       e.preventDefault();
-      if (isCpfLocked()) return;
+      
+      // Verificar se CPF já está travado
+      if (isCpfLocked()) {
+        alert('Seu CPF já foi definido e não pode ser alterado.');
+        return;
+      }
+      
       var allow = !!(state.params && (state.params.allow_fake_cpf === 1 || state.params.allow_fake_cpf === '1'));
       if (!allow) return;
+
+      // Verificar se já existe CPF preenchido (11 dígitos)
+      var cpfCurrent = $('#ctwpml-input-cpf').val() || '';
+      var cpfDigits = cpfCurrent.replace(/\D/g, '');
+      if (cpfDigits.length === 11) {
+        alert('Você já possui um CPF cadastrado. Não é possível gerar outro.');
+        return;
+      }
 
       logAny('CPF fictício (modal): usuário clicou em gerar.', {});
       var ok = window.confirm('Atenção: o CPF gerado é definitivo e não poderá ser alterado depois.');
@@ -1082,6 +1140,16 @@
       } else {
         logAny('CPF fictício (modal): NÃO encontrou campo billing_cpf no checkout.', { cpf: cpf });
       }
+
+      // Salvar imediatamente no servidor e aplicar lock
+      saveContactMeta(function(response) {
+        if (response && response.success && response.data && response.data.cpf_locked) {
+          $('#ctwpml-input-cpf').prop('readonly', true);
+          $('#ctwpml-generate-cpf-modal').hide();
+          logAny('CPF fictício (modal): salvo e travado permanentemente.', { cpf: cpf });
+          alert('CPF gerado e salvo permanentemente no seu perfil.');
+        }
+      });
     });
 
     $(document).on('click', '#ctwpml-delete-address', function (e) {

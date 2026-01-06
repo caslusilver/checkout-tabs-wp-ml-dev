@@ -144,6 +144,17 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
 #### Protocol: 7c0e1d1
 
+## [v3.2.2] - 2026-01-06
+
+### Changed
+- Aumenta especificidade CSS do popup (duplica classes + !important) para sobrescrever cores globais do Elementor.
+- Implementa reCAPTCHA v2 com callbacks (submitEnable/Disable) e desabilita botão até validação.
+- Adiciona spinner azul + blur backdrop durante salvamento de endereço/contato.
+- Corrige erro JS `'.' is not a valid selector` e função inexistente `logMessage` (substitui por `state.log`).
+- Implementa bloqueio real de geração múltipla de CPF (verifica antes de gerar, salva imediatamente, esconde botão após travamento).
+
+#### Protocol: a088a7d
+
 ## [Unreleased]
 
 ## Notas de Publicação (ainda não executadas)

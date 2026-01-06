@@ -85,7 +85,7 @@ add_action('wp_footer', function () {
 		}
 		if (!empty($site_key)) {
 			echo '<div id="ctwpml-recaptcha-container" style="margin: 16px 0;">';
-			echo '<div class="g-recaptcha" data-sitekey="' . esc_attr($site_key) . '"></div>';
+			echo '<div class="g-recaptcha" data-sitekey="' . esc_attr($site_key) . '" data-callback="ctwpmlSubmitEnable" data-expired-callback="ctwpmlSubmitDisable"></div>';
 			echo '</div>';
 		}
 		?>
@@ -98,6 +98,23 @@ add_action('wp_footer', function () {
 		</div>
 	</div>
 	<script>
+	// reCAPTCHA callbacks (devem ser globais)
+	function ctwpmlSubmitEnable() {
+		var btn = document.getElementById('ctwpml-signup-submit');
+		if (btn) btn.disabled = false;
+	}
+	function ctwpmlSubmitDisable() {
+		var btn = document.getElementById('ctwpml-signup-submit');
+		if (btn) btn.disabled = true;
+	}
+	// Desabilita botão inicialmente se reCAPTCHA estiver presente
+	(function() {
+		if (document.querySelector('.g-recaptcha[data-sitekey]')) {
+			var btn = document.getElementById('ctwpml-signup-submit');
+			if (btn) btn.disabled = true;
+		}
+	})();
+	
 	(function($){
 		$(document).on('click', '#login-popup .popup-close-button', function(){ if ($.fancybox) $.fancybox.close(); });
 	})(jQuery);

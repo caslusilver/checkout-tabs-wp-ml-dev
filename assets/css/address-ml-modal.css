@@ -334,4 +334,11 @@
   font-size: 13px;
 }
 
+/* Animação do spinner azul */
+@keyframes ctwpml-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 
