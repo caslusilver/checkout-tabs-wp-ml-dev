@@ -169,6 +169,16 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
 #### Protocol: d03c235
 
+## [v3.2.5] - 2026-01-06
+
+### Changed
+- reCAPTCHA v2 no popup com render explícito (Fancybox `afterShow`) igual ao plugin de referência.
+- Login via AJAX (`ctwpml_login`) com validação server-side do reCAPTCHA.
+- Correção do “clique morto” ao salvar/operar no modal (spinner não bloqueia o body inteiro) e logs completos no Debug.
+- Ajustes de persistência do WhatsApp (envio apenas dígitos + salvamento consistente em user_meta/Woo).
+
+#### Protocol: b84861e
+
 ## [Unreleased]
 
 ## Notas de Publicação (ainda não executadas)

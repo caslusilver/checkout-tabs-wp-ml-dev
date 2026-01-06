@@ -47,15 +47,15 @@ add_action('wp_footer', function () {
 				<div class="ctwpml-auth-divider-line"></div>
 			</div>
 
-		<form method="post" action="<?php echo esc_url(wp_login_url()); ?>" class="ctwpml-auth-form">
+		<form id="ctwpml-login-form" class="ctwpml-auth-form" autocomplete="on">
 			<label for="ctwpml-username" class="ctwpml-popup-h3">E-mail</label>
-			<input type="text" name="log" id="ctwpml-username" required>
+			<input type="email" id="ctwpml-username" autocomplete="username" required>
 
 			<label for="ctwpml-password" class="ctwpml-popup-h3">Senha</label>
-			<input type="password" name="pwd" id="ctwpml-password" required>
+			<input type="password" id="ctwpml-password" autocomplete="current-password" required>
 
 			<?php
-			// reCAPTCHA v2 no LOGIN também
+			// reCAPTCHA v2 no LOGIN (render explícito via Fancybox afterShow)
 			$site_key_login = get_option('checkout_tabs_wp_ml_recaptcha_site_key', '');
 			if (empty($site_key_login)) {
 				$login_recaptcha_opts_login = get_option('login_nocaptcha_options', []);
@@ -65,16 +65,16 @@ add_action('wp_footer', function () {
 			}
 			if (!empty($site_key_login)) {
 				echo '<div id="ctwpml-recaptcha-login-container" style="margin: 16px 0;">';
-				echo '<div id="g-recaptcha-login" data-sitekey="' . esc_attr($site_key_login) . '"></div>';
+				echo '<div id="ctwpml-recaptcha-login" data-sitekey="' . esc_attr($site_key_login) . '"></div>';
 				echo '</div>';
 			}
 			?>
 
-				<input type="hidden" name="redirect_to" value="<?php echo esc_url(home_url($_SERVER['REQUEST_URI'])); ?>">
-				<button type="submit" class="ctwpml-auth-submit">
-					Entrar
-				</button>
-			</form>
+			<button type="submit" id="ctwpml-login-submit" class="ctwpml-auth-submit">
+				Entrar
+			</button>
+			<div id="ctwpml-login-msg" class="ctwpml-auth-msg" style="display:none;"></div>
+		</form>
 			
 			<!-- Link "Perdeu a senha?" -->
 			<div class="ctwpml-auth-footer" style="text-align: center; margin-top: 16px;">
@@ -108,7 +108,7 @@ add_action('wp_footer', function () {
 		}
 		if (!empty($site_key)) {
 			echo '<div id="ctwpml-recaptcha-container" style="margin: 16px 0;">';
-			echo '<div class="g-recaptcha" data-sitekey="' . esc_attr($site_key) . '" data-callback="ctwpmlSubmitEnable" data-expired-callback="ctwpmlSubmitDisable"></div>';
+			echo '<div id="ctwpml-recaptcha-signup" data-sitekey="' . esc_attr($site_key) . '"></div>';
 			echo '</div>';
 		}
 		?>
@@ -121,21 +121,32 @@ add_action('wp_footer', function () {
 		</div>
 	</div>
 	<script>
-	// reCAPTCHA callbacks (devem ser globais)
-	function ctwpmlSubmitEnable() {
+	// Callbacks globais do reCAPTCHA (render explícito no afterShow)
+	window.ctwpmlRecaptchaOnload = function() {
+		// Render é feito no afterShow do Fancybox.
+	};
+	window.ctwpmlSignupEnable = function() {
 		var btn = document.getElementById('ctwpml-signup-submit');
-		if (btn) btn.disabled = false;
-	}
-	function ctwpmlSubmitDisable() {
+		if (btn) { btn.disabled = false; btn.style.opacity = '1'; }
+	};
+	window.ctwpmlSignupDisable = function() {
 		var btn = document.getElementById('ctwpml-signup-submit');
-		if (btn) btn.disabled = true;
-	}
-	// Desabilita botão inicialmente se reCAPTCHA estiver presente
+		if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; }
+	};
+	window.ctwpmlLoginEnable = function() {
+		var btn = document.getElementById('ctwpml-login-submit');
+		if (btn) { btn.disabled = false; btn.style.opacity = '1'; }
+	};
+	window.ctwpmlLoginDisable = function() {
+		var btn = document.getElementById('ctwpml-login-submit');
+		if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; }
+	};
+	// Desabilita botões inicialmente se reCAPTCHA estiver presente
 	(function() {
-		if (document.querySelector('.g-recaptcha[data-sitekey]')) {
-			var btn = document.getElementById('ctwpml-signup-submit');
-			if (btn) btn.disabled = true;
-		}
+		var hasSignup = document.getElementById('ctwpml-recaptcha-signup');
+		var hasLogin = document.getElementById('ctwpml-recaptcha-login');
+		if (hasSignup) window.ctwpmlSignupDisable();
+		if (hasLogin) window.ctwpmlLoginDisable();
 	})();
 	
 	(function($){

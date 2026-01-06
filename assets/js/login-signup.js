@@ -7,6 +7,20 @@
     $el.css('color', isError ? '#b42318' : '#067647');
   }
 
+  function logCtwpml(message, data) {
+    try {
+      var st = window.CCCheckoutTabsState;
+      if (st && typeof st.log === 'function') {
+        st.log(String(message || ''), data || {}, 'UI');
+        return;
+      }
+    } catch (e) {}
+    try {
+      if (data) console.log('[CTWPML]', message, data);
+      else console.log('[CTWPML]', message);
+    } catch (e) {}
+  }
+
   jQuery(function ($) {
     if (!$('#login-popup').length) return;
 
@@ -41,12 +55,19 @@
         return;
       }
 
-      // Validar reCAPTCHA v2
-      var recaptchaResponse = $('#ctwpml-recaptcha-container').find('.g-recaptcha-response').val();
+      // Validar reCAPTCHA v2 (render explícito)
+      var recaptchaResponse = '';
+      if (typeof grecaptcha !== 'undefined' && typeof window.__ctwpmlRecaptchaSignupId !== 'undefined') {
+        try {
+          recaptchaResponse = grecaptcha.getResponse(window.__ctwpmlRecaptchaSignupId) || '';
+        } catch (e) {}
+      }
       if (!recaptchaResponse) {
         setMsg($msg, 'Por favor, complete o reCAPTCHA.', true);
         return;
       }
+
+      logCtwpml('Signup submit (AJAX) iniciado', { email: email });
 
       $('#ctwpml-signup-submit').prop('disabled', true);
       $.ajax({
@@ -70,7 +91,10 @@
           setMsg($msg, m, true);
           // Reseta reCAPTCHA após erro
           if (typeof grecaptcha !== 'undefined') {
-            try { grecaptcha.reset(); } catch(e) {}
+            try {
+              if (typeof window.__ctwpmlRecaptchaSignupId !== 'undefined') grecaptcha.reset(window.__ctwpmlRecaptchaSignupId);
+              else grecaptcha.reset();
+            } catch(e) {}
           }
         },
         error: function (xhr) {
@@ -81,11 +105,93 @@
           setMsg($msg, m, true);
           // Reseta reCAPTCHA após erro
           if (typeof grecaptcha !== 'undefined') {
-            try { grecaptcha.reset(); } catch(e) {}
+            try {
+              if (typeof window.__ctwpmlRecaptchaSignupId !== 'undefined') grecaptcha.reset(window.__ctwpmlRecaptchaSignupId);
+              else grecaptcha.reset();
+            } catch(e) {}
           }
         },
         complete: function () {
           $('#ctwpml-signup-submit').prop('disabled', false);
+        },
+      });
+    });
+
+    // LOGIN via AJAX + reCAPTCHA (obrigatório)
+    $(document).on('submit', '#ctwpml-login-form', function (e) {
+      e.preventDefault();
+      var p = getParams();
+      var ajaxUrl = p.ajax_url;
+      var nonce = p.login_nonce;
+      if (!ajaxUrl || !nonce) return;
+
+      var email = ($('#ctwpml-username').val() || '').trim().toLowerCase();
+      var password = ($('#ctwpml-password').val() || '').trim();
+
+      var $msg = $('#ctwpml-login-msg');
+      setMsg($msg, '', false);
+
+      if (!email || !password) {
+        setMsg($msg, 'Preencha e-mail e senha.', true);
+        return;
+      }
+
+      // reCAPTCHA obrigatório no login
+      var recaptchaResponse = '';
+      if (typeof grecaptcha !== 'undefined' && typeof window.__ctwpmlRecaptchaLoginId !== 'undefined') {
+        try {
+          recaptchaResponse = grecaptcha.getResponse(window.__ctwpmlRecaptchaLoginId) || '';
+        } catch (e) {}
+      }
+      if (!recaptchaResponse) {
+        setMsg($msg, 'Por favor, complete o reCAPTCHA.', true);
+        return;
+      }
+
+      logCtwpml('Login submit (AJAX) iniciado', { email: email });
+
+      $('#ctwpml-login-submit').prop('disabled', true);
+      $.ajax({
+        url: ajaxUrl,
+        type: 'POST',
+        dataType: 'json',
+        data: {
+          action: 'ctwpml_login',
+          _ajax_nonce: nonce,
+          email: email,
+          password: password,
+          recaptcha_response: recaptchaResponse,
+        },
+        success: function (resp) {
+          if (resp && resp.success) {
+            setMsg($msg, 'Login realizado! Atualizando...', false);
+            window.location.reload();
+            return;
+          }
+          var m = (resp && resp.data && resp.data.message) || (resp && resp.data) || 'Erro ao fazer login.';
+          setMsg($msg, m, true);
+          if (typeof grecaptcha !== 'undefined') {
+            try {
+              if (typeof window.__ctwpmlRecaptchaLoginId !== 'undefined') grecaptcha.reset(window.__ctwpmlRecaptchaLoginId);
+              else grecaptcha.reset();
+            } catch (e) {}
+          }
+        },
+        error: function (xhr) {
+          var m = 'Erro ao fazer login.';
+          if (xhr && xhr.responseJSON && xhr.responseJSON.data) {
+            m = xhr.responseJSON.data.message || xhr.responseJSON.data;
+          }
+          setMsg($msg, m, true);
+          if (typeof grecaptcha !== 'undefined') {
+            try {
+              if (typeof window.__ctwpmlRecaptchaLoginId !== 'undefined') grecaptcha.reset(window.__ctwpmlRecaptchaLoginId);
+              else grecaptcha.reset();
+            } catch (e) {}
+          }
+        },
+        complete: function () {
+          $('#ctwpml-login-submit').prop('disabled', false);
         },
       });
     });

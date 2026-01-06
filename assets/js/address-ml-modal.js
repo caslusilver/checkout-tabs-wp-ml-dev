@@ -70,14 +70,14 @@
       } else {
         $('#ctwpml-modal-spinner').show();
       }
-      // Bloqueia interação
-      $('body').css('pointer-events', 'none');
+      // Bloqueia interação apenas dentro do overlay (evita “clique morto” global)
+      $('#ctwpml-address-modal-overlay').css('pointer-events', 'none');
       $('#ctwpml-modal-spinner').css('pointer-events', 'auto');
     }
 
     function hideModalSpinner() {
       $('#ctwpml-modal-spinner').hide();
-      $('body').css('pointer-events', '');
+      $('#ctwpml-address-modal-overlay').css('pointer-events', '');
     }
 
     /**
@@ -430,26 +430,6 @@
       if (!($.fancybox && typeof $.fancybox.open === 'function')) return;
       if (!$('#login-popup').length) return;
 
-      // Garantir que callbacks do reCAPTCHA existam
-      if (typeof window.ctwpmlSubmitEnable === 'undefined') {
-        window.ctwpmlSubmitEnable = function() {
-          var btn = document.getElementById('ctwpml-signup-submit');
-          if (btn) {
-            btn.disabled = false;
-            btn.style.opacity = '1';
-          }
-        };
-      }
-      if (typeof window.ctwpmlSubmitDisable === 'undefined') {
-        window.ctwpmlSubmitDisable = function() {
-          var btn = document.getElementById('ctwpml-signup-submit');
-          if (btn) {
-            btn.disabled = true;
-            btn.style.opacity = '0.6';
-          }
-        };
-      }
-
       $.fancybox.open({
         src: '#login-popup',
         type: 'inline',
@@ -463,38 +443,38 @@
         toolbar: false,
         buttons: [],
         afterShow: function() {
-          // Renderizar reCAPTCHA no formulário de criar conta
-          var $container = $('#ctwpml-recaptcha-container');
-          var $widget = $container.find('.g-recaptcha');
-          var siteKey = $widget.data('sitekey');
+          state.log('UI        Popup de login aberto (afterShow)', {}, 'UI');
 
-          if (typeof grecaptcha !== 'undefined' && siteKey && !$container.hasClass('recaptcha-rendered')) {
+          // Render explícito: SIGNUP
+          var $signupContainer = $('#ctwpml-recaptcha-signup');
+          var signupSiteKey = $signupContainer.data('sitekey');
+          if (typeof grecaptcha !== 'undefined' && signupSiteKey && typeof window.__ctwpmlRecaptchaSignupId === 'undefined') {
             try {
-              grecaptcha.render($container[0], {
-                'sitekey': siteKey,
-                'callback': window.ctwpmlSubmitEnable,
-                'expired-callback': window.ctwpmlSubmitDisable
+              window.__ctwpmlRecaptchaSignupId = grecaptcha.render($signupContainer[0], {
+                sitekey: signupSiteKey,
+                callback: window.ctwpmlSignupEnable,
+                'expired-callback': window.ctwpmlSignupDisable,
               });
-              $container.addClass('recaptcha-rendered');
-              state.log('UI        reCAPTCHA renderizado com sucesso', {}, 'UI');
-            } catch(e) {
-              state.log('ERROR     Erro ao renderizar reCAPTCHA:', e && e.message, 'ERROR');
+              state.log('UI        reCAPTCHA signup renderizado', { widgetId: window.__ctwpmlRecaptchaSignupId }, 'UI');
+            } catch (e) {
+              state.log('ERROR     Erro ao renderizar reCAPTCHA signup', { error: e && e.message }, 'ERROR');
             }
           }
-          
-          // Renderizar reCAPTCHA no login também (se existir)
-          var $loginContainer = $('#ctwpml-recaptcha-login-container');
-          var $loginWidget = $('#g-recaptcha-login');
-          var loginSiteKey = $loginWidget.data('sitekey');
-          
-          if (typeof grecaptcha !== 'undefined' && loginSiteKey && !$loginContainer.hasClass('recaptcha-rendered')) {
+
+          // Render explícito: LOGIN
+          var $loginContainer = $('#ctwpml-recaptcha-login');
+          var loginSiteKey = $loginContainer.data('sitekey');
+          if (typeof grecaptcha !== 'undefined' && loginSiteKey && typeof window.__ctwpmlRecaptchaLoginId === 'undefined') {
             try {
-              grecaptcha.render($loginWidget[0], {
-                'sitekey': loginSiteKey
+              window.__ctwpmlRecaptchaLoginId = grecaptcha.render($loginContainer[0], {
+                sitekey: loginSiteKey,
+                callback: window.ctwpmlLoginEnable,
+                'expired-callback': window.ctwpmlLoginDisable,
               });
-              $loginContainer.addClass('recaptcha-rendered');
-              state.log('UI        reCAPTCHA de login renderizado', {}, 'UI');
-            } catch(e) {}
+              state.log('UI        reCAPTCHA login renderizado', { widgetId: window.__ctwpmlRecaptchaLoginId }, 'UI');
+            } catch (e) {
+              state.log('ERROR     Erro ao renderizar reCAPTCHA login', { error: e && e.message }, 'ERROR');
+            }
           }
         }
       });
@@ -1248,6 +1228,8 @@
     }
 
     // Bindings
+    state.log('INIT      Address modal: bind de eventos registrado (delegado)', {}, 'INIT');
+
     $(document).on('click', '#ctwpml-open-address-modal', function (e) {
       e.preventDefault();
       openModal();
@@ -1366,8 +1348,10 @@
       }
     });
     $(document).on('click', '#ctwpml-btn-primary', function () {
+      state.log('ACTION    Click #ctwpml-btn-primary', { isFormVisible: $('#ctwpml-view-form').is(':visible') }, 'ACTION');
       if ($('#ctwpml-view-form').is(':visible')) {
         if (!validateForm()) {
+          state.log('ERROR     validateForm falhou (não salvou)', {}, 'ERROR');
           return;
         }
         applyFormToCheckout();
@@ -1376,6 +1360,7 @@
           saveAddressFromForm(function (res) {
             if (!res || !res.ok) {
               // Não precisa de alert, a notificação já foi exibida
+              state.log('ERROR     saveAddressFromForm falhou', res || {}, 'ERROR');
               return;
             }
 
