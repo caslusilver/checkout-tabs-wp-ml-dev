@@ -57,8 +57,12 @@ add_action('wp_enqueue_scripts', function () {
 	$custom_css = '.ctwpml-login-popup{--ctwpml-ui-primary:' . $ui_primary . ';--ctwpml-ui-login_bg:' . $ui_login_bg . ';--ctwpml-ui-text:' . $ui_text . ';}';
 	
 	foreach ($levels as $level) {
-		$color = sanitize_hex_color((string) get_option("checkout_tabs_wp_ml_style_{$level}_color", $defaults[$level]['color'])) ?: $defaults[$level]['color'];
-		$bg = get_option("checkout_tabs_wp_ml_style_{$level}_bg", $defaults[$level]['bg']);
+		// Verificar checkboxes de transparência
+		$color_transparent = ((int) get_option("checkout_tabs_wp_ml_style_{$level}_color_transparent", 0) === 1);
+		$bg_transparent = ((int) get_option("checkout_tabs_wp_ml_style_{$level}_bg_transparent", 0) === 1);
+		
+		$color = $color_transparent ? 'transparent' : (sanitize_hex_color((string) get_option("checkout_tabs_wp_ml_style_{$level}_color", $defaults[$level]['color'])) ?: $defaults[$level]['color']);
+		$bg = $bg_transparent ? 'transparent' : get_option("checkout_tabs_wp_ml_style_{$level}_bg", $defaults[$level]['bg']);
 		if ($bg !== 'transparent') {
 			$bg = sanitize_hex_color((string) $bg) ?: $defaults[$level]['bg'];
 		}
@@ -187,6 +191,26 @@ add_action('wp_enqueue_scripts', function () {
 		'user_email' => is_user_logged_in() ? (string) wp_get_current_user()->user_email : '',
 		'webhook_url'=> checkout_tabs_wp_ml_get_webhook_url(),
 	]);
+
+	// Enfileirar Google reCAPTCHA v2
+	$site_key = get_option('checkout_tabs_wp_ml_recaptcha_site_key', '');
+	if (empty($site_key)) {
+		// Fallback: tentar pegar do plugin "Login No Captcha reCAPTCHA"
+		$login_recaptcha_opts = get_option('login_nocaptcha_options', []);
+		if (is_array($login_recaptcha_opts) && isset($login_recaptcha_opts['site_key'])) {
+			$site_key = $login_recaptcha_opts['site_key'];
+		}
+	}
+
+	if (!empty($site_key) && !is_user_logged_in()) {
+		wp_enqueue_script(
+			'google-recaptcha-v2',
+			'https://www.google.com/recaptcha/api.js',
+			[],
+			null,
+			true
+		);
+	}
 });
 
 

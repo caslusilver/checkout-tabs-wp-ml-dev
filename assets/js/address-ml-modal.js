@@ -200,6 +200,78 @@
       $('#ctwpml-generate-cpf-modal').css('display', allow && !locked ? 'inline-block' : 'none');
     }
 
+    function loadContactMeta() {
+      if (!state.params || !state.params.is_logged_in) {
+        return;
+      }
+
+      $.ajax({
+        url: state.params.ajax_url,
+        type: 'POST',
+        data: {
+          action: 'ctwpml_get_contact_meta',
+        },
+        success: function (response) {
+          if (response && response.success && response.data) {
+            var whatsapp = response.data.whatsapp || '';
+            var cpf = response.data.cpf || '';
+            var cpfLocked = response.data.cpf_locked || false;
+
+            if (whatsapp) {
+              $('#ctwpml-input-fone').val(formatPhone(whatsapp));
+            }
+
+            if (cpf) {
+              $('#ctwpml-input-cpf').val(formatCpf(cpf));
+              if (cpfLocked) {
+                $('#ctwpml-input-cpf').prop('readonly', true);
+                $('#ctwpml-generate-cpf-modal').hide();
+              }
+            }
+
+            logMessage('Dados de contato carregados (WhatsApp, CPF)');
+          }
+        },
+        error: function () {
+          logMessage('Erro ao carregar dados de contato', {}, 'ERROR');
+        },
+      });
+    }
+
+    function saveContactMeta(callback) {
+      if (!state.params || !state.params.is_logged_in) {
+        if (callback) callback();
+        return;
+      }
+
+      var whatsapp = $('#ctwpml-input-fone').val() || '';
+      var cpf = $('#ctwpml-input-cpf').val() || '';
+
+      $.ajax({
+        url: state.params.ajax_url,
+        type: 'POST',
+        data: {
+          action: 'ctwpml_save_contact_meta',
+          whatsapp: whatsapp,
+          cpf: cpf,
+        },
+        success: function (response) {
+          if (response && response.success) {
+            logMessage('Dados de contato salvos (WhatsApp, CPF)', response.data);
+            if (response.data && response.data.cpf_locked) {
+              $('#ctwpml-input-cpf').prop('readonly', true);
+              $('#ctwpml-generate-cpf-modal').hide();
+            }
+          }
+          if (callback) callback();
+        },
+        error: function () {
+          logMessage('Erro ao salvar dados de contato', {}, 'ERROR');
+          if (callback) callback();
+        },
+      });
+    }
+
     function openModal() {
       if (!isLoggedIn()) return;
       ensureModal();
@@ -253,6 +325,7 @@
       prefillFormFromCheckout();
       syncLoginBanner();
       syncCpfUiFromCheckout();
+      loadContactMeta(); // Carregar WhatsApp e CPF salvos
     }
 
     function showFormForNewAddress() {
@@ -1046,13 +1119,16 @@
           return;
         }
         applyFormToCheckout();
-        saveAddressFromForm(function (res) {
-          if (!res || !res.ok) {
-            alert((res && res.message) || 'Erro ao salvar endereço.');
-            return;
-          }
-          showList();
-          renderAddressList();
+        // Salvar WhatsApp e CPF antes do endereço
+        saveContactMeta(function () {
+          saveAddressFromForm(function (res) {
+            if (!res || !res.ok) {
+              alert((res && res.message) || 'Erro ao salvar endereço.');
+              return;
+            }
+            showList();
+            renderAddressList();
+          });
         });
       } else {
         // Continuar: aplica o endereço selecionado (se for salvo) e segue o fluxo atual.

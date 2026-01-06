@@ -134,6 +134,16 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
 #### Protocol: 9dd199c
 
+## [v3.2.1] - 2026-01-06
+
+### Changed
+- Adiciona opção "Transparente" (checkbox) para cores de texto/fundo na aba Styles.
+- Implementa persistência de WhatsApp, CPF e Label (Casa/Trabalho) no modal de endereço via `user_meta` (endpoints AJAX `ctwpml_get_contact_meta` e `ctwpml_save_contact_meta`), com CPF imutável após primeira criação (apenas admin pode editar).
+- Remove campo CPF do popup de cadastro e substitui por reCAPTCHA v2 (checkbox "Não sou um robô"), com validação backend via Google siteverify.
+- Suporta reutilização automática de chaves do plugin "Login No Captcha reCAPTCHA" ou configuração própria na aba Integrações.
+
+#### Protocol: 7c0e1d1
+
 ## [Unreleased]
 
 ## Notas de Publicação (ainda não executadas)

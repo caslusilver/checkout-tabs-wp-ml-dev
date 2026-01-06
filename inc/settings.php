@@ -81,6 +81,18 @@ add_action('admin_init', function () {
 		'default'           => '#111111',
 	]);
 
+	// reCAPTCHA v2
+	register_setting(CHECKOUT_TABS_WP_ML_SETTINGS_GROUP, 'checkout_tabs_wp_ml_recaptcha_site_key', [
+		'type'              => 'string',
+		'sanitize_callback' => 'sanitize_text_field',
+		'default'           => '',
+	]);
+	register_setting(CHECKOUT_TABS_WP_ML_SETTINGS_GROUP, 'checkout_tabs_wp_ml_recaptcha_secret_key', [
+		'type'              => 'string',
+		'sanitize_callback' => 'sanitize_text_field',
+		'default'           => '',
+	]);
+
 	// Registrar 24 options de estilo (8 propriedades × 3 hierarquias)
 	$levels = ['h1', 'h2', 'h3'];
 	$defaults = [
@@ -97,6 +109,15 @@ add_action('admin_init', function () {
 			'default'           => $defaults[$level]['color'],
 		]);
 
+		// Checkbox transparente - cor do texto
+		register_setting(CHECKOUT_TABS_WP_ML_SETTINGS_GROUP, "checkout_tabs_wp_ml_style_{$level}_color_transparent", [
+			'type'              => 'integer',
+			'sanitize_callback' => static function ($value) {
+				return !empty($value) ? 1 : 0;
+			},
+			'default'           => 0,
+		]);
+
 		// Cor de fundo
 		register_setting(CHECKOUT_TABS_WP_ML_SETTINGS_GROUP, "checkout_tabs_wp_ml_style_{$level}_bg", [
 			'type'              => 'string',
@@ -108,6 +129,15 @@ add_action('admin_init', function () {
 				return sanitize_hex_color($value) ?: 'transparent';
 			},
 			'default'           => $defaults[$level]['bg'],
+		]);
+
+		// Checkbox transparente - cor de fundo
+		register_setting(CHECKOUT_TABS_WP_ML_SETTINGS_GROUP, "checkout_tabs_wp_ml_style_{$level}_bg_transparent", [
+			'type'              => 'integer',
+			'sanitize_callback' => static function ($value) {
+				return !empty($value) ? 1 : 0;
+			},
+			'default'           => 0,
 		]);
 
 		// Fonte

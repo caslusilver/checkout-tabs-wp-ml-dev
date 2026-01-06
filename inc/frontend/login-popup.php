@@ -71,21 +71,28 @@ add_action('wp_footer', function () {
 			<label for="ctwpml-signup-name" class="ctwpml-popup-h3">Nome</label>
 			<input type="text" id="ctwpml-signup-name" required>
 
-			<label for="ctwpml-signup-email" class="ctwpml-popup-h3">E-mail</label>
-			<input type="email" id="ctwpml-signup-email" required>
+		<label for="ctwpml-signup-email" class="ctwpml-popup-h3">E-mail</label>
+		<input type="email" id="ctwpml-signup-email" required>
 
-			<div class="ctwpml-auth-cpf-row">
-				<label for="ctwpml-signup-cpf" class="ctwpml-popup-h3" style="margin: 0;">CPF</label>
-				<a href="#" id="ctwpml-generate-cpf" class="ctwpml-auth-link" style="display:none;">Gerar CPF fictício</a>
-			</div>
-				<input type="text" id="ctwpml-signup-cpf" required>
-				<div id="ctwpml-cpf-hint" class="ctwpml-auth-hint" style="display:none;">
-					Este CPF é fictício e serve apenas para identificar seus pedidos. Guarde este número caso precise retirar encomendas nos Correios.
-				</div>
+		<?php
+		// reCAPTCHA v2
+		$site_key = get_option('checkout_tabs_wp_ml_recaptcha_site_key', '');
+		if (empty($site_key)) {
+			$login_recaptcha_opts = get_option('login_nocaptcha_options', []);
+			if (is_array($login_recaptcha_opts) && isset($login_recaptcha_opts['site_key'])) {
+				$site_key = $login_recaptcha_opts['site_key'];
+			}
+		}
+		if (!empty($site_key)) {
+			echo '<div id="ctwpml-recaptcha-container" style="margin: 16px 0;">';
+			echo '<div class="g-recaptcha" data-sitekey="' . esc_attr($site_key) . '"></div>';
+			echo '</div>';
+		}
+		?>
 
-				<button type="submit" id="ctwpml-signup-submit" class="ctwpml-auth-submit">
-					Criar uma conta
-				</button>
+		<button type="submit" id="ctwpml-signup-submit" class="ctwpml-auth-submit">
+			Criar uma conta
+		</button>
 				<div id="ctwpml-signup-msg" class="ctwpml-auth-msg" style="display:none;"></div>
 			</form>
 		</div>

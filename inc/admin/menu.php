@@ -49,6 +49,20 @@ add_action('admin_enqueue_scripts', function ($hook_suffix) {
 	wp_localize_script('checkout-tabs-wp-ml-admin-tabs', 'CTWPMLAdminTabs', [
 		'page' => CHECKOUT_TABS_WP_ML_SETTINGS_PAGE,
 	]);
+	
+	// JavaScript para controlar checkboxes "Transparente"
+	wp_add_inline_script('checkout-tabs-wp-ml-admin-tabs', '
+		jQuery(document).ready(function($) {
+			$(".ctwpml-transparent-checkbox").on("change", function() {
+				var colorInput = $(this).closest("td").find("input[type=color]");
+				if ($(this).is(":checked")) {
+					colorInput.prop("disabled", true);
+				} else {
+					colorInput.prop("disabled", false);
+				}
+			});
+		});
+	');
 });
 
 function checkout_tabs_wp_ml_render_admin_page(): void {
@@ -67,6 +81,8 @@ function checkout_tabs_wp_ml_render_admin_page(): void {
 	$ui_primary = sanitize_hex_color((string) get_option('checkout_tabs_wp_ml_ui_primary', '#0075ff')) ?: '#0075ff';
 	$ui_login_bg = sanitize_hex_color((string) get_option('checkout_tabs_wp_ml_ui_login_bg', '#f5f5f5')) ?: '#f5f5f5';
 	$ui_text = sanitize_hex_color((string) get_option('checkout_tabs_wp_ml_ui_text', '#111111')) ?: '#111111';
+	$recaptcha_site_key = sanitize_text_field((string) get_option('checkout_tabs_wp_ml_recaptcha_site_key', ''));
+	$recaptcha_secret_key = sanitize_text_field((string) get_option('checkout_tabs_wp_ml_recaptcha_secret_key', ''));
 
 	echo '<div class="wrap">';
 	echo '<h1>Checkout Tabs ML</h1>';
@@ -126,6 +142,20 @@ function checkout_tabs_wp_ml_render_admin_page(): void {
 		echo '<label style="display:flex; gap:8px; align-items:center;">Texto <input type="color" name="checkout_tabs_wp_ml_ui_text" value="' . esc_attr($ui_text) . '" /></label>';
 		echo '</div>';
 		echo '<p class="description">Controla contraste e cores das abas e botões no popup de login/cadastro.</p>';
+		echo '</td>';
+		echo '</tr>';
+		echo '<tr>';
+		echo '<th scope="row"><label for="checkout_tabs_wp_ml_recaptcha_site_key">reCAPTCHA v2 (Site Key)</label></th>';
+		echo '<td>';
+		echo '<input type="text" class="regular-text" id="checkout_tabs_wp_ml_recaptcha_site_key" name="checkout_tabs_wp_ml_recaptcha_site_key" value="' . esc_attr($recaptcha_site_key) . '" placeholder="6Le..." />';
+		echo '<p class="description">Chave pública do Google reCAPTCHA v2. <a href="https://www.google.com/recaptcha/admin" target="_blank">Obter chaves</a>. Se vazio, tenta reutilizar do plugin "Login No Captcha reCAPTCHA".</p>';
+		echo '</td>';
+		echo '</tr>';
+		echo '<tr>';
+		echo '<th scope="row"><label for="checkout_tabs_wp_ml_recaptcha_secret_key">reCAPTCHA v2 (Secret Key)</label></th>';
+		echo '<td>';
+		echo '<input type="text" class="regular-text" id="checkout_tabs_wp_ml_recaptcha_secret_key" name="checkout_tabs_wp_ml_recaptcha_secret_key" value="' . esc_attr($recaptcha_secret_key) . '" placeholder="6Le..." />';
+		echo '<p class="description">Chave secreta (não compartilhe). Se vazio, tenta reutilizar do plugin instalado.</p>';
 		echo '</td>';
 		echo '</tr>';
 		echo '</table>';
@@ -223,7 +253,12 @@ function checkout_tabs_wp_ml_render_style_fields(string $level): void {
 	$aligns = ['left' => 'Esquerda', 'center' => 'Centro', 'right' => 'Direita'];
 	
 	$color = sanitize_hex_color((string) get_option("checkout_tabs_wp_ml_style_{$level}_color", $defaults[$level]['color'])) ?: $defaults[$level]['color'];
-	$bg = sanitize_hex_color((string) get_option("checkout_tabs_wp_ml_style_{$level}_bg", $defaults[$level]['bg'])) ?: $defaults[$level]['bg'];
+	$color_transparent = ((int) get_option("checkout_tabs_wp_ml_style_{$level}_color_transparent", 0) === 1);
+	$bg = get_option("checkout_tabs_wp_ml_style_{$level}_bg", $defaults[$level]['bg']);
+	$bg_transparent = ((int) get_option("checkout_tabs_wp_ml_style_{$level}_bg_transparent", 0) === 1);
+	if (!$bg_transparent && $bg !== 'transparent') {
+		$bg = sanitize_hex_color((string) $bg) ?: $defaults[$level]['bg'];
+	}
 	$font = sanitize_text_field((string) get_option("checkout_tabs_wp_ml_style_{$level}_font", $defaults[$level]['font']));
 	$weight = sanitize_text_field((string) get_option("checkout_tabs_wp_ml_style_{$level}_weight", $defaults[$level]['weight']));
 	$size = absint(get_option("checkout_tabs_wp_ml_style_{$level}_size", $defaults[$level]['size']));
@@ -235,7 +270,8 @@ function checkout_tabs_wp_ml_render_style_fields(string $level): void {
 	echo '<tr>';
 	echo '<th scope="row"><label for="checkout_tabs_wp_ml_style_' . $level . '_color">Cor do Texto</label></th>';
 	echo '<td>';
-	echo '<input type="color" id="checkout_tabs_wp_ml_style_' . $level . '_color" name="checkout_tabs_wp_ml_style_' . $level . '_color" value="' . esc_attr($color) . '" />';
+	echo '<input type="color" id="checkout_tabs_wp_ml_style_' . $level . '_color" name="checkout_tabs_wp_ml_style_' . $level . '_color" value="' . esc_attr($color) . '" ' . ($color_transparent ? 'disabled' : '') . ' />';
+	echo ' <label style="margin-left:10px;"><input type="checkbox" name="checkout_tabs_wp_ml_style_' . $level . '_color_transparent" value="1" ' . ($color_transparent ? 'checked' : '') . ' class="ctwpml-transparent-checkbox" /> Transparente</label>';
 	echo '</td>';
 	echo '</tr>';
 	
@@ -243,8 +279,8 @@ function checkout_tabs_wp_ml_render_style_fields(string $level): void {
 	echo '<tr>';
 	echo '<th scope="row"><label for="checkout_tabs_wp_ml_style_' . $level . '_bg">Cor de Fundo</label></th>';
 	echo '<td>';
-	echo '<input type="color" id="checkout_tabs_wp_ml_style_' . $level . '_bg" name="checkout_tabs_wp_ml_style_' . $level . '_bg" value="' . esc_attr($bg) . '" />';
-	echo '<p class="description">Use "transparent" para sem fundo (digite manualmente após salvar).</p>';
+	echo '<input type="color" id="checkout_tabs_wp_ml_style_' . $level . '_bg" name="checkout_tabs_wp_ml_style_' . $level . '_bg" value="' . esc_attr($bg === 'transparent' ? '#ffffff' : $bg) . '" ' . ($bg_transparent ? 'disabled' : '') . ' />';
+	echo ' <label style="margin-left:10px;"><input type="checkbox" name="checkout_tabs_wp_ml_style_' . $level . '_bg_transparent" value="1" ' . ($bg_transparent ? 'checked' : '') . ' class="ctwpml-transparent-checkbox" /> Transparente</label>';
 	echo '</td>';
 	echo '</tr>';
 	

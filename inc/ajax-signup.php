@@ -48,16 +48,44 @@ add_action('wp_ajax_nopriv_ctwpml_signup', function () {
 	$name = isset($_POST['name']) ? sanitize_text_field((string) wp_unslash($_POST['name'])) : '';
 	$email = isset($_POST['email']) ? sanitize_email((string) wp_unslash($_POST['email'])) : '';
 	$email = strtolower(trim($email));
-	$cpf = isset($_POST['cpf']) ? ctwpml_cpf_digits((string) wp_unslash($_POST['cpf'])) : '';
+	$recaptcha_response = isset($_POST['recaptcha_response']) ? sanitize_text_field((string) $_POST['recaptcha_response']) : '';
 
-	if ($name === '' || $email === '' || $cpf === '') {
-		wp_send_json_error(['message' => 'Preencha nome, e-mail e CPF.']);
+	// Validar reCAPTCHA v2
+	if (empty($recaptcha_response)) {
+		wp_send_json_error(['message' => 'reCAPTCHA não preenchido.']);
+	}
+
+	$secret_key = get_option('checkout_tabs_wp_ml_recaptcha_secret_key', '');
+	if (empty($secret_key)) {
+		// Fallback: tentar pegar do plugin "Login No Captcha reCAPTCHA"
+		$login_recaptcha_opts = get_option('login_nocaptcha_options', []);
+		if (is_array($login_recaptcha_opts) && isset($login_recaptcha_opts['secret_key'])) {
+			$secret_key = $login_recaptcha_opts['secret_key'];
+		}
+	}
+
+	if (!empty($secret_key)) {
+		$verify_response = wp_remote_post('https://www.google.com/recaptcha/api/siteverify', [
+			'body' => [
+				'secret' => $secret_key,
+				'response' => $recaptcha_response,
+				'remoteip' => isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field((string) $_SERVER['REMOTE_ADDR']) : '',
+			],
+		]);
+
+		if (!is_wp_error($verify_response)) {
+			$verify_body = json_decode(wp_remote_retrieve_body($verify_response), true);
+			if (empty($verify_body['success'])) {
+				wp_send_json_error(['message' => 'Falha na validação do reCAPTCHA.']);
+			}
+		}
+	}
+
+	if ($name === '' || $email === '') {
+		wp_send_json_error(['message' => 'Preencha nome e e-mail.']);
 	}
 	if (!is_email($email)) {
 		wp_send_json_error(['message' => 'E-mail inválido.']);
-	}
-	if (!ctwpml_is_valid_cpf($cpf)) {
-		wp_send_json_error(['message' => 'CPF inválido.']);
 	}
 	if (email_exists($email)) {
 		wp_send_json_error(['message' => 'Já existe uma conta com este e-mail. Faça login.']);
@@ -100,10 +128,6 @@ add_action('wp_ajax_nopriv_ctwpml_signup', function () {
 		'first_name' => $first,
 		'last_name' => $last,
 	]);
-
-	// CPF definitivo no perfil
-	update_user_meta($user_id, 'billing_cpf', $cpf);
-	update_user_meta($user_id, 'ctwpml_cpf_locked', 1);
 
 	// Loga automaticamente
 	wp_set_current_user($user_id);

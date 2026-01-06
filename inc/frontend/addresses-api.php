@@ -262,4 +262,66 @@ add_action('wp_ajax_ctwpml_save_address_payload', function () {
 	]);
 });
 
+// Obter dados de contato (WhatsApp e CPF) do usuário
+add_action('wp_ajax_ctwpml_get_contact_meta', function (): void {
+	if (!is_user_logged_in()) {
+		wp_send_json_error(['message' => 'Usuário não logado']);
+		return;
+	}
+
+	$user_id = get_current_user_id();
+	$whatsapp = get_user_meta($user_id, 'ctwpml_whatsapp', true);
+	$cpf = get_user_meta($user_id, 'billing_cpf', true);
+	$cpf_locked = get_user_meta($user_id, 'ctwpml_cpf_locked', true);
+
+	wp_send_json_success([
+		'whatsapp' => $whatsapp ?: '',
+		'cpf' => $cpf ?: '',
+		'cpf_locked' => $cpf_locked === '1',
+	]);
+});
+
+// Salvar dados de contato (WhatsApp e CPF)
+add_action('wp_ajax_ctwpml_save_contact_meta', function (): void {
+	if (!is_user_logged_in()) {
+		wp_send_json_error(['message' => 'Usuário não logado']);
+		return;
+	}
+
+	$user_id = get_current_user_id();
+	$whatsapp = isset($_POST['whatsapp']) ? sanitize_text_field((string) $_POST['whatsapp']) : '';
+	$cpf = isset($_POST['cpf']) ? sanitize_text_field((string) $_POST['cpf']) : '';
+
+	// Salvar WhatsApp (sempre permitido)
+	if (!empty($whatsapp)) {
+		update_user_meta($user_id, 'ctwpml_whatsapp', $whatsapp);
+	}
+
+	// CPF: verificar se já está travado
+	$cpf_locked = get_user_meta($user_id, 'ctwpml_cpf_locked', true);
+	$is_admin = current_user_can('manage_woocommerce');
+
+	if (!empty($cpf)) {
+		// Se CPF está travado e não é admin, rejeitar
+		if ($cpf_locked === '1' && !$is_admin) {
+			wp_send_json_error(['message' => 'CPF já está definido e não pode ser alterado']);
+			return;
+		}
+
+		// Salvar CPF
+		update_user_meta($user_id, 'billing_cpf', $cpf);
+
+		// Se é a primeira vez que define CPF, travar
+		if ($cpf_locked !== '1') {
+			update_user_meta($user_id, 'ctwpml_cpf_locked', '1');
+		}
+	}
+
+	wp_send_json_success([
+		'whatsapp_saved' => !empty($whatsapp),
+		'cpf_saved' => !empty($cpf),
+		'cpf_locked' => get_user_meta($user_id, 'ctwpml_cpf_locked', true) === '1',
+	]);
+});
+
 
