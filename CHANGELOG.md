@@ -193,6 +193,14 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
 #### Protocol: 0872e3a
 
+## [v3.2.7] - 2026-01-06
+
+### Changed
+- Correção da edição de endereços existentes (endereços antigos agora podem ser editados).
+- Sincronização automática dos campos `billing_*` do WooCommerce ao abrir endereço para edição.
+- Valor padrão 'Casa' para label de endereços antigos.
+- Carregamento automático de WhatsApp/CPF do perfil (`user_meta`) quando campos estiverem vazios.
+
+#### Protocol: c44aa3b
+
 ## [Unreleased]
-
-

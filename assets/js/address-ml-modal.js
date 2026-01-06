@@ -559,15 +559,45 @@
       $('#ctwpml-input-comp').val(String(item.complement || ''));
       $('#ctwpml-input-info').val(String(item.extra_info || ''));
       setCepConfirm(String(item.city || ''), String(item.state || ''), String(item.neighborhood || ''));
-      setTypeSelection(String(item.label || ''));
+      
+      // v3.2.7: Definir 'Casa' como padrão se label estiver vazio (endereços antigos)
+      var labelValue = String(item.label || 'Casa');
+      setTypeSelection(labelValue);
+      
       setRuaHint('', false);
       clearFormErrors();
 
-      // Nome/telefone continuam vindo do checkout.
+      // v3.2.7: Sincronizar campos billing_* do WooCommerce para validação funcionar
+      $('#billing_postcode').val(item.cep || '').trigger('change');
+      $('#billing_address_1').val(item.address_1 || '').trigger('change');
+      $('#billing_number').val(item.number || '').trigger('change');
+      $('#billing_city').val(item.city || '').trigger('change');
+      $('#billing_state').val(item.state || '').trigger('change');
+      $('#billing_neighborhood').val(item.neighborhood || '').trigger('change');
+
+      // Nome: usar receiver_name do endereço ou nome do checkout
       var first = ($('#billing_first_name').val() || '').trim();
       var last = ($('#billing_last_name').val() || '').trim();
-      $('#ctwpml-input-nome').val(String(item.receiver_name || (first + ' ' + last)).trim());
-      $('#ctwpml-input-fone').val(formatPhone((($('#billing_cellphone').val() || '') || '').trim()));
+      var receiverName = String(item.receiver_name || (first + ' ' + last)).trim();
+      $('#ctwpml-input-nome').val(receiverName);
+      
+      // WhatsApp: tentar do checkout primeiro
+      var phoneFromCheckout = ($('#billing_cellphone').val() || '').trim();
+      $('#ctwpml-input-fone').val(formatPhone(phoneFromCheckout));
+      
+      // v3.2.7: Se WhatsApp/CPF estiverem vazios, carregar do perfil (user_meta)
+      var needsContactMeta = !phoneFromCheckout;
+      if (needsContactMeta) {
+        loadContactMeta(function(meta) {
+          if (meta) {
+            // Preencher WhatsApp se estiver vazio
+            if (!$('#ctwpml-input-fone').val() && meta.whatsapp) {
+              $('#ctwpml-input-fone').val(formatPhone(meta.whatsapp));
+            }
+          }
+        });
+      }
+      
       syncLoginBanner();
       syncCpfUiFromCheckout();
     }
