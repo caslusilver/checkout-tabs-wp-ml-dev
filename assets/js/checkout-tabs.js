@@ -2,6 +2,25 @@
   'use strict';
 
   jQuery(function ($) {
+    // Função helper para seleção segura - previne erro "SyntaxError: '.' is not a valid selector"
+    window.safeSelector = function (selector) {
+      if (!selector || typeof selector !== 'string') {
+        console.warn('[CTWPML] Seletor inválido (não é string):', selector);
+        return $();
+      }
+      selector = selector.trim();
+      if (!selector || selector === '.' || selector === '#' || selector === '' ) {
+        console.warn('[CTWPML] Seletor vazio ou inválido:', selector);
+        return $();
+      }
+      try {
+        return $(selector);
+      } catch (e) {
+        console.error('[CTWPML] Erro ao usar seletor:', selector, e);
+        return $();
+      }
+    };
+
     var forceDebug = false;
     try {
       forceDebug = new URLSearchParams(window.location.search).get('ctwpml_debug') === '1';

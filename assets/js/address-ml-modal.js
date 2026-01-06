@@ -13,6 +13,8 @@
     var cepConsultInFlight = false;
     var selectedAddressId = null;
     var addressesCache = [];
+    var addressesCacheTimestamp = null;
+    var CACHE_DURATION = 60000; // 1 minuto
     var isSavingAddress = false;
 
     function cepDigits(value) {
@@ -76,6 +78,46 @@
     function hideModalSpinner() {
       $('#ctwpml-modal-spinner').hide();
       $('body').css('pointer-events', '');
+    }
+
+    // Notificação toast para feedback visual ao usuário
+    function showNotification(message, type) {
+      // type: 'success' ou 'error'
+      var bgColor = type === 'success' ? '#067647' : '#b42318';
+      var textColor = '#fff';
+      
+      var $notif = $('<div>')
+        .text(message)
+        .css({
+          'position': 'fixed',
+          'top': '20px',
+          'left': '50%',
+          'transform': 'translateX(-50%)',
+          'background-color': bgColor,
+          'color': textColor,
+          'padding': '12px 24px',
+          'border-radius': '6px',
+          'font-weight': '700',
+          'z-index': '999999',
+          'box-shadow': '0 4px 12px rgba(0,0,0,0.15)',
+          'opacity': '0',
+          'transition': 'opacity 0.3s ease'
+        });
+      
+      $('body').append($notif);
+      
+      // Fade in
+      setTimeout(function() {
+        $notif.css('opacity', '1');
+      }, 100);
+      
+      // Fade out e remover após 3 segundos
+      setTimeout(function() {
+        $notif.css('opacity', '0');
+        setTimeout(function() {
+          $notif.remove();
+        }, 300);
+      }, 3000);
     }
 
     function ensureModal() {
@@ -316,11 +358,18 @@
       if (!isLoggedIn()) return;
       ensureModal();
       refreshFromCheckoutFields();
+      
+      // Mostrar modal imediatamente
+      $('#ctwpml-address-modal-overlay').css('display', 'flex');
+      
+      // Mostrar spinner enquanto carrega endereços
+      showModalSpinner();
+      
       loadAddresses(function () {
+        hideModalSpinner();
         showList();
         renderAddressList();
       });
-      $('#ctwpml-address-modal-overlay').css('display', 'flex');
     }
 
     function openLoginPopup() {
@@ -653,11 +702,23 @@
 
     function loadAddresses(done) {
       done = typeof done === 'function' ? done : function () {};
+      
       if (!state.params || !state.params.ajax_url || !state.params.addresses_nonce) {
         addressesCache = [];
         done();
         return;
       }
+      
+      // Usar cache se disponível e não expirado
+      var now = Date.now();
+      if (addressesCache.length > 0 && addressesCacheTimestamp) {
+        if ((now - addressesCacheTimestamp) < CACHE_DURATION) {
+          // Cache válido, usar dados em cache
+          done();
+          return;
+        }
+      }
+      
       $.ajax({
         url: state.params.ajax_url,
         type: 'POST',
@@ -669,13 +730,16 @@
         success: function (resp) {
           if (resp && resp.success && resp.data && Array.isArray(resp.data.items)) {
             addressesCache = dedupeAddresses(resp.data.items);
+            addressesCacheTimestamp = Date.now(); // Atualiza timestamp
           } else {
             addressesCache = [];
+            addressesCacheTimestamp = null;
           }
           done();
         },
         error: function () {
           addressesCache = [];
+          addressesCacheTimestamp = null;
           done();
         },
       });
@@ -727,17 +791,29 @@
         success: function (resp) {
           isSavingAddress = false;
           $('#ctwpml-btn-primary').prop('disabled', false);
+          
           if (resp && resp.success && resp.data) {
-            if (Array.isArray(resp.data.items)) addressesCache = dedupeAddresses(resp.data.items);
-            if (resp.data.item && resp.data.item.id) selectedAddressId = resp.data.item.id;
+            if (Array.isArray(resp.data.items)) {
+              addressesCache = dedupeAddresses(resp.data.items);
+            }
+            if (resp.data.item && resp.data.item.id) {
+              selectedAddressId = resp.data.item.id;
+            }
+            
+            // Mostrar notificação de sucesso
+            showNotification('Endereço salvo com sucesso!', 'success');
+            
             done({ ok: true });
           } else {
-            done({ ok: false, message: (resp && resp.data) || 'Erro ao salvar endereço.' });
+            var errorMsg = (resp && resp.data) || 'Erro ao salvar endereço.';
+            showNotification(errorMsg, 'error');
+            done({ ok: false, message: errorMsg });
           }
         },
         error: function () {
           isSavingAddress = false;
           $('#ctwpml-btn-primary').prop('disabled', false);
+          showNotification('Erro ao salvar endereço.', 'error');
           done({ ok: false, message: 'Erro ao salvar endereço.' });
         },
         complete: function () {
@@ -1191,11 +1267,15 @@
         saveContactMeta(function () {
           saveAddressFromForm(function (res) {
             if (!res || !res.ok) {
-              alert((res && res.message) || 'Erro ao salvar endereço.');
+              // Não precisa de alert, a notificação já foi exibida
               return;
             }
-            showList();
-            renderAddressList();
+            
+            // Aguardar 500ms para usuário ver a confirmação, depois voltar para lista
+            setTimeout(function() {
+              showList();
+              renderAddressList();
+            }, 500);
           });
         });
       } else {

@@ -155,6 +155,13 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
 #### Protocol: a088a7d
 
+## [v3.2.3] - 2026-01-06
+
+### Changed
+- Implementa 11 correções críticas e melhorias de UX conforme PLANO_DE_ACAO_CORRECOES.txt (safeSelector, logs detalhados, toasts, cache 60s, spinner/blur, reCAPTCHA no login, “Perdeu a senha?”, correções de layout para Elementor, debounce/update_checkout).
+
+#### Protocol: 24f278b
+
 ## [Unreleased]
 
 ## Notas de Publicação (ainda não executadas)

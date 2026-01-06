@@ -49,10 +49,11 @@
   padding: 10px;
   border: 0;
   border-radius: 3px;
-  background: transparent;
+  background: transparent !important;
   font-weight: 800;
   cursor: pointer;
   color: var(--ctwpml-ui-primary);
+  transition: all 0.2s ease;
 }
 
 .ctwpml-auth-tab .ctwpml-popup-h3 {
@@ -65,13 +66,13 @@
 }
 
 .ctwpml-auth-tab.is-active[data-tab='login'] {
-  background: var(--ctwpml-ui-login_bg);
-  color: var(--ctwpml-ui-text);
+  background: #f0f0f0 !important; /* Cinza claro ao invés de azul */
+  color: var(--ctwpml-ui-text) !important;
 }
 
 .ctwpml-auth-tab.is-active[data-tab='signup'] {
-  background: var(--ctwpml-ui-primary);
-  color: #fff;
+  background: var(--ctwpml-ui-primary) !important;
+  color: #fff !important;
 }
 
 .ctwpml-auth-title {
@@ -149,16 +150,18 @@
 }
 
 .ctwpml-auth-submit {
-  background-color: var(--ctwpml-ui-primary);
-  color: #fff;
-  border: 0;
-  cursor: pointer;
-  display: block;
-  width: 100%;
-  margin-top: 10px;
-  padding: 10px;
-  border-radius: 3px;
-  font-weight: 800;
+  background-color: var(--ctwpml-ui-primary) !important;
+  color: #fff !important;
+  border: 0 !important;
+  cursor: pointer !important;
+  display: block !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  margin-top: 10px !important;
+  padding: 10px !important;
+  border-radius: 3px !important;
+  font-weight: 800 !important;
+  box-sizing: border-box !important;
 }
 
 .ctwpml-auth-submit[disabled] {
@@ -169,6 +172,23 @@
 .ctwpml-auth-msg {
   margin-top: 10px;
   font-weight: 800;
+}
+
+/* Força estilos do botão mesmo com Elementor ativo */
+.fancybox-content .ctwpml-login-popup .ctwpml-auth-submit,
+body .fancybox-content .ctwpml-login-popup .ctwpml-auth-submit {
+  background-color: #0075FF !important;
+  width: 100% !important;
+  display: block !important;
+  box-sizing: border-box !important;
+}
+
+/* Anula completamente estilos do Elementor nas abas não-ativas */
+.ctwpml-login-popup .ctwpml-auth-tab:not(.is-active),
+body .ctwpml-login-popup .ctwpml-auth-tab:not(.is-active),
+.fancybox-content .ctwpml-login-popup .ctwpml-auth-tab:not(.is-active) {
+  background: transparent !important;
+  background-color: transparent !important;
 }
 
 

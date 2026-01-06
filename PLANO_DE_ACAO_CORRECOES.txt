@@ -1,0 +1,811 @@
+================================================================================
+  PLANO DE AÇÃO - CORREÇÕES CHECKOUT TABS WP ML
+  Data: 06/01/2026
+================================================================================
+
+Este documento detalha as ações específicas que devem ser realizadas para
+corrigir todos os problemas identificados no relatório de testes.
+
+================================================================================
+TAREFA 1: INTEGRAR RECAPTCHA NO POP-UP DE LOGIN
+================================================================================
+
+OBJETIVO:
+  Copiar a implementação do reCAPTCHA do plugin de referência e integrá-la
+  no formulário de login do pop-up atual.
+
+REFERÊNCIA:
+  C:\Users\Dell\Desktop\checkout-tab-estilo-ml-2026\dados de entrega\popup login que tem recaptcha\plugin de popup de login que tem recatpcha.php
+
+AÇÕES ESPECÍFICAS:
+
+1.1 Carregar o script do reCAPTCHA
+   Arquivo: inc/frontend/login-popup.php
+   Localização: Início do script PHP (após linha 14)
+   
+   Adicionar verificação e carregamento do script:
+   ```php
+   // Carregar script do reCAPTCHA se ainda não estiver presente
+   wp_enqueue_script(
+       'google-recaptcha',
+       'https://www.google.com/recaptcha/api.js?onload=onloadCallback&render=explicit',
+       array(),
+       null,
+       true
+   );
+   ```
+
+1.2 Adicionar container do reCAPTCHA no formulário de login
+   Arquivo: inc/frontend/login-popup.php
+   Localização: Dentro do formulário de login, após o campo de senha (linha ~55)
+   
+   Adicionar:
+   ```html
+   <!-- Container para o reCAPTCHA -->
+   <div id="g-recaptcha-login" style="margin-bottom: 10px;"></div>
+   ```
+
+1.3 Adicionar callbacks do reCAPTCHA
+   Arquivo: inc/frontend/login-popup.php
+   Localização: No bloco <script> (linha ~100)
+   
+   Adicionar funções globais:
+   ```javascript
+   function onloadCallback() {
+       // Callback executado quando o script do reCAPTCHA é carregado
+   }
+   
+   function submitEnable() {
+       // Habilitar botão de login quando reCAPTCHA é validado
+       var btn = document.querySelector('#login-popup form[action*="wp-login"] button[type="submit"]');
+       if (btn) btn.disabled = false;
+   }
+   
+   function submitDisable() {
+       // Desabilitar botão quando reCAPTCHA expira
+       var btn = document.querySelector('#login-popup form[action*="wp-login"] button[type="submit"]');
+       if (btn) btn.disabled = true;
+   }
+   ```
+
+1.4 Renderizar reCAPTCHA quando o popup abrir
+   Arquivo: assets/js/address-ml-modal.js
+   Localização: Função openLoginPopup (linha ~326)
+   
+   Modificar para adicionar callback afterShow:
+   ```javascript
+   $.fancybox.open({
+       src: '#login-popup',
+       type: 'inline',
+       touch: false,
+       clickOutside: false,
+       clickSlide: false,
+       closeClickOutside: false,
+       smallBtn: false,
+       toolbar: false,
+       buttons: [],
+       afterShow: function() {
+           // Renderiza o reCAPTCHA se ainda não foi renderizado
+           if (typeof grecaptcha !== 'undefined' && !$('#g-recaptcha-login').hasClass('recaptcha-rendered')) {
+               grecaptcha.render('g-recaptcha-login', {
+                   'sitekey': '<?php echo esc_attr($site_key); ?>',
+                   'callback': submitEnable,
+                   'expired-callback': submitDisable
+               });
+               $('#g-recaptcha-login').addClass('recaptcha-rendered');
+           }
+       }
+   });
+   ```
+
+1.5 Validar reCAPTCHA antes do submit
+   Arquivo: Adicionar validação no formulário
+   
+   O formulário de login já envia para wp_login_url(), então o WordPress
+   vai validar o reCAPTCHA no servidor se o plugin Login NoCaptcha estiver ativo.
+
+
+================================================================================
+TAREFA 2: CORRIGIR LAYOUT DO BOTÃO NO POP-UP
+================================================================================
+
+OBJETIVO:
+  Garantir que o botão de login ocupe 100% do espaço e tenha a cor correta.
+
+AÇÕES ESPECÍFICAS:
+
+2.1 Forçar width 100% no botão
+   Arquivo: assets/css/login-popup.css
+   Localização: Regra .ctwpml-auth-submit (linha ~151)
+   
+   Modificar para:
+   ```css
+   .ctwpml-auth-submit {
+     background-color: var(--ctwpml-ui-primary) !important;
+     color: #fff !important;
+     border: 0 !important;
+     cursor: pointer !important;
+     display: block !important;
+     width: 100% !important;
+     max-width: 100% !important;
+     margin-top: 10px !important;
+     padding: 10px !important;
+     border-radius: 3px !important;
+     font-weight: 800 !important;
+     box-sizing: border-box !important;
+   }
+   ```
+
+2.2 Sobrescrever estilos do Elementor
+   Arquivo: assets/css/login-popup.css
+   Localização: Adicionar nova regra de alta especificidade
+   
+   Adicionar:
+   ```css
+   /* Força estilos do botão mesmo com Elementor ativo */
+   .fancybox-content .ctwpml-login-popup .ctwpml-auth-submit,
+   body .fancybox-content .ctwpml-login-popup .ctwpml-auth-submit {
+     background-color: #0075FF !important;
+     width: 100% !important;
+     display: block !important;
+   }
+   ```
+
+
+================================================================================
+TAREFA 3: ADICIONAR LINK "ESQUECI MINHA SENHA"
+================================================================================
+
+OBJETIVO:
+  Adicionar link para redefinição de senha abaixo do botão de login.
+
+AÇÕES ESPECÍFICAS:
+
+3.1 Adicionar HTML do link
+   Arquivo: inc/frontend/login-popup.php
+   Localização: Após o botão submit do formulário de login (linha ~60)
+   
+   Adicionar:
+   ```html
+   </form>
+   
+   <!-- Link "Perdeu a senha?" -->
+   <div class="ctwpml-auth-footer" style="text-align: center; margin-top: 16px;">
+       <a href="<?php echo esc_url(wp_lostpassword_url()); ?>" class="ctwpml-auth-link">
+           Perdeu a senha?
+       </a>
+   </div>
+   ```
+
+3.2 Estilizar o link
+   Arquivo: assets/css/login-popup.css
+   Localização: Já existe regra .ctwpml-auth-link (linha ~138)
+   
+   Verificar se está correto:
+   ```css
+   .ctwpml-auth-link {
+     color: var(--ctwpml-ui-primary);
+     text-decoration: none;
+     font-weight: 800;
+   }
+   
+   .ctwpml-auth-link:hover {
+     text-decoration: underline;
+   }
+   ```
+
+
+================================================================================
+TAREFA 4: REMOVER FUNDO AZUL DAS ABAS (INFLUÊNCIA ELEMENTOR)
+================================================================================
+
+OBJETIVO:
+  Remover o fundo azul que aparece nas abas por conta do Elementor,
+  deixando o fundo transparente.
+
+AÇÕES ESPECÍFICAS:
+
+4.1 Forçar background transparente nas abas
+   Arquivo: assets/css/login-popup.css
+   Localização: Regra .ctwpml-auth-tab (linha ~47)
+   
+   Modificar para:
+   ```css
+   .ctwpml-auth-tab {
+     flex: 1;
+     padding: 10px;
+     border: 0;
+     border-radius: 3px;
+     background: transparent !important;
+     font-weight: 800;
+     cursor: pointer;
+     color: var(--ctwpml-ui-primary);
+     transition: all 0.2s ease;
+   }
+   ```
+
+4.2 Ajustar background da aba ativa (login)
+   Arquivo: assets/css/login-popup.css
+   Localização: Regra .ctwpml-auth-tab.is-active[data-tab='login'] (linha ~67)
+   
+   Modificar para usar cor suave ao invés de azul:
+   ```css
+   .ctwpml-auth-tab.is-active[data-tab='login'] {
+     background: #f0f0f0 !important; /* Cinza claro ao invés de azul */
+     color: var(--ctwpml-ui-text) !important;
+   }
+   ```
+
+4.3 Manter aba de signup com azul (comportamento esperado)
+   Arquivo: assets/css/login-popup.css
+   Localização: Regra .ctwpml-auth-tab.is-active[data-tab='signup'] (linha ~72)
+   
+   Manter como está:
+   ```css
+   .ctwpml-auth-tab.is-active[data-tab='signup'] {
+     background: var(--ctwpml-ui-primary) !important;
+     color: #fff !important;
+   }
+   ```
+
+4.4 Sobrescrever qualquer estilo do Elementor
+   Arquivo: assets/css/login-popup.css
+   Localização: Adicionar no final do arquivo
+   
+   Adicionar:
+   ```css
+   /* Anula completamente estilos do Elementor nas abas */
+   .ctwpml-login-popup .ctwpml-auth-tab:not(.is-active),
+   body .ctwpml-login-popup .ctwpml-auth-tab:not(.is-active),
+   .fancybox-content .ctwpml-login-popup .ctwpml-auth-tab:not(.is-active) {
+     background: transparent !important;
+     background-color: transparent !important;
+   }
+   ```
+
+
+================================================================================
+TAREFA 5: OTIMIZAR CARREGAMENTO DE ENDEREÇOS APÓS LOGIN
+================================================================================
+
+OBJETIVO:
+  Tornar o carregamento de endereços mais rápido OU adicionar feedback
+  visual (spinner + blur) durante o carregamento.
+
+AÇÕES ESPECÍFICAS:
+
+5.1 OPÇÃO A: Adicionar spinner + blur (IMPLEMENTAR PRIMEIRO)
+   Arquivo: assets/js/address-ml-modal.js
+   Localização: Função openModal (linha ~315)
+   
+   Modificar para:
+   ```javascript
+   function openModal() {
+       if (!isLoggedIn()) return;
+       ensureModal();
+       refreshFromCheckoutFields();
+       
+       // Mostrar modal imediatamente
+       $('#ctwpml-address-modal-overlay').css('display', 'flex');
+       
+       // Mostrar spinner enquanto carrega endereços
+       showModalSpinner();
+       
+       loadAddresses(function () {
+           hideModalSpinner();
+           showList();
+           renderAddressList();
+       });
+   }
+   ```
+
+5.2 OPÇÃO B: Otimizar a consulta (INVESTIGAR DEPOIS)
+   Arquivo: inc/frontend/addresses-api.php
+   Localização: Ação AJAX 'ctwpml_get_addresses'
+   
+   Investigar:
+   - Há consultas desnecessárias ao banco?
+   - Está carregando metadados que não são usados?
+   - Pode implementar cache?
+   - Pode usar transients do WordPress?
+
+5.3 Adicionar cache no cliente
+   Arquivo: assets/js/address-ml-modal.js
+   Localização: Função loadAddresses (linha ~653)
+   
+   Adicionar cache simples:
+   ```javascript
+   var addressesCacheTimestamp = null;
+   var CACHE_DURATION = 60000; // 1 minuto
+   
+   function loadAddresses(done) {
+       done = typeof done === 'function' ? done : function () {};
+       
+       // Usar cache se disponível e não expirado
+       var now = Date.now();
+       if (addressesCache.length > 0 && addressesCacheTimestamp) {
+           if ((now - addressesCacheTimestamp) < CACHE_DURATION) {
+               done();
+               return;
+           }
+       }
+       
+       // ... resto da função AJAX ...
+       
+       success: function (resp) {
+           if (resp && resp.success && resp.data && Array.isArray(resp.data.items)) {
+               addressesCache = dedupeAddresses(resp.data.items);
+               addressesCacheTimestamp = Date.now(); // Atualiza timestamp
+           } else {
+               addressesCache = [];
+           }
+           done();
+       }
+   }
+   ```
+
+
+================================================================================
+TAREFA 6: ADICIONAR CONFIRMAÇÃO AO SALVAR ENDEREÇO
+================================================================================
+
+OBJETIVO:
+  Exibir mensagem de confirmação após salvar endereço com sucesso e
+  retornar automaticamente para a lista de endereços.
+
+AÇÕES ESPECÍFICAS:
+
+6.1 Criar função de notificação
+   Arquivo: assets/js/address-ml-modal.js
+   Localização: Adicionar no início do arquivo (após linha 16)
+   
+   Adicionar:
+   ```javascript
+   function showNotification(message, type) {
+       // type: 'success' ou 'error'
+       var bgColor = type === 'success' ? '#067647' : '#b42318';
+       var textColor = '#fff';
+       
+       var $notif = $('<div>')
+           .text(message)
+           .css({
+               'position': 'fixed',
+               'top': '20px',
+               'left': '50%',
+               'transform': 'translateX(-50%)',
+               'background-color': bgColor,
+               'color': textColor,
+               'padding': '12px 24px',
+               'border-radius': '6px',
+               'font-weight': '700',
+               'z-index': '999999',
+               'box-shadow': '0 4px 12px rgba(0,0,0,0.15)',
+               'opacity': '0',
+               'transition': 'opacity 0.3s ease'
+           });
+       
+       $('body').append($notif);
+       
+       // Fade in
+       setTimeout(function() {
+           $notif.css('opacity', '1');
+       }, 100);
+       
+       // Fade out e remover após 3 segundos
+       setTimeout(function() {
+           $notif.css('opacity', '0');
+           setTimeout(function() {
+               $notif.remove();
+           }, 300);
+       }, 3000);
+   }
+   ```
+
+6.2 Adicionar confirmação ao salvar
+   Arquivo: assets/js/address-ml-modal.js
+   Localização: Função saveAddressFromForm, dentro do success (linha ~730)
+   
+   Modificar para:
+   ```javascript
+   success: function (resp) {
+       isSavingAddress = false;
+       $('#ctwpml-btn-primary').prop('disabled', false);
+       
+       if (resp && resp.success && resp.data) {
+           if (Array.isArray(resp.data.items)) {
+               addressesCache = dedupeAddresses(resp.data.items);
+           }
+           if (resp.data.item && resp.data.item.id) {
+               selectedAddressId = resp.data.item.id;
+           }
+           
+           // Mostrar notificação de sucesso
+           showNotification('Endereço salvo com sucesso!', 'success');
+           
+           done({ ok: true });
+       } else {
+           var errorMsg = (resp && resp.data) || 'Erro ao salvar endereço.';
+           showNotification(errorMsg, 'error');
+           done({ ok: false, message: errorMsg });
+       }
+   }
+   ```
+
+6.3 Retornar automaticamente para lista após salvar
+   Arquivo: assets/js/address-ml-modal.js
+   Localização: Binding do botão primário (linha ~1191)
+   
+   Modificar callback:
+   ```javascript
+   saveContactMeta(function () {
+       saveAddressFromForm(function (res) {
+           if (!res || !res.ok) {
+               // Não precisa alert aqui, já tem a notificação
+               return;
+           }
+           
+           // Aguardar 500ms para usuário ver a confirmação, depois voltar
+           setTimeout(function() {
+               showList();
+               renderAddressList();
+           }, 500);
+       });
+   });
+   ```
+
+
+================================================================================
+TAREFA 7: CORRIGIR ERRO "SyntaxError: '.' is not a valid selector"
+================================================================================
+
+OBJETIVO:
+  Identificar e corrigir todas as ocorrências de seletores CSS inválidos
+  que estão causando o erro no console.
+
+AÇÕES ESPECÍFICAS:
+
+7.1 Criar função helper de seleção segura
+   Arquivo: assets/js/checkout-tabs.js
+   Localização: Início do arquivo
+   
+   Adicionar:
+   ```javascript
+   function safeSelector(selector) {
+       if (!selector || typeof selector !== 'string') {
+           console.warn('[CTWPML] Seletor inválido:', selector);
+           return $();
+       }
+       selector = selector.trim();
+       if (!selector || selector === '.' || selector === '#') {
+           console.warn('[CTWPML] Seletor vazio ou inválido:', selector);
+           return $();
+       }
+       try {
+           return $(selector);
+       } catch (e) {
+           console.error('[CTWPML] Erro ao usar seletor:', selector, e);
+           return $();
+       }
+   }
+   ```
+
+7.2 Identificar uso de seletores dinâmicos
+   Arquivos a revisar:
+   - assets/js/checkout-tabs.js
+   - assets/js/tabs.js
+   - assets/js/ui.js
+   
+   Buscar por padrões:
+   - $('.' + varName)
+   - $('#' + varName)
+   - $(someVar)
+   
+   E substituir por:
+   - safeSelector('.' + varName)
+   - safeSelector('#' + varName)
+   - safeSelector(someVar)
+
+7.3 Adicionar validação em configurações
+   Se houver leitura de configurações do Elementor ou opções do WordPress
+   que definem classes/IDs dinâmicos, validar antes de usar:
+   
+   ```javascript
+   var elementClass = params.element_class || '';
+   if (elementClass && elementClass.trim()) {
+       var $element = $('.' + elementClass.trim());
+       // ... usar elemento ...
+   }
+   ```
+
+7.4 Revisar logs de erro
+   Adicionar contexto nos logs de erro para facilitar debug:
+   
+   ```javascript
+   window.addEventListener('error', function(e) {
+       if (e.message && e.message.includes('not a valid selector')) {
+           console.error('[CTWPML] Erro de seletor detectado:', {
+               message: e.message,
+               filename: e.filename,
+               lineno: e.lineno,
+               colno: e.colno,
+               stack: e.error ? e.error.stack : null
+           });
+       }
+   });
+   ```
+
+
+================================================================================
+TAREFA 8: CORRIGIR FALHA EM store_webhook_shipping
+================================================================================
+
+OBJETIVO:
+  Investigar e corrigir por que store_webhook_shipping está retornando
+  success=false ao tentar armazenar dados de frete/endereço.
+
+AÇÕES ESPECÍFICAS:
+
+8.1 Adicionar logs detalhados
+   Arquivo: inc/ajax-store-webhook-shipping.php
+   Localização: Função principal
+   
+   Adicionar logs em pontos chave:
+   ```php
+   error_log('[CTWPML] store_webhook_shipping - Iniciando');
+   error_log('[CTWPML] Dados recebidos: ' . print_r($_POST, true));
+   error_log('[CTWPML] User ID: ' . get_current_user_id());
+   
+   // ... validação ...
+   
+   if ($alguma_validacao_falhou) {
+       error_log('[CTWPML] Validação falhou: ' . $motivo);
+       wp_send_json_error(['message' => $motivo]);
+       return;
+   }
+   
+   // ... tentativa de salvar ...
+   
+   $result = update_user_meta($user_id, $meta_key, $data);
+   error_log('[CTWPML] Resultado do update_user_meta: ' . ($result ? 'true' : 'false'));
+   
+   if ($result) {
+       error_log('[CTWPML] store_webhook_shipping - Sucesso');
+       wp_send_json_success(['message' => 'Dados armazenados com sucesso']);
+   } else {
+       error_log('[CTWPML] store_webhook_shipping - Falhou ao salvar meta');
+       wp_send_json_error(['message' => 'Falha ao salvar dados no banco']);
+   }
+   ```
+
+8.2 Verificar permissões e nonce
+   Arquivo: inc/ajax-store-webhook-shipping.php
+   
+   Garantir validação correta:
+   ```php
+   // Verificar se usuário está logado
+   if (!is_user_logged_in()) {
+       error_log('[CTWPML] store_webhook_shipping - Usuário não logado');
+       wp_send_json_error(['message' => 'Usuário não autenticado']);
+       return;
+   }
+   
+   // Verificar nonce se estiver sendo usado
+   if (!check_ajax_referer('ctwpml_addresses', '_ajax_nonce', false)) {
+       error_log('[CTWPML] store_webhook_shipping - Nonce inválido');
+       wp_send_json_error(['message' => 'Nonce inválido']);
+       return;
+   }
+   ```
+
+8.3 Validar estrutura de dados
+   Arquivo: inc/ajax-store-webhook-shipping.php
+   
+   Adicionar validação robusta:
+   ```php
+   $required_fields = ['cep', 'logradouro', 'cidade', 'uf'];
+   foreach ($required_fields as $field) {
+       if (empty($_POST[$field])) {
+           error_log('[CTWPML] store_webhook_shipping - Campo obrigatório vazio: ' . $field);
+           wp_send_json_error(['message' => 'Campo obrigatório vazio: ' . $field]);
+           return;
+       }
+   }
+   ```
+
+8.4 Revisar chamada no frontend
+   Arquivo: assets/js/webhook.js
+   Localização: Chamada para store_webhook_shipping
+   
+   Garantir que todos os dados necessários estão sendo enviados:
+   ```javascript
+   $.ajax({
+       url: state.params.ajax_url,
+       type: 'POST',
+       dataType: 'json',
+       data: {
+           action: 'ctwpml_store_webhook_shipping',
+           _ajax_nonce: state.params.addresses_nonce,
+           // Garantir que normalized_data tenha todos os campos
+           normalized_data: JSON.stringify(normalized),
+           raw_data: JSON.stringify(raw)
+       },
+       success: function(resp) {
+           if (!resp || !resp.success) {
+               console.error('[CTWPML] store_webhook_shipping falhou:', resp);
+               // Log detalhado do erro
+               logAny('store_webhook_shipping erro', resp);
+           }
+       }
+   });
+   ```
+
+
+================================================================================
+TAREFA 9: OTIMIZAR MÚLTIPLOS update_checkout SIMULTÂNEOS
+================================================================================
+
+OBJETIVO:
+  Evitar múltiplas chamadas simultâneas de update_checkout que estão
+  causando lentidão e possíveis race conditions.
+
+AÇÕES ESPECÍFICAS:
+
+9.1 Implementar debounce para update_checkout
+   Arquivo: assets/js/woocommerce-events.js
+   Localização: Event listener para update_checkout
+   
+   Adicionar função de debounce:
+   ```javascript
+   var updateCheckoutTimer = null;
+   var updateCheckoutInProgress = false;
+   
+   function debouncedUpdateCheckout(callback, delay) {
+       delay = delay || 300; // 300ms padrão
+       
+       if (updateCheckoutTimer) {
+           clearTimeout(updateCheckoutTimer);
+       }
+       
+       updateCheckoutTimer = setTimeout(function() {
+           if (!updateCheckoutInProgress) {
+               callback();
+           }
+       }, delay);
+   }
+   ```
+
+9.2 Marcar update_checkout em progresso
+   Arquivo: assets/js/woocommerce-events.js
+   
+   Interceptar início e fim:
+   ```javascript
+   $(document.body).on('update_checkout', function() {
+       updateCheckoutInProgress = true;
+   });
+   
+   $(document.body).on('updated_checkout', function() {
+       updateCheckoutInProgress = false;
+   });
+   ```
+
+9.3 Cancelar chamadas redundantes
+   Arquivo: assets/js/woocommerce-events.js
+   
+   Adicionar verificação:
+   ```javascript
+   function triggerUpdateCheckout() {
+       if (updateCheckoutInProgress) {
+           console.log('[CTWPML] update_checkout já em progresso, ignorando chamada redundante');
+           return;
+       }
+       
+       $(document.body).trigger('update_checkout');
+   }
+   ```
+
+
+================================================================================
+CHECKLIST DE VERIFICAÇÃO PÓS-IMPLEMENTAÇÃO
+================================================================================
+
+[ ] TAREFA 1: reCAPTCHA integrado e funcionando no login
+    [ ] Script do reCAPTCHA carrega corretamente
+    [ ] Widget aparece no popup de login
+    [ ] Validação funciona (botão desabilitado até completar)
+    [ ] Callback submitEnable/Disable funcionam
+
+[ ] TAREFA 2: Botão de login com layout correto
+    [ ] Botão ocupa 100% da largura
+    [ ] Cor do botão está correta (#0075FF ou variável CSS)
+    [ ] Não há override do Elementor afetando o botão
+
+[ ] TAREFA 3: Link "Esqueci minha senha" presente
+    [ ] Link aparece abaixo do botão de login
+    [ ] Link aponta para página correta de recuperação
+    [ ] Estilo do link está consistente (cor azul)
+
+[ ] TAREFA 4: Fundo das abas transparente
+    [ ] Aba de login não tem fundo azul quando inativa
+    [ ] Aba de login tem fundo cinza claro quando ativa
+    [ ] Aba de cadastro tem fundo azul quando ativa
+    [ ] Transição entre abas está suave
+
+[ ] TAREFA 5: Carregamento de endereços otimizado
+    [ ] Spinner aparece imediatamente ao abrir modal
+    [ ] Blur/embaçamento aplicado durante carregamento
+    [ ] Spinner desaparece quando endereços carregam
+    [ ] Cache implementado (opcional, fase 2)
+
+[ ] TAREFA 6: Confirmação ao salvar endereço
+    [ ] Notificação aparece após salvar com sucesso
+    [ ] Notificação tem cor verde e mensagem clara
+    [ ] Retorna automaticamente para lista após 500ms
+    [ ] Em caso de erro, notificação vermelha aparece
+
+[ ] TAREFA 7: Erro de seletor CSS corrigido
+    [ ] Não há mais erro "SyntaxError: '.' is not a valid selector" no console
+    [ ] Função safeSelector implementada e sendo usada
+    [ ] Todos os seletores dinâmicos validados
+
+[ ] TAREFA 8: store_webhook_shipping funcionando
+    [ ] Dados de frete/endereço são salvos com sucesso
+    [ ] Não há mais erro "success=false" nos logs
+    [ ] Logs detalhados adicionados para debug futuro
+
+[ ] TAREFA 9: update_checkout otimizado
+    [ ] Não há múltiplas chamadas simultâneas
+    [ ] Debounce implementado e funcionando
+    [ ] Tempo de processamento reduzido
+
+[ ] TESTES GERAIS
+    [ ] Fluxo completo de login funciona
+    [ ] Fluxo completo de cadastro funciona
+    [ ] Carregar, adicionar, editar e excluir endereços funciona
+    [ ] Performance melhorou (operações < 2s)
+    [ ] Testado em Chrome, Firefox e Safari
+    [ ] Testado em dispositivos móveis
+    [ ] Console sem erros JavaScript
+
+
+================================================================================
+ESTIMATIVA DE TEMPO POR TAREFA
+================================================================================
+
+TAREFA 1: Integrar reCAPTCHA              - 2 horas
+TAREFA 2: Corrigir layout do botão        - 30 minutos
+TAREFA 3: Adicionar link senha            - 15 minutos
+TAREFA 4: Remover fundo azul abas         - 30 minutos
+TAREFA 5: Otimizar carregamento endereços - 1 hora (spinner) + 2 horas (otimização opcional)
+TAREFA 6: Adicionar confirmação salvar    - 1 hora
+TAREFA 7: Corrigir erro seletor CSS       - 2-3 horas (investigação + correção)
+TAREFA 8: Corrigir store_webhook_shipping - 1-2 horas (investigação + correção)
+TAREFA 9: Otimizar update_checkout        - 1 hora
+
+TOTAL ESTIMADO: 11-14 horas de desenvolvimento
+               + 4-6 horas de testes
+               = 15-20 horas total
+
+
+================================================================================
+PRIORIDADE DE IMPLEMENTAÇÃO
+================================================================================
+
+CRÍTICO (fazer primeiro):
+  1. TAREFA 7: Corrigir erro de seletor CSS
+  2. TAREFA 8: Corrigir store_webhook_shipping
+
+ALTA (fazer em seguida):
+  3. TAREFA 1: Integrar reCAPTCHA
+  4. TAREFA 6: Adicionar confirmação ao salvar
+  5. TAREFA 5: Spinner no carregamento de endereços
+
+MÉDIA (melhorias):
+  6. TAREFA 2: Corrigir layout do botão
+  7. TAREFA 3: Adicionar link senha
+  8. TAREFA 4: Remover fundo azul abas
+  9. TAREFA 9: Otimizar update_checkout
+
+================================================================================
+FIM DO PLANO DE AÇÃO
+================================================================================
+

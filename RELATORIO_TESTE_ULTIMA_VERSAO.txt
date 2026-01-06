@@ -1,0 +1,451 @@
+================================================================================
+  RELATÓRIO DE TESTES - CHECKOUT TABS WP ML
+  Data: 06/01/2026
+  Versão testada: Última versão da aplicação
+================================================================================
+
+================================================================================
+1. PROBLEMAS IDENTIFICADOS NO POP-UP DE LOGIN
+================================================================================
+
+1.1 RECAPTCHA NÃO INTEGRADO CORRETAMENTE
+----------------------------------------
+Descrição:
+  - O reCAPTCHA não foi integrado ao pop-up de login como deveria
+  - O plugin de referência (localizado em C:\Users\Dell\Desktop\checkout-tab-estilo-ml-2026\dados de entrega\popup login que tem recaptcha\plugin de popup de login que tem recatpcha.php) implementa corretamente o reCAPTCHA
+  
+Solução necessária:
+  - Copiar a implementação do reCAPTCHA do plugin de referência
+  - Integrar o reCAPTCHA no formulário de login do pop-up atual
+  - Garantir que o script do reCAPTCHA seja carregado corretamente
+  - Renderizar o widget reCAPTCHA no evento afterShow do Fancybox
+  
+Arquivo afetado:
+  - inc/frontend/login-popup.php (formulário de login)
+  - assets/js/login-signup.js (lógica JavaScript)
+
+
+1.2 PROBLEMAS DE LAYOUT NO BOTÃO
+---------------------------------
+Descrição:
+  - O botão de login não está aparecendo com a cor correta
+  - O botão não está ocupando 100% do espaço disponível
+  
+Solução necessária:
+  - Modelar o botão conforme o plugin de referência
+  - Garantir que o CSS force width: 100% no botão
+  - Verificar se as cores CSS estão usando as variáveis corretas
+  - Adicionar !important se necessário para sobrescrever estilos do Elementor
+  
+Arquivo afetado:
+  - assets/css/login-popup.css (.ctwpml-auth-submit)
+
+
+1.3 LINK "ESQUECI MINHA SENHA" AUSENTE
+---------------------------------------
+Descrição:
+  - Falta o link "Perdeu a senha?" abaixo do botão de login
+  - O plugin de referência tem um link que leva diretamente para a página de redefinição de senha
+  
+Solução necessária:
+  - Adicionar link "Perdeu a senha?" após o botão de login
+  - Apontar para a página de redefinição de senha do WordPress
+  - Estilizar conforme o plugin de referência (cor azul #0075FF)
+  - Centralizar o link
+  
+Arquivo afetado:
+  - inc/frontend/login-popup.php (linha ~60, após o botão submit)
+
+
+================================================================================
+2. PROBLEMAS NO POP-UP DE CRIAR CONTA
+================================================================================
+
+2.1 FUNDO AZUL NAS ABAS
+-----------------------
+Descrição:
+  - Quando o usuário clica em "Criar uma conta", a aba fica com fundo azul
+  - Esse fundo azul é causado pelas configurações do Elementor que estão influenciando o pop-up
+  - O fundo da seleção de abas não deveria aparecer, deve ser transparente
+  
+Solução necessária:
+  - Remover o fundo azul quando uma aba está selecionada
+  - Deixar o fundo transparente para a transição entre abas
+  - Aplicar CSS com alta especificidade ou !important para sobrescrever estilos do Elementor
+  - Garantir que apenas o texto ou borda indique a aba ativa
+  
+Arquivo afetado:
+  - assets/css/login-popup.css (.ctwpml-auth-tab, .ctwpml-auth-tab.is-active)
+
+
+================================================================================
+3. LENTIDÃO AO CARREGAR ENDEREÇOS APÓS LOGIN
+================================================================================
+
+3.1 DEMORA PARA APARECER OS ENDEREÇOS
+--------------------------------------
+Descrição:
+  - Após o usuário fazer login e sair do pop-up, ele é direcionado para a janela de endereços
+  - Os endereços demoram para aparecer na tela
+  - No início do desenvolvimento, os endereços apareciam instantaneamente após o login
+  - Atualmente há um delay perceptível que prejudica a UX
+  
+Solução necessária (OPÇÃO 1 - PRIORITÁRIA):
+  - Investigar por que os endereços estão demorando para carregar
+  - Otimizar a consulta AJAX que busca os endereços do usuário
+  - Verificar se há consultas desnecessárias ou duplicadas
+  - Implementar cache de endereços se possível
+  
+Solução necessária (OPÇÃO 2 - FALLBACK):
+  - Se não for possível tornar o carregamento mais rápido
+  - Adicionar um spinner de carregamento (loading spinner)
+  - Aplicar efeito de blur/embaçamento na tela durante o carregamento
+  - Garantir feedback visual ao usuário de que as informações estão sendo carregadas
+  
+Arquivo afetado:
+  - assets/js/address-ml-modal.js (função loadAddresses, linha ~653)
+  - Investigar a ação AJAX 'ctwpml_get_addresses' no backend
+
+
+================================================================================
+4. FALTA DE CONFIRMAÇÃO AO SALVAR ENDEREÇO
+================================================================================
+
+4.1 SEM FEEDBACK AO SALVAR
+---------------------------
+Descrição:
+  - Ao clicar no botão "Salvar" dentro de "Editar endereço", o site não informa nenhuma confirmação
+  - O usuário não sabe se o endereço foi salvo com sucesso
+  - Não há feedback visual de que a operação foi concluída
+  
+Solução necessária:
+  - Após salvar o endereço com sucesso, exibir uma mensagem de confirmação
+  - A mensagem deve ser rápida e clara (ex: "Endereço salvo com sucesso!")
+  - Após a confirmação, retornar automaticamente para a página anterior (lista de endereços)
+  - Se a operação demorar (> 1 segundo), mostrar spinner de carregamento
+  - Não precisa de spinner se a resposta for rápida
+  
+Arquivo afetado:
+  - assets/js/address-ml-modal.js (função saveAddressFromForm, linha ~683)
+  - Adicionar mensagem de confirmação após linha 732 (dentro do success callback)
+
+
+================================================================================
+5. ANÁLISE DO DEBUG - ERROS RECORRENTES
+================================================================================
+
+5.1 ERRO: SyntaxError: '.' is not a valid selector
+---------------------------------------------------
+Frequência: MUITO ALTA - Aparece constantemente em todos os logs
+Timestamps de ocorrência:
+  - [16:40:25] [ERROR] [25,672] e [25,674]
+  - [16:42:21] [ERROR] [21,606], [21,608], [21,610]
+  - [17:02:13] [ERROR] [13,558] e [13,559]
+  - [17:58:10] [ERROR] [10,450], [10,453], [10,455]
+  - [17:58:15] [ERROR] [15,459], [15,463], [15,465]
+  - [18:02:22] [ERROR] [22,245], [22,248], [22,251]
+  - [18:11:25] [ERROR] [25,026], [25,028], [25,030]
+  - [18:11:28] [ERROR] [28,040], [28,044]
+  - [18:15:37] [ERROR] [37,199] (3x)
+  - [18:15:42] [ERROR] [42,524], [42,528]
+
+Descrição do problema:
+  - Erro de sintaxe JavaScript: um seletor CSS inválido está sendo passado para jQuery
+  - O seletor consiste apenas de um ponto '.' sem nenhum nome de classe
+  - Isso acontece quando uma variável está vazia ou undefined
+  
+Causa provável:
+  - Algum código JavaScript está tentando selecionar um elemento usando jQuery/$ com uma classe vazia
+  - Exemplo: $('.' + variavelVazia) resulta em $('.')
+  - Pode ser um problema com configurações do Elementor ou classes dinâmicas
+  
+Solução necessária:
+  - Revisar o código JavaScript em assets/js/ que faz seleções dinâmicas
+  - Adicionar validação antes de criar seletores dinâmicos
+  - Exemplo: if (className && className.trim()) { $('.' + className) }
+  - Investigar especialmente em checkout-tabs.js, tabs.js, ui.js
+  
+Impacto:
+  - ALTO - Este erro pode estar causando falhas silenciosas em funcionalidades
+  - Pode estar relacionado aos problemas de lentidão
+  - Está poluindo o console e dificultando debug
+
+
+5.2 PROCESSAMENTO LENTO (> 1 segundo)
+--------------------------------------
+Timestamps de ocorrência:
+  - [16:40:26] Total time = 4116ms
+  - [16:42:22] Total time = 16062ms
+  - [17:02:13] Total time = 4504ms
+  - [17:58:10] Total time = 3621ms
+  - [18:00:04] Total time = 3649ms
+  - [18:02:17] Total time = 3630ms
+  - [18:11:25] Total time = 4628ms
+  - [18:12:40] Total time = 1004ms (após click em "Avançar")
+
+Descrição:
+  - O sistema está levando mais de 1 segundo para processar operações
+  - Isso ativa automaticamente o cursor de "progress" (cursor de espera)
+  - Tempos variando entre 1s e 16s (média de 3-4 segundos)
+  
+Causa:
+  - Consultas AJAX demorando para responder
+  - Operações de update_checkout do WooCommerce lentas
+  - Possíveis consultas desnecessárias ou bloqueantes
+  
+Solução necessária:
+  - Otimizar as consultas AJAX
+  - Implementar cache onde possível
+  - Revisar os eventos que disparam update_checkout
+  - Evitar múltiplas chamadas simultâneas
+  - Adicionar debounce em eventos que disparam recálculos
+
+
+5.3 ERRO: store_webhook_shipping retornou success=false
+--------------------------------------------------------
+Timestamp: [18:12:42] [ERROR] [42,740]
+
+Descrição:
+  - A função store_webhook_shipping está falhando ao armazenar dados
+  - Isso acontece após consulta de CEP/endereço
+  - O webhook retorna dados, mas o armazenamento falha
+  
+Contexto:
+  [18:12:39] Usuário clicou em "Avançar" (CEP -> Endereço)
+  [18:12:39] Iniciou consulta via webhook
+  [18:12:41] Webhook retornou dados normalizados
+  [18:12:41] Tentou armazenar via store_webhook_shipping
+  [18:12:42] ERRO: success=false
+  
+Solução necessária:
+  - Revisar a função store_webhook_shipping no backend
+  - Verificar validação de dados que está rejeitando o armazenamento
+  - Adicionar logs mais detalhados sobre o motivo da falha
+  - Investigar se é problema de permissão, validação ou banco de dados
+  
+Arquivo afetado:
+  - inc/ajax-store-webhook-shipping.php
+
+
+5.4 BOTÃO "FINALIZAR PEDIDO" CONSTANTEMENTE DESABILITADO
+---------------------------------------------------------
+Frequência: ALTA - Aparece em quase todos os logs
+
+Mensagem típica:
+  "Botão 'Finalizar Pedido' DESABILITADO (Não está na aba Pagamento ou total inválido)."
+
+Descrição:
+  - O botão de finalizar pedido está sendo desabilitado constantemente
+  - Isso é comportamento esperado quando o usuário NÃO está na aba de Pagamento
+  - No entanto, a frequência de checagem pode estar impactando performance
+  
+Verificar:
+  - Se o botão está sendo habilitado corretamente quando o usuário chega na aba Pagamento
+  - Se há múltiplas checagens desnecessárias acontecendo
+  - Se isso está contribuindo para o problema de lentidão
+
+
+5.5 MÚLTIPLOS update_checkout SIMULTÂNEOS
+------------------------------------------
+Timestamps de exemplo:
+  [18:12:39] 3 chamadas de update_checkout quase simultâneas
+  [18:12:39] [39,147] WC_OUT update_checkout válido
+  [18:12:39] [39,148] UI Setando estado: true (Source: update_checkout)
+  [18:12:39] [39,151] WC_OUT update_checkout válido
+  [18:12:39] [39,151] UI Setando estado: true (Source: update_checkout)
+
+Descrição:
+  - Há múltiplas chamadas de update_checkout acontecendo ao mesmo tempo
+  - Isso pode estar causando condições de corrida (race conditions)
+  - Pode estar contribuindo para a lentidão geral
+  
+Solução necessária:
+  - Implementar debounce ou throttle para update_checkout
+  - Cancelar chamadas duplicadas/redundantes
+  - Garantir que apenas uma chamada aconteça por vez
+
+
+================================================================================
+6. TIMELINE DE OPERAÇÕES (EXEMPLO REAL DO LOG)
+================================================================================
+
+Exemplo 1: Carregamento inicial da página de checkout
+------------------------------------------------------
+[16:40:25.086] INIT: Anchor encontrado, iniciando estrutura de abas
+[16:40:25.105] WC_OUT: update_checkout válido, mostrando overlay
+[16:40:25.088] INIT: Movendo elemento #payment para #tab-pagamento
+[16:40:25.087] INIT: Movendo #order_review para #tab-resumo-frete
+[16:40:26.106] UI: Processamento > 1s, mudando cursor (Total: 4116ms)
+[16:40:25.672] ERROR: SyntaxError: '.' is not a valid selector
+[16:40:27.557] UI: updated_checkout detectado (Total: 5566ms)
+[16:40:27.560] DEBUG: Injetando bloco de total duplicado
+[16:40:27.559] READY-CHECK: Total R$ 401,00, botão DESABILITADO
+
+Análise: Carregamento demorou ~5.5 segundos com erro de seletor.
+
+
+Exemplo 2: Clique em "Avançar" para consultar CEP/Frete
+--------------------------------------------------------
+[18:12:39.155] ACTION: Clique em "Avançar" (CEP -> Endereço)
+[18:12:39.156] WEBHOOK_OUT: Iniciando consulta via webhook
+[18:12:39.156] UI: Chamado toggleLoading(true)
+[18:12:40.158] UI: Processamento > 1s (Total: 1004ms)
+[18:12:41.771] DEBUG: Processando dados recebidos do webhook
+[18:12:41.786] STORE_OUT: Chamando store_webhook_shipping
+[18:12:42.740] ERROR: store_webhook_shipping retornou success=false
+[18:12:42.746] UI: Chamado toggleLoading(false) (Total: 3591ms)
+
+Análise: Operação completa levou ~3.6 segundos, mas falhou ao armazenar.
+
+
+================================================================================
+7. PRIORIZAÇÃO DAS CORREÇÕES
+================================================================================
+
+PRIORIDADE CRÍTICA (P0):
+  1. Corrigir erro "SyntaxError: '.' is not a valid selector"
+     - Este erro está afetando toda a aplicação
+     - Pode estar causando falhas silenciosas em outras funcionalidades
+     
+  2. Corrigir falha em store_webhook_shipping
+     - Está impedindo armazenamento de dados de frete/endereço
+     - Pode causar perda de dados do usuário
+
+PRIORIDADE ALTA (P1):
+  3. Integrar reCAPTCHA no pop-up de login
+     - Segurança da aplicação
+     - Proteção contra bots
+     
+  4. Adicionar confirmação ao salvar endereço
+     - UX ruim sem feedback
+     - Usuário não sabe se ação foi executada
+     
+  5. Otimizar carregamento de endereços após login
+     - UX comprometida pela lentidão
+     - Adicionar spinner se não puder otimizar
+
+PRIORIDADE MÉDIA (P2):
+  6. Corrigir layout do botão no pop-up de login
+     - Problema visual que afeta confiança do usuário
+     
+  7. Adicionar link "Esqueci minha senha"
+     - Funcionalidade essencial que está faltando
+     
+  8. Remover fundo azul das abas (influência do Elementor)
+     - Problema estético que pode confundir usuário
+     
+  9. Otimizar múltiplos update_checkout simultâneos
+     - Performance geral da aplicação
+
+
+================================================================================
+8. ARQUIVOS QUE PRECISAM SER MODIFICADOS
+================================================================================
+
+ALTA PRIORIDADE:
+  1. assets/js/checkout-tabs.js (ou tabs.js, ui.js)
+     - Corrigir erro de seletor inválido '.'
+     - Adicionar validações antes de criar seletores dinâmicos
+     
+  2. inc/ajax-store-webhook-shipping.php
+     - Investigar e corrigir falha ao armazenar dados
+     - Adicionar logs mais detalhados
+     
+  3. inc/frontend/login-popup.php
+     - Adicionar reCAPTCHA no formulário de login
+     - Adicionar link "Perdeu a senha?"
+     
+  4. assets/js/address-ml-modal.js
+     - Adicionar mensagem de confirmação ao salvar endereço
+     - Otimizar função loadAddresses()
+     - Adicionar spinner durante carregamento
+     
+  5. assets/css/login-popup.css
+     - Corrigir width do botão para 100%
+     - Remover fundo azul das abas ativas
+     - Garantir cores corretas do botão
+
+MÉDIA PRIORIDADE:
+  6. assets/js/woocommerce-events.js
+     - Implementar debounce/throttle para update_checkout
+
+
+================================================================================
+9. RECOMENDAÇÕES TÉCNICAS
+================================================================================
+
+9.1 VALIDAÇÃO DE SELETORES
+  - Sempre validar variáveis antes de usar em seletores jQuery
+  - Padrão recomendado:
+    function safeSelector(className) {
+      if (!className || typeof className !== 'string') return null;
+      className = className.trim();
+      if (!className) return null;
+      return $('.' + className);
+    }
+
+9.2 FEEDBACK VISUAL
+  - Toda operação AJAX > 500ms deve ter spinner
+  - Toda operação de gravação deve ter confirmação
+  - Usar cores consistentes: verde para sucesso, vermelho para erro
+
+9.3 OTIMIZAÇÃO DE PERFORMANCE
+  - Implementar cache de endereços no cliente (sessionStorage/localStorage)
+  - Debounce em eventos de input (mínimo 300ms)
+  - Throttle em eventos de scroll/resize
+  - Evitar múltiplas chamadas AJAX simultâneas
+
+9.4 TRATAMENTO DE ERROS
+  - Todo erro deve ter log detalhado (não apenas "erro genérico")
+  - Erros devem incluir timestamp, contexto e stack trace quando possível
+  - Erros críticos devem notificar o desenvolvedor (via email ou sistema de log)
+
+
+================================================================================
+10. PRÓXIMOS PASSOS SUGERIDOS
+================================================================================
+
+FASE 1: CORREÇÕES CRÍTICAS (Estimativa: 4-6 horas)
+  [ ] Identificar e corrigir erro de seletor inválido
+  [ ] Corrigir store_webhook_shipping
+  [ ] Adicionar logs detalhados para debug
+
+FASE 2: MELHORIAS DE UX (Estimativa: 6-8 horas)
+  [ ] Integrar reCAPTCHA no login (copiar do plugin de referência)
+  [ ] Adicionar confirmação ao salvar endereço
+  [ ] Adicionar spinner no carregamento de endereços
+  [ ] Adicionar link "Esqueci minha senha"
+  [ ] Corrigir layout dos botões e abas
+
+FASE 3: OTIMIZAÇÕES (Estimativa: 8-10 horas)
+  [ ] Otimizar carregamento de endereços
+  [ ] Implementar cache de endereços
+  [ ] Otimizar múltiplos update_checkout
+  [ ] Revisar e otimizar todas as consultas AJAX
+
+FASE 4: TESTES E VALIDAÇÃO (Estimativa: 4-6 horas)
+  [ ] Testar fluxo completo de login
+  [ ] Testar fluxo completo de cadastro
+  [ ] Testar carregamento e edição de endereços
+  [ ] Testar em diferentes navegadores
+  [ ] Testar em dispositivos móveis
+  [ ] Validar performance (tempos de resposta < 2s)
+
+
+================================================================================
+11. OBSERVAÇÕES FINAIS
+================================================================================
+
+- O plugin está funcional mas com vários problemas de UX e performance
+- Os erros de seletor CSS inválido são o problema mais grave e urgente
+- A lentidão no carregamento está comprometendo a experiência do usuário
+- O pop-up de login precisa de vários ajustes para ficar profissional
+- É essencial ter feedback visual em todas as operações (confirmações e spinners)
+- O plugin de referência fornecido serve como excelente base para as correções
+
+Desenvolvedor responsável: [Assistente AI]
+Data de compilação: 06/01/2026
+Status: Aguardando aprovação para iniciar correções
+
+================================================================================
+

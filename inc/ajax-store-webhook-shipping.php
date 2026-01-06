@@ -39,15 +39,30 @@ function checkout_tabs_wp_ml_store_webhook_shipping(): void {
 	$t1 = microtime(true);
 	$initial_memory = memory_get_peak_usage();
 
-	check_ajax_referer('store_webhook_shipping', 'security');
-
 	$is_debug_enabled = checkout_tabs_wp_ml_is_debug_enabled();
 	if ($is_debug_enabled) {
-		error_log('[CTWPML DEBUG] store_webhook_shipping: DEBUG MODE ACTIVE.');
+		error_log('[CTWPML] store_webhook_shipping - Iniciando');
+		error_log('[CTWPML] Dados recebidos POST: ' . print_r(array_keys($_POST), true));
+		error_log('[CTWPML] User ID: ' . get_current_user_id());
+		error_log('[CTWPML] WooCommerce ativo: ' . (class_exists('WC') ? 'sim' : 'não'));
 	}
 
+	// Validar nonce
+	if (!check_ajax_referer('store_webhook_shipping', 'security', false)) {
+		if ($is_debug_enabled) {
+			error_log('[CTWPML ERROR] store_webhook_shipping - Nonce inválido');
+		}
+		wp_send_json_error(['message' => 'Nonce inválido']);
+		return;
+	}
+
+	// Verificar WooCommerce
 	if (!class_exists('WC') || !function_exists('WC')) {
+		if ($is_debug_enabled) {
+			error_log('[CTWPML ERROR] store_webhook_shipping - WooCommerce não disponível');
+		}
 		wp_send_json_error(['message' => 'WooCommerce não está disponível.']);
+		return;
 	}
 
 	$data_processed_successfully = false;
@@ -64,8 +79,15 @@ function checkout_tabs_wp_ml_store_webhook_shipping(): void {
 	if (!is_array($data)) {
 		if ($is_debug_enabled) {
 			error_log('[CTWPML ERROR] Dados recebidos não são um array válido.');
+			error_log('[CTWPML ERROR] shipping_data raw: ' . substr($_POST['shipping_data'], 0, 500));
 		}
 		wp_send_json_error(['message' => 'Dados de frete inválidos na entrada.']);
+		return;
+	}
+
+	// Validar campos obrigatórios (opcional, dependendo da estrutura)
+	if ($is_debug_enabled) {
+		error_log('[CTWPML DEBUG] Dados decodificados: ' . print_r($data, true));
 	}
 
 	$data_processed_successfully = true;
@@ -125,6 +147,10 @@ function checkout_tabs_wp_ml_store_webhook_shipping(): void {
 	}
 
 	if ($data_processed_successfully) {
+		if ($is_debug_enabled) {
+			error_log('[CTWPML] store_webhook_shipping - Sucesso! Retornando fragments');
+			error_log('[CTWPML] Fragments gerados: ' . count($fragments));
+		}
 		wp_send_json_success([
 			'fragments'  => $fragments,
 			'cart_hash'  => $cart_hash,
@@ -132,7 +158,11 @@ function checkout_tabs_wp_ml_store_webhook_shipping(): void {
 		]);
 	}
 
+	if ($is_debug_enabled) {
+		error_log('[CTWPML ERROR] store_webhook_shipping - Falhou (data_processed_successfully = false)');
+	}
 	wp_send_json_error(['message' => 'Falha no processamento dos dados de frete no backend.']);
 }
+
 
 

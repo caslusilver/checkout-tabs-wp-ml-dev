@@ -54,11 +54,34 @@ add_action('wp_footer', function () {
 			<label for="ctwpml-password" class="ctwpml-popup-h3">Senha</label>
 			<input type="password" name="pwd" id="ctwpml-password" required>
 
+			<?php
+			// reCAPTCHA v2 no LOGIN também
+			$site_key_login = get_option('checkout_tabs_wp_ml_recaptcha_site_key', '');
+			if (empty($site_key_login)) {
+				$login_recaptcha_opts_login = get_option('login_nocaptcha_options', []);
+				if (is_array($login_recaptcha_opts_login) && isset($login_recaptcha_opts_login['site_key'])) {
+					$site_key_login = $login_recaptcha_opts_login['site_key'];
+				}
+			}
+			if (!empty($site_key_login)) {
+				echo '<div id="ctwpml-recaptcha-login-container" style="margin: 16px 0;">';
+				echo '<div id="g-recaptcha-login" data-sitekey="' . esc_attr($site_key_login) . '"></div>';
+				echo '</div>';
+			}
+			?>
+
 				<input type="hidden" name="redirect_to" value="<?php echo esc_url(home_url($_SERVER['REQUEST_URI'])); ?>">
 				<button type="submit" class="ctwpml-auth-submit">
 					Entrar
 				</button>
 			</form>
+			
+			<!-- Link "Perdeu a senha?" -->
+			<div class="ctwpml-auth-footer" style="text-align: center; margin-top: 16px;">
+				<a href="<?php echo esc_url(wp_lostpassword_url()); ?>" class="ctwpml-auth-link">
+					Perdeu a senha?
+				</a>
+			</div>
 		</div>
 
 	<div class="ctwpml-auth-panel" data-tab="signup" style="display:none;">

@@ -1,0 +1,385 @@
+================================================================================
+  VISÃO GERAL - PROBLEMAS E SOLUÇÕES
+  Checkout Tabs WP ML - Teste 06/01/2026
+================================================================================
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                                                                             │
+│  PROBLEMA #1: reCAPTCHA não integrado ao pop-up de login                   │
+│  ───────────────────────────────────────────────────────────────────────   │
+│                                                                             │
+│  📍 LOCALIZAÇÃO:                                                            │
+│     • inc/frontend/login-popup.php                                          │
+│     • assets/js/address-ml-modal.js                                         │
+│                                                                             │
+│  🔧 SOLUÇÃO:                                                                │
+│     • Copiar implementação do plugin de referência                          │
+│     • Adicionar container do reCAPTCHA no formulário                        │
+│     • Renderizar widget no evento afterShow do Fancybox                     │
+│     • Validar reCAPTCHA antes do submit                                     │
+│                                                                             │
+│  ⏱️  TEMPO: 2 horas                                                          │
+│  🎯 PRIORIDADE: ALTA                                                        │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                                                                             │
+│  PROBLEMA #2: Botão de login não ocupa 100% e cor incorreta                │
+│  ───────────────────────────────────────────────────────────────────────   │
+│                                                                             │
+│  📍 LOCALIZAÇÃO:                                                            │
+│     • assets/css/login-popup.css (.ctwpml-auth-submit)                      │
+│                                                                             │
+│  🔧 SOLUÇÃO:                                                                │
+│     • Forçar width: 100% !important                                         │
+│     • Forçar background-color: #0075FF !important                           │
+│     • Adicionar box-sizing: border-box !important                           │
+│     • Sobrescrever estilos do Elementor com seletor de alta especificidade │
+│                                                                             │
+│  ⏱️  TEMPO: 30 minutos                                                       │
+│  🎯 PRIORIDADE: MÉDIA                                                       │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                                                                             │
+│  PROBLEMA #3: Link "Esqueci minha senha" ausente                           │
+│  ───────────────────────────────────────────────────────────────────────   │
+│                                                                             │
+│  📍 LOCALIZAÇÃO:                                                            │
+│     • inc/frontend/login-popup.php (após linha ~60)                         │
+│                                                                             │
+│  🔧 SOLUÇÃO:                                                                │
+│     • Adicionar div com link para wp_lostpassword_url()                     │
+│     • Estilizar com cor azul (#0075FF)                                      │
+│     • Centralizar texto                                                     │
+│                                                                             │
+│  ⏱️  TEMPO: 15 minutos                                                       │
+│  🎯 PRIORIDADE: ALTA                                                        │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                                                                             │
+│  PROBLEMA #4: Fundo azul nas abas por conta do Elementor                   │
+│  ───────────────────────────────────────────────────────────────────────   │
+│                                                                             │
+│  📍 LOCALIZAÇÃO:                                                            │
+│     • assets/css/login-popup.css (.ctwpml-auth-tab)                         │
+│                                                                             │
+│  🔧 SOLUÇÃO:                                                                │
+│     • Forçar background: transparent !important nas abas não-ativas         │
+│     • Aba login ativa: background #f0f0f0 (cinza claro)                     │
+│     • Aba signup ativa: manter azul (comportamento esperado)                │
+│     • Adicionar regras de alta especificidade para sobrescrever Elementor  │
+│                                                                             │
+│  ⏱️  TEMPO: 30 minutos                                                       │
+│  🎯 PRIORIDADE: MÉDIA                                                       │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                                                                             │
+│  PROBLEMA #5: Endereços demoram para aparecer após login                   │
+│  ───────────────────────────────────────────────────────────────────────   │
+│                                                                             │
+│  📍 LOCALIZAÇÃO:                                                            │
+│     • assets/js/address-ml-modal.js (função openModal, linha ~315)          │
+│     • assets/js/address-ml-modal.js (função loadAddresses, linha ~653)      │
+│                                                                             │
+│  🔧 SOLUÇÃO IMEDIATA:                                                       │
+│     • Chamar showModalSpinner() ao abrir modal                              │
+│     • Aplicar blur/embaçamento na tela                                      │
+│     • Chamar hideModalSpinner() após carregar endereços                     │
+│                                                                             │
+│  🔧 SOLUÇÃO FUTURA (OTIMIZAÇÃO):                                            │
+│     • Implementar cache de endereços (sessionStorage)                       │
+│     • Otimizar consulta AJAX no backend                                     │
+│     • Reduzir dados carregados (carregar só o necessário)                   │
+│                                                                             │
+│  ⏱️  TEMPO: 1 hora (spinner) + 2 horas (otimização opcional)                 │
+│  🎯 PRIORIDADE: ALTA                                                        │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                                                                             │
+│  PROBLEMA #6: Sem confirmação ao salvar endereço                           │
+│  ───────────────────────────────────────────────────────────────────────   │
+│                                                                             │
+│  📍 LOCALIZAÇÃO:                                                            │
+│     • assets/js/address-ml-modal.js (função saveAddressFromForm)            │
+│     • assets/js/address-ml-modal.js (binding botão primário)                │
+│                                                                             │
+│  🔧 SOLUÇÃO:                                                                │
+│     • Criar função showNotification(message, type)                          │
+│     • Exibir notificação verde ao salvar com sucesso                        │
+│     • Exibir notificação vermelha em caso de erro                           │
+│     • Retornar automaticamente para lista após 500ms                        │
+│     • Mostrar spinner se operação demorar > 1 segundo                       │
+│                                                                             │
+│  ⏱️  TEMPO: 1 hora                                                           │
+│  🎯 PRIORIDADE: ALTA                                                        │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                                                                             │
+│  PROBLEMA #7: Erro JavaScript "SyntaxError: '.' is not a valid selector"   │
+│  ───────────────────────────────────────────────────────────────────────   │
+│                                                                             │
+│  📍 LOCALIZAÇÃO:                                                            │
+│     • assets/js/checkout-tabs.js (ou tabs.js, ui.js)                        │
+│     • Qualquer lugar que use seletores CSS dinâmicos                        │
+│                                                                             │
+│  🔧 SOLUÇÃO:                                                                │
+│     • Criar função safeSelector(selector) para validação                    │
+│     • Substituir todas as ocorrências de $('.' + var) por safeSelector()    │
+│     • Adicionar validações antes de criar seletores dinâmicos               │
+│     • Adicionar try/catch em seleções críticas                              │
+│                                                                             │
+│  ⚠️  IMPACTO:                                                                │
+│     • ALTO - Este erro pode estar causando falhas silenciosas               │
+│     • Aparece ~30 vezes nos logs fornecidos                                 │
+│     • Pode estar relacionado aos problemas de lentidão                      │
+│                                                                             │
+│  ⏱️  TEMPO: 2-3 horas (investigação + correção)                              │
+│  🎯 PRIORIDADE: CRÍTICA                                                     │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                                                                             │
+│  PROBLEMA #8: store_webhook_shipping retorna success=false                 │
+│  ───────────────────────────────────────────────────────────────────────   │
+│                                                                             │
+│  📍 LOCALIZAÇÃO:                                                            │
+│     • inc/ajax-store-webhook-shipping.php                                   │
+│     • assets/js/webhook.js (chamada AJAX)                                   │
+│                                                                             │
+│  🔧 SOLUÇÃO:                                                                │
+│     • Adicionar logs detalhados (error_log) em cada etapa                   │
+│     • Verificar permissões e autenticação do usuário                        │
+│     • Validar estrutura de dados recebidos                                  │
+│     • Verificar se nonce está sendo validado corretamente                   │
+│     • Garantir que todos os campos obrigatórios são enviados                │
+│                                                                             │
+│  ⚠️  IMPACTO:                                                                │
+│     • ALTO - Dados de frete/endereço não estão sendo salvos                │
+│     • Pode causar perda de informações do usuário                           │
+│                                                                             │
+│  ⏱️  TEMPO: 1-2 horas (investigação + correção)                              │
+│  🎯 PRIORIDADE: CRÍTICA                                                     │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                                                                             │
+│  PROBLEMA #9: Processamento lento (3-16 segundos)                          │
+│  ───────────────────────────────────────────────────────────────────────   │
+│                                                                             │
+│  📍 LOCALIZAÇÃO:                                                            │
+│     • assets/js/woocommerce-events.js                                       │
+│     • Eventos update_checkout do WooCommerce                                │
+│                                                                             │
+│  🔧 SOLUÇÃO:                                                                │
+│     • Implementar debounce para update_checkout (300ms)                     │
+│     • Evitar múltiplas chamadas simultâneas                                 │
+│     • Adicionar flag updateCheckoutInProgress                               │
+│     • Cancelar chamadas redundantes                                         │
+│                                                                             │
+│  ⚠️  IMPACTO:                                                                │
+│     • MÉDIO - Performance comprometida, mas não bloqueia uso                │
+│     • Usuário percebe lentidão, mas aplicação funciona                      │
+│                                                                             │
+│  ⏱️  TEMPO: 1 hora                                                           │
+│  🎯 PRIORIDADE: MÉDIA                                                       │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+
+================================================================================
+ANÁLISE DOS LOGS DE DEBUG
+================================================================================
+
+🔴 ERRO MAIS FREQUENTE:
+   "SyntaxError: '.' is not a valid selector"
+   
+   Ocorrências nos logs fornecidos:
+   • [16:40:25] - 3x
+   • [16:42:21] - 3x
+   • [17:02:13] - 2x
+   • [17:58:10] - 3x
+   • [17:58:15] - 3x
+   • [18:02:22] - 3x
+   • [18:11:25] - 3x
+   • [18:11:28] - 2x
+   • [18:15:37] - 3x
+   • [18:15:42] - 2x
+   
+   TOTAL: ~27 ocorrências em ~35 minutos de teste
+
+
+⚠️  LENTIDÃO IDENTIFICADA:
+   
+   Tempos de processamento:
+   • [16:40:26] - 4.1 segundos (carregamento inicial)
+   • [16:42:22] - 16.0 segundos (update checkout)
+   • [17:02:13] - 4.5 segundos (carregamento)
+   • [17:58:10] - 3.6 segundos (carregamento)
+   • [18:00:04] - 3.6 segundos (carregamento)
+   • [18:02:17] - 3.6 segundos (carregamento)
+   • [18:11:25] - 4.6 segundos (carregamento)
+   • [18:12:40] - 1.0 segundo (clique em avançar)
+   
+   MÉDIA: 5.1 segundos
+   MÁXIMO: 16.0 segundos
+   MÍNIMO: 1.0 segundo
+   
+   ⚠️  Esperado: < 2 segundos
+
+
+❌ FALHAS CRÍTICAS:
+   
+   [18:12:42] store_webhook_shipping retornou success=false
+   
+   Contexto:
+   • Usuário clicou em "Avançar" para consultar CEP
+   • Webhook retornou dados corretamente
+   • Falha ao tentar armazenar dados no servidor
+   • Possível perda de informações de frete
+
+
+================================================================================
+ESTATÍSTICAS DO TESTE
+================================================================================
+
+Duração do teste: ~2 horas (16:40 - 18:15)
+Erros JavaScript: 27+ ocorrências
+Lentidão (> 1s): 8 ocorrências
+Falhas críticas: 1 ocorrência
+Warnings: Múltiplos (botão desabilitado)
+
+Taxa de erro: ALTA ⚠️
+Performance: BAIXA ⚠️
+Funcionalidade: PARCIAL ⚠️
+
+
+================================================================================
+MAPA DE CALOR - PRIORIDADE x IMPACTO
+================================================================================
+
+               IMPACTO
+               Alto    │  Médio   │  Baixo
+             ──────────┼──────────┼──────────
+  P          │         │          │
+  R    Alta  │  #7 #8  │   #1 #6  │
+  I          │         │   #3 #5  │
+  O          ├─────────┼──────────┼──────────
+  R          │         │          │
+  I   Média  │   #9    │  #2 #4   │
+  D          │         │          │
+  A          ├─────────┼──────────┼──────────
+  D          │         │          │
+  E   Baixa  │         │          │
+             │         │          │
+             └─────────┴──────────┴──────────
+
+Legenda:
+  #1 - reCAPTCHA não integrado
+  #2 - Botão com layout incorreto
+  #3 - Link "Esqueci senha" ausente
+  #4 - Fundo azul nas abas
+  #5 - Lentidão ao carregar endereços
+  #6 - Sem confirmação ao salvar
+  #7 - Erro de seletor CSS inválido
+  #8 - Falha em store_webhook_shipping
+  #9 - Múltiplos update_checkout
+
+
+🎯 FOCO IMEDIATO: #7 e #8 (quadrante superior esquerdo)
+
+
+================================================================================
+LINHA DO TEMPO SUGERIDA
+================================================================================
+
+SEMANA 1: Correções Críticas
+┌─────────────────────────────────────────────────────┐
+│ Dia 1-2: Corrigir erro de seletor CSS (#7)         │
+│ Dia 3-4: Corrigir store_webhook_shipping (#8)      │
+│ Dia 5:   Testes e validação                        │
+└─────────────────────────────────────────────────────┘
+
+SEMANA 2: Melhorias de UX
+┌─────────────────────────────────────────────────────┐
+│ Dia 1-2: Integrar reCAPTCHA (#1)                   │
+│ Dia 3:   Adicionar spinner em endereços (#5)       │
+│ Dia 4:   Adicionar confirmação ao salvar (#6)      │
+│ Dia 5:   Testes e validação                        │
+└─────────────────────────────────────────────────────┘
+
+SEMANA 3: Ajustes Finais
+┌─────────────────────────────────────────────────────┐
+│ Dia 1:   Corrigir layout botão (#2)                │
+│ Dia 2:   Adicionar link senha (#3)                 │
+│ Dia 3:   Remover fundo azul (#4)                   │
+│ Dia 4:   Otimizar update_checkout (#9)             │
+│ Dia 5:   Testes finais e documentação              │
+└─────────────────────────────────────────────────────┘
+
+
+================================================================================
+MÉTRICAS DE SUCESSO
+================================================================================
+
+Após implementar todas as correções, a aplicação deve atingir:
+
+✅ 0 erros JavaScript no console
+✅ Tempo de carregamento < 2 segundos
+✅ reCAPTCHA funcionando em 100% dos casos
+✅ Feedback visual em 100% das operações (spinners + confirmações)
+✅ Taxa de salvamento de dados: 100%
+✅ Layout consistente em todos os navegadores
+✅ Testes mobile: 100% funcionais
+
+
+================================================================================
+ARQUIVOS DE REFERÊNCIA
+================================================================================
+
+📁 Documentos criados:
+   1. RELATORIO_TESTE_ULTIMA_VERSAO.txt (análise completa, 11 páginas)
+   2. PLANO_DE_ACAO_CORRECOES.txt (implementação detalhada, 9 tarefas)
+   3. RESUMO_EXECUTIVO_TESTES.txt (visão geral, 3 páginas)
+   4. VISAO_GERAL_PROBLEMAS.txt (este documento, mapa visual)
+
+📁 Plugin de referência:
+   C:\Users\Dell\Desktop\checkout-tab-estilo-ml-2026\dados de entrega\
+   popup login que tem recaptcha\plugin de popup de login que tem recatpcha.php
+
+
+================================================================================
+CONTATOS E SUPORTE
+================================================================================
+
+Para dúvidas sobre implementação, consulte:
+   • PLANO_DE_ACAO_CORRECOES.txt (código detalhado para cada correção)
+   • Plugin de referência (implementação correta do reCAPTCHA)
+
+Para análise técnica detalhada, consulte:
+   • RELATORIO_TESTE_ULTIMA_VERSAO.txt (análise completa dos logs)
+
+
+================================================================================
+

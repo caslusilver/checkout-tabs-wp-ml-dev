@@ -7,6 +7,10 @@
     var $ = state.$;
 
     state.recalcViaFrete = false;
+    
+    // Variáveis para debounce e controle de update_checkout
+    var updateCheckoutTimer = null;
+    var updateCheckoutInProgress = false;
 
     function updateShippingSelectionUI() {
       var $shippingContainer = $(
@@ -37,6 +41,9 @@
 
     // update_checkout (antes do AJAX do WC)
     $(document.body).on('update_checkout', function () {
+      // Marcar que update_checkout está em progresso
+      updateCheckoutInProgress = true;
+      
       if ($('#tab-cep').hasClass('active') && !state.clickedAvancarCep && !state.recalcViaFrete) {
         state.log(
           'WC_OUT    update_checkout na aba CEP por digitação (sem Avançar/sem recálculo via frete). Ocultando overlay.',
@@ -53,6 +60,9 @@
 
     // updated_checkout (depois do AJAX do WC / depois de aplicar fragments)
     $(document.body).on('updated_checkout', function () {
+      // Marcar que update_checkout completou
+      updateCheckoutInProgress = false;
+      
       state.ajaxWCEndTime = performance.now();
 
       state.log('UI        Evento updated_checkout detectado.', null, 'UI');
@@ -69,6 +79,23 @@
 
       state.recalcViaFrete = false;
     });
+    
+    // Função helper para disparar update_checkout com debounce (300ms)
+    state.triggerUpdateCheckout = function(delay) {
+      delay = delay || 300;
+      
+      if (updateCheckoutTimer) {
+        clearTimeout(updateCheckoutTimer);
+      }
+      
+      updateCheckoutTimer = setTimeout(function() {
+        if (!updateCheckoutInProgress) {
+          $(document.body).trigger('update_checkout');
+        } else {
+          state.log('DEBUG     update_checkout já em progresso, ignorando chamada redundante.', null, 'DEBUG');
+        }
+      }, delay);
+    };
 
     // init no load
     $(window).on('load', function () {
