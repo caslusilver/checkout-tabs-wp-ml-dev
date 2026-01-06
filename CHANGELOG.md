@@ -203,4 +203,11 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
 #### Protocol: c44aa3b
 
+## [v3.2.8] - 2026-01-06
+
+### Changed
+- Correção do reCAPTCHA na aba "Criar uma conta" do popup de login (renderização adiada para quando a aba ficar visível, pois `grecaptcha.render` não funciona em elementos com `display:none`).
+
+#### Protocol: d674c75
+
 ## [Unreleased]
