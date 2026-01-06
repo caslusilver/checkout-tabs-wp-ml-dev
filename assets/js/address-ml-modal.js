@@ -444,17 +444,19 @@
         buttons: [],
         afterShow: function() {
           state.log('UI        Popup de login aberto (afterShow)', {}, 'UI');
+          
+          var siteKeyFixa = '6LfWXPIqAAAAAF3U6KDkq9WnI1IeYh8uQ1ZvqiPX';
 
-          // Render explícito: SIGNUP
-          var $signupContainer = $('#ctwpml-recaptcha-signup');
-          var signupSiteKey = $signupContainer.data('sitekey');
-          if (typeof grecaptcha !== 'undefined' && signupSiteKey && typeof window.__ctwpmlRecaptchaSignupId === 'undefined') {
+          // Render explícito: SIGNUP (ID unificado g-recaptcha como no exemplo)
+          var $signupContainer = $('#g-recaptcha');
+          if (typeof grecaptcha !== 'undefined' && $signupContainer.length && !$signupContainer.hasClass('recaptcha-rendered')) {
             try {
               window.__ctwpmlRecaptchaSignupId = grecaptcha.render($signupContainer[0], {
-                sitekey: signupSiteKey,
+                sitekey: siteKeyFixa,
                 callback: window.ctwpmlSignupEnable,
                 'expired-callback': window.ctwpmlSignupDisable,
               });
+              $signupContainer.addClass('recaptcha-rendered');
               state.log('UI        reCAPTCHA signup renderizado', { widgetId: window.__ctwpmlRecaptchaSignupId }, 'UI');
             } catch (e) {
               state.log('ERROR     Erro ao renderizar reCAPTCHA signup', { error: e && e.message }, 'ERROR');
@@ -462,15 +464,15 @@
           }
 
           // Render explícito: LOGIN
-          var $loginContainer = $('#ctwpml-recaptcha-login');
-          var loginSiteKey = $loginContainer.data('sitekey');
-          if (typeof grecaptcha !== 'undefined' && loginSiteKey && typeof window.__ctwpmlRecaptchaLoginId === 'undefined') {
+          var $loginContainer = $('#g-recaptcha-login');
+          if (typeof grecaptcha !== 'undefined' && $loginContainer.length && !$loginContainer.hasClass('recaptcha-rendered')) {
             try {
               window.__ctwpmlRecaptchaLoginId = grecaptcha.render($loginContainer[0], {
-                sitekey: loginSiteKey,
+                sitekey: siteKeyFixa,
                 callback: window.ctwpmlLoginEnable,
                 'expired-callback': window.ctwpmlLoginDisable,
               });
+              $loginContainer.addClass('recaptcha-rendered');
               state.log('UI        reCAPTCHA login renderizado', { widgetId: window.__ctwpmlRecaptchaLoginId }, 'UI');
             } catch (e) {
               state.log('ERROR     Erro ao renderizar reCAPTCHA login', { error: e && e.message }, 'ERROR');
@@ -603,11 +605,13 @@
     function validateForm() {
       clearFormErrors();
       var ok = true;
+      var errors = [];
 
       var cepOnly = cepDigits($('#ctwpml-input-cep').val());
       if (cepOnly.length !== 8) {
         setFieldError('#ctwpml-input-cep', true);
         ok = false;
+        errors.push('CEP inválido');
       }
 
       var rua = ($('#ctwpml-input-rua').val() || '').trim();
@@ -615,6 +619,7 @@
         setFieldError('#ctwpml-group-rua', true);
         setRuaHint('Não encontramos Rua/Avenida automaticamente. Preencha manualmente com atenção.', true);
         ok = false;
+        errors.push('Rua obrigatória');
       }
 
       // Campos obrigatórios server-side vêm do checkout (bairro/cidade/UF). Se estiverem vazios,
@@ -624,24 +629,28 @@
       if (!city || !st) {
         setFieldError('#ctwpml-input-cep', true);
         ok = false;
+        errors.push('Cidade/UF ausentes (recarregue o CEP)');
       }
 
       var labelOk = $('#ctwpml-type-home').hasClass('is-active') || $('#ctwpml-type-work').hasClass('is-active');
       if (!labelOk) {
         $('#ctwpml-type-home, #ctwpml-type-work').addClass('is-error');
         ok = false;
+        errors.push('Tipo Casa/Trabalho não selecionado');
       }
 
       var name = ($('#ctwpml-input-nome').val() || '').trim();
       if (!name) {
         setFieldError('#ctwpml-input-nome', true);
         ok = false;
+        errors.push('Nome obrigatório');
       }
 
       var phone = phoneDigits($('#ctwpml-input-fone').val());
       if (phone.length < 10) {
         setFieldError('#ctwpml-input-fone', true);
         ok = false;
+        errors.push('WhatsApp inválido');
       }
 
       // CPF obrigatório no fluxo (se já estiver locked, estará preenchido via checkout).
@@ -649,6 +658,11 @@
       if (cpf.length !== 11) {
         setFieldError('#ctwpml-group-cpf', true);
         ok = false;
+        errors.push('CPF inválido');
+      }
+
+      if (errors.length > 0) {
+        state.log('ERROR     validateForm falhou', { errors: errors }, 'ERROR');
       }
 
       return ok;
@@ -881,9 +895,12 @@
           $('#ctwpml-btn-primary').prop('disabled', false);
 
           if (resp && resp.success && resp.data) {
+            // Sucesso: atualiza cache e timestamp
             if (Array.isArray(resp.data.items)) {
               addressesCache = dedupeAddresses(resp.data.items);
             }
+            addressesCacheTimestamp = Date.now(); // Reset cache timer
+
             if (resp.data.item && resp.data.item.id) {
               selectedAddressId = resp.data.item.id;
             }
@@ -928,6 +945,7 @@
         success: function (resp) {
           if (resp && resp.success && resp.data && Array.isArray(resp.data.items)) {
             addressesCache = dedupeAddresses(resp.data.items);
+            addressesCacheTimestamp = Date.now(); // Reset cache timer
             done({ ok: true });
           } else {
             done({ ok: false, message: (resp && resp.data) || 'Erro ao excluir endereço.' });

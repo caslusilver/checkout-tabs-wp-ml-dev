@@ -195,17 +195,10 @@ add_action('wp_enqueue_scripts', function () {
 		'webhook_url'=> checkout_tabs_wp_ml_get_webhook_url(),
 	]);
 
-	// Enfileirar Google reCAPTCHA v2
-	$site_key = get_option('checkout_tabs_wp_ml_recaptcha_site_key', '');
-	if (empty($site_key)) {
-		// Fallback: tentar pegar do plugin "Login No Captcha reCAPTCHA"
-		$login_recaptcha_opts = get_option('login_nocaptcha_options', []);
-		if (is_array($login_recaptcha_opts) && isset($login_recaptcha_opts['site_key'])) {
-			$site_key = $login_recaptcha_opts['site_key'];
-		}
-	}
+	// Enfileirar Google reCAPTCHA v2 (v3.2.6: usando chave fixa do exemplo para máxima compatibilidade)
+	$site_key = '6LfWXPIqAAAAAF3U6KDkq9WnI1IeYh8uQ1ZvqiPX';
 
-	if (!empty($site_key) && !is_user_logged_in()) {
+	if (!is_user_logged_in()) {
 		wp_enqueue_script(
 			'google-recaptcha-v2',
 			'https://www.google.com/recaptcha/api.js?onload=ctwpmlRecaptchaOnload&render=explicit',

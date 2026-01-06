@@ -5,6 +5,10 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 > Importante: **o repositório ainda não foi criado nem publicado no GitHub**.  
 > Este changelog está sendo preparado **antes do primeiro push/publicação**.
 
+## Notas de Publicação (ainda não executadas)
+- Criar o repositório: `caslusilver/checkout-tabs-wp-ml-dev`
+- Branch principal do fluxo: `develop`
+
 ## [v3.1.20] - 2026-01-05
 
 ### Added
@@ -179,10 +183,16 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
 #### Protocol: b84861e
 
-## [Unreleased]
+## [v3.2.6] - 2026-01-06
 
-## Notas de Publicação (ainda não executadas)
-- Criar o repositório: `caslusilver/checkout-tabs-wp-ml-dev`
-- Branch principal do fluxo: `develop`
+### Changed
+- Implementação definitiva do reCAPTCHA v2 (render explícito no afterShow com Site Key fixa).
+- Correção do clique no botão Salvar (ajuste no spinner e pointer-events).
+- Rastreamento de logs críticos no Debug.
+- Correção da persistência do WhatsApp.
+
+#### Protocol: 0872e3a
+
+## [Unreleased]
 
 
