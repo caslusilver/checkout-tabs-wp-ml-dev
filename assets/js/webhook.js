@@ -71,7 +71,7 @@
 
         Object.keys(mapping).forEach(function (apiField) {
           var sel = mapping[apiField];
-          var $field = $(sel);
+          var $field = safeSelector(sel);
           if (!$field.length) return;
 
           var fieldValue = dados[apiField];

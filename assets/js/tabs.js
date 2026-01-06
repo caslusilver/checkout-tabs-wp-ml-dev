@@ -74,9 +74,9 @@
     }
 
     function safeAppendToTab(selector, tabId) {
-      var $field = $(selector);
+      var $field = safeSelector(selector);
       if (!$field.length) return false;
-      var $tab = $('#' + tabId);
+      var $tab = safeId(tabId);
       if (!$tab.length) return false;
       $field.appendTo($tab);
       return true;

@@ -80,44 +80,68 @@
       $('body').css('pointer-events', '');
     }
 
-    // Notificação toast para feedback visual ao usuário
-    function showNotification(message, type) {
-      // type: 'success' ou 'error'
+    /**
+     * Exibe notificação toast para o usuário
+     * @param {string} message - Mensagem a exibir
+     * @param {string} type - Tipo: 'success' ou 'error'
+     * @param {number} duration - Duração em ms (padrão: 3000)
+     */
+    function showNotification(message, type, duration) {
+      type = type || 'success';
+      duration = duration || 3000;
+
       var bgColor = type === 'success' ? '#067647' : '#b42318';
       var textColor = '#fff';
-      
-      var $notif = $('<div>')
-        .text(message)
+      var icon = type === 'success' ? '✓' : '✕';
+
+      var $notif = $('<div class="ctwpml-notification">')
+        .html(
+          '<span class="ctwpml-notification-icon" style="font-size: 18px;">' +
+            icon +
+            '</span>' +
+            '<span class="ctwpml-notification-text">' +
+            String(message) +
+            '</span>'
+        )
         .css({
-          'position': 'fixed',
-          'top': '20px',
-          'left': '50%',
-          'transform': 'translateX(-50%)',
+          position: 'fixed',
+          top: '20px',
+          left: '50%',
+          transform: 'translateX(-50%)',
           'background-color': bgColor,
-          'color': textColor,
-          'padding': '12px 24px',
-          'border-radius': '6px',
+          color: textColor,
+          padding: '14px 24px',
+          'border-radius': '8px',
           'font-weight': '700',
+          'font-size': '15px',
           'z-index': '999999',
-          'box-shadow': '0 4px 12px rgba(0,0,0,0.15)',
-          'opacity': '0',
-          'transition': 'opacity 0.3s ease'
+          'box-shadow': '0 4px 16px rgba(0,0,0,0.2)',
+          opacity: '0',
+          transition: 'opacity 0.3s ease',
+          display: 'flex',
+          'align-items': 'center',
+          gap: '10px',
+          'max-width': '90%',
+          'text-align': 'center',
         });
-      
+
       $('body').append($notif);
-      
+
       // Fade in
-      setTimeout(function() {
+      setTimeout(function () {
         $notif.css('opacity', '1');
       }, 100);
-      
-      // Fade out e remover após 3 segundos
-      setTimeout(function() {
+
+      // Fade out e remover
+      setTimeout(function () {
         $notif.css('opacity', '0');
-        setTimeout(function() {
+        setTimeout(function () {
           $notif.remove();
         }, 300);
-      }, 3000);
+      }, duration);
+
+      // Log para debug
+      state.log('UI        Notificação exibida: ' + message, { type: type }, 'UI');
     }
 
     function ensureModal() {
@@ -278,9 +302,9 @@
     }
 
     function loadContactMeta() {
-      if (!state.params || !state.params.is_logged_in) {
-        return;
-      }
+      if (!isLoggedIn()) return;
+
+      state.log('UI        Carregando dados de contato do perfil...', {}, 'UI');
 
       $.ajax({
         url: state.params.ajax_url,
@@ -294,6 +318,12 @@
             var cpf = response.data.cpf || '';
             var cpfLocked = response.data.cpf_locked || false;
 
+            state.log('UI        Dados de contato carregados', { 
+              whatsapp: whatsapp, 
+              cpf: cpf,
+              cpfLocked: cpfLocked 
+            }, 'UI');
+
             if (whatsapp) {
               $('#ctwpml-input-fone').val(formatPhone(whatsapp));
             }
@@ -305,24 +335,35 @@
                 $('#ctwpml-generate-cpf-modal').hide();
               }
             }
-
-            logAny('Dados de contato carregados (WhatsApp, CPF)');
+          } else {
+            state.log('UI        Nenhum dado de contato encontrado no perfil', {}, 'UI');
           }
         },
-        error: function () {
-          logAny('Erro ao carregar dados de contato', {});
+        error: function (xhr, status, error) {
+          state.log('UI        Erro ao carregar dados de contato', { 
+            status: status, 
+            error: error 
+          }, 'UI');
         },
       });
     }
 
     function saveContactMeta(callback) {
-      if (!state.params || !state.params.is_logged_in) {
+      if (!isLoggedIn()) {
         if (callback) callback();
         return;
       }
 
-      var whatsapp = $('#ctwpml-input-fone').val() || '';
-      var cpf = $('#ctwpml-input-cpf').val() || '';
+      // IMPORTANTE: Remover máscara do WhatsApp antes de enviar
+      var whatsappRaw = $('#ctwpml-input-fone').val() || '';
+      var whatsappDigits = phoneDigits(whatsappRaw); // Remove formatação
+      var cpfRaw = $('#ctwpml-input-cpf').val() || '';
+      var cpfDigits = cpfDigitsOnly(cpfRaw); // Remove formatação
+
+      state.log('UI        Salvando dados de contato', { 
+        whatsapp: whatsappDigits, 
+        cpf: cpfDigits 
+      }, 'UI');
 
       showModalSpinner();
 
@@ -331,21 +372,32 @@
         type: 'POST',
         data: {
           action: 'ctwpml_save_contact_meta',
-          whatsapp: whatsapp,
-          cpf: cpf,
+          whatsapp: whatsappDigits,
+          cpf: cpfDigits,
         },
         success: function (response) {
           if (response && response.success) {
-            logAny('Dados de contato salvos (WhatsApp, CPF)', response.data);
+            state.log('UI        Dados de contato salvos com sucesso', response.data, 'UI');
             if (response.data && response.data.cpf_locked) {
               $('#ctwpml-input-cpf').prop('readonly', true);
               $('#ctwpml-generate-cpf-modal').hide();
             }
+            // Feedback de sucesso para contato também (se salvar apenas contato)
+            showNotification('Dados de contato salvos com sucesso!', 'success', 2000);
+          } else {
+            var errorMsg = (response && response.data && response.data.message) || 'Erro ao salvar dados de contato';
+            showNotification(errorMsg, 'error', 3000);
+            state.log('UI        Erro ao salvar dados de contato', response, 'UI');
           }
           if (callback) callback(response);
         },
-        error: function () {
-          logAny('Erro ao salvar dados de contato', {});
+        error: function (xhr, status, error) {
+          state.log('UI        Erro AJAX ao salvar dados de contato', { 
+            status: status, 
+            error: error,
+            responseText: xhr.responseText 
+          }, 'UI');
+          showNotification('Erro ao salvar dados. Tente novamente.', 'error', 3000);
           if (callback) callback();
         },
         complete: function () {
@@ -377,6 +429,27 @@
       if (isLoggedIn()) return;
       if (!($.fancybox && typeof $.fancybox.open === 'function')) return;
       if (!$('#login-popup').length) return;
+
+      // Garantir que callbacks do reCAPTCHA existam
+      if (typeof window.ctwpmlSubmitEnable === 'undefined') {
+        window.ctwpmlSubmitEnable = function() {
+          var btn = document.getElementById('ctwpml-signup-submit');
+          if (btn) {
+            btn.disabled = false;
+            btn.style.opacity = '1';
+          }
+        };
+      }
+      if (typeof window.ctwpmlSubmitDisable === 'undefined') {
+        window.ctwpmlSubmitDisable = function() {
+          var btn = document.getElementById('ctwpml-signup-submit');
+          if (btn) {
+            btn.disabled = true;
+            btn.style.opacity = '0.6';
+          }
+        };
+      }
+
       $.fancybox.open({
         src: '#login-popup',
         type: 'inline',
@@ -389,6 +462,41 @@
         smallBtn: false,
         toolbar: false,
         buttons: [],
+        afterShow: function() {
+          // Renderizar reCAPTCHA no formulário de criar conta
+          var $container = $('#ctwpml-recaptcha-container');
+          var $widget = $container.find('.g-recaptcha');
+          var siteKey = $widget.data('sitekey');
+
+          if (typeof grecaptcha !== 'undefined' && siteKey && !$container.hasClass('recaptcha-rendered')) {
+            try {
+              grecaptcha.render($container[0], {
+                'sitekey': siteKey,
+                'callback': window.ctwpmlSubmitEnable,
+                'expired-callback': window.ctwpmlSubmitDisable
+              });
+              $container.addClass('recaptcha-rendered');
+              state.log('UI        reCAPTCHA renderizado com sucesso', {}, 'UI');
+            } catch(e) {
+              state.log('ERROR     Erro ao renderizar reCAPTCHA:', e && e.message, 'ERROR');
+            }
+          }
+          
+          // Renderizar reCAPTCHA no login também (se existir)
+          var $loginContainer = $('#ctwpml-recaptcha-login-container');
+          var $loginWidget = $('#g-recaptcha-login');
+          var loginSiteKey = $loginWidget.data('sitekey');
+          
+          if (typeof grecaptcha !== 'undefined' && loginSiteKey && !$loginContainer.hasClass('recaptcha-rendered')) {
+            try {
+              grecaptcha.render($loginWidget[0], {
+                'sitekey': loginSiteKey
+              });
+              $loginContainer.addClass('recaptcha-rendered');
+              state.log('UI        reCAPTCHA de login renderizado', {}, 'UI');
+            } catch(e) {}
+          }
+        }
       });
     }
 
@@ -506,7 +614,7 @@
     }
 
     function setFieldError(selectorOrGroupId, isError) {
-      var $el = $(selectorOrGroupId);
+      var $el = safeSelector(selectorOrGroupId);
       if (!$el.length) return;
       if (isError) $el.addClass('is-error');
       else $el.removeClass('is-error');
@@ -791,7 +899,7 @@
         success: function (resp) {
           isSavingAddress = false;
           $('#ctwpml-btn-primary').prop('disabled', false);
-          
+
           if (resp && resp.success && resp.data) {
             if (Array.isArray(resp.data.items)) {
               addressesCache = dedupeAddresses(resp.data.items);
@@ -799,21 +907,21 @@
             if (resp.data.item && resp.data.item.id) {
               selectedAddressId = resp.data.item.id;
             }
-            
+
             // Mostrar notificação de sucesso
-            showNotification('Endereço salvo com sucesso!', 'success');
-            
+            showNotification('Endereço salvo com sucesso!', 'success', 2500);
+
             done({ ok: true });
           } else {
-            var errorMsg = (resp && resp.data) || 'Erro ao salvar endereço.';
-            showNotification(errorMsg, 'error');
+            var errorMsg = (resp && resp.data && resp.data.message) || (resp && resp.data) || 'Erro ao salvar endereço.';
+            showNotification(errorMsg, 'error', 4000);
             done({ ok: false, message: errorMsg });
           }
         },
         error: function () {
           isSavingAddress = false;
           $('#ctwpml-btn-primary').prop('disabled', false);
-          showNotification('Erro ao salvar endereço.', 'error');
+          showNotification('Erro ao salvar endereço. Tente novamente.', 'error', 4000);
           done({ ok: false, message: 'Erro ao salvar endereço.' });
         },
         complete: function () {
@@ -1270,12 +1378,12 @@
               // Não precisa de alert, a notificação já foi exibida
               return;
             }
-            
-            // Aguardar 500ms para usuário ver a confirmação, depois voltar para lista
-            setTimeout(function() {
+
+            // Aguardar 800ms para usuário ver a confirmação, depois voltar para lista
+            setTimeout(function () {
               showList();
               renderAddressList();
-            }, 500);
+            }, 800);
           });
         });
       } else {

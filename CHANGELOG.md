@@ -162,6 +162,13 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
 #### Protocol: 24f278b
 
+## [v3.2.4] - 2026-01-06
+
+### Changed
+- Implementação completa baseada no `GUIA_COMPLETO_CORRECOES.txt` (safeSelector/safeClass/safeId, validações + logs no store_webhook_shipping, novo Toast centro-topo, persistência correta do WhatsApp, renderização explícita do reCAPTCHA v2 no Fancybox, debounce/intervalo mínimo do update_checkout).
+
+#### Protocol: d03c235
+
 ## [Unreleased]
 
 ## Notas de Publicação (ainda não executadas)

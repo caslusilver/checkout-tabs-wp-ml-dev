@@ -11,6 +11,49 @@
     // Variáveis para debounce e controle de update_checkout
     var updateCheckoutTimer = null;
     var updateCheckoutInProgress = false;
+    var lastUpdateCheckoutTime = 0;
+    var UPDATE_CHECKOUT_DEBOUNCE = 300; // 300ms
+    var UPDATE_CHECKOUT_MIN_INTERVAL = 500; // Mínimo 500ms entre chamadas
+
+    /**
+     * Triggera update_checkout de forma segura (com debounce)
+     */
+    state.triggerUpdateCheckoutSafe = function (source) {
+      source = source || 'unknown';
+
+      // Se já está em progresso, aguarda
+      if (updateCheckoutInProgress) {
+        state.log('DEBUG     update_checkout já em progresso, ignorando chamadas extras (' + source + ')', null, 'DEBUG');
+        return;
+      }
+
+      // Verifica intervalo mínimo desde última chamada
+      var now = Date.now();
+      var timeSinceLastUpdate = now - lastUpdateCheckoutTime;
+
+      if (timeSinceLastUpdate < UPDATE_CHECKOUT_MIN_INTERVAL) {
+        state.log('DEBUG     update_checkout muito recente, agendando para logo mais... (' + source + ')', null, 'DEBUG');
+
+        // Agenda para depois
+        if (updateCheckoutTimer) clearTimeout(updateCheckoutTimer);
+        updateCheckoutTimer = setTimeout(function () {
+          state.triggerUpdateCheckoutSafe(source);
+        }, UPDATE_CHECKOUT_MIN_INTERVAL - timeSinceLastUpdate);
+        return;
+      }
+
+      // Debounce padrão
+      if (updateCheckoutTimer) {
+        clearTimeout(updateCheckoutTimer);
+      }
+
+      updateCheckoutTimer = setTimeout(function () {
+        state.log('ACTION    Disparando update_checkout (' + source + ')', null, 'ACTION');
+        lastUpdateCheckoutTime = Date.now();
+        // O evento real será capturado pelo listener abaixo que seta updateCheckoutInProgress = true
+        $(document.body).trigger('update_checkout');
+      }, UPDATE_CHECKOUT_DEBOUNCE);
+    };
 
     function updateShippingSelectionUI() {
       var $shippingContainer = $(
@@ -35,8 +78,7 @@
     $(document).on('change', '#tab-resumo-frete #order_review input[name^="shipping_method"]', function () {
       state.recalcViaFrete = true;
       state.actionStartTime = performance.now();
-      state.log('ACTION    Seleção de frete – recalcViaFrete=true e disparando update_checkout.', null, 'ACTION');
-      $(document.body).trigger('update_checkout');
+      state.triggerUpdateCheckoutSafe('shipping_method_change');
     });
 
     // update_checkout (antes do AJAX do WC)
@@ -79,23 +121,6 @@
 
       state.recalcViaFrete = false;
     });
-    
-    // Função helper para disparar update_checkout com debounce (300ms)
-    state.triggerUpdateCheckout = function(delay) {
-      delay = delay || 300;
-      
-      if (updateCheckoutTimer) {
-        clearTimeout(updateCheckoutTimer);
-      }
-      
-      updateCheckoutTimer = setTimeout(function() {
-        if (!updateCheckoutInProgress) {
-          $(document.body).trigger('update_checkout');
-        } else {
-          state.log('DEBUG     update_checkout já em progresso, ignorando chamada redundante.', null, 'DEBUG');
-        }
-      }, delay);
-    };
 
     // init no load
     $(window).on('load', function () {

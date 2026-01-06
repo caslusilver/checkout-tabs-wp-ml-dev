@@ -2,23 +2,35 @@
   'use strict';
 
   jQuery(function ($) {
-    // Função helper para seleção segura - previne erro "SyntaxError: '.' is not a valid selector"
-    window.safeSelector = function (selector) {
+    // Função helper para criar seletores jQuery de forma segura.
+    // Previne o erro "SyntaxError: '.' is not a valid selector"
+    window.safeSelector = function (selector, prefix) {
       if (!selector || typeof selector !== 'string') {
-        console.warn('[CTWPML] Seletor inválido (não é string):', selector);
+        // console.warn('[CTWPML] Seletor inválido (não é string):', selector);
         return $();
       }
       selector = selector.trim();
-      if (!selector || selector === '.' || selector === '#' || selector === '' ) {
-        console.warn('[CTWPML] Seletor vazio ou inválido:', selector);
+      if (!selector || selector === '.' || selector === '#' || selector === '') {
+        // console.warn('[CTWPML] Seletor vazio ou apenas prefixo:', selector);
         return $();
+      }
+      if (prefix) {
+        selector = prefix + selector;
       }
       try {
         return $(selector);
       } catch (e) {
-        console.error('[CTWPML] Erro ao usar seletor:', selector, e);
+        console.error('[CTWPML] Erro ao criar seletor:', selector, e);
         return $();
       }
+    };
+
+    window.safeClass = function (className) {
+      return window.safeSelector(className, '.');
+    };
+
+    window.safeId = function (idName) {
+      return window.safeSelector(idName, '#');
     };
 
     var forceDebug = false;

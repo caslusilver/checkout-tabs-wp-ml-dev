@@ -264,63 +264,104 @@ add_action('wp_ajax_ctwpml_save_address_payload', function () {
 
 // Obter dados de contato (WhatsApp e CPF) do usuário
 add_action('wp_ajax_ctwpml_get_contact_meta', function (): void {
+	error_log('[CTWPML] get_contact_meta - INICIANDO');
+
 	if (!is_user_logged_in()) {
-		wp_send_json_error(['message' => 'Usuário não logado']);
+		error_log('[CTWPML] get_contact_meta - ERRO: Usuário não logado');
+		wp_send_json_error(['message' => 'Usuário não autenticado']);
 		return;
 	}
 
 	$user_id = get_current_user_id();
-	$whatsapp = get_user_meta($user_id, 'ctwpml_whatsapp', true);
-	$cpf = get_user_meta($user_id, 'billing_cpf', true);
-	$cpf_locked = get_user_meta($user_id, 'ctwpml_cpf_locked', true);
+	
+	// Tentamos ler dos nossos metas e fallback para billing_cpf do Woo
+	$whatsapp = get_user_meta($user_id, '_ctwpml_whatsapp', true);
+	if (empty($whatsapp)) {
+		$whatsapp = get_user_meta($user_id, 'billing_cellphone', true);
+	}
+	
+	$cpf = get_user_meta($user_id, '_ctwpml_cpf', true);
+	if (empty($cpf)) {
+		$cpf = get_user_meta($user_id, 'billing_cpf', true);
+	}
+	
+	$cpf_locked = get_user_meta($user_id, '_ctwpml_cpf_locked', true);
+
+	error_log('[CTWPML] get_contact_meta - WhatsApp: ' . $whatsapp);
+	error_log('[CTWPML] get_contact_meta - CPF: ' . $cpf);
+	error_log('[CTWPML] get_contact_meta - CPF locked: ' . ($cpf_locked ? 'yes' : 'no'));
 
 	wp_send_json_success([
 		'whatsapp' => $whatsapp ?: '',
 		'cpf' => $cpf ?: '',
-		'cpf_locked' => $cpf_locked === '1',
+		'cpf_locked' => (bool) $cpf_locked,
 	]);
 });
 
 // Salvar dados de contato (WhatsApp e CPF)
 add_action('wp_ajax_ctwpml_save_contact_meta', function (): void {
+	error_log('[CTWPML] save_contact_meta - INICIANDO');
+
 	if (!is_user_logged_in()) {
-		wp_send_json_error(['message' => 'Usuário não logado']);
+		error_log('[CTWPML] save_contact_meta - ERRO: Usuário não logado');
+		wp_send_json_error(['message' => 'Usuário não autenticado']);
 		return;
 	}
 
 	$user_id = get_current_user_id();
+	error_log('[CTWPML] save_contact_meta - User ID: ' . $user_id);
+
 	$whatsapp = isset($_POST['whatsapp']) ? sanitize_text_field((string) $_POST['whatsapp']) : '';
 	$cpf = isset($_POST['cpf']) ? sanitize_text_field((string) $_POST['cpf']) : '';
 
-	// Salvar WhatsApp (sempre permitido)
+	error_log('[CTWPML] save_contact_meta - WhatsApp recebido: ' . $whatsapp);
+	error_log('[CTWPML] save_contact_meta - CPF recebido: ' . $cpf);
+
+	$updated = false;
+
+	// Salvar WhatsApp
 	if (!empty($whatsapp)) {
-		update_user_meta($user_id, 'ctwpml_whatsapp', $whatsapp);
+		$whatsapp_digits = preg_replace('/\D/', '', $whatsapp);
+		if (strlen($whatsapp_digits) >= 10 && strlen($whatsapp_digits) <= 11) {
+			update_user_meta($user_id, '_ctwpml_whatsapp', $whatsapp_digits);
+			update_user_meta($user_id, 'billing_cellphone', $whatsapp_digits);
+			error_log('[CTWPML] save_contact_meta - WhatsApp salvo: ' . $whatsapp_digits);
+			$updated = true;
+		} else {
+			error_log('[CTWPML] save_contact_meta - WhatsApp inválido: ' . $whatsapp_digits);
+		}
 	}
 
 	// CPF: verificar se já está travado
-	$cpf_locked = get_user_meta($user_id, 'ctwpml_cpf_locked', true);
+	$cpf_locked = get_user_meta($user_id, '_ctwpml_cpf_locked', true);
 	$is_admin = current_user_can('manage_woocommerce');
 
-	if (!empty($cpf)) {
-		// Se CPF está travado e não é admin, rejeitar
-		if ($cpf_locked === '1' && !$is_admin) {
-			wp_send_json_error(['message' => 'CPF já está definido e não pode ser alterado']);
-			return;
+	if (!empty($cpf) && (!$cpf_locked || $is_admin)) {
+		$cpf_digits = preg_replace('/\D/', '', $cpf);
+		if (strlen($cpf_digits) === 11) {
+			update_user_meta($user_id, '_ctwpml_cpf', $cpf_digits);
+			update_user_meta($user_id, 'billing_cpf', $cpf_digits);
+			
+			if (!$cpf_locked) {
+				update_user_meta($user_id, '_ctwpml_cpf_locked', '1');
+				$cpf_locked = '1';
+				error_log('[CTWPML] save_contact_meta - CPF salvo e travado: ' . $cpf_digits);
+			} else {
+				error_log('[CTWPML] save_contact_meta - CPF atualizado por admin: ' . $cpf_digits);
+			}
+			$updated = true;
+		} else {
+			error_log('[CTWPML] save_contact_meta - CPF inválido: ' . $cpf_digits);
 		}
-
-		// Salvar CPF
-		update_user_meta($user_id, 'billing_cpf', $cpf);
-
-		// Se é a primeira vez que define CPF, travar
-		if ($cpf_locked !== '1') {
-			update_user_meta($user_id, 'ctwpml_cpf_locked', '1');
-		}
+	} elseif (!empty($cpf) && $cpf_locked && !$is_admin) {
+		error_log('[CTWPML] save_contact_meta - Tentativa de alterar CPF travado negada');
+		// Não retornamos erro aqui para não travar o salvamento do endereço que vem depois
 	}
 
 	wp_send_json_success([
-		'whatsapp_saved' => !empty($whatsapp),
-		'cpf_saved' => !empty($cpf),
-		'cpf_locked' => get_user_meta($user_id, 'ctwpml_cpf_locked', true) === '1',
+		'message' => 'Dados processados',
+		'updated' => $updated,
+		'cpf_locked' => (bool) $cpf_locked
 	]);
 });
 

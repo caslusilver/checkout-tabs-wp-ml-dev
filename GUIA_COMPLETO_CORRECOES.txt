@@ -1,0 +1,1555 @@
+================================================================================
+  🔧 GUIA COMPLETO DE CORREÇÕES - CHECKOUT TABS WP ML
+  📅 Data: 06/01/2026
+  📊 Status: FUNCIONAL COM PROBLEMAS CRÍTICOS
+  🎯 Objetivo: Documento único para implementação de todas as correções
+================================================================================
+
+Este documento consolida TODOS os problemas identificados nos testes e fornece
+instruções detalhadas de implementação. Use este documento como referência
+única para realizar todas as correções necessárias.
+
+
+================================================================================
+📋 ÍNDICE DE PROBLEMAS
+================================================================================
+
+🔴 PROBLEMAS CRÍTICOS (PRIORIDADE MÁXIMA):
+   1. Erro JavaScript: SyntaxError: '.' is not a valid selector (27+ ocorrências)
+   2. Falha ao salvar dados: store_webhook_shipping retorna success=false
+   3. Sem mensagem de sucesso ao salvar endereço ⭐ NOVO
+   4. Número do WhatsApp não salva no perfil ⭐ NOVO
+
+🟡 PROBLEMAS DE SEGURANÇA E UX (ALTA PRIORIDADE):
+   5. reCAPTCHA não integrado ao formulário de "Criar conta"
+   6. Link "Esqueci minha senha" ausente no login
+
+🟠 PROBLEMAS DE LAYOUT (MÉDIA PRIORIDADE):
+   7. Botão de login não ocupa 100% e cor incorreta
+   8. Fundo azul nas abas (influência do Elementor)
+
+⚠️  PROBLEMAS DE PERFORMANCE (MÉDIA PRIORIDADE):
+   9. Endereços demoram para aparecer após login (sem feedback visual)
+   10. Processamento lento (3-5 segundos, esperado: < 2s)
+   11. Múltiplos update_checkout simultâneos
+
+
+================================================================================
+🔴 PROBLEMA #1: ERRO JAVASCRIPT - SELETOR CSS INVÁLIDO
+================================================================================
+
+DESCRIÇÃO DO PROBLEMA:
+  • Erro: SyntaxError: '.' is not a valid selector
+  • Frequência: 27+ ocorrências nos logs fornecidos
+  • Causa: Código JavaScript tentando usar jQuery com seletores vazios
+  • Exemplo: $('.' + variavelVazia) resulta em $('.')
+  • Impacto: CRÍTICO - Pode causar falhas silenciosas em toda a aplicação
+
+LOGS RELEVANTES:
+  [17:02:13] ERROR window.error: SyntaxError: '.' is not a valid selector
+  [17:58:10] ERROR window.error: SyntaxError: '.' is not a valid selector
+  [18:11:25] ERROR window.error: SyntaxError: '.' is not a valid selector
+  (... 24+ ocorrências similares)
+
+
+ARQUIVOS A MODIFICAR:
+  • assets/js/checkout-tabs.js
+  • assets/js/tabs.js
+  • assets/js/ui.js
+  • Qualquer arquivo que use seletores CSS dinâmicos
+
+
+SOLUÇÃO - PASSO 1: Criar função helper de seleção segura
+─────────────────────────────────────────────────────────
+
+Adicionar no INÍCIO de assets/js/checkout-tabs.js (ou tabs.js):
+
+```javascript
+/**
+ * Função helper para criar seletores jQuery de forma segura.
+ * Previne o erro "SyntaxError: '.' is not a valid selector"
+ * 
+ * @param {string} selector - Seletor CSS (pode incluir classe ou ID)
+ * @param {string} prefix - Prefixo opcional ('.', '#', etc)
+ * @returns {jQuery} Objeto jQuery (vazio se seletor inválido)
+ */
+function safeSelector(selector, prefix) {
+    // Validações básicas
+    if (!selector || typeof selector !== 'string') {
+        console.warn('[CTWPML] Seletor inválido (não é string):', selector);
+        return jQuery();
+    }
+    
+    selector = selector.trim();
+    
+    // Verifica se é apenas o prefixo (ex: só '.' ou '#')
+    if (!selector || selector === '.' || selector === '#' || selector === '') {
+        console.warn('[CTWPML] Seletor vazio ou apenas prefixo:', selector);
+        return jQuery();
+    }
+    
+    // Adiciona prefixo se fornecido
+    if (prefix) {
+        selector = prefix + selector;
+    }
+    
+    // Tenta criar o seletor com try/catch
+    try {
+        return jQuery(selector);
+    } catch (e) {
+        console.error('[CTWPML] Erro ao criar seletor:', selector, e);
+        return jQuery();
+    }
+}
+
+/**
+ * Versão específica para classes (adiciona '.' automaticamente)
+ */
+function safeClass(className) {
+    return safeSelector(className, '.');
+}
+
+/**
+ * Versão específica para IDs (adiciona '#' automaticamente)
+ */
+function safeId(idName) {
+    return safeSelector(idName, '#');
+}
+```
+
+
+SOLUÇÃO - PASSO 2: Identificar e substituir seletores perigosos
+─────────────────────────────────────────────────────────────────
+
+Buscar em TODOS os arquivos JavaScript por padrões como:
+
+PADRÃO PERIGOSO 1: $('.' + variavel)
+Substituir por: safeClass(variavel)
+
+PADRÃO PERIGOSO 2: $('#' + variavel)
+Substituir por: safeId(variavel)
+
+PADRÃO PERIGOSO 3: $(variavel) onde variavel pode ser string dinâmica
+Substituir por: safeSelector(variavel)
+
+
+EXEMPLO DE CORREÇÃO:
+
+ANTES (PERIGOSO):
+```javascript
+var className = getElementClass(); // Pode retornar string vazia
+var $element = $('.' + className); // ERRO se className === ''
+$element.hide();
+```
+
+DEPOIS (SEGURO):
+```javascript
+var className = getElementClass();
+var $element = safeClass(className); // Retorna jQuery() vazio se inválido
+if ($element.length) {
+    $element.hide();
+}
+```
+
+
+SOLUÇÃO - PASSO 3: Adicionar validações em configurações
+──────────────────────────────────────────────────────────
+
+Se houver leitura de configurações do WordPress/Elementor:
+
+```javascript
+// Exemplo: lendo classe de configuração
+var config = window.cc_params || {};
+var elementClass = config.element_class || '';
+
+// SEMPRE validar antes de usar
+if (elementClass && elementClass.trim()) {
+    var $element = safeClass(elementClass.trim());
+    // ... usar elemento ...
+} else {
+    console.warn('[CTWPML] Configuração element_class não definida ou vazia');
+}
+```
+
+
+ESTIMATIVA DE TEMPO: 2-3 horas (busca + substituição + testes)
+PRIORIDADE: 🔴 CRÍTICA
+
+
+================================================================================
+🔴 PROBLEMA #2: FALHA AO SALVAR DADOS (store_webhook_shipping)
+================================================================================
+
+DESCRIÇÃO DO PROBLEMA:
+  • Erro: store_webhook_shipping retornou success=false
+  • Contexto: Após consulta de CEP/endereço via webhook
+  • Impacto: CRÍTICO - Dados de frete não são salvos, perda de informação
+  • Log: [18:12:42] ERROR store_webhook_shipping retornou success=false
+
+TIMELINE DO ERRO:
+  [18:12:39] Usuário clicou em "Avançar" (CEP -> Endereço)
+  [18:12:39] Iniciou consulta via webhook
+  [18:12:41] Webhook retornou dados normalizados
+  [18:12:41] Tentou salvar via store_webhook_shipping
+  [18:12:42] ❌ ERRO: success=false
+
+
+ARQUIVO A MODIFICAR:
+  • inc/ajax-store-webhook-shipping.php
+
+
+SOLUÇÃO - PASSO 1: Adicionar logs detalhados
+─────────────────────────────────────────────
+
+No INÍCIO da função store_webhook_shipping:
+
+```php
+<?php
+// No início da ação AJAX
+error_log('[CTWPML] store_webhook_shipping - INICIANDO');
+error_log('[CTWPML] POST data: ' . print_r($_POST, true));
+error_log('[CTWPML] User ID: ' . get_current_user_id());
+error_log('[CTWPML] User logged in: ' . (is_user_logged_in() ? 'yes' : 'no'));
+```
+
+
+SOLUÇÃO - PASSO 2: Validar permissões e autenticação
+──────────────────────────────────────────────────────
+
+```php
+<?php
+// Verificar se usuário está logado
+if (!is_user_logged_in()) {
+    error_log('[CTWPML] store_webhook_shipping - ERRO: Usuário não logado');
+    wp_send_json_error([
+        'message' => 'Usuário não autenticado. Faça login para salvar dados.'
+    ]);
+    return;
+}
+
+$user_id = get_current_user_id();
+error_log('[CTWPML] store_webhook_shipping - User ID válido: ' . $user_id);
+
+// Verificar nonce (se estiver sendo usado)
+if (isset($_POST['_ajax_nonce'])) {
+    if (!check_ajax_referer('ctwpml_addresses', '_ajax_nonce', false)) {
+        error_log('[CTWPML] store_webhook_shipping - ERRO: Nonce inválido');
+        wp_send_json_error([
+            'message' => 'Nonce inválido. Recarregue a página e tente novamente.'
+        ]);
+        return;
+    }
+    error_log('[CTWPML] store_webhook_shipping - Nonce válido');
+}
+```
+
+
+SOLUÇÃO - PASSO 3: Validar dados recebidos
+────────────────────────────────────────────
+
+```php
+<?php
+// Validar campos obrigatórios (ajustar conforme necessário)
+$dados_raw = isset($_POST['raw_data']) ? $_POST['raw_data'] : '';
+$dados_normalized = isset($_POST['normalized_data']) ? $_POST['normalized_data'] : '';
+
+if (empty($dados_raw) && empty($dados_normalized)) {
+    error_log('[CTWPML] store_webhook_shipping - ERRO: Nenhum dado fornecido');
+    wp_send_json_error([
+        'message' => 'Nenhum dado fornecido para salvar.'
+    ]);
+    return;
+}
+
+error_log('[CTWPML] store_webhook_shipping - Dados recebidos OK');
+
+// Decodificar JSON se necessário
+if (is_string($dados_normalized)) {
+    $dados_normalized = json_decode(stripslashes($dados_normalized), true);
+    if (json_last_error() !== JSON_ERROR_NONE) {
+        error_log('[CTWPML] store_webhook_shipping - ERRO JSON: ' . json_last_error_msg());
+        wp_send_json_error([
+            'message' => 'Erro ao decodificar dados: ' . json_last_error_msg()
+        ]);
+        return;
+    }
+}
+```
+
+
+SOLUÇÃO - PASSO 4: Salvar com tratamento de erro
+──────────────────────────────────────────────────
+
+```php
+<?php
+// Tentar salvar dados
+$meta_key = '_ctwpml_webhook_shipping_data';
+$result = update_user_meta($user_id, $meta_key, $dados_normalized);
+
+if ($result === false) {
+    error_log('[CTWPML] store_webhook_shipping - ERRO: Falha ao salvar user_meta');
+    wp_send_json_error([
+        'message' => 'Erro ao salvar dados no banco de dados.'
+    ]);
+    return;
+}
+
+error_log('[CTWPML] store_webhook_shipping - SUCESSO: Dados salvos');
+error_log('[CTWPML] Dados salvos: ' . print_r($dados_normalized, true));
+
+wp_send_json_success([
+    'message' => 'Dados de frete salvos com sucesso.',
+    'data' => $dados_normalized
+]);
+```
+
+
+ESTIMATIVA DE TEMPO: 1-2 horas (investigação + correção + testes)
+PRIORIDADE: 🔴 CRÍTICA
+
+
+================================================================================
+🔴 PROBLEMA #3: SEM MENSAGEM DE SUCESSO AO SALVAR ENDEREÇO ⭐ NOVO
+================================================================================
+
+DESCRIÇÃO DO PROBLEMA:
+  • Quando usuário clica em "Salvar" na edição de endereço, nenhuma mensagem aparece
+  • Usuário não sabe se o endereço foi salvo com sucesso
+  • Sem feedback visual de confirmação
+  • UX ruim: falta de clareza sobre o resultado da ação
+
+
+ARQUIVO A MODIFICAR:
+  • assets/js/address-ml-modal.js
+
+
+SOLUÇÃO - PASSO 1: Criar função de notificação
+────────────────────────────────────────────────
+
+Adicionar APÓS a linha 16 em assets/js/address-ml-modal.js:
+
+```javascript
+/**
+ * Exibe notificação toast para o usuário
+ * @param {string} message - Mensagem a exibir
+ * @param {string} type - Tipo: 'success' ou 'error'
+ * @param {number} duration - Duração em ms (padrão: 3000)
+ */
+function showNotification(message, type, duration) {
+    type = type || 'success';
+    duration = duration || 3000;
+    
+    var bgColor = type === 'success' ? '#067647' : '#b42318';
+    var textColor = '#fff';
+    var icon = type === 'success' ? '✓' : '✕';
+    
+    var $notif = $('<div class="ctwpml-notification">')
+        .html('<span class="ctwpml-notification-icon">' + icon + '</span>' + 
+              '<span class="ctwpml-notification-text">' + String(message) + '</span>')
+        .css({
+            'position': 'fixed',
+            'top': '20px',
+            'left': '50%',
+            'transform': 'translateX(-50%)',
+            'background-color': bgColor,
+            'color': textColor,
+            'padding': '14px 24px',
+            'border-radius': '8px',
+            'font-weight': '700',
+            'font-size': '15px',
+            'z-index': '999999',
+            'box-shadow': '0 4px 16px rgba(0,0,0,0.2)',
+            'opacity': '0',
+            'transition': 'opacity 0.3s ease',
+            'display': 'flex',
+            'align-items': 'center',
+            'gap': '10px',
+            'max-width': '90%',
+            'text-align': 'center'
+        });
+    
+    $('body').append($notif);
+    
+    // Fade in
+    setTimeout(function() {
+        $notif.css('opacity', '1');
+    }, 100);
+    
+    // Fade out e remover
+    setTimeout(function() {
+        $notif.css('opacity', '0');
+        setTimeout(function() {
+            $notif.remove();
+        }, 300);
+    }, duration);
+    
+    // Log para debug
+    logAny('Notificação exibida: ' + message, { type: type });
+}
+```
+
+
+SOLUÇÃO - PASSO 2: Adicionar notificação ao salvar endereço
+─────────────────────────────────────────────────────────────
+
+Localizar a função saveAddressFromForm (linha ~683) e modificar o success callback:
+
+ANTES:
+```javascript
+success: function (resp) {
+    isSavingAddress = false;
+    $('#ctwpml-btn-primary').prop('disabled', false);
+    if (resp && resp.success && resp.data) {
+        if (Array.isArray(resp.data.items)) addressesCache = dedupeAddresses(resp.data.items);
+        if (resp.data.item && resp.data.item.id) selectedAddressId = resp.data.item.id;
+        done({ ok: true });
+    } else {
+        done({ ok: false, message: (resp && resp.data) || 'Erro ao salvar endereço.' });
+    }
+}
+```
+
+DEPOIS:
+```javascript
+success: function (resp) {
+    isSavingAddress = false;
+    $('#ctwpml-btn-primary').prop('disabled', false);
+    
+    if (resp && resp.success && resp.data) {
+        if (Array.isArray(resp.data.items)) {
+            addressesCache = dedupeAddresses(resp.data.items);
+        }
+        if (resp.data.item && resp.data.item.id) {
+            selectedAddressId = resp.data.item.id;
+        }
+        
+        // ⭐ NOVO: Mostrar notificação de sucesso
+        showNotification('Endereço salvo com sucesso!', 'success', 2500);
+        
+        done({ ok: true });
+    } else {
+        var errorMsg = (resp && resp.data && resp.data.message) || 
+                       (resp && resp.data) || 
+                       'Erro ao salvar endereço.';
+        
+        // ⭐ NOVO: Mostrar notificação de erro
+        showNotification(errorMsg, 'error', 4000);
+        
+        done({ ok: false, message: errorMsg });
+    }
+},
+error: function () {
+    isSavingAddress = false;
+    $('#ctwpml-btn-primary').prop('disabled', false);
+    
+    // ⭐ NOVO: Mostrar notificação de erro
+    showNotification('Erro ao salvar endereço. Tente novamente.', 'error', 4000);
+    
+    done({ ok: false, message: 'Erro ao salvar endereço.' });
+}
+```
+
+
+SOLUÇÃO - PASSO 3: Retornar para lista após salvar
+────────────────────────────────────────────────────
+
+Localizar o binding do botão primário (linha ~1184) e modificar:
+
+ANTES:
+```javascript
+saveContactMeta(function () {
+    saveAddressFromForm(function (res) {
+        if (!res || !res.ok) {
+            alert((res && res.message) || 'Erro ao salvar endereço.');
+            return;
+        }
+        showList();
+        renderAddressList();
+    });
+});
+```
+
+DEPOIS:
+```javascript
+saveContactMeta(function () {
+    saveAddressFromForm(function (res) {
+        if (!res || !res.ok) {
+            // Não precisa alert aqui, já tem notificação
+            return;
+        }
+        
+        // ⭐ NOVO: Aguardar 800ms para usuário ver a confirmação
+        setTimeout(function() {
+            showList();
+            renderAddressList();
+        }, 800);
+    });
+});
+```
+
+
+ESTIMATIVA DE TEMPO: 45 minutos
+PRIORIDADE: 🔴 CRÍTICA
+
+
+================================================================================
+🔴 PROBLEMA #4: WHATSAPP NÃO SALVA NO PERFIL ⭐ NOVO
+================================================================================
+
+DESCRIÇÃO DO PROBLEMA:
+  • Usuário edita o número do WhatsApp no modal de endereços
+  • Ao salvar, o WhatsApp não fica persistido no perfil do usuário
+  • Na próxima vez que abre o modal, o campo está vazio
+  • Dados não estão sendo enviados ou salvos corretamente
+
+
+ARQUIVOS A MODIFICAR:
+  • assets/js/address-ml-modal.js (verificar envio)
+  • inc/frontend/addresses-api.php (verificar salvamento)
+
+
+SOLUÇÃO - PASSO 1: Verificar envio do WhatsApp
+────────────────────────────────────────────────
+
+Na função saveContactMeta (linha ~276), verificar se está enviando corretamente:
+
+```javascript
+function saveContactMeta(callback) {
+    if (!state.params || !state.params.is_logged_in) {
+        if (callback) callback();
+        return;
+    }
+
+    // ⭐ IMPORTANTE: Remover máscara do WhatsApp antes de enviar
+    var whatsappRaw = $('#ctwpml-input-fone').val() || '';
+    var whatsappDigits = phoneDigits(whatsappRaw); // Remove formatação
+    var cpfRaw = $('#ctwpml-input-cpf').val() || '';
+    var cpfDigits = cpfDigitsOnly(cpfRaw); // Remove formatação
+
+    // ⭐ LOG para debug
+    logAny('Salvando dados de contato', { 
+        whatsapp: whatsappDigits, 
+        cpf: cpfDigits 
+    });
+
+    showModalSpinner();
+
+    $.ajax({
+        url: state.params.ajax_url,
+        type: 'POST',
+        data: {
+            action: 'ctwpml_save_contact_meta',
+            whatsapp: whatsappDigits, // ⭐ Envia só dígitos
+            cpf: cpfDigits             // ⭐ Envia só dígitos
+        },
+        success: function (response) {
+            if (response && response.success) {
+                logAny('Dados de contato salvos com sucesso', response.data);
+                
+                if (response.data && response.data.cpf_locked) {
+                    $('#ctwpml-input-cpf').prop('readonly', true);
+                    $('#ctwpml-generate-cpf-modal').hide();
+                }
+                
+                // ⭐ NOVO: Exibir notificação de sucesso
+                showNotification('Dados salvos com sucesso!', 'success', 2000);
+            } else {
+                // ⭐ NOVO: Exibir notificação de erro
+                var errorMsg = (response && response.data && response.data.message) || 
+                               'Erro ao salvar dados de contato';
+                showNotification(errorMsg, 'error', 3000);
+                logAny('Erro ao salvar dados de contato', response);
+            }
+            if (callback) callback(response);
+        },
+        error: function (xhr, status, error) {
+            logAny('Erro AJAX ao salvar dados de contato', { 
+                status: status, 
+                error: error,
+                responseText: xhr.responseText 
+            });
+            
+            // ⭐ NOVO: Exibir notificação de erro
+            showNotification('Erro ao salvar dados. Tente novamente.', 'error', 3000);
+            
+            if (callback) callback();
+        },
+        complete: function () {
+            hideModalSpinner();
+        }
+    });
+}
+```
+
+
+SOLUÇÃO - PASSO 2: Verificar salvamento no backend
+────────────────────────────────────────────────────
+
+Arquivo: inc/frontend/addresses-api.php (ou onde está a ação 'ctwpml_save_contact_meta')
+
+Adicionar/verificar esta ação AJAX:
+
+```php
+<?php
+/**
+ * AJAX: Salvar dados de contato (WhatsApp e CPF) no perfil do usuário
+ */
+add_action('wp_ajax_ctwpml_save_contact_meta', function() {
+    error_log('[CTWPML] save_contact_meta - INICIANDO');
+    
+    // Verificar autenticação
+    if (!is_user_logged_in()) {
+        error_log('[CTWPML] save_contact_meta - ERRO: Usuário não logado');
+        wp_send_json_error(['message' => 'Usuário não autenticado']);
+        return;
+    }
+    
+    $user_id = get_current_user_id();
+    error_log('[CTWPML] save_contact_meta - User ID: ' . $user_id);
+    
+    // Receber dados
+    $whatsapp = isset($_POST['whatsapp']) ? sanitize_text_field($_POST['whatsapp']) : '';
+    $cpf = isset($_POST['cpf']) ? sanitize_text_field($_POST['cpf']) : '';
+    
+    error_log('[CTWPML] save_contact_meta - WhatsApp recebido: ' . $whatsapp);
+    error_log('[CTWPML] save_contact_meta - CPF recebido: ' . $cpf);
+    
+    $updated = false;
+    
+    // Salvar WhatsApp
+    if (!empty($whatsapp)) {
+        // Remove tudo que não for dígito
+        $whatsapp_digits = preg_replace('/\D/', '', $whatsapp);
+        
+        if (strlen($whatsapp_digits) >= 10 && strlen($whatsapp_digits) <= 11) {
+            update_user_meta($user_id, '_ctwpml_whatsapp', $whatsapp_digits);
+            error_log('[CTWPML] save_contact_meta - WhatsApp salvo: ' . $whatsapp_digits);
+            $updated = true;
+        } else {
+            error_log('[CTWPML] save_contact_meta - WhatsApp inválido: ' . $whatsapp_digits);
+        }
+    }
+    
+    // Verificar se CPF já está travado
+    $cpf_locked = get_user_meta($user_id, '_ctwpml_cpf_locked', true);
+    
+    // Salvar CPF (se não estiver travado)
+    if (!empty($cpf) && !$cpf_locked) {
+        // Remove tudo que não for dígito
+        $cpf_digits = preg_replace('/\D/', '', $cpf);
+        
+        if (strlen($cpf_digits) === 11) {
+            update_user_meta($user_id, '_ctwpml_cpf', $cpf_digits);
+            
+            // Travar CPF permanentemente após primeiro salvamento
+            update_user_meta($user_id, '_ctwpml_cpf_locked', true);
+            $cpf_locked = true;
+            
+            error_log('[CTWPML] save_contact_meta - CPF salvo e travado: ' . $cpf_digits);
+            $updated = true;
+        } else {
+            error_log('[CTWPML] save_contact_meta - CPF inválido: ' . $cpf_digits);
+        }
+    }
+    
+    if ($updated) {
+        error_log('[CTWPML] save_contact_meta - SUCESSO');
+        wp_send_json_success([
+            'message' => 'Dados salvos com sucesso',
+            'cpf_locked' => $cpf_locked
+        ]);
+    } else {
+        error_log('[CTWPML] save_contact_meta - Nenhum dado válido para salvar');
+        wp_send_json_error([
+            'message' => 'Nenhum dado válido fornecido'
+        ]);
+    }
+});
+```
+
+
+SOLUÇÃO - PASSO 3: Verificar carregamento dos dados
+─────────────────────────────────────────────────────
+
+Na função loadContactMeta (linha ~238), verificar se está carregando corretamente:
+
+```javascript
+function loadContactMeta() {
+    if (!state.params || !state.params.is_logged_in) {
+        return;
+    }
+
+    // ⭐ LOG para debug
+    logAny('Carregando dados de contato do perfil...', {});
+
+    $.ajax({
+        url: state.params.ajax_url,
+        type: 'POST',
+        data: {
+            action: 'ctwpml_get_contact_meta',
+        },
+        success: function (response) {
+            if (response && response.success && response.data) {
+                var whatsapp = response.data.whatsapp || '';
+                var cpf = response.data.cpf || '';
+                var cpfLocked = response.data.cpf_locked || false;
+
+                // ⭐ LOG para debug
+                logAny('Dados de contato carregados', { 
+                    whatsapp: whatsapp, 
+                    cpf: cpf,
+                    cpfLocked: cpfLocked 
+                });
+
+                if (whatsapp) {
+                    $('#ctwpml-input-fone').val(formatPhone(whatsapp));
+                }
+
+                if (cpf) {
+                    $('#ctwpml-input-cpf').val(formatCpf(cpf));
+                    if (cpfLocked) {
+                        $('#ctwpml-input-cpf').prop('readonly', true);
+                        $('#ctwpml-generate-cpf-modal').hide();
+                    }
+                }
+            } else {
+                logAny('Nenhum dado de contato encontrado no perfil', {});
+            }
+        },
+        error: function (xhr, status, error) {
+            logAny('Erro ao carregar dados de contato', { 
+                status: status, 
+                error: error 
+            });
+        }
+    });
+}
+```
+
+
+SOLUÇÃO - PASSO 4: Adicionar ação de carregamento no backend
+──────────────────────────────────────────────────────────────
+
+```php
+<?php
+/**
+ * AJAX: Carregar dados de contato (WhatsApp e CPF) do perfil do usuário
+ */
+add_action('wp_ajax_ctwpml_get_contact_meta', function() {
+    error_log('[CTWPML] get_contact_meta - INICIANDO');
+    
+    if (!is_user_logged_in()) {
+        error_log('[CTWPML] get_contact_meta - ERRO: Usuário não logado');
+        wp_send_json_error(['message' => 'Usuário não autenticado']);
+        return;
+    }
+    
+    $user_id = get_current_user_id();
+    
+    $whatsapp = get_user_meta($user_id, '_ctwpml_whatsapp', true);
+    $cpf = get_user_meta($user_id, '_ctwpml_cpf', true);
+    $cpf_locked = get_user_meta($user_id, '_ctwpml_cpf_locked', true);
+    
+    error_log('[CTWPML] get_contact_meta - WhatsApp: ' . $whatsapp);
+    error_log('[CTWPML] get_contact_meta - CPF: ' . $cpf);
+    error_log('[CTWPML] get_contact_meta - CPF locked: ' . ($cpf_locked ? 'yes' : 'no'));
+    
+    wp_send_json_success([
+        'whatsapp' => $whatsapp,
+        'cpf' => $cpf,
+        'cpf_locked' => (bool) $cpf_locked
+    ]);
+});
+```
+
+
+ESTIMATIVA DE TEMPO: 1-1.5 horas
+PRIORIDADE: 🔴 CRÍTICA
+
+
+================================================================================
+🟡 PROBLEMA #5: RECAPTCHA NÃO INTEGRADO EM "CRIAR CONTA"
+================================================================================
+
+DESCRIÇÃO DO PROBLEMA:
+  • O formulário de "Criar conta" não tem reCAPTCHA
+  • Vulnerável a bots e cadastros automatizados
+  • Plugin de referência já tem implementação funcionando perfeitamente
+  • Basta copiar e adaptar do plugin de referência
+
+
+📁 ARQUIVO DE REFERÊNCIA (COPIAR IMPLEMENTAÇÃO DESTE):
+   C:\Users\Dell\Desktop\checkout-tab-estilo-ml-2026\dados de entrega\
+   popup login que tem recaptcha\plugin de popup de login que tem recatpcha.php
+
+
+ARQUIVOS A MODIFICAR:
+  • inc/frontend/login-popup.php (adicionar reCAPTCHA no HTML)
+  • assets/js/login-signup.js (validar reCAPTCHA antes do submit)
+
+
+SOLUÇÃO - PASSO 1: Carregar script do reCAPTCHA
+─────────────────────────────────────────────────
+
+No arquivo inc/frontend/login-popup.php, ANTES da linha 100 (antes do <script>):
+
+```php
+<?php
+// Carregar script do reCAPTCHA
+// IMPORTANTE: Só carregar se a sitekey estiver configurada
+$site_key = get_option('checkout_tabs_wp_ml_recaptcha_site_key', '');
+if (empty($site_key)) {
+    $login_recaptcha_opts = get_option('login_nocaptcha_options', []);
+    if (is_array($login_recaptcha_opts) && isset($login_recaptcha_opts['site_key'])) {
+        $site_key = $login_recaptcha_opts['site_key'];
+    }
+}
+?>
+```
+
+Depois, DENTRO do bloco <script> (linha ~100), ANTES do código existente:
+
+```javascript
+// Carregar script do reCAPTCHA se ainda não estiver presente
+if (!document.querySelector('script[src*="google.com/recaptcha"]')) {
+    var recaptchaScript = document.createElement('script');
+    recaptchaScript.src = 'https://www.google.com/recaptcha/api.js?onload=onloadCtwpmlCallback&render=explicit';
+    recaptchaScript.async = true;
+    recaptchaScript.defer = true;
+    document.head.appendChild(recaptchaScript);
+}
+```
+
+
+SOLUÇÃO - PASSO 2: Adicionar callbacks do reCAPTCHA
+─────────────────────────────────────────────────────
+
+No mesmo bloco <script>, adicionar ANTES do código jQuery:
+
+```javascript
+// Callbacks do reCAPTCHA (devem ser globais)
+window.onloadCtwpmlCallback = function() {
+    console.log('[CTWPML] reCAPTCHA API carregada');
+};
+
+window.ctwpmlSubmitEnable = function() {
+    console.log('[CTWPML] reCAPTCHA validado');
+    var btn = document.getElementById('ctwpml-signup-submit');
+    if (btn) {
+        btn.disabled = false;
+        btn.style.opacity = '1';
+    }
+};
+
+window.ctwpmlSubmitDisable = function() {
+    console.log('[CTWPML] reCAPTCHA expirado');
+    var btn = document.getElementById('ctwpml-signup-submit');
+    if (btn) {
+        btn.disabled = true;
+        btn.style.opacity = '0.6';
+    }
+};
+```
+
+
+SOLUÇÃO - PASSO 3: Renderizar reCAPTCHA quando popup abrir
+────────────────────────────────────────────────────────────
+
+No arquivo assets/js/address-ml-modal.js, modificar a função openLoginPopup (linha ~326):
+
+ANTES:
+```javascript
+$.fancybox.open({
+    src: '#login-popup',
+    type: 'inline',
+    touch: false,
+    clickOutside: false,
+    clickSlide: false,
+    closeClickOutside: false,
+    smallBtn: false,
+    toolbar: false,
+    buttons: [],
+});
+```
+
+DEPOIS:
+```javascript
+$.fancybox.open({
+    src: '#login-popup',
+    type: 'inline',
+    touch: false,
+    clickOutside: false,
+    clickSlide: false,
+    closeClickOutside: false,
+    smallBtn: false,
+    toolbar: false,
+    buttons: [],
+    afterShow: function() {
+        // ⭐ Renderizar reCAPTCHA no formulário de criar conta
+        var $container = $('#ctwpml-recaptcha-container');
+        if (typeof grecaptcha !== 'undefined' && $container.length && !$container.hasClass('recaptcha-rendered')) {
+            try {
+                grecaptcha.render('ctwpml-recaptcha-container', {
+                    'sitekey': '<?php echo esc_attr($site_key); ?>',
+                    'callback': window.ctwpmlSubmitEnable,
+                    'expired-callback': window.ctwpmlSubmitDisable
+                });
+                $container.addClass('recaptcha-rendered');
+                console.log('[CTWPML] reCAPTCHA renderizado com sucesso');
+            } catch(e) {
+                console.error('[CTWPML] Erro ao renderizar reCAPTCHA:', e);
+            }
+        }
+    }
+});
+```
+
+
+SOLUÇÃO - PASSO 4: Validar reCAPTCHA no submit
+────────────────────────────────────────────────
+
+No arquivo assets/js/login-signup.js, a validação JÁ EXISTE (linhas 44-49):
+
+```javascript
+// Validar reCAPTCHA v2
+var recaptchaResponse = $('#ctwpml-recaptcha-container').find('.g-recaptcha-response').val();
+if (!recaptchaResponse) {
+    setMsg($msg, 'Por favor, complete o reCAPTCHA.', true);
+    return;
+}
+```
+
+✅ Esta parte já está implementada corretamente!
+
+
+SOLUÇÃO - PASSO 5: Validar reCAPTCHA no backend
+─────────────────────────────────────────────────
+
+No arquivo inc/ajax-signup.php (ou onde está a ação 'ctwpml_signup'):
+
+```php
+<?php
+// Validar reCAPTCHA no servidor
+$recaptcha_response = isset($_POST['recaptcha_response']) ? $_POST['recaptcha_response'] : '';
+
+if (empty($recaptcha_response)) {
+    error_log('[CTWPML] Signup - reCAPTCHA não fornecido');
+    wp_send_json_error(['message' => 'Por favor, complete o reCAPTCHA.']);
+    return;
+}
+
+// Verificar reCAPTCHA com Google API
+$secret_key = get_option('checkout_tabs_wp_ml_recaptcha_secret_key', '');
+if (empty($secret_key)) {
+    $login_recaptcha_opts = get_option('login_nocaptcha_options', []);
+    if (is_array($login_recaptcha_opts) && isset($login_recaptcha_opts['secret_key'])) {
+        $secret_key = $login_recaptcha_opts['secret_key'];
+    }
+}
+
+if (!empty($secret_key)) {
+    $verify_url = 'https://www.google.com/recaptcha/api/siteverify';
+    $response = wp_remote_post($verify_url, [
+        'body' => [
+            'secret' => $secret_key,
+            'response' => $recaptcha_response,
+            'remoteip' => $_SERVER['REMOTE_ADDR']
+        ]
+    ]);
+    
+    if (is_wp_error($response)) {
+        error_log('[CTWPML] Signup - Erro ao verificar reCAPTCHA: ' . $response->get_error_message());
+        wp_send_json_error(['message' => 'Erro ao verificar reCAPTCHA. Tente novamente.']);
+        return;
+    }
+    
+    $response_body = json_decode(wp_remote_retrieve_body($response), true);
+    
+    if (!isset($response_body['success']) || $response_body['success'] !== true) {
+        error_log('[CTWPML] Signup - reCAPTCHA inválido');
+        wp_send_json_error(['message' => 'reCAPTCHA inválido. Por favor, tente novamente.']);
+        return;
+    }
+    
+    error_log('[CTWPML] Signup - reCAPTCHA validado com sucesso');
+}
+```
+
+
+OBSERVAÇÃO IMPORTANTE:
+  ⚠️  O reCAPTCHA JÁ ESTÁ no formulário de "Criar conta" (linhas 87-90 do login-popup.php)
+  ⚠️  O que falta é APENAS renderizar ele corretamente quando o popup abre
+  ⚠️  Seguir o PASSO 3 acima é o mais importante!
+
+
+ESTIMATIVA DE TEMPO: 1.5-2 horas
+PRIORIDADE: 🟡 ALTA (Segurança)
+
+
+================================================================================
+🟡 PROBLEMA #6: LINK "ESQUECI MINHA SENHA" AUSENTE
+================================================================================
+
+DESCRIÇÃO DO PROBLEMA:
+  • Falta o link "Perdeu a senha?" no formulário de login
+  • Usuários não conseguem recuperar senha facilmente
+  • Plugin de referência tem este link implementado
+
+
+ARQUIVO A MODIFICAR:
+  • inc/frontend/login-popup.php
+
+
+SOLUÇÃO: Adicionar link após o botão de login
+───────────────────────────────────────────────
+
+Localizar a linha ~60 (após </form> do login) e adicionar:
+
+```php
+        </form>
+        
+        <!-- ⭐ NOVO: Link "Perdeu a senha?" -->
+        <div class="ctwpml-auth-footer" style="text-align: center; margin-top: 16px; margin-bottom: 8px;">
+            <a href="<?php echo esc_url(wp_lostpassword_url(get_permalink())); ?>" 
+               class="ctwpml-auth-link"
+               style="color: var(--ctwpml-ui-primary, #0075FF); text-decoration: none; font-weight: 700;">
+                Perdeu a senha?
+            </a>
+        </div>
+    </div>
+```
+
+O CSS já está definido em login-popup.css (linha ~138):
+
+```css
+.ctwpml-auth-link {
+  color: var(--ctwpml-ui-primary);
+  text-decoration: none;
+  font-weight: 800;
+}
+
+.ctwpml-auth-link:hover {
+  text-decoration: underline;
+}
+```
+
+
+ESTIMATIVA DE TEMPO: 10 minutos
+PRIORIDADE: 🟡 ALTA
+
+
+================================================================================
+🟠 PROBLEMA #7: BOTÃO DE LOGIN NÃO OCUPA 100% E COR INCORRETA
+================================================================================
+
+DESCRIÇÃO DO PROBLEMA:
+  • Botão não está ocupando 100% da largura
+  • Cor do botão pode estar incorreta
+  • Estilos do Elementor estão interferindo
+
+
+ARQUIVO A MODIFICAR:
+  • assets/css/login-popup.css
+
+
+SOLUÇÃO: Forçar estilos do botão com !important
+─────────────────────────────────────────────────
+
+Modificar a regra .ctwpml-auth-submit (linha ~151):
+
+```css
+.ctwpml-auth-submit {
+  background-color: var(--ctwpml-ui-primary) !important;
+  color: #fff !important;
+  border: 0 !important;
+  cursor: pointer !important;
+  display: block !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  margin-top: 10px !important;
+  padding: 12px !important;
+  border-radius: 6px !important;
+  font-weight: 800 !important;
+  font-size: 15px !important;
+  box-sizing: border-box !important;
+  transition: opacity 0.2s ease !important;
+}
+
+.ctwpml-auth-submit:hover:not([disabled]) {
+  opacity: 0.9 !important;
+}
+
+.ctwpml-auth-submit[disabled] {
+  opacity: 0.6 !important;
+  cursor: not-allowed !important;
+}
+```
+
+Adicionar regra de alta especificidade para sobrescrever Elementor:
+
+```css
+/* Força estilos mesmo com Elementor ativo */
+.fancybox-content .ctwpml-login-popup .ctwpml-auth-submit,
+body .fancybox-content .ctwpml-login-popup .ctwpml-auth-submit,
+.ctwpml-login-popup .ctwpml-auth-form .ctwpml-auth-submit {
+  background-color: #0075FF !important;
+  width: 100% !important;
+  display: block !important;
+}
+```
+
+
+ESTIMATIVA DE TEMPO: 20 minutos
+PRIORIDADE: 🟠 MÉDIA
+
+
+================================================================================
+🟠 PROBLEMA #8: FUNDO AZUL NAS ABAS (INFLUÊNCIA DO ELEMENTOR)
+================================================================================
+
+DESCRIÇÃO DO PROBLEMA:
+  • Quando usuário clica em "Criar uma conta", a aba fica com fundo azul
+  • Este fundo vem das configurações do Elementor
+  • O fundo deveria ser transparente durante a transição
+
+
+ARQUIVO A MODIFICAR:
+  • assets/css/login-popup.css
+
+
+SOLUÇÃO: Forçar background transparente
+─────────────────────────────────────────
+
+Modificar as regras das abas (linhas ~47-75):
+
+```css
+.ctwpml-auth-tab {
+  flex: 1;
+  padding: 12px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent !important;
+  font-weight: 800;
+  font-size: 14px;
+  cursor: pointer;
+  color: var(--ctwpml-ui-primary);
+  transition: all 0.2s ease;
+}
+
+.ctwpml-auth-tab .ctwpml-popup-h3 {
+  margin: 0;
+  font-weight: inherit;
+}
+
+/* Aba de Login não-ativa: sem fundo */
+.ctwpml-auth-tab[data-tab='login']:not(.is-active) {
+  background: transparent !important;
+  color: var(--ctwpml-ui-text);
+}
+
+/* Aba de Login ativa: fundo cinza claro */
+.ctwpml-auth-tab.is-active[data-tab='login'] {
+  background: #f5f5f5 !important;
+  color: var(--ctwpml-ui-text) !important;
+}
+
+/* Aba de Signup não-ativa: sem fundo */
+.ctwpml-auth-tab[data-tab='signup']:not(.is-active) {
+  background: transparent !important;
+}
+
+/* Aba de Signup ativa: fundo azul */
+.ctwpml-auth-tab.is-active[data-tab='signup'] {
+  background: var(--ctwpml-ui-primary) !important;
+  color: #fff !important;
+}
+```
+
+Adicionar regra para anular estilos do Elementor:
+
+```css
+/* Anula completamente estilos do Elementor nas abas */
+.ctwpml-login-popup .ctwpml-auth-tab:not(.is-active),
+body .ctwpml-login-popup .ctwpml-auth-tab:not(.is-active),
+.fancybox-content .ctwpml-login-popup .ctwpml-auth-tab:not(.is-active) {
+  background: transparent !important;
+  background-color: transparent !important;
+}
+```
+
+
+ESTIMATIVA DE TEMPO: 30 minutos
+PRIORIDADE: 🟠 MÉDIA
+
+
+================================================================================
+⚠️  PROBLEMA #9: ENDEREÇOS DEMORAM PARA APARECER (SEM FEEDBACK)
+================================================================================
+
+DESCRIÇÃO DO PROBLEMA:
+  • Após login, endereços demoram para aparecer
+  • Usuário não tem feedback visual durante o carregamento
+  • Spinner já existe no código, só precisa ser usado
+
+
+ARQUIVO A MODIFICAR:
+  • assets/js/address-ml-modal.js
+
+
+SOLUÇÃO: Mostrar spinner durante carregamento
+───────────────────────────────────────────────
+
+Modificar a função openModal (linha ~315):
+
+ANTES:
+```javascript
+function openModal() {
+    if (!isLoggedIn()) return;
+    ensureModal();
+    refreshFromCheckoutFields();
+    loadAddresses(function () {
+        showList();
+        renderAddressList();
+    });
+    $('#ctwpml-address-modal-overlay').css('display', 'flex');
+}
+```
+
+DEPOIS:
+```javascript
+function openModal() {
+    if (!isLoggedIn()) return;
+    ensureModal();
+    refreshFromCheckoutFields();
+    
+    // ⭐ Mostrar modal imediatamente
+    $('#ctwpml-address-modal-overlay').css('display', 'flex');
+    
+    // ⭐ Mostrar spinner enquanto carrega endereços
+    showModalSpinner();
+    logAny('Carregando endereços do usuário...', {});
+    
+    loadAddresses(function () {
+        // ⭐ Esconder spinner após carregar
+        hideModalSpinner();
+        logAny('Endereços carregados com sucesso', { 
+            total: addressesCache.length 
+        });
+        
+        showList();
+        renderAddressList();
+    });
+}
+```
+
+
+ESTIMATIVA DE TEMPO: 15 minutos
+PRIORIDADE: ⚠️  MÉDIA
+
+
+================================================================================
+⚠️  PROBLEMA #10 e #11: PERFORMANCE (LENTIDÃO E MÚLTIPLOS update_checkout)
+================================================================================
+
+DESCRIÇÃO DO PROBLEMA:
+  • Processamento lento (3-5 segundos, esperado: < 2s)
+  • Múltiplas chamadas simultâneas de update_checkout
+  • Causa race conditions e lentidão
+
+
+ARQUIVO A MODIFICAR:
+  • assets/js/woocommerce-events.js
+
+
+SOLUÇÃO: Implementar debounce e prevenir chamadas redundantes
+───────────────────────────────────────────────────────────────
+
+Adicionar no INÍCIO do arquivo:
+
+```javascript
+/**
+ * Controle de update_checkout para evitar chamadas redundantes
+ */
+var updateCheckoutTimer = null;
+var updateCheckoutInProgress = false;
+var lastUpdateCheckoutTime = 0;
+var UPDATE_CHECKOUT_DEBOUNCE = 300; // 300ms
+var UPDATE_CHECKOUT_MIN_INTERVAL = 500; // Mínimo 500ms entre chamadas
+
+/**
+ * Triggera update_checkout de forma segura (com debounce)
+ */
+function triggerUpdateCheckoutSafe(source) {
+    source = source || 'unknown';
+    
+    // Se já está em progresso, aguarda
+    if (updateCheckoutInProgress) {
+        console.log('[CTWPML] update_checkout já em progresso, ignorando (' + source + ')');
+        return;
+    }
+    
+    // Verifica intervalo mínimo desde última chamada
+    var now = Date.now();
+    var timeSinceLastUpdate = now - lastUpdateCheckoutTime;
+    
+    if (timeSinceLastUpdate < UPDATE_CHECKOUT_MIN_INTERVAL) {
+        console.log('[CTWPML] update_checkout muito recente, aguardando... (' + source + ')');
+        
+        // Agenda para depois
+        if (updateCheckoutTimer) clearTimeout(updateCheckoutTimer);
+        updateCheckoutTimer = setTimeout(function() {
+            triggerUpdateCheckoutSafe(source);
+        }, UPDATE_CHECKOUT_MIN_INTERVAL - timeSinceLastUpdate);
+        return;
+    }
+    
+    // Debounce
+    if (updateCheckoutTimer) {
+        clearTimeout(updateCheckoutTimer);
+    }
+    
+    updateCheckoutTimer = setTimeout(function() {
+        console.log('[CTWPML] Disparando update_checkout (' + source + ')');
+        lastUpdateCheckoutTime = Date.now();
+        updateCheckoutInProgress = true;
+        jQuery(document.body).trigger('update_checkout');
+    }, UPDATE_CHECKOUT_DEBOUNCE);
+}
+
+// Monitorar estado do update_checkout
+jQuery(document).ready(function($) {
+    $(document.body).on('update_checkout', function() {
+        updateCheckoutInProgress = true;
+    });
+    
+    $(document.body).on('updated_checkout', function() {
+        updateCheckoutInProgress = false;
+        console.log('[CTWPML] update_checkout concluído');
+    });
+});
+```
+
+Substituir todas as chamadas diretas de `trigger('update_checkout')` por `triggerUpdateCheckoutSafe('fonte')`:
+
+ANTES:
+```javascript
+$(document.body).trigger('update_checkout');
+```
+
+DEPOIS:
+```javascript
+triggerUpdateCheckoutSafe('nome_da_fonte');
+```
+
+
+ESTIMATIVA DE TEMPO: 1 hora
+PRIORIDADE: ⚠️  MÉDIA
+
+
+================================================================================
+📊 RESUMO DE ESTIMATIVAS
+================================================================================
+
+🔴 PROBLEMAS CRÍTICOS:
+   #1 - Erro seletor CSS          → 2-3 horas
+   #2 - store_webhook_shipping    → 1-2 horas
+   #3 - Mensagem de sucesso       → 45 minutos
+   #4 - WhatsApp não salva        → 1-1.5 horas
+   
+   SUBTOTAL CRÍTICO: 5-7.5 horas
+
+🟡 PROBLEMAS ALTA PRIORIDADE:
+   #5 - reCAPTCHA criar conta     → 1.5-2 horas
+   #6 - Link esqueci senha        → 10 minutos
+   
+   SUBTOTAL ALTA: 1.5-2 horas
+
+🟠 PROBLEMAS MÉDIA PRIORIDADE:
+   #7 - Layout botão              → 20 minutos
+   #8 - Fundo azul abas           → 30 minutos
+   #9 - Spinner endereços         → 15 minutos
+   #10/#11 - Performance          → 1 hora
+   
+   SUBTOTAL MÉDIA: 2 horas
+
+───────────────────────────────────────────
+TOTAL DESENVOLVIMENTO: 8.5-11.5 horas
+TESTES E VALIDAÇÃO: 3-4 horas
+───────────────────────────────────────────
+TOTAL GERAL: 11.5-15.5 horas
+
+
+================================================================================
+✅ CHECKLIST DE VALIDAÇÃO PÓS-IMPLEMENTAÇÃO
+================================================================================
+
+🔴 PROBLEMAS CRÍTICOS:
+   [ ] #1 - Console sem erro "SyntaxError: '.' is not a valid selector"
+   [ ] #1 - Função safeSelector implementada e funcionando
+   [ ] #2 - store_webhook_shipping retorna success=true
+   [ ] #2 - Dados de frete salvos corretamente no perfil
+   [ ] #3 - Notificação verde aparece ao salvar endereço com sucesso
+   [ ] #3 - Notificação vermelha aparece em caso de erro
+   [ ] #3 - Retorna para lista de endereços após salvar
+   [ ] #4 - WhatsApp salvo corretamente no perfil
+   [ ] #4 - WhatsApp carregado corretamente ao abrir modal
+   [ ] #4 - WhatsApp persistido entre sessões
+
+🟡 PROBLEMAS ALTA PRIORIDADE:
+   [ ] #5 - reCAPTCHA aparece no formulário "Criar conta"
+   [ ] #5 - reCAPTCHA validado antes do submit
+   [ ] #5 - Botão desabilitado até completar reCAPTCHA
+   [ ] #5 - Validação server-side do reCAPTCHA funcionando
+   [ ] #6 - Link "Perdeu a senha?" aparece no login
+   [ ] #6 - Link leva para página correta de recuperação
+
+🟠 PROBLEMAS MÉDIA PRIORIDADE:
+   [ ] #7 - Botão ocupa 100% da largura
+   [ ] #7 - Cor do botão correta (#0075FF)
+   [ ] #8 - Abas não-ativas sem fundo azul
+   [ ] #8 - Transição entre abas suave
+   [ ] #9 - Spinner aparece ao carregar endereços
+   [ ] #9 - Spinner desaparece após carregar
+   [ ] #10 - Tempo de carregamento < 2 segundos
+   [ ] #11 - Sem múltiplos update_checkout simultâneos
+
+TESTES GERAIS:
+   [ ] Fluxo completo de login funciona
+   [ ] Fluxo completo de cadastro funciona
+   [ ] Adicionar endereço funciona
+   [ ] Editar endereço funciona
+   [ ] Excluir endereço funciona
+   [ ] WhatsApp e CPF salvos e carregados corretamente
+   [ ] Testado em Chrome
+   [ ] Testado em Firefox
+   [ ] Testado em Safari
+   [ ] Testado em mobile (iOS)
+   [ ] Testado em mobile (Android)
+   [ ] Console sem erros JavaScript
+   [ ] Logs do servidor sem erros críticos
+
+
+================================================================================
+📁 ARQUIVOS QUE SERÃO MODIFICADOS
+================================================================================
+
+JAVASCRIPT (6 arquivos):
+   1. assets/js/checkout-tabs.js (ou tabs.js) - Adicionar safeSelector
+   2. assets/js/ui.js - Substituir seletores perigosos
+   3. assets/js/address-ml-modal.js - Notificações, spinner, WhatsApp
+   4. assets/js/login-signup.js - Validação reCAPTCHA (já existe)
+   5. assets/js/woocommerce-events.js - Debounce update_checkout
+   6. assets/js/webhook.js - Possíveis seletores perigosos
+
+PHP (3 arquivos):
+   1. inc/ajax-store-webhook-shipping.php - Logs e validações
+   2. inc/frontend/login-popup.php - reCAPTCHA e link senha
+   3. inc/frontend/addresses-api.php - Salvar/carregar WhatsApp
+
+CSS (1 arquivo):
+   1. assets/css/login-popup.css - Botão e abas
+
+
+================================================================================
+🎯 ESTRATÉGIA DE IMPLEMENTAÇÃO RECOMENDADA
+================================================================================
+
+FASE 1 - CORREÇÕES CRÍTICAS (DIA 1-2):
+   1. Implementar safeSelector e corrigir erros de seletor (#1)
+   2. Corrigir store_webhook_shipping (#2)
+   3. Testar e validar que não há mais erros críticos
+   
+FASE 2 - FEEDBACK VISUAL (DIA 2-3):
+   4. Adicionar notificações de sucesso/erro (#3)
+   5. Corrigir salvamento do WhatsApp (#4)
+   6. Adicionar spinner no carregamento de endereços (#9)
+   7. Testar fluxo completo de edição de endereços
+   
+FASE 3 - SEGURANÇA E UX (DIA 3-4):
+   8. Integrar reCAPTCHA em "Criar conta" (#5)
+   9. Adicionar link "Esqueci minha senha" (#6)
+   10. Testar fluxo completo de cadastro e login
+   
+FASE 4 - LAYOUT E PERFORMANCE (DIA 4-5):
+   11. Corrigir layout do botão (#7)
+   12. Remover fundo azul das abas (#8)
+   13. Implementar debounce do update_checkout (#10, #11)
+   14. Testes finais de performance e layout
+
+
+================================================================================
+🔗 REFERÊNCIAS E CONTEXTO
+================================================================================
+
+📁 PLUGIN DE REFERÊNCIA (para reCAPTCHA):
+   C:\Users\Dell\Desktop\checkout-tab-estilo-ml-2026\dados de entrega\
+   popup login que tem recaptcha\plugin de popup de login que tem recatpcha.php
+   
+   ⚠️  IMPORTANTE: Este plugin JÁ TEM o reCAPTCHA funcionando perfeitamente.
+                   Copiar a implementação de lá (linhas 22-52).
+
+📊 LOGS DE DEBUG ANALISADOS:
+   • 27+ ocorrências do erro de seletor CSS
+   • 1 falha crítica em store_webhook_shipping
+   • Tempo médio de processamento: 3-5 segundos
+   • Múltiplas chamadas simultâneas de update_checkout detectadas
+
+📝 DOCUMENTOS DE REFERÊNCIA:
+   • RELATORIO_TESTE_ULTIMA_VERSAO.txt (análise detalhada)
+   • PLANO_DE_ACAO_CORRECOES.txt (implementação passo a passo)
+   • RESUMO_EXECUTIVO_TESTES.txt (visão geral)
+   • VISAO_GERAL_PROBLEMAS.txt (mapa visual)
+
+
+================================================================================
+💡 NOTAS IMPORTANTES PARA O DESENVOLVEDOR
+================================================================================
+
+1. SEMPRE testar em ambiente de desenvolvimento primeiro
+2. SEMPRE fazer backup antes de modificar arquivos
+3. SEMPRE adicionar logs detalhados para facilitar debug futuro
+4. SEMPRE validar entrada de usuário antes de processar
+5. NÃO remover logs existentes, apenas adicionar novos
+6. NÃO usar alert(), usar notificações toast (função showNotification)
+7. NÃO fazer múltiplas modificações sem testar entre elas
+8. SEMPRE verificar console do navegador após cada modificação
+9. SEMPRE testar em mobile após modificações de layout
+10. SEMPRE verificar logs do servidor após modificações PHP
+
+
+================================================================================
+🆘 SUPORTE E DÚVIDAS
+================================================================================
+
+Se houver dúvidas durante a implementação:
+
+1. Consultar o PLUGIN DE REFERÊNCIA (reCAPTCHA)
+2. Consultar logs do navegador (Console)
+3. Consultar logs do servidor (error_log)
+4. Verificar documentos de referência listados acima
+5. Testar em ambiente isolado antes de aplicar em produção
+
+
+================================================================================
+✅ CONCLUSÃO
+================================================================================
+
+Este documento consolida TODOS os problemas identificados nos testes e fornece
+soluções detalhadas e prontas para implementação.
+
+Seguindo as instruções passo a passo, todos os problemas serão corrigidos em
+aproximadamente 11.5-15.5 horas de trabalho (desenvolvimento + testes).
+
+Priorize sempre os problemas CRÍTICOS (🔴) primeiro, depois os de ALTA
+prioridade (🟡), e por fim os de MÉDIA prioridade (🟠).
+
+Após implementar cada correção, marque o item correspondente no checklist de
+validação e teste antes de prosseguir para o próximo problema.
+
+BOA SORTE NA IMPLEMENTAÇÃO! 🚀
+
+
+================================================================================
+FIM DO DOCUMENTO
+================================================================================
+
