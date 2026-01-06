@@ -210,4 +210,11 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
 #### Protocol: d674c75
 
+## [v3.2.9] - 2026-01-06
+
+### Changed
+- Integração de geolocalização ao plugin (proxy REST `/wp-json/geolocation/v1/send` com webhook configurável no admin; modal de permissão antes do prompt nativo no 1º acesso; cache por sessão para evitar chamadas repetidas), mantendo o contrato `window.freteData` + `localStorage('freteData')` + evento `freteDataReady`.
+
+#### Protocol: 572d707
+
 ## [Unreleased]

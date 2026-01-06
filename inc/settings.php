@@ -23,6 +23,18 @@ function checkout_tabs_wp_ml_get_webhook_url(): string {
 	return (string) $url;
 }
 
+function checkout_tabs_wp_ml_get_geolocation_webhook_url(): string {
+	$default = 'https://webhook.cubensisstore.com.br/webhook/geolocalizacao/';
+	$url = (string) checkout_tabs_wp_ml_get_option('geolocation_webhook_url', $default);
+	$url = $url !== '' ? $url : $default;
+
+	/**
+	 * Permite sobrescrever por ambiente (dev/test/prod) sem alterar wp_options.
+	 */
+	$url = apply_filters('checkout_tabs_wp_ml_geolocation_webhook_url', $url);
+	return (string) $url;
+}
+
 function checkout_tabs_wp_ml_is_debug_enabled(): bool {
 	$enabled = (int) checkout_tabs_wp_ml_get_option('debug', 0) === 1;
 
@@ -47,6 +59,12 @@ add_action('admin_init', function () {
 		'type'              => 'string',
 		'sanitize_callback' => 'esc_url_raw',
 		'default'           => 'https://webhook.cubensisstore.com.br/webhook/consulta-frete',
+	]);
+
+	register_setting(CHECKOUT_TABS_WP_ML_SETTINGS_GROUP, 'checkout_tabs_wp_ml_geolocation_webhook_url', [
+		'type'              => 'string',
+		'sanitize_callback' => 'esc_url_raw',
+		'default'           => 'https://webhook.cubensisstore.com.br/webhook/geolocalizacao/',
 	]);
 
 	register_setting(CHECKOUT_TABS_WP_ML_SETTINGS_GROUP, 'checkout_tabs_wp_ml_debug', [

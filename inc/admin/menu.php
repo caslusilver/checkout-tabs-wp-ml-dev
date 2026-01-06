@@ -76,6 +76,7 @@ function checkout_tabs_wp_ml_render_admin_page(): void {
 	}
 
 	$webhook_value = esc_url((string) get_option('checkout_tabs_wp_ml_webhook_url', checkout_tabs_wp_ml_get_webhook_url()));
+	$geo_webhook_value = esc_url((string) get_option('checkout_tabs_wp_ml_geolocation_webhook_url', function_exists('checkout_tabs_wp_ml_get_geolocation_webhook_url') ? checkout_tabs_wp_ml_get_geolocation_webhook_url() : ''));
 	$debug_enabled = ((int) get_option('checkout_tabs_wp_ml_debug', 0) === 1);
 	$allow_fake_cpf = ((int) get_option('checkout_tabs_wp_ml_allow_fake_cpf', 0) === 1);
 	$ui_primary = sanitize_hex_color((string) get_option('checkout_tabs_wp_ml_ui_primary', '#0075ff')) ?: '#0075ff';
@@ -121,6 +122,15 @@ function checkout_tabs_wp_ml_render_admin_page(): void {
 			$webhook_value .
 			'" placeholder="https://..." />';
 		echo '<p class="description">Endpoint externo para consulta de CEP/frete.</p>';
+		echo '</td>';
+		echo '</tr>';
+		echo '<tr>';
+		echo '<th scope="row"><label for="checkout_tabs_wp_ml_geolocation_webhook_url">URL do Webhook (Geolocalização)</label></th>';
+		echo '<td>';
+		echo '<input type="url" class="regular-text" id="checkout_tabs_wp_ml_geolocation_webhook_url" name="checkout_tabs_wp_ml_geolocation_webhook_url" value="' .
+			$geo_webhook_value .
+			'" placeholder="https://..." />';
+		echo '<p class="description">Endpoint externo para geolocalização (latitude/longitude → endereço/CEP/cidade). Usado pelo proxy REST <code>/wp-json/geolocation/v1/send</code>.</p>';
 		echo '</td>';
 		echo '</tr>';
 		echo '<tr>';
