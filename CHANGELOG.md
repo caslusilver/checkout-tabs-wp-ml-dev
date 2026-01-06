@@ -217,4 +217,12 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
 #### Protocol: 572d707
 
+## [v3.2.10] - 2026-01-06
+
+### Changed
+- Correção definitiva do reCAPTCHA na aba "Criar uma conta" (renderização robusta com retry e logging detalhado).
+- Substituição do caractere de seta ← por imagem PNG customizada (`assets/img/arrow-back.png`).
+
+#### Protocol: 11e46a6
+
 ## [Unreleased]

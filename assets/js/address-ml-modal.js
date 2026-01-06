@@ -152,7 +152,7 @@
           '<div id="ctwpml-address-modal-overlay" class="ctwpml-modal-overlay">' +
           '  <div class="ctwpml-modal" role="dialog" aria-modal="true" aria-label="Meus endereços">' +
           '    <div class="ctwpml-modal-header">' +
-          '      <button type="button" class="ctwpml-modal-back" id="ctwpml-modal-back">←</button>' +
+          '      <button type="button" class="ctwpml-modal-back" id="ctwpml-modal-back"><img src="' + (window.cc_params && window.cc_params.plugin_url ? window.cc_params.plugin_url : '') + 'assets/img/arrow-back.png" alt="Voltar" /></button>' +
           '      <div class="ctwpml-modal-title" id="ctwpml-modal-title">Meus endereços</div>' +
           '    </div>' +
           '    <div class="ctwpml-modal-body">' +

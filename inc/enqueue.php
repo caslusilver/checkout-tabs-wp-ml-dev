@@ -193,6 +193,7 @@ add_action('wp_enqueue_scripts', function () {
 		'login_nonce' => wp_create_nonce('ctwpml_login'),
 		'user_email' => is_user_logged_in() ? (string) wp_get_current_user()->user_email : '',
 		'webhook_url'=> checkout_tabs_wp_ml_get_webhook_url(),
+		'plugin_url' => CHECKOUT_TABS_WP_ML_URL,
 	]);
 
 	// Enfileirar Google reCAPTCHA v2 (v3.2.6: usando chave fixa do exemplo para máxima compatibilidade)

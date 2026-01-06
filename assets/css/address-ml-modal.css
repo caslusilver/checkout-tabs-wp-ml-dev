@@ -79,10 +79,17 @@
 .ctwpml-modal-back {
   background: transparent;
   border: 0;
-  font-size: 22px;
-  color: var(--ctwpml-header-text);
   cursor: pointer;
-  font-weight: 700;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ctwpml-modal-back img {
+  width: 24px;
+  height: 24px;
+  filter: brightness(0) invert(1); /* Torna a seta branca para combinar com o header */
 }
 
 .ctwpml-modal-title {

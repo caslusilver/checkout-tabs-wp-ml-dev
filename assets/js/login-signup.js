@@ -36,35 +36,61 @@
       $('#login-popup .ctwpml-auth-panel').hide();
       $('#login-popup .ctwpml-auth-panel[data-tab="' + tab + '"]').show();
       
-      // v3.2.7: Renderizar reCAPTCHA quando a aba de signup for mostrada
-      // (o grecaptcha.render não funciona bem em elementos com display:none)
+      // v3.2.10: Renderizar reCAPTCHA quando a aba de signup for mostrada
       if (tab === 'signup') {
-        renderSignupRecaptchaIfNeeded();
+        // Aguardar o DOM atualizar antes de renderizar
+        setTimeout(function() {
+          renderSignupRecaptchaIfNeeded();
+        }, 100);
       }
     });
     
-    // Função para renderizar reCAPTCHA do signup quando a aba ficar visível
+    // v3.2.10: Função robusta para renderizar reCAPTCHA do signup
     function renderSignupRecaptchaIfNeeded() {
       var siteKeyFixa = '6LfWXPIqAAAAAF3U6KDkq9WnI1IeYh8uQ1ZvqiPX';
       var $signupContainer = $('#g-recaptcha');
       
-      if (typeof grecaptcha !== 'undefined' && 
-          $signupContainer.length && 
-          !$signupContainer.hasClass('recaptcha-rendered')) {
-        try {
-          window.__ctwpmlRecaptchaSignupId = grecaptcha.render($signupContainer[0], {
-            sitekey: siteKeyFixa,
-            callback: window.ctwpmlSignupEnable,
-            'expired-callback': window.ctwpmlSignupDisable,
-          });
+      logCtwpml('Tentando renderizar reCAPTCHA signup', { 
+        grecaptchaExists: typeof grecaptcha !== 'undefined',
+        containerExists: $signupContainer.length > 0,
+        alreadyRendered: $signupContainer.hasClass('recaptcha-rendered'),
+        containerVisible: $signupContainer.is(':visible')
+      });
+      
+      // Se grecaptcha não está disponível, aguardar e tentar novamente
+      if (typeof grecaptcha === 'undefined' || typeof grecaptcha.render !== 'function') {
+        logCtwpml('grecaptcha não disponível, tentando novamente em 500ms');
+        setTimeout(renderSignupRecaptchaIfNeeded, 500);
+        return;
+      }
+      
+      if (!$signupContainer.length) {
+        logCtwpml('Container #g-recaptcha não encontrado');
+        return;
+      }
+      
+      if ($signupContainer.hasClass('recaptcha-rendered')) {
+        logCtwpml('reCAPTCHA signup já renderizado');
+        return;
+      }
+      
+      try {
+        window.__ctwpmlRecaptchaSignupId = grecaptcha.render($signupContainer[0], {
+          sitekey: siteKeyFixa,
+          callback: window.ctwpmlSignupEnable,
+          'expired-callback': window.ctwpmlSignupDisable,
+        });
+        $signupContainer.addClass('recaptcha-rendered');
+        logCtwpml('reCAPTCHA signup renderizado COM SUCESSO', { widgetId: window.__ctwpmlRecaptchaSignupId });
+        
+        // Desabilitar botão até completar reCAPTCHA
+        var btnS = document.getElementById('ctwpml-signup-submit');
+        if (btnS) { btnS.disabled = true; btnS.style.opacity = '0.6'; }
+      } catch (e) {
+        logCtwpml('Erro ao renderizar reCAPTCHA signup', { error: e && e.message });
+        // Se já foi renderizado, ignore o erro
+        if (e && e.message && e.message.indexOf('already been rendered') > -1) {
           $signupContainer.addClass('recaptcha-rendered');
-          logCtwpml('reCAPTCHA signup renderizado (ao abrir aba)', { widgetId: window.__ctwpmlRecaptchaSignupId });
-          
-          // Desabilitar botão até completar reCAPTCHA
-          var btnS = document.getElementById('ctwpml-signup-submit');
-          if (btnS) { btnS.disabled = true; btnS.style.opacity = '0.6'; }
-        } catch (e) {
-          logCtwpml('Erro ao renderizar reCAPTCHA signup', { error: e && e.message });
         }
       }
     }
