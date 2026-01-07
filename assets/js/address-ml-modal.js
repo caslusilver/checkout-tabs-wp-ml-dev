@@ -388,6 +388,7 @@
         data: {
           action: 'ctwpml_get_shipping_options',
           _ajax_nonce: state.params.shipping_options_nonce,
+          address_id: String(selectedAddressId || ''),
         },
         success: function (resp) {
           log('showShippingPlaceholder() - Resposta recebida:', resp);
@@ -674,6 +675,12 @@
         showInitial();
       });
     }
+
+    // Expor para outros módulos (ex.: preparing-checkout.js) conseguirem abrir o modal.
+    // Mantemos em debug-friendly (não quebra se setup parcial).
+    try {
+      state.openAddressModal = openModal;
+    } catch (e) {}
 
     function openLoginPopup() {
       // Usa Fancybox existente no site (sem duplicar libs).
@@ -1253,6 +1260,20 @@
         success: function (webhookData) {
           if (typeof state.log === 'function') state.log('WEBHOOK_IN (ML) [consultaEnderecoFrete] Resposta.', webhookData, 'WEBHOOK_IN');
 
+          // DEBUG: Logar campos de frete específicos da resposta do webhook
+          if (typeof state.log === 'function') {
+            state.log('WEBHOOK_IN (ML) [consultaEnderecoFrete] CAMPOS DE FRETE RECEBIDOS:', {
+              motoboy_pr: webhookData?.motoboy_pr || 'NAO_EXISTE_NA_RESPOSTA',
+              motoboy_pro: webhookData?.motoboy_pro || 'NAO_EXISTE_NA_RESPOSTA',
+              sedex_pr: webhookData?.sedex_pr || 'NAO_EXISTE_NA_RESPOSTA',
+              sedex_pro: webhookData?.sedex_pro || 'NAO_EXISTE_NA_RESPOSTA',
+              pacmini_pr: webhookData?.pacmini_pr || 'NAO_EXISTE_NA_RESPOSTA',
+              pacmini_pro: webhookData?.pacmini_pro || 'NAO_EXISTE_NA_RESPOSTA',
+              allKeys: webhookData ? Object.keys(webhookData) : [],
+            }, 'WEBHOOK_IN');
+          }
+          console.log('[CTWPML][WEBHOOK] consultaEnderecoFrete - RESPOSTA COMPLETA:', JSON.stringify(webhookData, null, 2));
+
           // v3.2.13: Verificar whatsappValido
           var normalized = normalizeApiPayload(webhookData);
           if (normalized && normalized.whatsappValido === false) {
@@ -1265,11 +1286,8 @@
             return;
           }
 
-          // Persistir payload completo no perfil
-          persistAddressPayload(webhookData);
-
-          // Agora salvar o endereço no backend
-          doSaveAddressToBackend(cepOnly, label, receiverName, normalized, done);
+          // Agora salvar o endereço no backend; payload será persistido APÓS obter address_id
+          doSaveAddressToBackend(cepOnly, label, receiverName, normalized, done, webhookData);
         },
         error: function (jqXHR, textStatus, errorThrown) {
           if (typeof state.log === 'function')
@@ -1277,13 +1295,13 @@
           
           // Mesmo com erro no webhook, tentar salvar o endereço usando dados em cache
           if (typeof state.log === 'function') state.log('UI        Salvando endereço sem resposta do webhook (usando cache)...', {}, 'UI');
-          doSaveAddressToBackend(cepOnly, label, receiverName, lastCepLookup, done);
+          doSaveAddressToBackend(cepOnly, label, receiverName, lastCepLookup, done, null);
         },
       });
     }
 
     // v3.2.13: Função auxiliar para salvar endereço no backend (após validação do webhook)
-    function doSaveAddressToBackend(cepOnly, label, receiverName, webhookData, done) {
+    function doSaveAddressToBackend(cepOnly, label, receiverName, webhookData, done, webhookRawForPayload) {
       // Usar dados do webhook ou fallback para lastCepLookup ou campos do checkout
       var neighborhood = '';
       var city = '';
@@ -1345,6 +1363,13 @@
 
             if (resp.data.item && resp.data.item.id) {
               selectedAddressId = resp.data.item.id;
+            }
+
+            // Persistir payload do webhook associado ao ID do endereço salvo/atualizado
+            if (selectedAddressId && webhookRawForPayload) {
+              try {
+                persistAddressPayload(selectedAddressId, webhookRawForPayload);
+              } catch (e) {}
             }
 
             // Mostrar notificação de sucesso
@@ -1529,6 +1554,10 @@
 
     function normalizeApiPayload(raw) {
       if (!raw) return null;
+      // Se vier como array (ex.: [ { ... } ]), usar o primeiro item
+      try {
+        if (Array.isArray(raw) && raw.length) return raw[0] || null;
+      } catch (e) {}
       if (typeof state.normalizarRespostaAPI === 'function') {
         try {
           return state.normalizarRespostaAPI(raw);
@@ -1539,20 +1568,59 @@
       return raw;
     }
 
-    function persistAddressPayload(raw) {
-      if (!raw) return;
-      if (!state.params || !state.params.ajax_url || !state.params.address_payload_nonce) return;
-      if (!isLoggedIn()) return;
+    function persistAddressPayload(addressId, raw) {
+      var log = function (msg, data) {
+        if (typeof state.log === 'function') {
+          state.log(msg, data || {}, 'PAYLOAD_SAVE');
+        } else {
+          console.log('[CTWPML][PAYLOAD_SAVE] ' + msg, data || '');
+        }
+      };
+
+      log('persistAddressPayload() - INICIANDO', { hasRaw: !!raw, addressId: addressId || '' });
+
+      if (!raw) {
+        log('persistAddressPayload() - ABORTADO: raw está vazio/null');
+        return;
+      }
+      if (!addressId) {
+        log('persistAddressPayload() - ABORTADO: addressId vazio');
+        return;
+      }
+      if (!state.params || !state.params.ajax_url || !state.params.address_payload_nonce) {
+        log('persistAddressPayload() - ABORTADO: params não disponíveis', {
+          hasParams: !!state.params,
+          hasAjaxUrl: !!(state.params && state.params.ajax_url),
+          hasNonce: !!(state.params && state.params.address_payload_nonce),
+        });
+        return;
+      }
+      if (!isLoggedIn()) {
+        log('persistAddressPayload() - ABORTADO: usuário não logado');
+        return;
+      }
 
       var normalized = normalizeApiPayload(raw);
+
+      // DEBUG: Mostrar campos de frete especificamente
+      log('persistAddressPayload() - CAMPOS DE FRETE NO RAW:', {
+        motoboy_pr: raw.motoboy_pr || 'NAO_DEFINIDO',
+        motoboy_pro: raw.motoboy_pro || 'NAO_DEFINIDO',
+        sedex_pr: raw.sedex_pr || 'NAO_DEFINIDO',
+        sedex_pro: raw.sedex_pro || 'NAO_DEFINIDO',
+        pacmini_pr: raw.pacmini_pr || 'NAO_DEFINIDO',
+        pacmini_pro: raw.pacmini_pro || 'NAO_DEFINIDO',
+      });
+
+      log('persistAddressPayload() - RAW COMPLETO:', raw);
+      log('persistAddressPayload() - NORMALIZED:', normalized);
+
       var out = {
         raw: raw,
         normalized: normalized,
       };
 
-      if (typeof state.log === 'function') {
-        state.log('ADDRESS_PAYLOAD_SAVE_OUT (ML) Salvando payload no perfil...', out, 'STORE_OUT');
-      }
+      log('persistAddressPayload() - Enviando para o servidor...', { action: 'ctwpml_save_address_payload' });
 
       $.ajax({
         url: state.params.ajax_url,
@@ -1561,22 +1629,23 @@
         data: {
           action: 'ctwpml_save_address_payload',
           _ajax_nonce: state.params.address_payload_nonce,
+          address_id: String(addressId),
           raw_json: JSON.stringify(raw),
           normalized_json: JSON.stringify(normalized),
         },
         success: function (resp) {
-          if (typeof state.log === 'function') {
-            state.log('ADDRESS_PAYLOAD_SAVE_IN (ML) Resultado do save.', resp, 'STORE_IN');
+          log('persistAddressPayload() - SUCESSO! Resposta:', resp);
+          if (resp && resp.success && resp.data) {
+            log('persistAddressPayload() - Meta key salva:', resp.data.meta_key);
           }
         },
         error: function (jqXHR, textStatus, errorThrown) {
-          if (typeof state.log === 'function') {
-            state.log(
-              'ADDRESS_PAYLOAD_SAVE_IN (ML) Erro ao salvar payload (' + textStatus + ').',
-              { status: jqXHR.status, error: errorThrown, responseText: jqXHR.responseText },
-              'STORE_IN'
-            );
-          }
+          log('persistAddressPayload() - ERRO!', {
+            status: jqXHR.status,
+            textStatus: textStatus,
+            error: errorThrown,
+            responseText: jqXHR.responseText,
+          });
         },
       });
     }
@@ -1842,6 +1911,10 @@
       var id = $(this).data('address-id');
       setSelectedAddressId(id);
       persistSelectedAddressId(id);
+      // Evento para permitir reações externas (ex.: re-preparar checkout ao trocar endereço)
+      try {
+        $(document).trigger('ctwpml_address_selected', [id]);
+      } catch (e2) {}
     });
     $(document).on('click', '#ctwpml-btn-secondary', function () {
       if ($('#ctwpml-view-form').is(':visible')) {

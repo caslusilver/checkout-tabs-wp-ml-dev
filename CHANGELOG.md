@@ -259,11 +259,25 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 ### Changed
 - Tela "Escolha quando sua compra chegará" agora carrega opções de frete dinamicamente do payload salvo em user_meta (ctwpml_address_payload).
 - Novos endpoints AJAX ctwpml_get_shipping_options e ctwpml_set_shipping_method com logs de DEBUG.
+- Correção: payload do webhook pode vir como array (`[{...}]`) e agora é normalizado (usa o primeiro item).
+- Persistência de payload de frete por endereço (associado ao `address_id`) via user_meta `ctwpml_address_payload_by_address` (com fallback/migração do payload antigo).
+- Fluxo de salvamento: payload do webhook é persistido somente após obter `address_id` no `ctwpml_save_address`.
+- UX: overlay full-screen “Preparando tudo para sua compra” (Produto/Carrinho → Checkout) roda uma vez por entrada no checkout, prepara o primeiro endereço automaticamente e re-roda ao trocar endereço.
 - Função renderShippingOptions em address-ml-screens.js para renderização dinâmica.
 - Integração com WC session para seleção de frete reconhecida pelo WooCommerce.
 - Evento ctwpml_shipping_selected disparado ao confirmar seleção.
 - Campo Complemento limitado a 13 caracteres (maxlength no input + truncamento no backend).
 
 #### Protocol: 189d08d
+
+## [v3.2.15] - 2026-01-07
+
+### Changed
+- Correção: payload do webhook pode vir como array (`[{...}]`) e agora é normalizado (usa o primeiro item).
+- Persistência de payload de frete por endereço (associado ao `address_id`) via user_meta `ctwpml_address_payload_by_address` (com fallback/migração do payload antigo).
+- Fluxo de salvamento: payload do webhook é persistido somente após obter `address_id` no `ctwpml_save_address`.
+- UX: overlay full-screen “Preparando tudo para sua compra” (Produto/Carrinho → Checkout) roda uma vez por entrada no checkout, prepara o primeiro endereço automaticamente e re-roda ao trocar endereço.
+
+#### Protocol: ce83d46
 
 ## [Unreleased]

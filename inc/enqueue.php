@@ -219,4 +219,42 @@ add_action('wp_enqueue_scripts', function () {
 	}
 });
 
+/**
+ * Overlay "Preparando tudo para sua compra"
+ * - Produto/Carrinho: apenas marca flag em sessionStorage (não precisa de cc_params)
+ * - Checkout: usa cc_params para pré-carregar endereços/frete e auto-abrir modal
+ */
+add_action('wp_enqueue_scripts', function () {
+	$is_checkout = function_exists('is_checkout') && is_checkout() && !(function_exists('is_wc_endpoint_url') && is_wc_endpoint_url());
+	$is_cart = function_exists('is_cart') && is_cart();
+	$is_product = function_exists('is_product') && is_product();
+
+	if (!$is_checkout && !$is_cart && !$is_product) {
+		return;
+	}
+
+	$version = checkout_tabs_wp_ml_get_version();
+
+	wp_enqueue_style(
+		'checkout-tabs-wp-ml-preparing-checkout',
+		CHECKOUT_TABS_WP_ML_URL . 'assets/css/preparing-checkout.css',
+		[],
+		$version
+	);
+
+	$deps = ['jquery'];
+	if ($is_checkout) {
+		// garante cc_params existir (localizado no checkout-tabs-wp-ml-main)
+		$deps[] = 'checkout-tabs-wp-ml-main';
+	}
+
+	wp_enqueue_script(
+		'checkout-tabs-wp-ml-preparing-checkout',
+		CHECKOUT_TABS_WP_ML_URL . 'assets/js/preparing-checkout.js',
+		$deps,
+		$version,
+		true
+	);
+}, 50);
+
 

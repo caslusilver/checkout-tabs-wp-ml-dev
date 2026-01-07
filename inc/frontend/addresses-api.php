@@ -14,6 +14,34 @@ if (!defined('ABSPATH')) {
 const CTWPML_ADDRESSES_META_KEY = 'ctwpml_saved_addresses';
 const CTWPML_ADDRESS_PAYLOAD_META_KEY = 'ctwpml_address_payload';
 const CTWPML_SELECTED_ADDRESS_ID_META_KEY = 'ctwpml_selected_address_id';
+const CTWPML_ADDRESS_PAYLOAD_BY_ADDRESS_META_KEY = 'ctwpml_address_payload_by_address';
+
+/**
+ * Normaliza o payload do webhook:
+ * - Se vier como array (ex.: [ { ... } ]), pega o primeiro item.
+ * - Garante retorno array associativo (ou [] se inválido).
+ */
+function ctwpml_normalize_webhook_payload_to_assoc($raw): array {
+	if (is_array($raw) && !empty($raw)) {
+		// array indexado
+		if (array_keys($raw) === range(0, count($raw) - 1)) {
+			$first = $raw[0] ?? [];
+			return is_array($first) ? $first : [];
+		}
+		// já é associativo
+		return $raw;
+	}
+	return [];
+}
+
+function ctwpml_address_payload_map_get(int $user_id): array {
+	$raw = get_user_meta($user_id, CTWPML_ADDRESS_PAYLOAD_BY_ADDRESS_META_KEY, true);
+	return is_array($raw) ? $raw : [];
+}
+
+function ctwpml_address_payload_map_set(int $user_id, array $map): void {
+	update_user_meta($user_id, CTWPML_ADDRESS_PAYLOAD_BY_ADDRESS_META_KEY, $map);
+}
 
 function ctwpml_addresses_get_all(int $user_id): array {
 	$raw = get_user_meta($user_id, CTWPML_ADDRESSES_META_KEY, true);
@@ -299,7 +327,16 @@ add_action('wp_ajax_ctwpml_delete_address', function () {
  * Estrutura: ['raw' => mixed, 'normalized' => mixed, 'captured_at' => string]
  */
 add_action('wp_ajax_ctwpml_save_address_payload', function () {
+	$is_debug = function_exists('checkout_tabs_wp_ml_is_debug_enabled') && checkout_tabs_wp_ml_is_debug_enabled();
+
+	if ($is_debug) {
+		error_log('[CTWPML] save_address_payload - INICIANDO');
+	}
+
 	if (!is_user_logged_in()) {
+		if ($is_debug) {
+			error_log('[CTWPML] save_address_payload - ERRO: Usuário não logado');
+		}
 		wp_send_json_error('Usuário não autenticado.');
 	}
 
@@ -307,13 +344,37 @@ add_action('wp_ajax_ctwpml_save_address_payload', function () {
 
 	$user_id = get_current_user_id();
 
+	if ($is_debug) {
+		error_log('[CTWPML] save_address_payload - User ID: ' . $user_id);
+	}
+
+	$address_id = isset($_POST['address_id']) ? sanitize_text_field((string) wp_unslash($_POST['address_id'])) : '';
+	if ($address_id === '') {
+		if ($is_debug) {
+			error_log('[CTWPML] save_address_payload - ERRO: address_id ausente');
+		}
+		wp_send_json_error('address_id é obrigatório.');
+		return;
+	}
+
 	$raw_json = isset($_POST['raw_json']) ? (string) wp_unslash($_POST['raw_json']) : '';
 	$normalized_json = isset($_POST['normalized_json']) ? (string) wp_unslash($_POST['normalized_json']) : '';
+
+	if ($is_debug) {
+		error_log('[CTWPML] save_address_payload - Address ID: ' . $address_id);
+		error_log('[CTWPML] save_address_payload - raw_json length: ' . strlen($raw_json));
+		error_log('[CTWPML] save_address_payload - normalized_json length: ' . strlen($normalized_json));
+		// Log primeiros 500 chars do raw_json para debug
+		error_log('[CTWPML] save_address_payload - raw_json (primeiros 500 chars): ' . substr($raw_json, 0, 500));
+	}
 
 	$raw = null;
 	if ($raw_json !== '') {
 		$raw = json_decode($raw_json, true);
 		if (json_last_error() !== JSON_ERROR_NONE) {
+			if ($is_debug) {
+				error_log('[CTWPML] save_address_payload - ERRO: raw_json JSON inválido: ' . json_last_error_msg());
+			}
 			wp_send_json_error('Payload raw_json inválido (JSON).');
 		}
 	}
@@ -322,22 +383,66 @@ add_action('wp_ajax_ctwpml_save_address_payload', function () {
 	if ($normalized_json !== '') {
 		$normalized = json_decode($normalized_json, true);
 		if (json_last_error() !== JSON_ERROR_NONE) {
+			if ($is_debug) {
+				error_log('[CTWPML] save_address_payload - ERRO: normalized_json JSON inválido: ' . json_last_error_msg());
+			}
 			wp_send_json_error('Payload normalized_json inválido (JSON).');
 		}
+	}
+
+	// Normalizar o payload do webhook para array associativo (corrige retorno do webhook em array).
+	$raw_assoc = ctwpml_normalize_webhook_payload_to_assoc($raw);
+
+	// DEBUG: Logar campos de frete especificamente
+	if ($is_debug && is_array($raw_assoc)) {
+		error_log('[CTWPML] save_address_payload - CAMPOS DE FRETE NO RAW:');
+		error_log('[CTWPML]   motoboy_pr: ' . ($raw_assoc['motoboy_pr'] ?? 'NAO_DEFINIDO'));
+		error_log('[CTWPML]   motoboy_pro: ' . ($raw_assoc['motoboy_pro'] ?? 'NAO_DEFINIDO'));
+		error_log('[CTWPML]   sedex_pr: ' . ($raw_assoc['sedex_pr'] ?? 'NAO_DEFINIDO'));
+		error_log('[CTWPML]   sedex_pro: ' . ($raw_assoc['sedex_pro'] ?? 'NAO_DEFINIDO'));
+		error_log('[CTWPML]   pacmini_pr: ' . ($raw_assoc['pacmini_pr'] ?? 'NAO_DEFINIDO'));
+		error_log('[CTWPML]   pacmini_pro: ' . ($raw_assoc['pacmini_pro'] ?? 'NAO_DEFINIDO'));
+		error_log('[CTWPML] save_address_payload - RAW_ASSOC KEYS: ' . print_r(array_keys($raw_assoc), true));
 	}
 
 	// Limite de segurança: evita meta gigantesco.
 	// Se o payload vier muito grande, preferimos truncar e ainda assim salvar algo auditável.
 	$blob = [
-		'raw'         => $raw,
+		'raw'         => $raw_assoc,
 		'normalized'  => $normalized,
 		'captured_at' => current_time('mysql'),
 	];
 
-	update_user_meta($user_id, CTWPML_ADDRESS_PAYLOAD_META_KEY, $blob);
+	// Salva por endereço
+	$map = ctwpml_address_payload_map_get($user_id);
+	$map[$address_id] = $blob;
+	ctwpml_address_payload_map_set($user_id, $map);
+
+	// Compatibilidade: mantém último payload global também (para fallback/migração)
+	$result = update_user_meta($user_id, CTWPML_ADDRESS_PAYLOAD_META_KEY, $blob);
+
+	if ($is_debug) {
+		error_log('[CTWPML] save_address_payload - update_user_meta(last) result: ' . ($result ? 'OK' : 'FALHOU'));
+		error_log('[CTWPML] save_address_payload - Meta key: ' . CTWPML_ADDRESS_PAYLOAD_META_KEY);
+		error_log('[CTWPML] save_address_payload - Meta key (by address): ' . CTWPML_ADDRESS_PAYLOAD_BY_ADDRESS_META_KEY);
+		
+		// Verificar se foi salvo corretamente
+		$saved = get_user_meta($user_id, CTWPML_ADDRESS_PAYLOAD_META_KEY, true);
+		error_log('[CTWPML] save_address_payload - Verificação pós-save: ' . (is_array($saved) ? 'ARRAY com ' . count($saved) . ' keys' : 'NAO_ARRAY'));
+		if (is_array($saved) && isset($saved['raw']) && is_array($saved['raw'])) {
+			error_log('[CTWPML] save_address_payload - raw keys salvos: ' . print_r(array_keys($saved['raw']), true));
+		}
+		$saved_map = get_user_meta($user_id, CTWPML_ADDRESS_PAYLOAD_BY_ADDRESS_META_KEY, true);
+		error_log('[CTWPML] save_address_payload - Verificação pós-save (map): ' . (is_array($saved_map) ? 'OK keys=' . count($saved_map) : 'NAO_ARRAY'));
+		if (is_array($saved_map) && isset($saved_map[$address_id])) {
+			error_log('[CTWPML] save_address_payload - Map contém address_id=' . $address_id);
+		}
+	}
 
 	wp_send_json_success([
 		'meta_key' => CTWPML_ADDRESS_PAYLOAD_META_KEY,
+		'meta_key_by_address' => CTWPML_ADDRESS_PAYLOAD_BY_ADDRESS_META_KEY,
+		'address_id' => $address_id,
 		'saved'    => true,
 	]);
 });
@@ -365,11 +470,35 @@ add_action('wp_ajax_ctwpml_get_shipping_options', function () {
 
 	$user_id = get_current_user_id();
 
-	if ($is_debug) {
-		error_log('[CTWPML] get_shipping_options - User ID: ' . $user_id);
+	$address_id = isset($_POST['address_id']) ? sanitize_text_field((string) wp_unslash($_POST['address_id'])) : '';
+	if ($address_id === '') {
+		if ($is_debug) {
+			error_log('[CTWPML] get_shipping_options - ERRO: address_id ausente');
+		}
+		wp_send_json_error(['message' => 'address_id é obrigatório.']);
+		return;
 	}
 
-	$payload = get_user_meta($user_id, CTWPML_ADDRESS_PAYLOAD_META_KEY, true);
+	if ($is_debug) {
+		error_log('[CTWPML] get_shipping_options - User ID: ' . $user_id);
+		error_log('[CTWPML] get_shipping_options - Address ID: ' . $address_id);
+	}
+
+	$map = ctwpml_address_payload_map_get($user_id);
+	$payload = isset($map[$address_id]) && is_array($map[$address_id]) ? $map[$address_id] : null;
+
+	// Migração/fallback: se não existe para este address_id mas existe o antigo global, copia uma vez.
+	if (empty($payload) || !is_array($payload)) {
+		$legacy = get_user_meta($user_id, CTWPML_ADDRESS_PAYLOAD_META_KEY, true);
+		if (is_array($legacy) && !empty($legacy)) {
+			$map[$address_id] = $legacy;
+			ctwpml_address_payload_map_set($user_id, $map);
+			$payload = $legacy;
+			if ($is_debug) {
+				error_log('[CTWPML] get_shipping_options - MIGRACAO: payload antigo copiado para address_id=' . $address_id);
+			}
+		}
+	}
 
 	if ($is_debug) {
 		error_log('[CTWPML] get_shipping_options - Payload encontrado: ' . (empty($payload) ? 'NAO' : 'SIM'));
@@ -390,11 +519,20 @@ add_action('wp_ajax_ctwpml_get_shipping_options', function () {
 	$raw = $payload['raw'] ?? $payload;
 	$normalized = $payload['normalized'] ?? [];
 
+	// Normalizar caso ainda venha como array indexado (defensivo)
+	if (is_array($raw)) {
+		$raw = ctwpml_normalize_webhook_payload_to_assoc($raw);
+	}
+
 	if ($is_debug) {
+		error_log('[CTWPML] get_shipping_options - Payload completo: ' . substr(print_r($payload, true), 0, 1000));
+		error_log('[CTWPML] get_shipping_options - Raw type: ' . gettype($raw));
 		error_log('[CTWPML] get_shipping_options - Raw data keys: ' . print_r(is_array($raw) ? array_keys($raw) : 'NAO_ARRAY', true));
 		error_log('[CTWPML] get_shipping_options - motoboy_pr: ' . ($raw['motoboy_pr'] ?? 'NAO_DEFINIDO'));
 		error_log('[CTWPML] get_shipping_options - sedex_pr: ' . ($raw['sedex_pr'] ?? 'NAO_DEFINIDO'));
 		error_log('[CTWPML] get_shipping_options - pacmini_pr: ' . ($raw['pacmini_pr'] ?? 'NAO_DEFINIDO'));
+		// Mostrar RAW completo truncado para debug
+		error_log('[CTWPML] get_shipping_options - RAW (primeiros 500 chars): ' . substr(json_encode($raw), 0, 500));
 	}
 
 	// Construir lista de opções disponíveis
@@ -455,6 +593,7 @@ add_action('wp_ajax_ctwpml_get_shipping_options', function () {
 	wp_send_json_success([
 		'options'     => $options,
 		'captured_at' => $payload['captured_at'] ?? '',
+		'address_id'  => $address_id,
 	]);
 });
 

@@ -94,3 +94,4 @@ function ctwpml_ajax_clear_logs(): void {
 	wp_send_json_success(['message' => 'Logs limpos']);
 }
 
+
