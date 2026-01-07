@@ -204,7 +204,7 @@
           '          <div class="ctwpml-inline-hint" id="ctwpml-rua-hint" style="display:none;"></div>' +
           '        </div>' +
           '        <div class="ctwpml-form-group"><label for="ctwpml-input-numero">Número</label><input id="ctwpml-input-numero" type="text" placeholder="Ex.: 123 ou SN" /></div>' +
-          '        <div class="ctwpml-form-group"><label for="ctwpml-input-comp">Complemento (opcional)</label><input id="ctwpml-input-comp" type="text" placeholder="Ex.: Apto 201" /></div>' +
+          '        <div class="ctwpml-form-group"><label for="ctwpml-input-comp">Complemento (opcional)</label><input id="ctwpml-input-comp" type="text" placeholder="Ex.: Apto 201" maxlength="13" /></div>' +
           '        <div class="ctwpml-form-group"><label for="ctwpml-input-info">Informações adicionais (opcional)</label><textarea id="ctwpml-input-info" rows="3" placeholder="Ex.: Entre ruas..."></textarea></div>' +
           '        <div class="ctwpml-type-label">Este é o seu trabalho ou sua casa?</div>' +
           '        <div class="ctwpml-type-option" id="ctwpml-type-home" role="button" tabindex="0">' +
@@ -282,9 +282,69 @@
       console.log('[CTWPML][DEBUG] showInitial() - conteúdo final de #ctwpml-view-initial (primeiros 200 chars):', initialContent ? initialContent.substring(0, 200) : 'vazio');
     }
 
+    /**
+     * Define o método de frete selecionado no WooCommerce.
+     * @param {string} methodId - ID do método (ex: 'flat_rate:3')
+     * @param {Function} callback - Callback opcional após sucesso
+     */
+    function setShippingMethodInWC(methodId, callback) {
+      var log = function (msg, data) {
+        if (typeof state.log === 'function') {
+          state.log(msg, data || {}, 'SHIPPING');
+        } else {
+          console.log('[CTWPML][SHIPPING] ' + msg, data || '');
+        }
+      };
+
+      log('setShippingMethodInWC() - Definindo método:', methodId);
+
+      if (!state.params || !state.params.ajax_url || !state.params.set_shipping_nonce) {
+        log('setShippingMethodInWC() - ERRO: Parâmetros não disponíveis');
+        return;
+      }
+
+      $.ajax({
+        url: state.params.ajax_url,
+        type: 'POST',
+        dataType: 'json',
+        data: {
+          action: 'ctwpml_set_shipping_method',
+          _ajax_nonce: state.params.set_shipping_nonce,
+          method_id: methodId,
+        },
+        success: function (resp) {
+          log('setShippingMethodInWC() - Resposta:', resp);
+
+          if (resp.success) {
+            log('setShippingMethodInWC() - Sucesso! Disparando update_checkout');
+            // Trigger update_checkout para atualizar totais
+            $(document.body).trigger('update_checkout');
+            if (typeof callback === 'function') {
+              callback(resp.data);
+            }
+          } else {
+            log('setShippingMethodInWC() - ERRO na resposta:', resp);
+          }
+        },
+        error: function (jqXHR, textStatus, errorThrown) {
+          log('setShippingMethodInWC() - ERRO AJAX:', { status: jqXHR.status, textStatus: textStatus, error: errorThrown });
+        },
+      });
+    }
+
+    /**
+     * Exibe a tela de seleção de frete, carregando opções do backend.
+     */
     function showShippingPlaceholder() {
-      state.log('UI        [DEBUG] showShippingPlaceholder() chamado', { selectedAddressId: selectedAddressId }, 'UI');
-      console.log('[CTWPML][DEBUG] showShippingPlaceholder() - selectedAddressId:', selectedAddressId);
+      var log = function (msg, data) {
+        if (typeof state.log === 'function') {
+          state.log(msg, data || {}, 'SHIPPING');
+        } else {
+          console.log('[CTWPML][SHIPPING] ' + msg, data || '');
+        }
+      };
+
+      log('showShippingPlaceholder() - INICIANDO', { selectedAddressId: selectedAddressId });
 
       currentView = 'shipping';
       $('#ctwpml-modal-title').text('Checkout');
@@ -295,19 +355,95 @@
       setFooterVisible(false);
 
       var it = selectedAddressId ? getAddressById(selectedAddressId) : null;
-      console.log('[CTWPML][DEBUG] showShippingPlaceholder() - endereço:', it);
+      log('showShippingPlaceholder() - Endereço selecionado:', it);
 
-      var hasScreensModule = !!(window.CCCheckoutTabs && window.CCCheckoutTabs.AddressMlScreens && typeof window.CCCheckoutTabs.AddressMlScreens.renderShippingPlaceholder === 'function');
-      console.log('[CTWPML][DEBUG] showShippingPlaceholder() - AddressMlScreens disponível:', hasScreensModule);
+      // Mostrar loading
+      $('#ctwpml-view-shipping').html(
+        '<div class="ctwpml-loading" style="padding:40px;text-align:center;">' +
+          '<div class="ctwpml-spinner" style="width:40px;height:40px;border:3px solid rgba(0,117,255,0.2);border-top-color:#0075ff;border-radius:50%;animation:ctwpml-spin 0.8s linear infinite;margin:0 auto 16px;"></div>' +
+          '<div>Carregando opções de frete...</div>' +
+          '</div>'
+      );
 
-      if (hasScreensModule) {
-        var html = window.CCCheckoutTabs.AddressMlScreens.renderShippingPlaceholder(it);
-        console.log('[CTWPML][DEBUG] showShippingPlaceholder() - HTML gerado (primeiros 300 chars):', html ? html.substring(0, 300) : 'null');
-        $('#ctwpml-view-shipping').html(html);
-      } else {
-        console.log('[CTWPML][DEBUG] showShippingPlaceholder() - AddressMlScreens NÃO disponível');
-        $('#ctwpml-view-shipping').html('<div class="ctwpml-section-title">Escolha quando sua compra chegará (fallback)</div>');
+      // Verificar se temos os parâmetros necessários
+      if (!state.params || !state.params.ajax_url || !state.params.shipping_options_nonce) {
+        log('showShippingPlaceholder() - ERRO: Parâmetros não disponíveis, usando fallback');
+        var hasScreensModule = !!(window.CCCheckoutTabs && window.CCCheckoutTabs.AddressMlScreens && typeof window.CCCheckoutTabs.AddressMlScreens.renderShippingPlaceholder === 'function');
+        if (hasScreensModule) {
+          var html = window.CCCheckoutTabs.AddressMlScreens.renderShippingPlaceholder(it);
+          $('#ctwpml-view-shipping').html(html);
+        } else {
+          $('#ctwpml-view-shipping').html('<div class="ctwpml-section-title">Escolha quando sua compra chegará (fallback)</div>');
+        }
+        return;
       }
+
+      log('showShippingPlaceholder() - Fazendo requisição AJAX para ctwpml_get_shipping_options');
+
+      // Buscar opções de frete do backend
+      $.ajax({
+        url: state.params.ajax_url,
+        type: 'POST',
+        dataType: 'json',
+        data: {
+          action: 'ctwpml_get_shipping_options',
+          _ajax_nonce: state.params.shipping_options_nonce,
+        },
+        success: function (resp) {
+          log('showShippingPlaceholder() - Resposta recebida:', resp);
+
+          var hasRenderOptions = !!(
+            window.CCCheckoutTabs &&
+            window.CCCheckoutTabs.AddressMlScreens &&
+            typeof window.CCCheckoutTabs.AddressMlScreens.renderShippingOptions === 'function'
+          );
+
+          if (resp.success && resp.data && resp.data.options) {
+            log('showShippingPlaceholder() - Opções encontradas: ' + resp.data.options.length, resp.data.options);
+
+            if (hasRenderOptions) {
+              var html = window.CCCheckoutTabs.AddressMlScreens.renderShippingOptions(it, resp.data.options);
+              $('#ctwpml-view-shipping').html(html);
+            } else {
+              log('showShippingPlaceholder() - renderShippingOptions não disponível, usando placeholder');
+              var htmlFallback = window.CCCheckoutTabs.AddressMlScreens.renderShippingPlaceholder(it);
+              $('#ctwpml-view-shipping').html(htmlFallback);
+            }
+
+            // Pré-selecionar primeira opção no WC
+            var firstOption = resp.data.options[0];
+            if (firstOption) {
+              log('showShippingPlaceholder() - Pré-selecionando primeira opção:', firstOption.id);
+              setShippingMethodInWC(firstOption.id);
+            }
+          } else {
+            log('showShippingPlaceholder() - ERRO: Resposta inválida ou sem opções', resp);
+            var errorMsg = resp.data && resp.data.message ? resp.data.message : 'Erro ao carregar opções de frete.';
+
+            if (hasRenderOptions) {
+              // Passar array vazio para mostrar mensagem de "nenhuma opção"
+              var htmlEmpty = window.CCCheckoutTabs.AddressMlScreens.renderShippingOptions(it, []);
+              $('#ctwpml-view-shipping').html(htmlEmpty);
+            } else {
+              $('#ctwpml-view-shipping').html(
+                '<div class="ctwpml-error" style="padding:20px;text-align:center;color:#b42318;">' +
+                  '<div style="font-size:24px;margin-bottom:8px;">⚠️</div>' +
+                  '<div>' + errorMsg + '</div>' +
+                  '</div>'
+              );
+            }
+          }
+        },
+        error: function (jqXHR, textStatus, errorThrown) {
+          log('showShippingPlaceholder() - ERRO AJAX:', { status: jqXHR.status, textStatus: textStatus, error: errorThrown });
+          $('#ctwpml-view-shipping').html(
+            '<div class="ctwpml-error" style="padding:20px;text-align:center;color:#b42318;">' +
+              '<div style="font-size:24px;margin-bottom:8px;">⚠️</div>' +
+              '<div>Erro de conexão. Tente novamente.</div>' +
+              '</div>'
+          );
+        },
+      });
     }
 
     function syncLoginBanner() {
@@ -1778,14 +1914,70 @@
       renderAddressList();
     });
 
-    // Tela prazo (placeholder): seleção visual apenas (sem integrar frete ainda)
+    // Tela prazo: seleção de opção de frete (atualiza visual e WooCommerce)
     $(document).on('click', '#ctwpml-view-shipping .ctwpml-shipping-option', function (e) {
       e.preventDefault();
+
+      var log = function (msg, data) {
+        if (typeof state.log === 'function') {
+          state.log(msg, data || {}, 'SHIPPING');
+        } else {
+          console.log('[CTWPML][SHIPPING] ' + msg, data || '');
+        }
+      };
+
+      var $this = $(this);
+      var methodId = $this.data('method-id');
+      var methodType = $this.data('type');
+
+      log('Click em opção de frete:', { methodId: methodId, type: methodType });
+
+      // Atualizar visual
       $('#ctwpml-view-shipping .ctwpml-shipping-option').removeClass('is-selected');
-      $(this).addClass('is-selected');
+      $this.addClass('is-selected');
+
+      log('Visual atualizado - opção selecionada');
+
+      // Atualizar no WooCommerce (se methodId existir)
+      if (methodId) {
+        setShippingMethodInWC(methodId);
+      }
     });
+
+    // Tela prazo: botão Continuar (confirma seleção e avança)
     $(document).on('click', '#ctwpml-shipping-continue', function () {
+      var log = function (msg, data) {
+        if (typeof state.log === 'function') {
+          state.log(msg, data || {}, 'SHIPPING');
+        } else {
+          console.log('[CTWPML][SHIPPING] ' + msg, data || '');
+        }
+      };
+
+      var $selected = $('#ctwpml-view-shipping .ctwpml-shipping-option.is-selected');
+      var selectedMethod = $selected.data('method-id');
+      var selectedType = $selected.data('type');
+
+      log('Click em Continuar - método selecionado:', { methodId: selectedMethod, type: selectedType });
+
+      if (!selectedMethod) {
+        log('ERRO: Nenhum método selecionado');
+        showNotification('Selecione uma opção de entrega.', 'error');
+        return;
+      }
+
+      log('Método de frete confirmado, avançando para pagamento');
+
+      // Fechar modal e avançar para pagamento
       closeModal();
+
+      // Dispara evento customizado para que outros módulos possam reagir
+      $(document.body).trigger('ctwpml_shipping_selected', {
+        method_id: selectedMethod,
+        type: selectedType,
+      });
+
+      log('Evento ctwpml_shipping_selected disparado');
     });
 
     // Tela 2: ao preencher o CEP, consulta webhook e preenche campos automaticamente.
@@ -1802,7 +1994,7 @@
 
       if (cepDebounceTimer) clearTimeout(cepDebounceTimer);
       cepDebounceTimer = setTimeout(function () {
-        consultCepAndFillForm();
+      consultCepAndFillForm();
       }, 250);
     });
 

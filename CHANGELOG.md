@@ -254,4 +254,16 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
 #### Protocol: a03ac22
 
+## [v3.2.14] - 2026-01-07
+
+### Changed
+- Tela "Escolha quando sua compra chegará" agora carrega opções de frete dinamicamente do payload salvo em user_meta (ctwpml_address_payload).
+- Novos endpoints AJAX ctwpml_get_shipping_options e ctwpml_set_shipping_method com logs de DEBUG.
+- Função renderShippingOptions em address-ml-screens.js para renderização dinâmica.
+- Integração com WC session para seleção de frete reconhecida pelo WooCommerce.
+- Evento ctwpml_shipping_selected disparado ao confirmar seleção.
+- Campo Complemento limitado a 13 caracteres (maxlength no input + truncamento no backend).
+
+#### Protocol: 189d08d
+
 ## [Unreleased]

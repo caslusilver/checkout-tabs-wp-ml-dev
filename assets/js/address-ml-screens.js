@@ -74,6 +74,7 @@
    * - Preenche endereço.
    * - Sem "Grátis" (placeholders pro valor do frete selecionado).
    * NOTA: Retorna apenas o conteúdo interno (sem wrapper #ctwpml-view-shipping).
+   * @deprecated Use renderShippingOptions para dados dinâmicos do backend.
    */
   window.CCCheckoutTabs.AddressMlScreens.renderShippingPlaceholder = function renderShippingPlaceholder(address) {
     console.log('[CTWPML][DEBUG] renderShippingPlaceholder chamado com address:', address);
@@ -127,6 +128,103 @@
     );
 
     console.log('[CTWPML][DEBUG] renderShippingPlaceholder - HTML gerado (primeiros 200 chars):', html.substring(0, 200));
+    return html;
+  };
+
+  /**
+   * Tela 2 (prazo - dinâmica): "Escolha quando sua compra chegará"
+   * Renderiza as opções de frete dinamicamente com base nos dados do backend.
+   * @param {Object} address - Endereço selecionado
+   * @param {Array} shippingOptions - Lista de opções de frete do backend
+   * @returns {string} HTML das opções
+   */
+  window.CCCheckoutTabs.AddressMlScreens.renderShippingOptions = function renderShippingOptions(address, shippingOptions) {
+    // DEBUG: Usar debugMode global se disponível
+    var debugMode = !!(window.cc_params && window.cc_params.debug);
+
+    if (debugMode) {
+      console.log('[CTWPML][DEBUG] renderShippingOptions - address:', address);
+      console.log('[CTWPML][DEBUG] renderShippingOptions - shippingOptions:', shippingOptions);
+    }
+
+    var addrLine = formatAddressSummary(address);
+
+    if (debugMode) {
+      console.log('[CTWPML][DEBUG] renderShippingOptions - addrLine:', addrLine);
+    }
+
+    // Se não há opções, mostrar mensagem
+    if (!shippingOptions || shippingOptions.length === 0) {
+      if (debugMode) {
+        console.log('[CTWPML][DEBUG] renderShippingOptions - Nenhuma opção disponível');
+      }
+      return (
+        '<div class="ctwpml-shipping-header">' +
+        '  <div class="ctwpml-shipping-title">Escolha quando sua compra chegará</div>' +
+        '  <div class="ctwpml-shipping-address">' +
+        '    <span class="ctwpml-shipping-pin">📍</span>' +
+        '    <span class="ctwpml-shipping-address-text">Envio para ' + escapeHtml(addrLine || 'seu endereço') + '</span>' +
+        '  </div>' +
+        '</div>' +
+        '<div class="ctwpml-shipping-no-options" style="padding:20px;text-align:center;color:#666;">' +
+        '  <div style="font-size:24px;margin-bottom:8px;">📦</div>' +
+        '  <div>Nenhuma opção de frete disponível para este endereço.</div>' +
+        '  <div style="margin-top:8px;font-size:13px;color:#999;">Verifique se o endereço está completo e tente novamente.</div>' +
+        '</div>'
+      );
+    }
+
+    if (debugMode) {
+      console.log('[CTWPML][DEBUG] renderShippingOptions - Gerando ' + shippingOptions.length + ' opções');
+    }
+
+    var optionsHtml = '';
+    shippingOptions.forEach(function (opt, idx) {
+      var isFirst = idx === 0;
+
+      if (debugMode) {
+        console.log('[CTWPML][DEBUG] renderShippingOptions - Opção ' + idx + ':', opt);
+      }
+
+      optionsHtml +=
+        '' +
+        '<div class="ctwpml-shipping-option' + (isFirst ? ' is-selected' : '') + '" ' +
+        'data-method-id="' + escapeHtml(opt.id) + '" ' +
+        'data-type="' + escapeHtml(opt.type || '') + '" ' +
+        'data-option="opt' + idx + '">' +
+        '  <div class="ctwpml-shipping-option-left">' +
+        '    <div class="ctwpml-shipping-radio"></div>' +
+        '    <span class="ctwpml-shipping-option-text">' + escapeHtml(opt.label) + '</span>' +
+        '  </div>' +
+        '  <span class="ctwpml-shipping-price">' + escapeHtml(opt.price_text || '') + '</span>' +
+        '</div>';
+    });
+
+    var html =
+      '' +
+      '<div class="ctwpml-shipping-header">' +
+      '  <div class="ctwpml-shipping-title">Escolha quando sua compra chegará</div>' +
+      '  <div class="ctwpml-shipping-address">' +
+      '    <span class="ctwpml-shipping-pin">📍</span>' +
+      '    <span class="ctwpml-shipping-address-text">Envio para ' + escapeHtml(addrLine || 'seu endereço') + '</span>' +
+      '  </div>' +
+      '</div>' +
+      '' +
+      '<div class="ctwpml-shipping-card">' +
+      '  <div class="ctwpml-shipping-package">' +
+      '    <span class="ctwpml-shipping-package-title">Envio 1</span>' +
+      '  </div>' +
+      optionsHtml +
+      '</div>' +
+      '' +
+      '<div class="ctwpml-shipping-footer">' +
+      '  <button type="button" class="ctwpml-shipping-continue" id="ctwpml-shipping-continue">Continuar</button>' +
+      '</div>';
+
+    if (debugMode) {
+      console.log('[CTWPML][DEBUG] renderShippingOptions - HTML gerado (primeiros 300 chars):', html.substring(0, 300));
+    }
+
     return html;
   };
 })(window);

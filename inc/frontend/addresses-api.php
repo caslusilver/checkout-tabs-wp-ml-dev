@@ -87,9 +87,11 @@ function ctwpml_addresses_sanitize_item(array $in): array {
 	];
 
 	// Truncar campos para evitar abusos.
-	foreach (['label', 'receiver_name', 'address_1', 'number', 'complement', 'neighborhood', 'city', 'state'] as $k) {
+	foreach (['label', 'receiver_name', 'address_1', 'number', 'neighborhood', 'city', 'state'] as $k) {
 		$item[$k] = mb_substr($item[$k], 0, 120);
 	}
+	// Complemento limitado a 13 caracteres
+	$item['complement'] = mb_substr($item['complement'], 0, 13);
 	$item['extra_info'] = mb_substr($item['extra_info'], 0, 300);
 
 	return $item;
@@ -338,6 +340,196 @@ add_action('wp_ajax_ctwpml_save_address_payload', function () {
 		'meta_key' => CTWPML_ADDRESS_PAYLOAD_META_KEY,
 		'saved'    => true,
 	]);
+});
+
+/**
+ * Endpoint AJAX para recuperar opções de frete do payload salvo.
+ * Usado pela tela "Escolha quando sua compra chegará".
+ */
+add_action('wp_ajax_ctwpml_get_shipping_options', function () {
+	$is_debug = function_exists('checkout_tabs_wp_ml_is_debug_enabled') && checkout_tabs_wp_ml_is_debug_enabled();
+
+	if ($is_debug) {
+		error_log('[CTWPML] get_shipping_options - INICIANDO');
+	}
+
+	if (!is_user_logged_in()) {
+		if ($is_debug) {
+			error_log('[CTWPML] get_shipping_options - ERRO: Usuário não logado');
+		}
+		wp_send_json_error(['message' => 'Usuário não autenticado.']);
+		return;
+	}
+
+	check_ajax_referer('ctwpml_shipping_options', '_ajax_nonce');
+
+	$user_id = get_current_user_id();
+
+	if ($is_debug) {
+		error_log('[CTWPML] get_shipping_options - User ID: ' . $user_id);
+	}
+
+	$payload = get_user_meta($user_id, CTWPML_ADDRESS_PAYLOAD_META_KEY, true);
+
+	if ($is_debug) {
+		error_log('[CTWPML] get_shipping_options - Payload encontrado: ' . (empty($payload) ? 'NAO' : 'SIM'));
+		if (!empty($payload)) {
+			error_log('[CTWPML] get_shipping_options - Payload keys: ' . print_r(array_keys($payload), true));
+		}
+	}
+
+	if (empty($payload) || !is_array($payload)) {
+		if ($is_debug) {
+			error_log('[CTWPML] get_shipping_options - ERRO: Payload vazio ou não é array');
+		}
+		wp_send_json_error(['message' => 'Nenhum dado de frete disponível. Salve um endereço primeiro.']);
+		return;
+	}
+
+	// Extrair dados normalizados ou raw
+	$raw = $payload['raw'] ?? $payload;
+	$normalized = $payload['normalized'] ?? [];
+
+	if ($is_debug) {
+		error_log('[CTWPML] get_shipping_options - Raw data keys: ' . print_r(is_array($raw) ? array_keys($raw) : 'NAO_ARRAY', true));
+		error_log('[CTWPML] get_shipping_options - motoboy_pr: ' . ($raw['motoboy_pr'] ?? 'NAO_DEFINIDO'));
+		error_log('[CTWPML] get_shipping_options - sedex_pr: ' . ($raw['sedex_pr'] ?? 'NAO_DEFINIDO'));
+		error_log('[CTWPML] get_shipping_options - pacmini_pr: ' . ($raw['pacmini_pr'] ?? 'NAO_DEFINIDO'));
+	}
+
+	// Construir lista de opções disponíveis
+	$options = [];
+
+	// Motoboy (flat_rate:3)
+	$motoboy_pr = is_array($raw) ? ($raw['motoboy_pr'] ?? '') : '';
+	if (!empty($motoboy_pr)) {
+		$options[] = [
+			'id'          => 'flat_rate:3',
+			'method_id'   => 'flat_rate',
+			'instance_id' => '3',
+			'label'       => $motoboy_pr,
+			'price_text'  => $raw['motoboy_pro'] ?? '',
+			'type'        => 'motoboy',
+		];
+		if ($is_debug) {
+			error_log('[CTWPML] get_shipping_options - Adicionado Motoboy: ' . $motoboy_pr);
+		}
+	}
+
+	// SEDEX (flat_rate:5)
+	$sedex_pr = is_array($raw) ? ($raw['sedex_pr'] ?? '') : '';
+	if (!empty($sedex_pr)) {
+		$options[] = [
+			'id'          => 'flat_rate:5',
+			'method_id'   => 'flat_rate',
+			'instance_id' => '5',
+			'label'       => $sedex_pr,
+			'price_text'  => $raw['sedex_pro'] ?? '',
+			'type'        => 'sedex',
+		];
+		if ($is_debug) {
+			error_log('[CTWPML] get_shipping_options - Adicionado SEDEX: ' . $sedex_pr);
+		}
+	}
+
+	// PAC Mini (flat_rate:1)
+	$pacmini_pr = is_array($raw) ? ($raw['pacmini_pr'] ?? '') : '';
+	if (!empty($pacmini_pr)) {
+		$options[] = [
+			'id'          => 'flat_rate:1',
+			'method_id'   => 'flat_rate',
+			'instance_id' => '1',
+			'label'       => $pacmini_pr,
+			'price_text'  => $raw['pacmini_pro'] ?? '',
+			'type'        => 'pacmini',
+		];
+		if ($is_debug) {
+			error_log('[CTWPML] get_shipping_options - Adicionado PAC Mini: ' . $pacmini_pr);
+		}
+	}
+
+	if ($is_debug) {
+		error_log('[CTWPML] get_shipping_options - Total de opções: ' . count($options));
+	}
+
+	wp_send_json_success([
+		'options'     => $options,
+		'captured_at' => $payload['captured_at'] ?? '',
+	]);
+});
+
+/**
+ * Endpoint AJAX para definir o método de frete selecionado.
+ * Salva na sessão do WooCommerce e força recálculo.
+ */
+add_action('wp_ajax_ctwpml_set_shipping_method', function () {
+	$is_debug = function_exists('checkout_tabs_wp_ml_is_debug_enabled') && checkout_tabs_wp_ml_is_debug_enabled();
+
+	if ($is_debug) {
+		error_log('[CTWPML] set_shipping_method - INICIANDO');
+	}
+
+	if (!is_user_logged_in()) {
+		if ($is_debug) {
+			error_log('[CTWPML] set_shipping_method - ERRO: Usuário não logado');
+		}
+		wp_send_json_error(['message' => 'Usuário não autenticado.']);
+		return;
+	}
+
+	check_ajax_referer('ctwpml_set_shipping', '_ajax_nonce');
+
+	$method_id = isset($_POST['method_id']) ? sanitize_text_field(wp_unslash($_POST['method_id'])) : '';
+
+	if ($is_debug) {
+		error_log('[CTWPML] set_shipping_method - Method ID recebido: ' . $method_id);
+	}
+
+	if (empty($method_id)) {
+		if ($is_debug) {
+			error_log('[CTWPML] set_shipping_method - ERRO: Method ID vazio');
+		}
+		wp_send_json_error(['message' => 'Método de frete não informado.']);
+		return;
+	}
+
+	// Salvar na sessão do WooCommerce
+	if (WC()->session) {
+		WC()->session->set('chosen_shipping_methods', [$method_id]);
+		if ($is_debug) {
+			error_log('[CTWPML] set_shipping_method - Salvo em chosen_shipping_methods: ' . $method_id);
+		}
+	} else {
+		if ($is_debug) {
+			error_log('[CTWPML] set_shipping_method - AVISO: WC()->session não disponível');
+		}
+	}
+
+	// Forçar recálculo do carrinho
+	if (WC()->cart) {
+		WC()->cart->calculate_shipping();
+		WC()->cart->calculate_totals();
+		if ($is_debug) {
+			error_log('[CTWPML] set_shipping_method - Carrinho recalculado');
+			error_log('[CTWPML] set_shipping_method - Novo total: ' . WC()->cart->get_total());
+		}
+	} else {
+		if ($is_debug) {
+			error_log('[CTWPML] set_shipping_method - AVISO: WC()->cart não disponível');
+		}
+	}
+
+	$response = [
+		'chosen_method'       => $method_id,
+		'cart_total'          => WC()->cart ? WC()->cart->get_total() : '',
+		'cart_shipping_total' => WC()->cart ? WC()->cart->get_shipping_total() : '',
+	];
+
+	if ($is_debug) {
+		error_log('[CTWPML] set_shipping_method - Resposta: ' . print_r($response, true));
+	}
+
+	wp_send_json_success($response);
 });
 
 // Obter dados de contato (WhatsApp e CPF) do usuário

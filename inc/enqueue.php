@@ -195,6 +195,8 @@ add_action('wp_enqueue_scripts', function () {
 		'nonce'      => wp_create_nonce('store_webhook_shipping'),
 		'addresses_nonce' => wp_create_nonce('ctwpml_addresses'),
 		'address_payload_nonce' => wp_create_nonce('ctwpml_address_payload'),
+		'shipping_options_nonce' => wp_create_nonce('ctwpml_shipping_options'),
+		'set_shipping_nonce' => wp_create_nonce('ctwpml_set_shipping'),
 		'allow_fake_cpf' => checkout_tabs_wp_ml_allow_fake_cpf() ? 1 : 0,
 		'signup_nonce' => wp_create_nonce('ctwpml_signup'),
 		'login_nonce' => wp_create_nonce('ctwpml_login'),
