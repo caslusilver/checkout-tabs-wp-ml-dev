@@ -241,9 +241,17 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
 #### Protocol: 8922ebe
 
-## [Unreleased]
+## [v3.2.13] - 2026-01-07
 
 ### Changed
-- **Versão atual**: v3.2.12  
-  **Versão sugerida após a mudança**: vX.Y.Z  
-  **Descrição**: (descreva as mudanças reais deste release).
+- Novos eventos de webhook separados (`consultaCep` rápido para preencher endereço, `consultaEnderecoFrete` completo ao salvar).
+- Validação de `whatsappValido` ao salvar (bloqueia se inválido e exibe erro).
+- Correção de `validateForm()` para funcionar sem campos `billing_*` no DOM (fallback para cache da consulta CEP).
+- Cursor move para campo número após preencher rua via API.
+- Teclado numérico no campo WhatsApp.
+- CPF do perfil carregado automaticamente ao adicionar novo endereço.
+- Remoção de contornos/outlines de todos os botões e seta voltar.
+
+#### Protocol: a03ac22
+
+## [Unreleased]

@@ -203,7 +203,7 @@
           '          <input id="ctwpml-input-rua" type="text" placeholder="Ex.: Avenida..." />' +
           '          <div class="ctwpml-inline-hint" id="ctwpml-rua-hint" style="display:none;"></div>' +
           '        </div>' +
-          '        <div class="ctwpml-form-group"><label for="ctwpml-input-numero">Número</label><input id="ctwpml-input-numero" type="text" placeholder="Ex.: 123" /></div>' +
+          '        <div class="ctwpml-form-group"><label for="ctwpml-input-numero">Número</label><input id="ctwpml-input-numero" type="text" placeholder="Ex.: 123 ou SN" /></div>' +
           '        <div class="ctwpml-form-group"><label for="ctwpml-input-comp">Complemento (opcional)</label><input id="ctwpml-input-comp" type="text" placeholder="Ex.: Apto 201" /></div>' +
           '        <div class="ctwpml-form-group"><label for="ctwpml-input-info">Informações adicionais (opcional)</label><textarea id="ctwpml-input-info" rows="3" placeholder="Ex.: Entre ruas..."></textarea></div>' +
           '        <div class="ctwpml-type-label">Este é o seu trabalho ou sua casa?</div>' +
@@ -219,7 +219,7 @@
           '          <div class="ctwpml-contact-title">Dados de contato</div>' +
           '          <div class="ctwpml-contact-subtitle">Se houver algum problema no envio, você receberá uma ligação neste número.</div>' +
           '          <div class="ctwpml-form-group"><label for="ctwpml-input-nome">Nome completo</label><input id="ctwpml-input-nome" type="text" /></div>' +
-          '          <div class="ctwpml-form-group"><label for="ctwpml-input-fone">Seu WhatsApp</label><input id="ctwpml-input-fone" type="text" /></div>' +
+          '          <div class="ctwpml-form-group"><label for="ctwpml-input-fone">Seu WhatsApp</label><input id="ctwpml-input-fone" type="tel" inputmode="tel" placeholder="11 9 1234-5678" /></div>' +
           '          <div class="ctwpml-form-group" id="ctwpml-group-cpf">' +
           '            <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">' +
           '              <label for="ctwpml-input-cpf" style="margin:0;">CPF</label>' +
@@ -665,6 +665,8 @@
       $('#ctwpml-input-fone').val(formatPhone((($('#billing_cellphone').val() || '') || '').trim()));
       syncLoginBanner();
       syncCpfUiFromCheckout();
+      // v3.2.13: Carregar CPF e WhatsApp do perfil (user_meta) para novo endereço
+      loadContactMeta();
       setFooterVisible(true);
     }
 
@@ -788,10 +790,33 @@
         errors.push('Rua obrigatória');
       }
 
-      // Campos obrigatórios server-side vêm do checkout (bairro/cidade/UF). Se estiverem vazios,
-      // forçamos o usuário a revisar o CEP/consulta.
-      var city = ($('#billing_city').val() || '').trim();
-      var st = ($('#billing_state').val() || '').trim();
+      // v3.2.13: Verificar cidade/UF com fallback para lastCepLookup (quando billing_* não existir no DOM)
+      var city = '';
+      var st = '';
+      
+      // Tentar do checkout primeiro (se existir)
+      if ($('#billing_city').length) city = ($('#billing_city').val() || '').trim();
+      if ($('#billing_state').length) st = ($('#billing_state').val() || '').trim();
+      
+      // Fallback: usar lastCepLookup (cache da consulta de CEP)
+      if (!city && lastCepLookup) {
+        city = lastCepLookup.localidade || lastCepLookup.cidade || lastCepLookup.city || '';
+      }
+      if (!st && lastCepLookup) {
+        st = lastCepLookup.uf || lastCepLookup.estado || lastCepLookup.state || '';
+      }
+      
+      // Fallback: extrair do texto de confirmação do CEP (setCepConfirm)
+      if (!city || !st) {
+        var confirmText = $('#ctwpml-cep-confirm-text').text() || '';
+        // Formato: "Cidade - UF" ou "Bairro, Cidade - UF"
+        var match = confirmText.match(/([^,\-]+)\s*-\s*([A-Z]{2})/i);
+        if (match) {
+          if (!city) city = (match[1] || '').trim();
+          if (!st) st = (match[2] || '').trim();
+        }
+      }
+      
       if (!city || !st) {
         setFieldError('#ctwpml-input-cep', true);
         ok = false;
@@ -828,7 +853,7 @@
       }
 
       if (errors.length > 0) {
-        state.log('ERROR     validateForm falhou', { errors: errors }, 'ERROR');
+        state.log('ERROR     validateForm falhou', { errors: errors, city: city, st: st, hasLastCepLookup: !!lastCepLookup }, 'ERROR');
       }
 
       return ok;
@@ -1066,6 +1091,86 @@
       if ($('#ctwpml-type-work').hasClass('is-active')) label = 'Trabalho';
 
       var receiverName = ($('#ctwpml-input-nome').val() || '').trim();
+      var whatsappDigits = phoneDigits($('#ctwpml-input-fone').val());
+      var cpfDigits = cpfDigitsOnly($('#ctwpml-input-cpf').val());
+
+      // v3.2.13: Primeiro, chamar webhook com evento consultaEnderecoFrete (completo)
+      var webhookPayload = {
+        cep: cepOnly,
+        evento: 'consultaEnderecoFrete',
+        whatsapp: whatsappDigits,
+        cpf: cpfDigits,
+        nome: receiverName,
+      };
+
+      if (typeof state.log === 'function') state.log('WEBHOOK_OUT (ML) [consultaEnderecoFrete] Salvando...', webhookPayload, 'WEBHOOK_OUT');
+
+      $.ajax({
+        url: state.params.webhook_url,
+        type: 'POST',
+        contentType: 'application/json',
+        dataType: 'json',
+        timeout: 20000,
+        crossDomain: true,
+        xhrFields: { withCredentials: false },
+        data: JSON.stringify(webhookPayload),
+        success: function (webhookData) {
+          if (typeof state.log === 'function') state.log('WEBHOOK_IN (ML) [consultaEnderecoFrete] Resposta.', webhookData, 'WEBHOOK_IN');
+
+          // v3.2.13: Verificar whatsappValido
+          var normalized = normalizeApiPayload(webhookData);
+          if (normalized && normalized.whatsappValido === false) {
+            isSavingAddress = false;
+            $('#ctwpml-btn-primary').prop('disabled', false);
+            hideModalSpinner();
+            setFieldError('#ctwpml-input-fone', true);
+            showNotification('Por favor, confira o seu número de WhatsApp.', 'error', 5000);
+            done({ ok: false, message: 'WhatsApp inválido.' });
+            return;
+          }
+
+          // Persistir payload completo no perfil
+          persistAddressPayload(webhookData);
+
+          // Agora salvar o endereço no backend
+          doSaveAddressToBackend(cepOnly, label, receiverName, normalized, done);
+        },
+        error: function (jqXHR, textStatus, errorThrown) {
+          if (typeof state.log === 'function')
+            state.log('WEBHOOK_IN (ML) [consultaEnderecoFrete] Erro (' + textStatus + ').', { status: jqXHR.status, error: errorThrown }, 'WEBHOOK_IN');
+          
+          // Mesmo com erro no webhook, tentar salvar o endereço usando dados em cache
+          if (typeof state.log === 'function') state.log('UI        Salvando endereço sem resposta do webhook (usando cache)...', {}, 'UI');
+          doSaveAddressToBackend(cepOnly, label, receiverName, lastCepLookup, done);
+        },
+      });
+    }
+
+    // v3.2.13: Função auxiliar para salvar endereço no backend (após validação do webhook)
+    function doSaveAddressToBackend(cepOnly, label, receiverName, webhookData, done) {
+      // Usar dados do webhook ou fallback para lastCepLookup ou campos do checkout
+      var neighborhood = '';
+      var city = '';
+      var st = '';
+
+      if (webhookData) {
+        neighborhood = webhookData.bairro || webhookData.neighborhood || '';
+        city = webhookData.localidade || webhookData.cidade || webhookData.city || '';
+        st = webhookData.uf || webhookData.estado || webhookData.state || '';
+      }
+
+      // Fallback para lastCepLookup
+      if (!city && lastCepLookup) {
+        neighborhood = lastCepLookup.bairro || lastCepLookup.neighborhood || neighborhood;
+        city = lastCepLookup.localidade || lastCepLookup.cidade || lastCepLookup.city || city;
+        st = lastCepLookup.uf || lastCepLookup.estado || lastCepLookup.state || st;
+      }
+
+      // Fallback para campos do checkout (se existirem)
+      if (!city && $('#billing_city').length) city = ($('#billing_city').val() || '').trim();
+      if (!st && $('#billing_state').length) st = ($('#billing_state').val() || '').trim();
+      if (!neighborhood && $('#billing_neighborhood').length) neighborhood = ($('#billing_neighborhood').val() || '').trim();
+
       var address = {
         id: selectedAddressId ? selectedAddressId : '',
         label: label,
@@ -1074,11 +1179,13 @@
         address_1: ($('#ctwpml-input-rua').val() || '').trim(),
         number: ($('#ctwpml-input-numero').val() || '').trim(),
         complement: ($('#ctwpml-input-comp').val() || '').trim(),
-        neighborhood: ($('#billing_neighborhood').val() || '').trim(),
-        city: ($('#billing_city').val() || '').trim(),
-        state: ($('#billing_state').val() || '').trim(),
+        neighborhood: neighborhood,
+        city: city,
+        state: st,
         extra_info: ($('#ctwpml-input-info').val() || '').trim(),
       };
+
+      if (typeof state.log === 'function') state.log('UI        Salvando endereço no backend...', address, 'UI');
 
       $.ajax({
         url: state.params.ajax_url,
@@ -1193,9 +1300,11 @@
       if (!dados) return;
 
       // Preenche inputs do modal.
+      var ruaPreenchida = false;
       if (dados.logradouro) {
         $('#ctwpml-input-rua').val(String(dados.logradouro));
         setRuaHint('', false);
+        ruaPreenchida = true;
       } else {
         setRuaHint('Não encontramos Rua/Avenida automaticamente. Preencha manualmente com atenção.', true);
       }
@@ -1218,7 +1327,17 @@
       if (dados.complemento) $('#billing_complemento').val(String(dados.complemento)).trigger('change');
 
       refreshFromCheckoutFields();
+      
+      // v3.2.13: Após preencher rua automaticamente, mover cursor para o campo número
+      if (ruaPreenchida && !$('#ctwpml-input-numero').val()) {
+        setTimeout(function() {
+          $('#ctwpml-input-numero').focus();
+        }, 100);
+      }
     }
+
+    // v3.2.13: Cache da última consulta de CEP para uso na validação (fallback quando billing_* não existir)
+    var lastCepLookup = null;
 
     function consultCepAndFillForm() {
       var cepOnlyDigits = cepDigits($('#ctwpml-input-cep').val());
@@ -1226,45 +1345,45 @@
       if (cepConsultInFlight) return;
       if (cepConsultedFor && cepConsultedFor === cepOnlyDigits) return;
 
-      // Preenche o checkout antes para manter consistência de estado.
-      $('#billing_postcode').val(cepOnlyDigits).trigger('change');
+      // Preenche o checkout antes para manter consistência de estado (se existir).
+      if ($('#billing_postcode').length) {
+        $('#billing_postcode').val(cepOnlyDigits).trigger('change');
+      }
 
+      // v3.2.13: Payload MÍNIMO para consulta rápida de CEP (evento: consultaCep)
       var payload = {
         cep: cepOnlyDigits,
-        evento: 'consultaEnderecoFrete',
-        whatsapp:
-          typeof state.removerMascaraWhatsApp === 'function'
-            ? state.removerMascaraWhatsApp($('#ctwpml-input-fone').val() || $('#billing_cellphone').val())
-            : (String($('#billing_cellphone').val() || '').replace(/\D/g, '')),
-        cpf: String($('#billing_cpf').val() || '').replace(/\D/g, ''),
-        nome: ($('#ctwpml-input-nome').val() || ($('#billing_first_name').val() + ' ' + $('#billing_last_name').val()) || '').trim(),
+        evento: 'consultaCep',
       };
 
-      if (typeof state.log === 'function') state.log('WEBHOOK_OUT (ML) Consultando CEP para preencher formulário...', payload, 'WEBHOOK_OUT');
+      if (typeof state.log === 'function') state.log('WEBHOOK_OUT (ML) [consultaCep] Consulta rápida de CEP...', payload, 'WEBHOOK_OUT');
 
-      // Chama o mesmo webhook do plugin, sem armazenar no servidor ainda.
       cepConsultInFlight = true;
       $.ajax({
         url: state.params.webhook_url,
         type: 'POST',
         contentType: 'application/json',
         dataType: 'json',
-        timeout: 15000,
+        timeout: 10000, // timeout menor para consulta rápida
         crossDomain: true,
         xhrFields: { withCredentials: false },
         data: JSON.stringify(payload),
         success: function (data) {
           cepConsultInFlight = false;
           cepConsultedFor = cepOnlyDigits;
-          if (typeof state.log === 'function') state.log('WEBHOOK_IN (ML) Resposta recebida.', data, 'WEBHOOK_IN');
+          if (typeof state.log === 'function') state.log('WEBHOOK_IN (ML) [consultaCep] Resposta recebida.', data, 'WEBHOOK_IN');
+          
+          // v3.2.13: Salvar em memória para uso na validação (fallback)
+          lastCepLookup = normalizeApiPayload(data);
+          
           fillFormFromApiData(data);
-          persistAddressPayload(data);
+          // NÃO persiste no perfil aqui — isso será feito no Salvar com evento completo
         },
         error: function (jqXHR, textStatus, errorThrown) {
           cepConsultInFlight = false;
           if (typeof state.log === 'function')
             state.log(
-              'WEBHOOK_IN (ML) Erro na consulta do CEP (' + textStatus + ').',
+              'WEBHOOK_IN (ML) [consultaCep] Erro (' + textStatus + ').',
               { status: jqXHR.status, error: errorThrown, responseText: jqXHR.responseText },
               'WEBHOOK_IN'
             );

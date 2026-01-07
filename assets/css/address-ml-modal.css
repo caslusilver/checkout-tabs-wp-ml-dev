@@ -85,13 +85,24 @@
 }
 
 .ctwpml-modal-back {
-  background: transparent;
-  border: 0;
+  background: transparent !important;
+  border: 0 !important;
+  outline: none !important;
+  box-shadow: none !important;
   cursor: pointer;
   padding: 4px;
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.ctwpml-modal-back:hover,
+.ctwpml-modal-back:focus,
+.ctwpml-modal-back:active {
+  background: transparent !important;
+  border: 0 !important;
+  outline: none !important;
+  box-shadow: none !important;
 }
 
 .ctwpml-modal-back img {
@@ -295,11 +306,54 @@
 .ctwpml-btn-primary {
   background: var(--ctwpml-ml-blue) !important;
   color: #fff !important;
+  border: 0 !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+.ctwpml-btn-primary:hover,
+.ctwpml-btn-primary:focus,
+.ctwpml-btn-primary:active {
+  background: var(--ctwpml-ml-blue) !important;
+  border: 0 !important;
+  outline: none !important;
+  box-shadow: none !important;
+  opacity: 0.9;
 }
 
 .ctwpml-btn-secondary {
   background: rgba(52, 131, 250, 0.12) !important;
   color: var(--ctwpml-ml-blue) !important;
+  border: 0 !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+.ctwpml-btn-secondary:hover,
+.ctwpml-btn-secondary:focus,
+.ctwpml-btn-secondary:active {
+  background: rgba(52, 131, 250, 0.18) !important;
+  border: 0 !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+/* Remove contornos de todos os botões do modal */
+.ctwpml-modal button,
+.ctwpml-modal-overlay button {
+  border: 0 !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+.ctwpml-modal button:hover,
+.ctwpml-modal button:focus,
+.ctwpml-modal button:active,
+.ctwpml-modal-overlay button:hover,
+.ctwpml-modal-overlay button:focus,
+.ctwpml-modal-overlay button:active {
+  outline: none !important;
+  box-shadow: none !important;
 }
 
 .ctwpml-view {
