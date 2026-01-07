@@ -227,6 +227,119 @@
 
     return html;
   };
+
+  /**
+   * Tela 3: "Escolha como pagar"
+   * Exibe métodos de pagamento (Pix, Boleto, Cartão) e totalizador no rodapé.
+   * NOTA: Esta é apenas a estrutura visual, sem lógica de pagamento.
+   * Inclui drawer de cupom (modal que sobe de baixo).
+   * @param {Object} options - Opções de renderização
+   * @param {string} options.totalText - Texto do total (ex: "R$ 185,33")
+   * @returns {string} HTML da tela
+   */
+  window.CCCheckoutTabs.AddressMlScreens.renderPaymentScreen = function renderPaymentScreen(options) {
+    options = options || {};
+    var debugMode = !!(window.cc_params && window.cc_params.debug);
+    var totalText = options.totalText || 'R$ 0,00';
+    var pluginUrl = (window.cc_params && window.cc_params.plugin_url) ? window.cc_params.plugin_url : '';
+
+    if (debugMode) {
+      console.log('[CTWPML][DEBUG] renderPaymentScreen - options:', options);
+    }
+
+    // URLs dos ícones
+    var pixIconUrl = 'https://cubensisstore.com.br/wp-content/uploads/2026/01/artpoin-logo-pix-1-scaled.png';
+    var cardIconUrl = 'https://cubensisstore.com.br/wp-content/uploads/2026/01/bank-card.png';
+
+    var html =
+      '' +
+      '<div class="ctwpml-payment-screen">' +
+      // Header laranja com botão voltar
+      '  <header class="ctwpml-payment-header">' +
+      '    <button class="ctwpml-payment-back-button" id="ctwpml-payment-back">←</button>' +
+      '    <h1 class="ctwpml-payment-header-title">Escolha como pagar</h1>' +
+      '  </header>' +
+      // Título da página
+      '  <h2 class="ctwpml-payment-page-title">Escolha como pagar</h2>' +
+      // Seção Recomendados
+      '  <p class="ctwpml-payment-section-label">Recomendados</p>' +
+      '  <div class="ctwpml-payment-group">' +
+      // Pix
+      '    <a href="#" class="ctwpml-payment-option" data-method="pix">' +
+      '      <div class="ctwpml-payment-option-content">' +
+      '        <div class="ctwpml-payment-icon">' +
+      '          <img src="' + escapeHtml(pixIconUrl) + '" alt="Pix" />' +
+      '        </div>' +
+      '        <div class="ctwpml-payment-details">' +
+      '          <h3 class="ctwpml-payment-method-title">Pix</h3>' +
+      '          <p class="ctwpml-payment-method-subtitle">Aprovação imediata</p>' +
+      '        </div>' +
+      '      </div>' +
+      '      <span class="ctwpml-payment-chevron">›</span>' +
+      '    </a>' +
+      // Boleto
+      '    <a href="#" class="ctwpml-payment-option" data-method="boleto">' +
+      '      <div class="ctwpml-payment-option-content">' +
+      '        <div class="ctwpml-payment-icon ctwpml-payment-icon-barcode">║▌║</div>' +
+      '        <div class="ctwpml-payment-details">' +
+      '          <h3 class="ctwpml-payment-method-title">Boleto</h3>' +
+      '          <p class="ctwpml-payment-method-subtitle">Aprovação em 1 a 2 dias úteis</p>' +
+      '        </div>' +
+      '      </div>' +
+      '      <span class="ctwpml-payment-chevron">›</span>' +
+      '    </a>' +
+      '  </div>' +
+      // Seção Cartões
+      '  <p class="ctwpml-payment-section-label">Cartões</p>' +
+      '  <div class="ctwpml-payment-group">' +
+      // Novo cartão de crédito
+      '    <a href="#" class="ctwpml-payment-option" data-method="card">' +
+      '      <div class="ctwpml-payment-option-content">' +
+      '        <div class="ctwpml-payment-icon">' +
+      '          <img src="' + escapeHtml(cardIconUrl) + '" alt="Cartão" />' +
+      '        </div>' +
+      '        <div class="ctwpml-payment-details">' +
+      '          <h3 class="ctwpml-payment-method-title ctwpml-payment-title-blue">Novo cartão de crédito</h3>' +
+      '        </div>' +
+      '      </div>' +
+      '      <span class="ctwpml-payment-chevron">›</span>' +
+      '    </a>' +
+      '  </div>' +
+      // Footer fixo (sticky)
+      '  <div class="ctwpml-payment-footer">' +
+      '    <span class="ctwpml-payment-coupon-link" id="ctwpml-payment-coupon">Inserir código do cupom</span>' +
+      '    <div class="ctwpml-payment-total-row">' +
+      '      <span class="ctwpml-payment-total-label">Você pagará</span>' +
+      '      <span class="ctwpml-payment-total-value">' + escapeHtml(totalText) + '</span>' +
+      '    </div>' +
+      '  </div>' +
+      '</div>' +
+      // Overlay e Drawer do Cupom (fora do container principal)
+      '<div id="ctwpml-coupon-overlay" class="ctwpml-coupon-overlay"></div>' +
+      '<div id="ctwpml-coupon-drawer" class="ctwpml-coupon-drawer">' +
+      '  <div class="ctwpml-coupon-drawer-handle"></div>' +
+      '  <div class="ctwpml-coupon-drawer-header">' +
+      '    <button class="ctwpml-coupon-close-btn" id="ctwpml-coupon-close">✕</button>' +
+      '    <h2 class="ctwpml-coupon-drawer-title">Cupons</h2>' +
+      '  </div>' +
+      '  <div class="ctwpml-coupon-drawer-content">' +
+      '    <div class="ctwpml-coupon-insert-label">' +
+      '      <span class="ctwpml-coupon-ticket-icon">🎫</span>' +
+      '      <span class="ctwpml-coupon-insert-text">Inserir código</span>' +
+      '    </div>' +
+      '    <div class="ctwpml-coupon-input-wrapper">' +
+      '      <input type="text" id="ctwpml-coupon-input" class="ctwpml-coupon-input" placeholder="Digite seu cupom" />' +
+      '    </div>' +
+      '    <button id="ctwpml-add-coupon-btn" class="ctwpml-add-coupon-btn" disabled>Adicionar cupom</button>' +
+      '  </div>' +
+      '</div>';
+
+    if (debugMode) {
+      console.log('[CTWPML][DEBUG] renderPaymentScreen - HTML gerado (primeiros 300 chars):', html.substring(0, 300));
+    }
+
+    return html;
+  };
 })(window);
 
 

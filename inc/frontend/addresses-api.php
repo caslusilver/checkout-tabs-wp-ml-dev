@@ -528,61 +528,75 @@ add_action('wp_ajax_ctwpml_get_shipping_options', function () {
 		error_log('[CTWPML] get_shipping_options - Payload completo: ' . substr(print_r($payload, true), 0, 1000));
 		error_log('[CTWPML] get_shipping_options - Raw type: ' . gettype($raw));
 		error_log('[CTWPML] get_shipping_options - Raw data keys: ' . print_r(is_array($raw) ? array_keys($raw) : 'NAO_ARRAY', true));
-		error_log('[CTWPML] get_shipping_options - motoboy_pr: ' . ($raw['motoboy_pr'] ?? 'NAO_DEFINIDO'));
-		error_log('[CTWPML] get_shipping_options - sedex_pr: ' . ($raw['sedex_pr'] ?? 'NAO_DEFINIDO'));
-		error_log('[CTWPML] get_shipping_options - pacmini_pr: ' . ($raw['pacmini_pr'] ?? 'NAO_DEFINIDO'));
+		// Labels: *_ch
+		error_log('[CTWPML] get_shipping_options - motoboy_ch: ' . ($raw['motoboy_ch'] ?? 'NAO_DEFINIDO'));
+		error_log('[CTWPML] get_shipping_options - sedex_ch: ' . ($raw['sedex_ch'] ?? 'NAO_DEFINIDO'));
+		error_log('[CTWPML] get_shipping_options - pacmini_ch: ' . ($raw['pacmini_ch'] ?? 'NAO_DEFINIDO'));
+		// Preços: preco_*
+		error_log('[CTWPML] get_shipping_options - preco_motoboy: ' . ($raw['preco_motoboy'] ?? 'NAO_DEFINIDO'));
+		error_log('[CTWPML] get_shipping_options - preco_sedex: ' . ($raw['preco_sedex'] ?? 'NAO_DEFINIDO'));
+		error_log('[CTWPML] get_shipping_options - preco_pac: ' . ($raw['preco_pac'] ?? 'NAO_DEFINIDO'));
 		// Mostrar RAW completo truncado para debug
 		error_log('[CTWPML] get_shipping_options - RAW (primeiros 500 chars): ' . substr(json_encode($raw), 0, 500));
 	}
 
 	// Construir lista de opções disponíveis
+	// Labels: *_ch (ex: motoboy_ch, sedex_ch, pacmini_ch)
+	// Preços: preco_* (ex: preco_motoboy, preco_sedex, preco_pac)
+	// Se o label (*_ch) estiver vazio, a modalidade é ocultada
 	$options = [];
 
-	// Motoboy (flat_rate:3)
-	$motoboy_pr = is_array($raw) ? ($raw['motoboy_pr'] ?? '') : '';
-	if (!empty($motoboy_pr)) {
+	// Motoboy (flat_rate:3) - label: motoboy_ch, preço: preco_motoboy
+	$motoboy_ch = is_array($raw) ? trim((string) ($raw['motoboy_ch'] ?? '')) : '';
+	if (!empty($motoboy_ch)) {
+		$preco_motoboy = is_array($raw) ? ($raw['preco_motoboy'] ?? '') : '';
 		$options[] = [
 			'id'          => 'flat_rate:3',
 			'method_id'   => 'flat_rate',
 			'instance_id' => '3',
-			'label'       => $motoboy_pr,
-			'price_text'  => $raw['motoboy_pro'] ?? '',
+			'label'       => $motoboy_ch,
+			'price_text'  => is_numeric($preco_motoboy) ? 'R$ ' . number_format((float) $preco_motoboy, 2, ',', '.') : (string) $preco_motoboy,
+			'price_raw'   => $preco_motoboy,
 			'type'        => 'motoboy',
 		];
 		if ($is_debug) {
-			error_log('[CTWPML] get_shipping_options - Adicionado Motoboy: ' . $motoboy_pr);
+			error_log('[CTWPML] get_shipping_options - Adicionado Motoboy: ' . $motoboy_ch . ' | Preço: ' . $preco_motoboy);
 		}
 	}
 
-	// SEDEX (flat_rate:5)
-	$sedex_pr = is_array($raw) ? ($raw['sedex_pr'] ?? '') : '';
-	if (!empty($sedex_pr)) {
+	// SEDEX (flat_rate:5) - label: sedex_ch, preço: preco_sedex
+	$sedex_ch = is_array($raw) ? trim((string) ($raw['sedex_ch'] ?? '')) : '';
+	if (!empty($sedex_ch)) {
+		$preco_sedex = is_array($raw) ? ($raw['preco_sedex'] ?? '') : '';
 		$options[] = [
 			'id'          => 'flat_rate:5',
 			'method_id'   => 'flat_rate',
 			'instance_id' => '5',
-			'label'       => $sedex_pr,
-			'price_text'  => $raw['sedex_pro'] ?? '',
+			'label'       => $sedex_ch,
+			'price_text'  => is_numeric($preco_sedex) ? 'R$ ' . number_format((float) $preco_sedex, 2, ',', '.') : (string) $preco_sedex,
+			'price_raw'   => $preco_sedex,
 			'type'        => 'sedex',
 		];
 		if ($is_debug) {
-			error_log('[CTWPML] get_shipping_options - Adicionado SEDEX: ' . $sedex_pr);
+			error_log('[CTWPML] get_shipping_options - Adicionado SEDEX: ' . $sedex_ch . ' | Preço: ' . $preco_sedex);
 		}
 	}
 
-	// PAC Mini (flat_rate:1)
-	$pacmini_pr = is_array($raw) ? ($raw['pacmini_pr'] ?? '') : '';
-	if (!empty($pacmini_pr)) {
+	// PAC Mini (flat_rate:1) - label: pacmini_ch, preço: preco_pac
+	$pacmini_ch = is_array($raw) ? trim((string) ($raw['pacmini_ch'] ?? '')) : '';
+	if (!empty($pacmini_ch)) {
+		$preco_pac = is_array($raw) ? ($raw['preco_pac'] ?? '') : '';
 		$options[] = [
 			'id'          => 'flat_rate:1',
 			'method_id'   => 'flat_rate',
 			'instance_id' => '1',
-			'label'       => $pacmini_pr,
-			'price_text'  => $raw['pacmini_pro'] ?? '',
+			'label'       => $pacmini_ch,
+			'price_text'  => is_numeric($preco_pac) ? 'R$ ' . number_format((float) $preco_pac, 2, ',', '.') : (string) $preco_pac,
+			'price_raw'   => $preco_pac,
 			'type'        => 'pacmini',
 		];
 		if ($is_debug) {
-			error_log('[CTWPML] get_shipping_options - Adicionado PAC Mini: ' . $pacmini_pr);
+			error_log('[CTWPML] get_shipping_options - Adicionado PAC Mini: ' . $pacmini_ch . ' | Preço: ' . $preco_pac);
 		}
 	}
 

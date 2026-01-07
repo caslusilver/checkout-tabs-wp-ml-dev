@@ -179,6 +179,7 @@
           '    <div class="ctwpml-modal-body">' +
           '      <div id="ctwpml-view-initial" style="display:none;"></div>' +
           '      <div id="ctwpml-view-shipping" style="display:none;"></div>' +
+          '      <div id="ctwpml-view-payment" style="display:none;"></div>' +
           '      <div id="ctwpml-view-list">' +
           '        <div class="ctwpml-section-title">Escolha onde você quer receber sua compra</div>' +
           '        <div id="ctwpml-address-list"></div>' +
@@ -445,6 +446,75 @@
           );
         },
       });
+    }
+
+    /**
+     * Exibe a tela de seleção de pagamento.
+     * Esta tela mostra os métodos de pagamento disponíveis (Pix, Boleto, Cartão).
+     * NOTA: Esta é apenas a estrutura visual, sem lógica de pagamento.
+     */
+    function showPaymentScreen() {
+      var log = function (msg, data) {
+        if (typeof state.log === 'function') {
+          state.log(msg, data || {}, 'PAYMENT');
+        } else {
+          console.log('[CTWPML][PAYMENT] ' + msg, data || '');
+        }
+      };
+
+      log('showPaymentScreen() - INICIANDO');
+
+      currentView = 'payment';
+      $('#ctwpml-modal-title').text('Checkout');
+      $('#ctwpml-view-form').hide();
+      $('#ctwpml-view-list').hide();
+      $('#ctwpml-view-initial').hide();
+      $('#ctwpml-view-shipping').hide();
+      $('#ctwpml-view-payment').show();
+      setFooterVisible(false);
+
+      // Obter o total do carrinho (se disponível)
+      var totalText = 'R$ 0,00';
+      try {
+        var $cartTotal = $('.woocommerce-Price-amount.amount').first();
+        if ($cartTotal.length) {
+          totalText = $cartTotal.text().trim();
+        }
+        // Fallback: tentar pegar do order review
+        if (totalText === 'R$ 0,00') {
+          var $orderTotal = $('#order_review .order-total .amount, .order-total .woocommerce-Price-amount').first();
+          if ($orderTotal.length) {
+            totalText = $orderTotal.text().trim();
+          }
+        }
+      } catch (e) {
+        log('showPaymentScreen() - Erro ao obter total:', e);
+      }
+
+      log('showPaymentScreen() - Total obtido:', totalText);
+
+      // Verificar se temos a função de renderização
+      var hasRenderPayment = !!(
+        window.CCCheckoutTabs &&
+        window.CCCheckoutTabs.AddressMlScreens &&
+        typeof window.CCCheckoutTabs.AddressMlScreens.renderPaymentScreen === 'function'
+      );
+
+      if (hasRenderPayment) {
+        var html = window.CCCheckoutTabs.AddressMlScreens.renderPaymentScreen({
+          totalText: totalText,
+        });
+        $('#ctwpml-view-payment').html(html);
+        log('showPaymentScreen() - Tela renderizada com sucesso');
+      } else {
+        log('showPaymentScreen() - ERRO: renderPaymentScreen não disponível, usando fallback');
+        $('#ctwpml-view-payment').html(
+          '<div style="padding:20px;text-align:center;">' +
+            '<div style="font-size:22px;font-weight:500;margin-bottom:16px;">Escolha como pagar</div>' +
+            '<div style="color:#666;">Carregando métodos de pagamento...</div>' +
+            '</div>'
+        );
+      }
     }
 
     function syncLoginBanner() {
@@ -1780,11 +1850,17 @@
       console.log('[CTWPML][DEBUG] Click #ctwpml-modal-back - currentView:', currentView);
 
       // Navegação entre telas:
+      // payment → shipping
       // shipping → initial
       // list → initial
       // form → list
       // initial → fecha modal (ou history.back quando for fullscreen)
 
+      if (currentView === 'payment') {
+        console.log('[CTWPML][DEBUG] - voltando de payment para shipping');
+        showShippingPlaceholder();
+        return;
+      }
       if (currentView === 'shipping') {
         console.log('[CTWPML][DEBUG] - voltando de shipping para initial');
         showInitial();
@@ -1949,7 +2025,10 @@
           });
         });
       } else {
-        // Continuar: aplica o endereço selecionado (se for salvo) e segue o fluxo atual.
+        // Continuar na lista de endereços: vai direto para a tela "Escolha quando sua compra chegará"
+        state.log('ACTION    Click #ctwpml-btn-primary (lista) - avançando para tela de frete', { selectedAddressId: selectedAddressId }, 'ACTION');
+        
+        // Aplicar endereço selecionado aos campos billing_* (para consistência)
         if (selectedAddressId) {
           var it = getAddressById(selectedAddressId);
           if (it) {
@@ -1963,8 +2042,9 @@
             refreshFromCheckoutFields();
           }
         }
-        closeModal();
-        $('#btn-avancar-para-endereco').trigger('click');
+        
+        // Ir direto para a tela de frete (não fecha o modal)
+        showShippingPlaceholder();
       }
     });
     $(document).on('click', '#ctwpml-nao-sei-cep', function (e) {
@@ -2039,10 +2119,7 @@
         return;
       }
 
-      log('Método de frete confirmado, avançando para pagamento');
-
-      // Fechar modal e avançar para pagamento
-      closeModal();
+      log('Método de frete confirmado, avançando para tela de pagamento');
 
       // Dispara evento customizado para que outros módulos possam reagir
       $(document.body).trigger('ctwpml_shipping_selected', {
@@ -2051,7 +2128,160 @@
       });
 
       log('Evento ctwpml_shipping_selected disparado');
+
+      // Avançar para a tela de pagamento (não fecha o modal)
+      showPaymentScreen();
     });
+
+    // Tela 3 (Pagamento): clique em opção de pagamento (Pix, Boleto, Cartão)
+    $(document).on('click', '.ctwpml-payment-option', function (e) {
+      e.preventDefault();
+      var $this = $(this);
+      var method = $this.data('method') || '';
+
+      var log = function (msg, data) {
+        if (typeof state.log === 'function') {
+          state.log(msg, data || {}, 'PAYMENT');
+        } else {
+          console.log('[CTWPML][PAYMENT] ' + msg, data || '');
+        }
+      };
+
+      log('Click em opção de pagamento:', { method: method });
+
+      // Por enquanto, apenas mostra notificação (lógica de pagamento será implementada depois)
+      switch (method) {
+        case 'pix':
+          showNotification('Pix selecionado! A lógica de pagamento será implementada em breve.', 'info', 3000);
+          break;
+        case 'boleto':
+          showNotification('Boleto selecionado! A lógica de pagamento será implementada em breve.', 'info', 3000);
+          break;
+        case 'card':
+          showNotification('Cartão selecionado! A lógica de pagamento será implementada em breve.', 'info', 3000);
+          break;
+        default:
+          showNotification('Método de pagamento selecionado.', 'info', 3000);
+      }
+
+      // Dispara evento customizado para que outros módulos possam reagir
+      try {
+        $(document.body).trigger('ctwpml_payment_method_selected', { method: method });
+      } catch (e2) {}
+
+      log('Evento ctwpml_payment_method_selected disparado');
+    });
+
+    // Tela 3 (Pagamento): botão voltar
+    $(document).on('click', '#ctwpml-payment-back', function (e) {
+      e.preventDefault();
+      var log = function (msg, data) {
+        if (typeof state.log === 'function') {
+          state.log(msg, data || {}, 'PAYMENT');
+        } else {
+          console.log('[CTWPML][PAYMENT] ' + msg, data || '');
+        }
+      };
+
+      log('Click em botão voltar da tela de pagamento');
+      showShippingPlaceholder();
+    });
+
+    // Tela 3 (Pagamento): clique no link de cupom - abre drawer
+    $(document).on('click', '#ctwpml-payment-coupon', function (e) {
+      e.preventDefault();
+      var log = function (msg, data) {
+        if (typeof state.log === 'function') {
+          state.log(msg, data || {}, 'PAYMENT');
+        } else {
+          console.log('[CTWPML][PAYMENT] ' + msg, data || '');
+        }
+      };
+
+      log('Click em inserir cupom - abrindo drawer');
+      toggleCouponDrawer(true);
+    });
+
+    // Tela 3 (Pagamento): fechar drawer de cupom (click no overlay)
+    $(document).on('click', '#ctwpml-coupon-overlay', function (e) {
+      e.preventDefault();
+      toggleCouponDrawer(false);
+    });
+
+    // Tela 3 (Pagamento): fechar drawer de cupom (click no botão X)
+    $(document).on('click', '#ctwpml-coupon-close', function (e) {
+      e.preventDefault();
+      toggleCouponDrawer(false);
+    });
+
+    // Tela 3 (Pagamento): input no campo de cupom - habilita/desabilita botão
+    $(document).on('input', '#ctwpml-coupon-input', function () {
+      var value = $(this).val().trim();
+      var $btn = $('#ctwpml-add-coupon-btn');
+      
+      if (value.length > 0) {
+        $btn.addClass('is-active').prop('disabled', false);
+      } else {
+        $btn.removeClass('is-active').prop('disabled', true);
+      }
+    });
+
+    // Tela 3 (Pagamento): click no botão adicionar cupom
+    $(document).on('click', '#ctwpml-add-coupon-btn', function (e) {
+      e.preventDefault();
+      
+      var $btn = $(this);
+      if ($btn.prop('disabled')) return;
+      
+      var log = function (msg, data) {
+        if (typeof state.log === 'function') {
+          state.log(msg, data || {}, 'PAYMENT');
+        } else {
+          console.log('[CTWPML][PAYMENT] ' + msg, data || '');
+        }
+      };
+
+      var couponCode = $('#ctwpml-coupon-input').val().trim();
+      log('Click em adicionar cupom:', { code: couponCode });
+
+      // Por enquanto, apenas mostra notificação (lógica de cupom será implementada depois)
+      showNotification('Cupom "' + couponCode + '" será validado em breve.', 'info', 3000);
+      toggleCouponDrawer(false);
+    });
+
+    /**
+     * Toggle do drawer de cupom
+     * @param {boolean} show - true para abrir, false para fechar
+     */
+    function toggleCouponDrawer(show) {
+      var $overlay = $('#ctwpml-coupon-overlay');
+      var $drawer = $('#ctwpml-coupon-drawer');
+      
+      var log = function (msg, data) {
+        if (typeof state.log === 'function') {
+          state.log(msg, data || {}, 'PAYMENT');
+        } else {
+          console.log('[CTWPML][PAYMENT] ' + msg, data || '');
+        }
+      };
+
+      if (show) {
+        log('Abrindo drawer de cupom');
+        $overlay.addClass('is-active');
+        $drawer.addClass('is-active');
+        $('body').css('overflow', 'hidden'); // Trava scroll do fundo
+        
+        // Focar no input após animação
+        setTimeout(function() {
+          $('#ctwpml-coupon-input').focus();
+        }, 350);
+      } else {
+        log('Fechando drawer de cupom');
+        $overlay.removeClass('is-active');
+        $drawer.removeClass('is-active');
+        $('body').css('overflow', ''); // Restaura scroll
+      }
+    }
 
     // Tela 2: ao preencher o CEP, consulta webhook e preenche campos automaticamente.
     $(document).on('input', '#ctwpml-input-cep', function () {

@@ -228,6 +228,10 @@
     return false;
   }
 
+  function isLoggedIn() {
+    return !!(window.cc_params && window.cc_params.is_logged_in);
+  }
+
   function initCheckoutPreparation() {
     if (!isCheckout()) return;
     if (!window.cc_params || !window.cc_params.ajax_url) return;
@@ -235,6 +239,17 @@
     // Só roda automaticamente se veio do Produto/Carrinho nesta entrada do checkout.
     if (!hasPrepareFlag()) return;
 
+    // Verificar se o usuário está logado ANTES de mostrar o overlay.
+    // Se não estiver logado, não mostra o spinning (o popup de login vai aparecer via modal).
+    if (!isLoggedIn()) {
+      log('Usuário não logado - não mostra overlay (popup de login será exibido pelo modal)');
+      markPrepareDone();
+      // Deixa o modal lidar com o login; não auto-abre aqui.
+      return;
+    }
+
+    // Usuário está logado: mostra overlay, prepara o primeiro endereço, depois abre modal.
+    log('Usuário logado - iniciando preparação do checkout');
     showOverlay();
 
     ajaxPost({ action: 'ctwpml_get_addresses', _ajax_nonce: window.cc_params.addresses_nonce })
@@ -242,6 +257,7 @@
         var items = resp && resp.success && resp.data && Array.isArray(resp.data.items) ? resp.data.items : [];
         var first = items[0] || null;
         if (!first) throw new Error('Nenhum endereço cadastrado para preparar');
+        log('Primeiro endereço encontrado: ' + first.id, first);
         setLastPreparedAddressId(first.id);
         return prepareForAddress(first);
       })
@@ -274,7 +290,43 @@
     });
   }
 
+  // Força chamada ao webhook para um endereço (sempre, para garantir dados atualizados).
+  // Similar ao que acontece quando o usuário salva um endereço.
+  function forceRefreshPayloadForAddress(address) {
+    var addressId = address && address.id ? String(address.id) : '';
+    if (!addressId) return Promise.reject(new Error('address.id ausente'));
+
+    log('Forçando atualização de payload para address_id=' + addressId);
+
+    // Sempre chama webhook e salva (não verifica se já existe payload)
+    return ajaxPost({
+      action: 'ctwpml_get_contact_meta',
+      _ajax_nonce: window.cc_params.addresses_nonce,
+    })
+      .then(function (contactResp) {
+        var contact = (contactResp && contactResp.success && contactResp.data) ? contactResp.data : {};
+        log('Contact meta obtido', contact);
+        return callWebhookConsultaEnderecoFrete(address, contact);
+      })
+      .then(function (webhookRaw) {
+        var normalized = normalizeWebhookPayload(webhookRaw);
+        log('Webhook retorno (normalizado) para troca de endereço', normalized);
+        return ajaxPost({
+          action: 'ctwpml_save_address_payload',
+          _ajax_nonce: window.cc_params.address_payload_nonce,
+          address_id: addressId,
+          raw_json: JSON.stringify(webhookRaw),
+          normalized_json: JSON.stringify(normalized),
+        });
+      })
+      .then(function (saveResp) {
+        log('Payload salvo após troca de endereço', saveResp);
+        return { ok: true, addressId: addressId };
+      });
+  }
+
   // Quando usuário troca endereço selecionado no modal, prepara novamente (spinner reaparece só durante a troca).
+  // SEMPRE chama o webhook ao trocar, como se estivesse salvando o endereço.
   function bindReprepareOnAddressChange() {
     if (!isCheckout()) return;
     if (!hasJQ()) return;
@@ -284,7 +336,7 @@
       var lastId = getLastPreparedAddressId();
       if (!newId || newId === lastId) return;
 
-      log('Endereço trocado: ' + lastId + ' -> ' + newId);
+      log('Endereço trocado: ' + lastId + ' -> ' + newId + ' - chamando webhook para atualizar payload');
       showOverlay();
 
       ajaxPost({ action: 'ctwpml_get_addresses', _ajax_nonce: window.cc_params.addresses_nonce })
@@ -298,10 +350,12 @@
             }
           }
           if (!found) throw new Error('Endereço selecionado não encontrado na lista');
-          return prepareForAddress(found);
+          
+          // Sempre força atualização do payload (como se estivesse salvando)
+          return forceRefreshPayloadForAddress(found);
         })
         .then(function (result) {
-          log('Re-preparação concluída', result);
+          log('Re-preparação concluída (payload atualizado)', result);
           setLastPreparedAddressId(newId);
         })
         .catch(function (err) {

@@ -280,4 +280,39 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
 #### Protocol: ce83d46
 
+## [v3.2.18] - 2026-01-07
+
+### Added
+- Nova tela "Escolha como pagar" (payment screen) com métodos de pagamento:
+  - Seção "Recomendados": Pix (aprovação imediata) e Boleto (1-2 dias úteis)
+  - Seção "Cartões": Novo cartão de crédito (título em azul)
+  - Footer fixo (sticky) com link para cupom e totalizador
+- Função `renderPaymentScreen()` em `address-ml-screens.js` para renderização da tela.
+- Função `showPaymentScreen()` no modal para exibir a tela de pagamento.
+- Handlers para cliques nas opções de pagamento (por enquanto apenas notificações, lógica será implementada depois).
+- CSS completo para a tela de pagamento (header laranja, grupos de opções, footer sticky).
+- Drawer de cupom na tela "Escolha como pagar":
+  - Overlay escuro semi-transparente
+  - Modal drawer que sobe de baixo da tela com animação suave
+  - Handle visual para arrastar
+  - Header com botão de fechar (✕) e título "Cupons"
+  - Campo de input para código do cupom com ícone de ticket (🎫)
+  - Botão "Adicionar cupom" que habilita apenas quando há texto no input
+  - Bloqueio de scroll do fundo quando drawer está aberto
+- Botão de voltar (←) no header laranja da tela de pagamento
+
+### Changed
+- Campos de frete corrigidos: labels usam `*_ch` (motoboy_ch, sedex_ch, pacmini_ch) e preços usam `preco_*` (preco_motoboy, preco_sedex, preco_pac). Modalidade ocultada se label estiver vazio.
+- Botão "Continuar" na lista "Meus endereços" agora vai direto para a tela "Escolha quando sua compra chegará" (não fecha o modal).
+- Overlay "Preparando tudo para sua compra" aparece apenas se o usuário estiver logado; se deslogado, o popup de login é exibido pelo modal.
+- Ao trocar de endereço na lista, o plugin SEMPRE chama o webhook para atualizar os dados de frete (como se estivesse salvando o endereço).
+- Botão "Continuar" da tela de frete agora leva para a tela "Escolha como pagar" (não fecha o modal).
+- Navegação de voltar: payment → shipping → initial → fecha modal.
+- Header da tela de pagamento agora inclui botão de voltar funcional
+- Link "Inserir código do cupom" agora abre o drawer ao invés de notificação
+- CSS reorganizado com estilos completos do drawer (overlay, animações, input, botão)
+- Estrutura HTML da tela de pagamento atualizada conforme v2 do manual
+
+#### Protocol: e940075
+
 ## [Unreleased]
