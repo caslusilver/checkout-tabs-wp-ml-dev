@@ -4,6 +4,13 @@
   window.CCCheckoutTabs = window.CCCheckoutTabs || {};
 
   window.CCCheckoutTabs.setupAddressModal = function setupAddressModal(state) {
+    console.log('[CTWPML][DEBUG] setupAddressModal() - INICIANDO');
+    console.log('[CTWPML][DEBUG] setupAddressModal() - AddressMlScreens disponível:', !!(window.CCCheckoutTabs && window.CCCheckoutTabs.AddressMlScreens));
+    if (window.CCCheckoutTabs && window.CCCheckoutTabs.AddressMlScreens) {
+      console.log('[CTWPML][DEBUG] setupAddressModal() - renderInitial:', typeof window.CCCheckoutTabs.AddressMlScreens.renderInitial);
+      console.log('[CTWPML][DEBUG] setupAddressModal() - renderShippingPlaceholder:', typeof window.CCCheckoutTabs.AddressMlScreens.renderShippingPlaceholder);
+    }
+
     var $ = state.$;
     var cepDebounceTimer = null;
     var lastCepOnly = '';
@@ -12,6 +19,7 @@
     var cepConsultedFor = '';
     var cepConsultInFlight = false;
     var selectedAddressId = null;
+    var currentView = 'list'; // initial | list | form | shipping
     var addressesCache = [];
     var addressesCacheTimestamp = null;
     var CACHE_DURATION = 60000; // 1 minuto
@@ -156,6 +164,8 @@
           '      <div class="ctwpml-modal-title" id="ctwpml-modal-title">Meus endereços</div>' +
           '    </div>' +
           '    <div class="ctwpml-modal-body">' +
+          '      <div id="ctwpml-view-initial" style="display:none;"></div>' +
+          '      <div id="ctwpml-view-shipping" style="display:none;"></div>' +
           '      <div id="ctwpml-view-list">' +
           '        <div class="ctwpml-section-title">Escolha onde você quer receber sua compra</div>' +
           '        <div id="ctwpml-address-list"></div>' +
@@ -216,6 +226,75 @@
           '  </div>' +
           '</div>'
       );
+    }
+
+    function setFooterVisible(visible) {
+      if (visible) $('.ctwpml-footer').show();
+      else $('.ctwpml-footer').hide();
+    }
+
+    function showInitial() {
+      state.log('UI        [DEBUG] showInitial() chamado', { selectedAddressId: selectedAddressId, addressesCacheLength: addressesCache.length }, 'UI');
+      console.log('[CTWPML][DEBUG] showInitial() - selectedAddressId:', selectedAddressId, 'cache:', addressesCache.length);
+
+      currentView = 'initial';
+      $('#ctwpml-modal-title').text('Escolha a forma de entrega');
+      $('#ctwpml-view-form').hide();
+      $('#ctwpml-view-list').hide();
+      $('#ctwpml-view-shipping').hide();
+      $('#ctwpml-view-initial').show();
+      setFooterVisible(false);
+
+      var it = selectedAddressId ? getAddressById(selectedAddressId) : null;
+      state.log('UI        [DEBUG] showInitial() - endereço encontrado:', { address: it }, 'UI');
+      console.log('[CTWPML][DEBUG] showInitial() - endereço:', it);
+
+      var hasScreensModule = !!(window.CCCheckoutTabs && window.CCCheckoutTabs.AddressMlScreens && typeof window.CCCheckoutTabs.AddressMlScreens.renderInitial === 'function');
+      state.log('UI        [DEBUG] showInitial() - AddressMlScreens disponível:', { hasScreensModule: hasScreensModule }, 'UI');
+      console.log('[CTWPML][DEBUG] showInitial() - AddressMlScreens disponível:', hasScreensModule);
+
+      if (hasScreensModule) {
+        var html = window.CCCheckoutTabs.AddressMlScreens.renderInitial(it);
+        console.log('[CTWPML][DEBUG] showInitial() - HTML gerado (primeiros 300 chars):', html ? html.substring(0, 300) : 'null');
+        $('#ctwpml-view-initial').html(html);
+        state.log('UI        [DEBUG] showInitial() - HTML injetado em #ctwpml-view-initial', {}, 'UI');
+      } else {
+        console.log('[CTWPML][DEBUG] showInitial() - AddressMlScreens NÃO disponível, usando fallback');
+        $('#ctwpml-view-initial').html('<div class="ctwpml-section-title">Endereço (fallback - scripts não carregaram)</div>');
+        state.log('ERROR     [DEBUG] showInitial() - AddressMlScreens NÃO disponível!', {}, 'ERROR');
+      }
+
+      // Verificar se o HTML foi injetado
+      var initialContent = $('#ctwpml-view-initial').html();
+      console.log('[CTWPML][DEBUG] showInitial() - conteúdo final de #ctwpml-view-initial (primeiros 200 chars):', initialContent ? initialContent.substring(0, 200) : 'vazio');
+    }
+
+    function showShippingPlaceholder() {
+      state.log('UI        [DEBUG] showShippingPlaceholder() chamado', { selectedAddressId: selectedAddressId }, 'UI');
+      console.log('[CTWPML][DEBUG] showShippingPlaceholder() - selectedAddressId:', selectedAddressId);
+
+      currentView = 'shipping';
+      $('#ctwpml-modal-title').text('Checkout');
+      $('#ctwpml-view-form').hide();
+      $('#ctwpml-view-list').hide();
+      $('#ctwpml-view-initial').hide();
+      $('#ctwpml-view-shipping').show();
+      setFooterVisible(false);
+
+      var it = selectedAddressId ? getAddressById(selectedAddressId) : null;
+      console.log('[CTWPML][DEBUG] showShippingPlaceholder() - endereço:', it);
+
+      var hasScreensModule = !!(window.CCCheckoutTabs && window.CCCheckoutTabs.AddressMlScreens && typeof window.CCCheckoutTabs.AddressMlScreens.renderShippingPlaceholder === 'function');
+      console.log('[CTWPML][DEBUG] showShippingPlaceholder() - AddressMlScreens disponível:', hasScreensModule);
+
+      if (hasScreensModule) {
+        var html = window.CCCheckoutTabs.AddressMlScreens.renderShippingPlaceholder(it);
+        console.log('[CTWPML][DEBUG] showShippingPlaceholder() - HTML gerado (primeiros 300 chars):', html ? html.substring(0, 300) : 'null');
+        $('#ctwpml-view-shipping').html(html);
+      } else {
+        console.log('[CTWPML][DEBUG] showShippingPlaceholder() - AddressMlScreens NÃO disponível');
+        $('#ctwpml-view-shipping').html('<div class="ctwpml-section-title">Escolha quando sua compra chegará (fallback)</div>');
+      }
     }
 
     function syncLoginBanner() {
@@ -407,20 +486,42 @@
     }
 
     function openModal() {
-      if (!isLoggedIn()) return;
+      state.log('UI        [DEBUG] openModal() chamado', { isLoggedIn: isLoggedIn() }, 'UI');
+      console.log('[CTWPML][DEBUG] openModal() - isLoggedIn:', isLoggedIn());
+
+      if (!isLoggedIn()) {
+        console.log('[CTWPML][DEBUG] openModal() - usuário NÃO logado, abortando');
+        return;
+      }
+
       ensureModal();
       refreshFromCheckoutFields();
       
       // Mostrar modal imediatamente
       $('#ctwpml-address-modal-overlay').css('display', 'flex');
+      console.log('[CTWPML][DEBUG] openModal() - modal exibido');
       
       // Mostrar spinner enquanto carrega endereços
       showModalSpinner();
       
       loadAddresses(function () {
         hideModalSpinner();
-        showList();
-        renderAddressList();
+        var items = dedupeAddresses(addressesCache);
+        state.log('UI        [DEBUG] openModal() - loadAddresses callback', { itemsLength: items.length, selectedAddressId: selectedAddressId }, 'UI');
+        console.log('[CTWPML][DEBUG] openModal() - loadAddresses callback - items:', items.length, 'selectedAddressId:', selectedAddressId);
+
+        if (!items.length) {
+          // Se não houver endereços, vai direto pro formulário (fluxo atual).
+          console.log('[CTWPML][DEBUG] openModal() - sem endereços, mostrando formulário');
+          showFormForNewAddress();
+          return;
+        }
+        if (!selectedAddressId) {
+          selectedAddressId = items[0].id;
+          console.log('[CTWPML][DEBUG] openModal() - selectedAddressId definido para:', selectedAddressId);
+        }
+        console.log('[CTWPML][DEBUG] openModal() - chamando showInitial()');
+        showInitial();
       });
     }
 
@@ -487,15 +588,22 @@
     }
 
     function showList() {
+      currentView = 'list';
       $('#ctwpml-modal-title').text('Meus endereços');
+      $('#ctwpml-view-initial').hide();
+      $('#ctwpml-view-shipping').hide();
       $('#ctwpml-view-form').hide();
       $('#ctwpml-view-list').show();
       $('#ctwpml-btn-primary').text('Continuar');
       $('#ctwpml-btn-secondary').text('Adicionar novo endereço');
+      setFooterVisible(true);
     }
 
     function showForm() {
+      currentView = 'form';
       $('#ctwpml-modal-title').text('Adicione um endereço');
+      $('#ctwpml-view-initial').hide();
+      $('#ctwpml-view-shipping').hide();
       $('#ctwpml-view-list').hide();
       $('#ctwpml-view-form').show();
       $('#ctwpml-btn-primary').text('Salvar');
@@ -505,10 +613,14 @@
       syncLoginBanner();
       syncCpfUiFromCheckout();
       loadContactMeta(); // Carregar WhatsApp e CPF salvos
+      setFooterVisible(true);
     }
 
     function showFormForNewAddress() {
+      currentView = 'form';
       $('#ctwpml-modal-title').text('Adicionar endereço');
+      $('#ctwpml-view-initial').hide();
+      $('#ctwpml-view-shipping').hide();
       $('#ctwpml-view-list').hide();
       $('#ctwpml-view-form').show();
       $('#ctwpml-btn-primary').text('Salvar');
@@ -534,6 +646,7 @@
       $('#ctwpml-input-fone').val(formatPhone((($('#billing_cellphone').val() || '') || '').trim()));
       syncLoginBanner();
       syncCpfUiFromCheckout();
+      setFooterVisible(true);
     }
 
     function showFormForEditAddress(addressId) {
@@ -542,8 +655,11 @@
         showFormForNewAddress();
         return;
       }
+      currentView = 'form';
       selectedAddressId = item.id;
       $('#ctwpml-modal-title').text('Editar endereço');
+      $('#ctwpml-view-initial').hide();
+      $('#ctwpml-view-shipping').hide();
       $('#ctwpml-view-list').hide();
       $('#ctwpml-view-form').show();
       $('#ctwpml-btn-primary').text('Salvar');
@@ -600,6 +716,7 @@
       
       syncLoginBanner();
       syncCpfUiFromCheckout();
+      setFooterVisible(true);
     }
 
     function setTypeSelection(label) {
@@ -709,6 +826,21 @@
     function setSelectedAddressId(id) {
       selectedAddressId = id || null;
       renderAddressList();
+    }
+
+    function persistSelectedAddressId(id) {
+      if (!id) return;
+      if (!state.params || !state.params.ajax_url || !state.params.addresses_nonce) return;
+      $.ajax({
+        url: state.params.ajax_url,
+        type: 'POST',
+        dataType: 'json',
+        data: {
+          action: 'ctwpml_set_selected_address',
+          _ajax_nonce: state.params.addresses_nonce,
+          id: String(id),
+        },
+      });
     }
 
     function normalizeStringForKey(s) {
@@ -851,6 +983,9 @@
         }
       }
       
+      state.log('UI        [DEBUG] loadAddresses() - iniciando AJAX', {}, 'UI');
+      console.log('[CTWPML][DEBUG] loadAddresses() - iniciando AJAX para ctwpml_get_addresses');
+
       $.ajax({
         url: state.params.ajax_url,
         type: 'POST',
@@ -860,18 +995,33 @@
           _ajax_nonce: state.params.addresses_nonce,
         },
         success: function (resp) {
+          state.log('UI        [DEBUG] loadAddresses() - resposta recebida', { resp: resp }, 'UI');
+          console.log('[CTWPML][DEBUG] loadAddresses() - resposta AJAX:', resp);
+
           if (resp && resp.success && resp.data && Array.isArray(resp.data.items)) {
             addressesCache = dedupeAddresses(resp.data.items);
             addressesCacheTimestamp = Date.now(); // Atualiza timestamp
+            console.log('[CTWPML][DEBUG] loadAddresses() - endereços carregados:', addressesCache.length);
+            if (resp.data && resp.data.selected_address_id) {
+              selectedAddressId = resp.data.selected_address_id;
+              console.log('[CTWPML][DEBUG] loadAddresses() - selected_address_id do backend:', selectedAddressId);
+            } else {
+              console.log('[CTWPML][DEBUG] loadAddresses() - backend NÃO retornou selected_address_id');
+            }
           } else {
+            console.log('[CTWPML][DEBUG] loadAddresses() - resposta inválida ou sem items');
             addressesCache = [];
             addressesCacheTimestamp = null;
+            selectedAddressId = null;
           }
           done();
         },
-        error: function () {
+        error: function (xhr, status, error) {
+          state.log('ERROR     [DEBUG] loadAddresses() - erro AJAX', { status: status, error: error }, 'ERROR');
+          console.log('[CTWPML][DEBUG] loadAddresses() - erro AJAX:', status, error);
           addressesCache = [];
           addressesCacheTimestamp = null;
+          selectedAddressId = null;
           done();
         },
       });
@@ -1283,6 +1433,19 @@
       openModal();
     });
     $(document).on('click', '#ctwpml-modal-back', function () {
+      state.log('ACTION    [DEBUG] Click #ctwpml-modal-back', { currentView: currentView }, 'ACTION');
+      console.log('[CTWPML][DEBUG] Click #ctwpml-modal-back - currentView:', currentView);
+      if (currentView === 'shipping') {
+        console.log('[CTWPML][DEBUG] - voltando de shipping para initial');
+        showInitial();
+        return;
+      }
+      if (currentView === 'initial') {
+        console.log('[CTWPML][DEBUG] - fechando modal (estava em initial)');
+        closeModal();
+        return;
+      }
+      console.log('[CTWPML][DEBUG] - fechando modal (outra view)');
       closeModal();
     });
     $(document).on('click', '#ctwpml-edit-address', function (e) {
@@ -1386,6 +1549,7 @@
       if ($(e.target).closest('a').length) return;
       var id = $(this).data('address-id');
       setSelectedAddressId(id);
+      persistSelectedAddressId(id);
     });
     $(document).on('click', '#ctwpml-btn-secondary', function () {
       if ($('#ctwpml-view-form').is(':visible')) {
@@ -1441,6 +1605,31 @@
     $(document).on('click', '#ctwpml-nao-sei-cep', function (e) {
       e.preventDefault();
       alert('Fluxo “Não sei meu CEP” será implementado na próxima etapa (3).');
+    });
+
+    // Tela inicial (antes da lista): card do endereço selecionado
+    $(document).on('click', '#ctwpml-initial-go', function (e) {
+      e.preventDefault();
+      state.log('ACTION    [DEBUG] Click #ctwpml-initial-go - avançar para prazo', {}, 'ACTION');
+      console.log('[CTWPML][DEBUG] Click #ctwpml-initial-go - avançar para tela de prazo');
+      showShippingPlaceholder();
+    });
+    $(document).on('click', '#ctwpml-initial-manage', function (e) {
+      e.preventDefault();
+      state.log('ACTION    [DEBUG] Click #ctwpml-initial-manage - alterar endereço', {}, 'ACTION');
+      console.log('[CTWPML][DEBUG] Click #ctwpml-initial-manage - ir para lista de endereços');
+      showList();
+      renderAddressList();
+    });
+
+    // Tela prazo (placeholder): seleção visual apenas (sem integrar frete ainda)
+    $(document).on('click', '#ctwpml-view-shipping .ctwpml-shipping-option', function (e) {
+      e.preventDefault();
+      $('#ctwpml-view-shipping .ctwpml-shipping-option').removeClass('is-selected');
+      $(this).addClass('is-selected');
+    });
+    $(document).on('click', '#ctwpml-shipping-continue', function () {
+      closeModal();
     });
 
     // Tela 2: ao preencher o CEP, consulta webhook e preenche campos automaticamente.
@@ -1499,13 +1688,22 @@
     // - logado: abre modal ML
     // - deslogado: abre popup de login (Fancybox)
     setTimeout(function () {
+      console.log('[CTWPML][DEBUG] setTimeout 800ms - auto abertura do modal');
+      console.log('[CTWPML][DEBUG] setTimeout - isLoggedIn:', isLoggedIn());
       try {
-        if (isLoggedIn()) openModal();
-        else openLoginPopup();
+        if (isLoggedIn()) {
+          console.log('[CTWPML][DEBUG] setTimeout - chamando openModal()');
+          openModal();
+        } else {
+          console.log('[CTWPML][DEBUG] setTimeout - chamando openLoginPopup()');
+          openLoginPopup();
+        }
       } catch (e) {
-        // ignora
+        console.log('[CTWPML][DEBUG] setTimeout - ERRO:', e);
       }
     }, 800);
+
+    console.log('[CTWPML][DEBUG] setupAddressModal() - FINALIZADO');
   };
 })(window);
 

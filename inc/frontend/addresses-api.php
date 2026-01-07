@@ -13,6 +13,7 @@ if (!defined('ABSPATH')) {
 
 const CTWPML_ADDRESSES_META_KEY = 'ctwpml_saved_addresses';
 const CTWPML_ADDRESS_PAYLOAD_META_KEY = 'ctwpml_address_payload';
+const CTWPML_SELECTED_ADDRESS_ID_META_KEY = 'ctwpml_selected_address_id';
 
 function ctwpml_addresses_get_all(int $user_id): array {
 	$raw = get_user_meta($user_id, CTWPML_ADDRESSES_META_KEY, true);
@@ -32,6 +33,33 @@ function ctwpml_addresses_get_all(int $user_id): array {
 		}
 	}
 	return $out;
+}
+
+function ctwpml_addresses_get_selected_id(int $user_id): string {
+	$raw = get_user_meta($user_id, CTWPML_SELECTED_ADDRESS_ID_META_KEY, true);
+	return is_string($raw) ? $raw : '';
+}
+
+function ctwpml_addresses_set_selected_id(int $user_id, string $address_id): void {
+	update_user_meta($user_id, CTWPML_SELECTED_ADDRESS_ID_META_KEY, $address_id);
+}
+
+function ctwpml_addresses_resolve_selected_id(int $user_id, array $items): string {
+	$selected = ctwpml_addresses_get_selected_id($user_id);
+	if ($selected !== '') {
+		foreach ($items as $it) {
+			if (is_array($it) && isset($it['id']) && (string) $it['id'] === $selected) {
+				return $selected;
+			}
+		}
+	}
+	// Fallback: primeiro endereço (mais recente) se existir
+	foreach ($items as $it) {
+		if (is_array($it) && isset($it['id']) && (string) $it['id'] !== '') {
+			return (string) $it['id'];
+		}
+	}
+	return '';
 }
 
 function ctwpml_addresses_save_all(int $user_id, array $items): void {
@@ -104,9 +132,46 @@ add_action('wp_ajax_ctwpml_get_addresses', function () {
 
 	$user_id = get_current_user_id();
 	$items = ctwpml_addresses_get_all($user_id);
+	$selected_id = ctwpml_addresses_resolve_selected_id($user_id, $items);
+	if ($selected_id !== '') {
+		ctwpml_addresses_set_selected_id($user_id, $selected_id);
+	}
 
 	wp_send_json_success([
 		'items' => $items,
+		'selected_address_id' => $selected_id,
+	]);
+});
+
+add_action('wp_ajax_ctwpml_set_selected_address', function (): void {
+	if (!is_user_logged_in()) {
+		wp_send_json_error('Usuário não autenticado.');
+	}
+
+	check_ajax_referer('ctwpml_addresses', '_ajax_nonce');
+
+	$user_id = get_current_user_id();
+	$id = isset($_POST['id']) ? sanitize_text_field((string) wp_unslash($_POST['id'])) : '';
+	if ($id === '') {
+		wp_send_json_error('ID inválido.');
+	}
+
+	$items = ctwpml_addresses_get_all($user_id);
+	$found = false;
+	foreach ($items as $it) {
+		if (is_array($it) && isset($it['id']) && (string) $it['id'] === $id) {
+			$found = true;
+			break;
+		}
+	}
+	if (!$found) {
+		wp_send_json_error('Endereço não encontrado.');
+	}
+
+	ctwpml_addresses_set_selected_id($user_id, $id);
+
+	wp_send_json_success([
+		'selected_address_id' => $id,
 	]);
 });
 
@@ -173,10 +238,15 @@ add_action('wp_ajax_ctwpml_save_address', function () {
 	}
 
 	ctwpml_addresses_save_all($user_id, $items);
+	// Após salvar (criar/atualizar), este endereço vira o selecionado.
+	if (!empty($item['id'])) {
+		ctwpml_addresses_set_selected_id($user_id, (string) $item['id']);
+	}
 
 	wp_send_json_success([
 		'item'  => $item,
 		'items' => ctwpml_addresses_get_all($user_id),
+		'selected_address_id' => (string) ($item['id'] ?? ''),
 	]);
 });
 
@@ -205,9 +275,17 @@ add_action('wp_ajax_ctwpml_delete_address', function () {
 	}
 	ctwpml_addresses_save_all($user_id, $out);
 
+	// Se deletou o selecionado, move seleção para o primeiro restante (ou limpa)
+	$current_selected = ctwpml_addresses_get_selected_id($user_id);
+	if ($deleted && $current_selected !== '' && $current_selected === $id) {
+		$new_selected = ctwpml_addresses_resolve_selected_id($user_id, $out);
+		ctwpml_addresses_set_selected_id($user_id, $new_selected);
+	}
+
 	wp_send_json_success([
 		'deleted' => $deleted,
 		'items'   => ctwpml_addresses_get_all($user_id),
+		'selected_address_id' => ctwpml_addresses_get_selected_id($user_id),
 	]);
 });
 

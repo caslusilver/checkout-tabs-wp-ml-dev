@@ -225,4 +225,13 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
 #### Protocol: 11e46a6
 
+## [v3.2.11] - 2026-01-07
+
+### Changed
+- Novo fluxo no modal: tela inicial com endereço selecionado + tela “Escolha quando sua compra chegará” (placeholder).
+- Persistência do endereço selecionado no perfil.
+- Instrumentação de debug detalhada para diagnóstico de renderização/carregamento.
+
+#### Protocol: 43a4f71
+
 ## [Unreleased]

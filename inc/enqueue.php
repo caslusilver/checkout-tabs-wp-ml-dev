@@ -159,9 +159,16 @@ add_action('wp_enqueue_scripts', function () {
 		true
 	);
 	wp_enqueue_script(
+		'checkout-tabs-wp-ml-address-ml-screens',
+		CHECKOUT_TABS_WP_ML_URL . 'assets/js/address-ml-screens.js',
+		['checkout-tabs-wp-ml-woocommerce-events'],
+		$version,
+		true
+	);
+	wp_enqueue_script(
 		'checkout-tabs-wp-ml-address-ml-modal',
 		CHECKOUT_TABS_WP_ML_URL . 'assets/js/address-ml-modal.js',
-		['checkout-tabs-wp-ml-woocommerce-events'],
+		['checkout-tabs-wp-ml-address-ml-screens'],
 		$version,
 		true
 	);
