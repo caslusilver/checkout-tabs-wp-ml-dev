@@ -334,6 +334,58 @@
     }
 
     /**
+     * Captura a URL da imagem do primeiro item do carrinho via DOM.
+     * Tenta buscar em múltiplos seletores comuns do WooCommerce.
+     * @returns {string} URL da imagem ou string vazia se não encontrar
+     */
+    function getFirstCartProductThumb() {
+      var log = function (msg, data) {
+        if (typeof state.log === 'function') {
+          state.log(msg, data || {}, 'SHIPPING');
+        } else {
+          console.log('[CTWPML][SHIPPING] ' + msg, data || '');
+        }
+      };
+
+      var thumbUrl = '';
+
+      // Lista de seletores para tentar (ordem de prioridade)
+      var selectors = [
+        // Order review (checkout clássico)
+        '#order_review .cart_item img.attachment-woocommerce_thumbnail',
+        '#order_review .cart_item img',
+        '#order_review .product-thumbnail img',
+        // Mini-cart
+        '.woocommerce-mini-cart-item img',
+        '.mini_cart_item img',
+        // Checkout Elementor / outros templates
+        '.woocommerce-checkout-review-order-table img',
+        '.checkout-product-image img',
+        // Cart table (se visível)
+        '.woocommerce-cart-form .cart_item img',
+        '.shop_table .cart_item img',
+        // Fallback genérico
+        '.product-thumbnail img',
+        '.cart-item-image img',
+      ];
+
+      for (var i = 0; i < selectors.length; i++) {
+        var $img = $(selectors[i]).first();
+        if ($img.length && $img.attr('src')) {
+          thumbUrl = $img.attr('src');
+          log('getFirstCartProductThumb() - Imagem encontrada via seletor:', { selector: selectors[i], url: thumbUrl });
+          break;
+        }
+      }
+
+      if (!thumbUrl) {
+        log('getFirstCartProductThumb() - Nenhuma imagem encontrada no DOM (usando placeholder)');
+      }
+
+      return thumbUrl;
+    }
+
+    /**
      * Exibe a tela de seleção de frete, carregando opções do backend.
      */
     function showShippingPlaceholder() {
@@ -357,6 +409,10 @@
 
       var it = selectedAddressId ? getAddressById(selectedAddressId) : null;
       log('showShippingPlaceholder() - Endereço selecionado:', it);
+
+      // Capturar imagem do primeiro produto do carrinho via DOM
+      var productThumbUrl = getFirstCartProductThumb();
+      log('showShippingPlaceholder() - productThumbUrl:', productThumbUrl);
 
       // Mostrar loading
       $('#ctwpml-view-shipping').html(
@@ -404,7 +460,9 @@
             log('showShippingPlaceholder() - Opções encontradas: ' + resp.data.options.length, resp.data.options);
 
             if (hasRenderOptions) {
-              var html = window.CCCheckoutTabs.AddressMlScreens.renderShippingOptions(it, resp.data.options);
+              var html = window.CCCheckoutTabs.AddressMlScreens.renderShippingOptions(it, resp.data.options, {
+                productThumbUrl: productThumbUrl,
+              });
               $('#ctwpml-view-shipping').html(html);
             } else {
               log('showShippingPlaceholder() - renderShippingOptions não disponível, usando placeholder');
@@ -424,7 +482,9 @@
 
             if (hasRenderOptions) {
               // Passar array vazio para mostrar mensagem de "nenhuma opção"
-              var htmlEmpty = window.CCCheckoutTabs.AddressMlScreens.renderShippingOptions(it, []);
+              var htmlEmpty = window.CCCheckoutTabs.AddressMlScreens.renderShippingOptions(it, [], {
+                productThumbUrl: productThumbUrl,
+              });
               $('#ctwpml-view-shipping').html(htmlEmpty);
             } else {
               $('#ctwpml-view-shipping').html(
@@ -465,7 +525,9 @@
       log('showPaymentScreen() - INICIANDO');
 
       currentView = 'payment';
-      $('#ctwpml-modal-title').text('Checkout');
+      // IMPORTANTE: a tela de pagamento é uma "view interna".
+      // O header deve ser o do modal (sem header duplicado dentro do conteúdo).
+      $('#ctwpml-modal-title').text('Escolha como pagar');
       $('#ctwpml-view-form').hide();
       $('#ctwpml-view-list').hide();
       $('#ctwpml-view-initial').hide();
@@ -2067,7 +2129,7 @@
       renderAddressList();
     });
 
-    // Tela prazo: seleção de opção de frete (atualiza visual e WooCommerce)
+    // Tela prazo: seleção de opção de frete (atualiza visual, resumo e WooCommerce)
     $(document).on('click', '#ctwpml-view-shipping .ctwpml-shipping-option', function (e) {
       e.preventDefault();
 
@@ -2082,14 +2144,27 @@
       var $this = $(this);
       var methodId = $this.data('method-id');
       var methodType = $this.data('type');
+      var priceText = $this.data('price-text') || '';
 
-      log('Click em opção de frete:', { methodId: methodId, type: methodType });
+      log('Click em opção de frete:', { methodId: methodId, type: methodType, priceText: priceText });
 
-      // Atualizar visual
+      // Atualizar visual (rádio)
       $('#ctwpml-view-shipping .ctwpml-shipping-option').removeClass('is-selected');
       $this.addClass('is-selected');
 
       log('Visual atualizado - opção selecionada');
+
+      // Atualizar resumo de frete no rodapé (dinâmico)
+      var formatFn = window.CCCheckoutTabs && 
+                     window.CCCheckoutTabs.AddressMlScreens && 
+                     typeof window.CCCheckoutTabs.AddressMlScreens.formatShippingSummaryPrice === 'function'
+        ? window.CCCheckoutTabs.AddressMlScreens.formatShippingSummaryPrice
+        : function(p) { return p || 'Grátis'; };
+
+      var summaryPrice = formatFn(priceText);
+      $('.ctwpml-shipping-summary-price').text(summaryPrice);
+
+      log('Resumo atualizado:', { priceText: priceText, summaryPrice: summaryPrice });
 
       // Atualizar no WooCommerce (se methodId existir)
       if (methodId) {
@@ -2148,21 +2223,7 @@
       };
 
       log('Click em opção de pagamento:', { method: method });
-
-      // Por enquanto, apenas mostra notificação (lógica de pagamento será implementada depois)
-      switch (method) {
-        case 'pix':
-          showNotification('Pix selecionado! A lógica de pagamento será implementada em breve.', 'info', 3000);
-          break;
-        case 'boleto':
-          showNotification('Boleto selecionado! A lógica de pagamento será implementada em breve.', 'info', 3000);
-          break;
-        case 'card':
-          showNotification('Cartão selecionado! A lógica de pagamento será implementada em breve.', 'info', 3000);
-          break;
-        default:
-          showNotification('Método de pagamento selecionado.', 'info', 3000);
-      }
+      // Sem lógica por enquanto: apenas log e evento (para futura integração com gateways).
 
       // Dispara evento customizado para que outros módulos possam reagir
       try {
@@ -2170,21 +2231,6 @@
       } catch (e2) {}
 
       log('Evento ctwpml_payment_method_selected disparado');
-    });
-
-    // Tela 3 (Pagamento): botão voltar
-    $(document).on('click', '#ctwpml-payment-back', function (e) {
-      e.preventDefault();
-      var log = function (msg, data) {
-        if (typeof state.log === 'function') {
-          state.log(msg, data || {}, 'PAYMENT');
-        } else {
-          console.log('[CTWPML][PAYMENT] ' + msg, data || '');
-        }
-      };
-
-      log('Click em botão voltar da tela de pagamento');
-      showShippingPlaceholder();
     });
 
     // Tela 3 (Pagamento): clique no link de cupom - abre drawer
@@ -2244,8 +2290,7 @@
       var couponCode = $('#ctwpml-coupon-input').val().trim();
       log('Click em adicionar cupom:', { code: couponCode });
 
-      // Por enquanto, apenas mostra notificação (lógica de cupom será implementada depois)
-      showNotification('Cupom "' + couponCode + '" será validado em breve.', 'info', 3000);
+      // Sem lógica de cupom por enquanto: apenas UI/fechamento.
       toggleCouponDrawer(false);
     });
 

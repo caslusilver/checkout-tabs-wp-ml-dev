@@ -314,5 +314,18 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 - Estrutura HTML da tela de pagamento atualizada conforme v2 do manual
 
 #### Protocol: e940075
+## [v3.2.20] - 2026-01-07
+
+### Changed
+- Tela "Escolha quando sua compra chegará": resumo de frete dinâmico no rodapé (mostra "Grátis" ou valor monetário e atualiza ao trocar opção) e imagem real do 1º produto no bloco "Envio 1" (com fallback).
+- Adicionado `data-price-text` para suportar atualização do resumo de frete.
+- Tela "Escolha como pagar": correção de arquitetura (sem header interno duplicado), navegação de voltar via `#ctwpml-modal-back`, remoção de notificações/ações de lógica em cliques (mantém UI/eventos) e CSS ajustado.
+
+#### Protocol: 63b625a
 
 ## [Unreleased]
+
+### Changed
+- **Versão atual**: v3.2.20  
+  **Versão sugerida após a mudança**: v3.2.21  
+  **Descrição**: Preencher antes de commitar mudanças.

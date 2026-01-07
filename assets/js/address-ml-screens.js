@@ -132,25 +132,43 @@
   };
 
   /**
+   * Converte price_text em texto para o resumo (mostra "Grátis" se for zero/vazio)
+   * @param {string} priceText - Texto do preço (ex: "R$ 15,00" ou "")
+   * @returns {string} Texto formatado para exibição no resumo
+   */
+  function formatShippingSummaryPrice(priceText) {
+    if (!priceText) return 'Grátis';
+    var cleaned = String(priceText).replace(/[^\d,\.]/g, '').replace(',', '.');
+    var num = parseFloat(cleaned);
+    if (isNaN(num) || num === 0) return 'Grátis';
+    return priceText;
+  }
+
+  /**
    * Tela 2 (prazo - dinâmica): "Escolha quando sua compra chegará"
    * Renderiza as opções de frete dinamicamente com base nos dados do backend.
    * @param {Object} address - Endereço selecionado
    * @param {Array} shippingOptions - Lista de opções de frete do backend
+   * @param {Object} options - Opções extras (productThumbUrl)
    * @returns {string} HTML das opções
    */
-  window.CCCheckoutTabs.AddressMlScreens.renderShippingOptions = function renderShippingOptions(address, shippingOptions) {
+  window.CCCheckoutTabs.AddressMlScreens.renderShippingOptions = function renderShippingOptions(address, shippingOptions, options) {
+    options = options || {};
     // DEBUG: Usar debugMode global se disponível
     var debugMode = !!(window.cc_params && window.cc_params.debug);
 
     if (debugMode) {
       console.log('[CTWPML][DEBUG] renderShippingOptions - address:', address);
       console.log('[CTWPML][DEBUG] renderShippingOptions - shippingOptions:', shippingOptions);
+      console.log('[CTWPML][DEBUG] renderShippingOptions - options:', options);
     }
 
     var addrLine = formatAddressSummary(address);
+    var productThumbUrl = options.productThumbUrl || '';
 
     if (debugMode) {
       console.log('[CTWPML][DEBUG] renderShippingOptions - addrLine:', addrLine);
+      console.log('[CTWPML][DEBUG] renderShippingOptions - productThumbUrl:', productThumbUrl);
     }
 
     // Se não há opções, mostrar mensagem
@@ -178,9 +196,19 @@
       console.log('[CTWPML][DEBUG] renderShippingOptions - Gerando ' + shippingOptions.length + ' opções');
     }
 
+    // Pegar preço da primeira opção para o resumo inicial
+    var firstOptionPrice = shippingOptions[0] ? shippingOptions[0].price_text : '';
+    var initialSummaryPrice = formatShippingSummaryPrice(firstOptionPrice);
+
+    if (debugMode) {
+      console.log('[CTWPML][DEBUG] renderShippingOptions - firstOptionPrice:', firstOptionPrice);
+      console.log('[CTWPML][DEBUG] renderShippingOptions - initialSummaryPrice:', initialSummaryPrice);
+    }
+
     var optionsHtml = '';
     shippingOptions.forEach(function (opt, idx) {
       var isFirst = idx === 0;
+      var priceText = opt.price_text || '';
 
       if (debugMode) {
         console.log('[CTWPML][DEBUG] renderShippingOptions - Opção ' + idx + ':', opt);
@@ -191,14 +219,20 @@
         '<div class="ctwpml-shipping-option' + (isFirst ? ' is-selected' : '') + '" ' +
         'data-method-id="' + escapeHtml(opt.id) + '" ' +
         'data-type="' + escapeHtml(opt.type || '') + '" ' +
+        'data-price-text="' + escapeHtml(priceText) + '" ' +
         'data-option="opt' + idx + '">' +
         '  <div class="ctwpml-shipping-option-left">' +
         '    <div class="ctwpml-shipping-radio"></div>' +
         '    <span class="ctwpml-shipping-option-text">' + escapeHtml(opt.label) + '</span>' +
         '  </div>' +
-        '  <span class="ctwpml-shipping-price">' + escapeHtml(opt.price_text || '') + '</span>' +
+        '  <span class="ctwpml-shipping-price">' + escapeHtml(priceText) + '</span>' +
         '</div>';
     });
+
+    // Gerar HTML da thumbnail (imagem real ou placeholder)
+    var thumbHtml = productThumbUrl
+      ? '<div class="ctwpml-shipping-thumb"><img src="' + escapeHtml(productThumbUrl) + '" alt="Produto" /></div>'
+      : '<div class="ctwpml-shipping-thumb" aria-hidden="true"></div>';
 
     var html =
       '' +
@@ -213,11 +247,16 @@
       '<div class="ctwpml-shipping-card">' +
       '  <div class="ctwpml-shipping-package">' +
       '    <span class="ctwpml-shipping-package-title">Envio 1</span>' +
+      thumbHtml +
       '  </div>' +
       optionsHtml +
       '</div>' +
       '' +
       '<div class="ctwpml-shipping-footer">' +
+      '  <div class="ctwpml-shipping-summary-row">' +
+      '    <span>Frete</span>' +
+      '    <span class="ctwpml-shipping-summary-price">' + escapeHtml(initialSummaryPrice) + '</span>' +
+      '  </div>' +
       '  <button type="button" class="ctwpml-shipping-continue" id="ctwpml-shipping-continue">Continuar</button>' +
       '</div>';
 
@@ -227,6 +266,9 @@
 
     return html;
   };
+
+  // Exportar utilitário para uso externo (atualização do resumo em tempo real)
+  window.CCCheckoutTabs.AddressMlScreens.formatShippingSummaryPrice = formatShippingSummaryPrice;
 
   /**
    * Tela 3: "Escolha como pagar"
@@ -254,12 +296,9 @@
     var html =
       '' +
       '<div class="ctwpml-payment-screen">' +
-      // Header laranja com botão voltar
-      '  <header class="ctwpml-payment-header">' +
-      '    <button class="ctwpml-payment-back-button" id="ctwpml-payment-back">←</button>' +
-      '    <h1 class="ctwpml-payment-header-title">Escolha como pagar</h1>' +
-      '  </header>' +
-      // Título da página
+      // IMPORTANTE: Não renderizar header/footer de página aqui.
+      // O header único deve ser o do modal (ctwpml-modal-header).
+      // Conteúdo abaixo é apenas a "tela interna".
       '  <h2 class="ctwpml-payment-page-title">Escolha como pagar</h2>' +
       // Seção Recomendados
       '  <p class="ctwpml-payment-section-label">Recomendados</p>' +
