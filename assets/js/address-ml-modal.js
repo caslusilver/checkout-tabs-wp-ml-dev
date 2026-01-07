@@ -155,7 +155,20 @@
     function ensureModal() {
       if ($('#ctwpml-address-modal-overlay').length) return;
 
-      $('body').append(
+      // Modo fullscreen: insere no topo do checkout (antes das abas antigas)
+      var $checkoutForm = $('form.checkout').first();
+      var $tabsRoot = $('#cc-checkout-tabs-root');
+      var $insertTarget = $tabsRoot.length ? $tabsRoot : $checkoutForm;
+
+      if (!$insertTarget.length) {
+        // Fallback: body
+        $insertTarget = $('body');
+        console.log('[CTWPML][DEBUG] ensureModal() - usando body como fallback');
+      }
+
+      console.log('[CTWPML][DEBUG] ensureModal() - inserindo componente ML antes de:', $insertTarget.attr('id') || $insertTarget.prop('tagName'));
+
+      $insertTarget.before(
         '' +
           '<div id="ctwpml-address-modal-overlay" class="ctwpml-modal-overlay">' +
           '  <div class="ctwpml-modal" role="dialog" aria-modal="true" aria-label="Meus endereços">' +
@@ -497,9 +510,10 @@
       ensureModal();
       refreshFromCheckoutFields();
       
-      // Mostrar modal imediatamente
-      $('#ctwpml-address-modal-overlay').css('display', 'flex');
-      console.log('[CTWPML][DEBUG] openModal() - modal exibido');
+      // Modo fullscreen: mostrar componente inline e esconder abas antigas
+      $('#ctwpml-address-modal-overlay').css('display', 'block');
+      $('#cc-checkout-tabs-root').hide();
+      console.log('[CTWPML][DEBUG] openModal() - componente ML exibido, abas antigas escondidas');
       
       // Mostrar spinner enquanto carrega endereços
       showModalSpinner();
@@ -584,7 +598,12 @@
     }
 
     function closeModal() {
+      console.log('[CTWPML][DEBUG] closeModal() - escondendo componente ML');
       $('#ctwpml-address-modal-overlay').hide();
+      // Modo fullscreen: ao fechar, redireciona para o carrinho
+      var cartUrl = window.wc_cart_params && window.wc_cart_params.cart_url ? window.wc_cart_params.cart_url : '/carrinho/';
+      console.log('[CTWPML][DEBUG] closeModal() - redirecionando para:', cartUrl);
+      window.location.href = cartUrl;
     }
 
     function showList() {
@@ -1435,9 +1454,27 @@
     $(document).on('click', '#ctwpml-modal-back', function () {
       state.log('ACTION    [DEBUG] Click #ctwpml-modal-back', { currentView: currentView }, 'ACTION');
       console.log('[CTWPML][DEBUG] Click #ctwpml-modal-back - currentView:', currentView);
+
+      // Navegação entre telas:
+      // shipping → initial
+      // list → initial
+      // form → list
+      // initial → fecha modal (ou history.back quando for fullscreen)
+
       if (currentView === 'shipping') {
         console.log('[CTWPML][DEBUG] - voltando de shipping para initial');
         showInitial();
+        return;
+      }
+      if (currentView === 'list') {
+        console.log('[CTWPML][DEBUG] - voltando de list para initial');
+        showInitial();
+        return;
+      }
+      if (currentView === 'form') {
+        console.log('[CTWPML][DEBUG] - voltando de form para list');
+        showList();
+        renderAddressList();
         return;
       }
       if (currentView === 'initial') {
@@ -1445,7 +1482,7 @@
         closeModal();
         return;
       }
-      console.log('[CTWPML][DEBUG] - fechando modal (outra view)');
+      console.log('[CTWPML][DEBUG] - fechando modal (view desconhecida)');
       closeModal();
     });
     $(document).on('click', '#ctwpml-edit-address', function (e) {

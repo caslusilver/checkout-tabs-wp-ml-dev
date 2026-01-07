@@ -234,4 +234,16 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
 #### Protocol: 43a4f71
 
+## [v3.2.12] - 2026-01-07
+
+### Changed
+- Correções rápidas no fluxo ML: botão "Continuar" azul e fullwidth na tela de prazo; navegação do back corrigida (list→initial, form→list); fluxo ML convertido de modal para fullscreen inline no checkout.
+
+#### Protocol: 8922ebe
+
 ## [Unreleased]
+
+### Changed
+- **Versão atual**: v3.2.12  
+  **Versão sugerida após a mudança**: vX.Y.Z  
+  **Descrição**: (descreva as mudanças reais deste release).

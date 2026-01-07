@@ -10,23 +10,28 @@
   --ctwpml-input-border: #dddddd;
 }
 
+/* Modo fullscreen: componente inline no checkout (não é mais modal) */
 .ctwpml-modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.35);
-  z-index: 10001;
-  display: none;
-  align-items: center;
-  justify-content: center;
+  position: relative;
+  display: block;
+  width: 100%;
+  background: transparent;
+  z-index: 100;
+}
+
+/* Esconde quando display:none é setado via JS */
+.ctwpml-modal-overlay[style*="display: none"],
+.ctwpml-modal-overlay[style*="display:none"] {
+  display: none !important;
 }
 
 .ctwpml-modal {
   width: 100%;
-  max-width: 412px;
-  height: 92vh;
+  max-width: 100%;
+  min-height: 100vh;
   background: var(--ctwpml-ml-bg);
-  border-radius: 10px;
-  overflow: hidden;
+  border-radius: 0;
+  overflow: visible;
   display: flex;
   flex-direction: column;
   /* Garantir contraste mesmo se tema aplicar cor global clara */
@@ -70,10 +75,13 @@
 
 .ctwpml-modal-header {
   background: var(--ctwpml-brand-orange);
-  padding: 16px;
+  padding: 45px 16px 16px 16px; /* padding-top maior para safe area mobile */
   display: flex;
   align-items: center;
   gap: 12px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
 }
 
 .ctwpml-modal-back {
@@ -100,8 +108,10 @@
 
 .ctwpml-modal-body {
   padding: 16px;
-  overflow: auto;
+  padding-bottom: 120px; /* espaço para footer quando visível */
+  overflow: visible;
   flex: 1;
+  min-height: calc(100vh - 77px); /* altura total menos header */
 }
 
 .ctwpml-section-title {
@@ -195,10 +205,16 @@
 
 .ctwpml-footer {
   padding: 14px 16px;
-  background: var(--ctwpml-ml-bg);
+  background: var(--ctwpml-ml-white);
   display: flex;
   flex-direction: column;
   gap: 10px;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 99;
+  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.08);
 }
 
 .ctwpml-btn {
@@ -458,12 +474,15 @@
 }
 
 .ctwpml-shipping-footer {
-  position: sticky;
+  position: fixed;
   bottom: 0;
+  left: 0;
+  right: 0;
   background: #fff;
   border-top: 1px solid #eee;
   padding: 14px 16px;
-  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.08);
+  z-index: 99;
 }
 
 .ctwpml-shipping-summary-row {
@@ -475,15 +494,18 @@
 }
 
 .ctwpml-shipping-continue {
-  width: 100%;
-  background: var(--ctwpml-ml-blue);
-  color: #fff;
-  border: 0;
-  border-radius: 6px;
-  padding: 14px;
-  font-size: 15px;
-  font-weight: 800;
-  cursor: pointer;
+  width: 100% !important;
+  background: var(--ctwpml-ml-blue) !important;
+  background-color: #3483fa !important;
+  color: #fff !important;
+  border: 0 !important;
+  border-radius: 6px !important;
+  padding: 14px !important;
+  font-size: 15px !important;
+  font-weight: 700 !important;
+  cursor: pointer !important;
+  display: block !important;
+  text-align: center !important;
 }
 
 .ctwpml-form-group {
