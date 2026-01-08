@@ -146,9 +146,34 @@ body.ctwpml-ml-only:not(.elementor-editor-active) .e-checkout__container {
 .ctwpml-modal-body {
   padding: 16px;
   padding-bottom: 120px; /* espaço para footer quando visível */
-  overflow: visible;
+  overflow: auto !important; /* scroll interno do modal */
+  -webkit-overflow-scrolling: touch; /* scroll suave no iOS */
   flex: 1;
   min-height: calc(100vh - 77px); /* altura total menos header */
+  max-height: calc(100vh - 77px); /* limita altura para scroll funcionar */
+}
+
+/* =====================================================
+   ML-only: Esconder overlay global do checkout Woo
+   - O modal ML tem seu próprio loading, não precisa do global.
+   ===================================================== */
+body.ctwpml-ml-only .checkout-loading-overlay,
+body.ctwpml-ml-only .frete-loading,
+body.ctwpml-ml-only .blockUI.blockOverlay {
+  display: none !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+/* Garante que views internas do modal tenham scroll se necessário */
+#ctwpml-view-initial,
+#ctwpml-view-list,
+#ctwpml-view-form,
+#ctwpml-view-shipping,
+#ctwpml-view-payment,
+#ctwpml-view-review {
+  min-height: auto;
+  overflow: visible;
 }
 
 /* =====================================================

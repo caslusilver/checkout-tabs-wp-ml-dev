@@ -53,6 +53,79 @@
       return !!(state.params && (state.params.is_logged_in === 1 || state.params.is_logged_in === '1'));
     }
 
+    // =========================================================
+    // CHECKPOINTS DE DEBUG - Valida saúde do sistema
+    // =========================================================
+    function runHealthCheckpoints() {
+      if (typeof state.checkpoint !== 'function') return;
+
+      // CHK_HOST_WOO - Verifica se o DOM do WooCommerce está presente
+      var formCheckout = document.querySelector('form.checkout, form.woocommerce-checkout');
+      var orderReview = document.querySelector('#order_review, .woocommerce-checkout-review-order');
+      var payment = document.querySelector('#payment, .woocommerce-checkout-payment');
+      var placeOrder = document.querySelector('#place_order');
+
+      state.checkpoint('CHK_HOST_WOO (form.checkout)', !!formCheckout, { found: !!formCheckout });
+      state.checkpoint('CHK_HOST_WOO (#order_review)', !!orderReview, { found: !!orderReview });
+      state.checkpoint('CHK_HOST_WOO (#payment)', !!payment, { found: !!payment });
+      state.checkpoint('CHK_HOST_WOO (#place_order)', !!placeOrder, { found: !!placeOrder });
+
+      // CHK_OVERLAY_SUPPRESS - Overlay global do checkout está oculto
+      var checkoutOverlay = document.querySelector('.checkout-loading-overlay');
+      var overlayHidden = !checkoutOverlay || 
+        window.getComputedStyle(checkoutOverlay).display === 'none' ||
+        window.getComputedStyle(checkoutOverlay).opacity === '0';
+      state.checkpoint('CHK_OVERLAY_SUPPRESS', overlayHidden, { overlayVisible: !overlayHidden });
+
+      // CHK_ML_ONLY - Modo ML-only está ativo
+      var mlOnly = document.body.classList.contains('ctwpml-ml-only');
+      state.checkpoint('CHK_ML_ONLY', mlOnly, { bodyClass: mlOnly });
+
+      // CHK_MODAL_VISIBLE - Modal está visível
+      var modalOverlay = document.querySelector('#ctwpml-address-modal-overlay');
+      var modalVisible = modalOverlay && window.getComputedStyle(modalOverlay).display !== 'none';
+      state.checkpoint('CHK_MODAL_VISIBLE', modalVisible, { display: modalOverlay ? window.getComputedStyle(modalOverlay).display : 'not_found' });
+
+      // CHK_SCROLL_ENABLED - Body scroll travado + modal scroll habilitado
+      var bodyOverflow = window.getComputedStyle(document.body).overflow;
+      var modalBody = document.querySelector('.ctwpml-modal-body');
+      var modalBodyOverflow = modalBody ? window.getComputedStyle(modalBody).overflow : 'not_found';
+      var scrollOk = bodyOverflow === 'hidden' && (modalBodyOverflow === 'auto' || modalBodyOverflow === 'scroll');
+      state.checkpoint('CHK_SCROLL_ENABLED', scrollOk, { bodyOverflow: bodyOverflow, modalBodyOverflow: modalBodyOverflow });
+
+      // CHK_ELEMENTOR_HIDDEN - Widget do Elementor escondido (se existir)
+      var elementorWidget = document.querySelector('.elementor-widget-woocommerce-checkout-page');
+      if (elementorWidget) {
+        var style = window.getComputedStyle(elementorWidget);
+        var isHidden = style.left === '-99999px' || style.opacity === '0' || style.position === 'fixed';
+        state.checkpoint('CHK_ELEMENTOR_HIDDEN', isHidden, { left: style.left, opacity: style.opacity });
+      }
+    }
+
+    // Checkpoint específico para gateways
+    function checkGateways() {
+      if (typeof state.checkpoint !== 'function') return;
+
+      var woo = window.CCCheckoutTabs && window.CCCheckoutTabs.WooHost;
+      if (woo && typeof woo.listGateways === 'function') {
+        var gateways = woo.listGateways();
+        var gatewayIds = gateways.map(function (g) { return g.id; });
+        state.checkpoint('CHK_GATEWAYS', gateways.length > 0, { count: gateways.length, ids: gatewayIds });
+      } else {
+        state.checkpoint('CHK_GATEWAYS', false, { error: 'WooHost.listGateways não disponível' });
+      }
+    }
+
+    // Checkpoint para blocos injetados
+    function checkBlocks() {
+      if (typeof state.checkpoint !== 'function') return;
+
+      var hasPayment = $('#ctwpml-hidden-payment-block').length > 0 || $('#payment').length > 0;
+      var hasReview = $('#ctwpml-hidden-review-block').length > 0 || $('#order_review').length > 0;
+      state.checkpoint('CHK_BLOCKS (payment)', hasPayment, { hiddenBlock: $('#ctwpml-hidden-payment-block').length, native: $('#payment').length });
+      state.checkpoint('CHK_BLOCKS (review)', hasReview, { hiddenBlock: $('#ctwpml-hidden-review-block').length, native: $('#order_review').length });
+    }
+
     // Spinner azul + blur backdrop para operações AJAX
     function showModalSpinner() {
       if (!$('#ctwpml-modal-spinner').length) {
@@ -470,12 +543,12 @@
         if (!state.params || !state.params.ajax_url || !state.params.shipping_options_nonce) {
           log('showShippingPlaceholder() - ERRO: Parâmetros não disponíveis, usando fallback');
           var hasScreensModule = !!(window.CCCheckoutTabs && window.CCCheckoutTabs.AddressMlScreens && typeof window.CCCheckoutTabs.AddressMlScreens.renderShippingPlaceholder === 'function');
-          if (hasScreensModule) {
-            var html = window.CCCheckoutTabs.AddressMlScreens.renderShippingPlaceholder(it);
-            $('#ctwpml-view-shipping').html(html);
-          } else {
-            $('#ctwpml-view-shipping').html('<div class="ctwpml-section-title">Escolha quando sua compra chegará (fallback)</div>');
-          }
+      if (hasScreensModule) {
+        var html = window.CCCheckoutTabs.AddressMlScreens.renderShippingPlaceholder(it);
+        $('#ctwpml-view-shipping').html(html);
+      } else {
+        $('#ctwpml-view-shipping').html('<div class="ctwpml-section-title">Escolha quando sua compra chegará (fallback)</div>');
+      }
           return;
         }
 
@@ -502,6 +575,14 @@
 
             if (resp.success && resp.data && resp.data.options) {
               log('showShippingPlaceholder() - Opções encontradas: ' + resp.data.options.length, resp.data.options);
+
+              // Checkpoint: opções de frete carregadas
+              if (typeof state.checkpoint === 'function') {
+                state.checkpoint('CHK_SHIPPING_OPTIONS', resp.data.options.length > 0, { 
+                  count: resp.data.options.length,
+                  options: resp.data.options.map(function (o) { return o.id; })
+                });
+              }
 
               if (hasRenderOptions) {
                 var html = window.CCCheckoutTabs.AddressMlScreens.renderShippingOptions(it, resp.data.options, {
@@ -611,8 +692,17 @@
       if (woo && typeof woo.ensureBlocks === 'function') {
         woo.ensureBlocks().then(function () {
           applyPaymentAvailabilityAndSync();
+          // Checkpoint: tela de pagamento renderizada
+          if (typeof state.checkpoint === 'function') {
+            var paymentHtml = $('#ctwpml-view-payment').html() || '';
+            state.checkpoint('CHK_PAYMENT_RENDERED', paymentHtml.length > 100, { htmlLength: paymentHtml.length });
+            checkGateways();
+          }
         }).catch(function (e) {
           log('WooHost.ensureBlocks() falhou', e);
+          if (typeof state.checkpoint === 'function') {
+            state.checkpoint('CHK_PAYMENT_RENDERED', false, { error: e && e.message ? e.message : 'ensureBlocks falhou' });
+          }
         });
       }
     }
@@ -721,6 +811,15 @@
             thumbUrls: thumbs && Array.isArray(thumbs.thumb_urls) ? thumbs.thumb_urls : [],
           });
           $('#ctwpml-view-review').html(html);
+
+          // Checkpoint: tela de review renderizada
+          if (typeof state.checkpoint === 'function') {
+            state.checkpoint('CHK_REVIEW_RENDERED', html.length > 100, { 
+              htmlLength: html.length,
+              hasTotal: !!totals.totalText,
+              hasPayment: !!paymentLabel
+            });
+          }
         };
 
         if (woo && typeof woo.getCartThumbs === 'function') {
@@ -952,9 +1051,18 @@
       } catch (e) {}
       // Compatibilidade: se existir root das abas antigas (modo não-ML), esconda.
       if ($('#cc-checkout-tabs-root').length) {
-        $('#cc-checkout-tabs-root').hide();
+      $('#cc-checkout-tabs-root').hide();
       }
       console.log('[CTWPML][DEBUG] openModal() - componente ML exibido (fullscreen)');
+
+      // =========================================================
+      // CHECKPOINTS DE DEBUG - Executar após modal abrir
+      // =========================================================
+      setTimeout(function () {
+        runHealthCheckpoints();
+        checkBlocks();
+        checkGateways();
+      }, 500); // Aguarda render inicial
       
       // Mostrar spinner enquanto carrega endereços
       showModalSpinner();
@@ -2613,7 +2721,7 @@
 
       if (cepDebounceTimer) clearTimeout(cepDebounceTimer);
       cepDebounceTimer = setTimeout(function () {
-      consultCepAndFillForm();
+        consultCepAndFillForm();
       }, 250);
     });
 

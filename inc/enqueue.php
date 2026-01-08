@@ -116,6 +116,14 @@ add_action('wp_enqueue_scripts', function () {
 		$deps[] = 'jquery-mask';
 	}
 
+	// =========================================================
+	// ML-ONLY: Modo definitivo do modal ML (Elementor checkout)
+	// - Ativa automaticamente se houver widget Elementor checkout
+	// - Ou se a opção checkout_tabs_wp_ml_mode = 'ml_only'
+	// - Quando ativo, NÃO carrega: tabs.js, store.js, webhook.js
+	// =========================================================
+	$ml_only = ((string) get_option('checkout_tabs_wp_ml_mode', 'ml_only') === 'ml_only');
+
 	wp_enqueue_script(
 		'checkout-tabs-wp-ml-logger',
 		CHECKOUT_TABS_WP_ML_URL . 'assets/js/logger.js',
@@ -130,31 +138,38 @@ add_action('wp_enqueue_scripts', function () {
 		$version,
 		true
 	);
-	wp_enqueue_script(
-		'checkout-tabs-wp-ml-tabs',
-		CHECKOUT_TABS_WP_ML_URL . 'assets/js/tabs.js',
-		['checkout-tabs-wp-ml-ui'],
-		$version,
-		true
-	);
-	wp_enqueue_script(
-		'checkout-tabs-wp-ml-store',
-		CHECKOUT_TABS_WP_ML_URL . 'assets/js/store.js',
-		['checkout-tabs-wp-ml-tabs'],
-		$version,
-		true
-	);
-	wp_enqueue_script(
-		'checkout-tabs-wp-ml-webhook',
-		CHECKOUT_TABS_WP_ML_URL . 'assets/js/webhook.js',
-		['checkout-tabs-wp-ml-store'],
-		$version,
-		true
-	);
+
+	// Scripts do legado (abas) - só carrega se NÃO for ML-only
+	$woo_events_deps = ['checkout-tabs-wp-ml-ui'];
+	if (!$ml_only) {
+		wp_enqueue_script(
+			'checkout-tabs-wp-ml-tabs',
+			CHECKOUT_TABS_WP_ML_URL . 'assets/js/tabs.js',
+			['checkout-tabs-wp-ml-ui'],
+			$version,
+			true
+		);
+		wp_enqueue_script(
+			'checkout-tabs-wp-ml-store',
+			CHECKOUT_TABS_WP_ML_URL . 'assets/js/store.js',
+			['checkout-tabs-wp-ml-tabs'],
+			$version,
+			true
+		);
+		wp_enqueue_script(
+			'checkout-tabs-wp-ml-webhook',
+			CHECKOUT_TABS_WP_ML_URL . 'assets/js/webhook.js',
+			['checkout-tabs-wp-ml-store'],
+			$version,
+			true
+		);
+		$woo_events_deps = ['checkout-tabs-wp-ml-webhook'];
+	}
+
 	wp_enqueue_script(
 		'checkout-tabs-wp-ml-woocommerce-events',
 		CHECKOUT_TABS_WP_ML_URL . 'assets/js/woocommerce-events.js',
-		['checkout-tabs-wp-ml-webhook'],
+		$woo_events_deps,
 		$version,
 		true
 	);
@@ -198,6 +213,7 @@ add_action('wp_enqueue_scripts', function () {
 		// Passar como 1/0 evita ambiguidades (ex.: 'true'/'false') no JS.
 		'debug'      => checkout_tabs_wp_ml_is_debug_enabled() ? 1 : 0,
 		'is_logged_in' => is_user_logged_in() ? 1 : 0,
+		'ml_only'    => $ml_only ? 1 : 0, // Modo ML definitivo (sem abas legadas)
 		'ajax_url'   => admin_url('admin-ajax.php'),
 		'nonce'      => wp_create_nonce('store_webhook_shipping'),
 		'addresses_nonce' => wp_create_nonce('ctwpml_addresses'),
@@ -212,6 +228,7 @@ add_action('wp_enqueue_scripts', function () {
 		'user_email' => is_user_logged_in() ? (string) wp_get_current_user()->user_email : '',
 		'webhook_url'=> checkout_tabs_wp_ml_get_webhook_url(),
 		'plugin_url' => CHECKOUT_TABS_WP_ML_URL,
+		'cart_url'   => function_exists('wc_get_cart_url') ? wc_get_cart_url() : '',
 	]);
 
 	// Enfileirar Google reCAPTCHA v2 (v3.2.6: usando chave fixa do exemplo para máxima compatibilidade)

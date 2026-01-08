@@ -7,7 +7,16 @@
     var $ = state.$;
     var cursorTimer = null;
 
+    // Detecta ML-only (body class ou params)
+    var mlOnly = false;
+    try {
+      mlOnly = document.body.classList.contains('ctwpml-ml-only') ||
+               (state.params && (state.params.ml_only === 1 || state.params.ml_only === '1'));
+    } catch (e) {}
+
     function ensureOverlayElements() {
+      // No ML-only, não cria overlay global do checkout (o modal tem seu próprio loading)
+      if (mlOnly) return;
       if (!$('.frete-loading').length) $('body').append('<div class="frete-loading"></div>');
       if (!$('.checkout-loading-overlay').length) {
         $('form.checkout').append(
@@ -17,6 +26,8 @@
     }
 
     state.toggleLoading = function toggleLoading(show) {
+      // No ML-only, não mostra overlay global (evita bloquear o modal)
+      if (mlOnly) return;
       state.log('UI        Chamado toggleLoading(' + (show ? 'true' : 'false') + ').', null, 'UI');
       ensureOverlayElements();
       if (show) {
@@ -27,6 +38,8 @@
     };
 
     state.setProcessingState = function setProcessingState(isProcessing, source) {
+      // No ML-only, não mostra overlay/cursor global (o modal cuida do UX)
+      if (mlOnly) return;
       source = source || 'generic';
       state.log(
         'UI        Setando estado de processamento: ' + (isProcessing ? 'true' : 'false') + ' (Source: ' + source + ')',
@@ -54,6 +67,9 @@
     };
 
     state.updatePlaceOrderButtonState = function updatePlaceOrderButtonState() {
+      // No ML-only, não mexe no botão (o modal controla o fluxo)
+      if (mlOnly) return;
+
       var $placeOrderBtn = $('#place_order');
       var $orderTotal = $(
         '#tab-resumo-frete #order_review .order-total .amount, #tab-resumo-frete #order_review .order_details .amount'
@@ -88,6 +104,9 @@
     };
 
     state.renderDuplicateTotal = function renderDuplicateTotal() {
+      // No ML-only, não renderiza total duplicado (o modal tem seu próprio layout)
+      if (mlOnly) return;
+
       var $paymentSection = $('#tab-pagamento #payment');
       var $placeOrderContainer = $paymentSection.find('.place-order');
       var $duplicateTotalContainer = $paymentSection.find('.payment-total-dup');

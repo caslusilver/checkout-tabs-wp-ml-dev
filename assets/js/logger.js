@@ -82,6 +82,73 @@
       return phase || '';
     }
 
+    /**
+     * Checkpoint de debug: registra SUCCESS ou FAIL para uma verificação específica.
+     * Útil para validar que cada melhoria está funcionando.
+     * 
+     * @param {string} name - Nome do checkpoint (ex: 'CHK_HOST_WOO', 'CHK_GATEWAYS')
+     * @param {boolean} ok - true = sucesso, false = falha
+     * @param {object} data - Dados adicionais para debug
+     */
+    state.checkpoint = function checkpoint(name, ok, data) {
+      if (!debugMode) return;
+      ensureDebugPanel();
+
+      var status = ok ? '✓ OK' : '✗ FAIL';
+      var message = status + '   ' + name;
+      
+      var timestamp = new Date().toLocaleTimeString('pt-BR', {
+        hour12: false,
+        second: 'numeric',
+        fractionalSecondDigits: 3,
+      });
+
+      var logMessage = '[CTWPML] [' + timestamp + '] CHECK      ' + message;
+
+      // Cor diferente no console
+      if (ok) {
+        console.log('%c' + logMessage, 'color: #22c55e; font-weight: bold;');
+      } else {
+        console.log('%c' + logMessage, 'color: #ef4444; font-weight: bold;');
+      }
+      if (data) console.log(data);
+
+      // Adiciona ao painel de debug
+      if ($('#debug-log-content').length) {
+        var ta = $('#debug-log-content');
+        var line = logMessage;
+        if (data) {
+          try {
+            line += '\n  → ' + (typeof data === 'string' ? data : JSON.stringify(data, null, 2));
+          } catch (e) {
+            line += '\n  → ' + String(data);
+          }
+        }
+        var cur = ta.val() || '';
+        ta.val(cur ? cur + '\n' + line : line);
+        ta.scrollTop(ta[0].scrollHeight);
+      }
+
+      // Salva no backend
+      if (state.params && state.params.ajax_url) {
+        var payload = new FormData();
+        payload.append('action', 'ctwpml_save_log');
+        payload.append('level', ok ? 'info' : 'error');
+        payload.append('message', logMessage);
+        payload.append('timestamp', Date.now());
+
+        if (navigator.sendBeacon) {
+          navigator.sendBeacon(state.params.ajax_url, payload);
+        } else if (window.fetch) {
+          fetch(state.params.ajax_url, {
+            method: 'POST',
+            body: payload,
+            keepalive: true,
+          }).catch(function () {});
+        }
+      }
+    };
+
     state.log = function log(message, data, phase) {
       if (!debugMode) return;
       ensureDebugPanel();
