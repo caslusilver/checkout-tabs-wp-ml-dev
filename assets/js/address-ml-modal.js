@@ -155,20 +155,12 @@
     function ensureModal() {
       if ($('#ctwpml-address-modal-overlay').length) return;
 
-      // Modo fullscreen: insere no topo do checkout (antes das abas antigas)
-      var $checkoutForm = $('form.checkout').first();
-      var $tabsRoot = $('#cc-checkout-tabs-root');
-      var $insertTarget = $tabsRoot.length ? $tabsRoot : $checkoutForm;
+      // Modo ML definitivo: SEMPRE injeta no <body> para não ficar preso no container do Elementor/widget.
+      // (O widget pode ser movido/offscreen via CSS e não deve arrastar o modal junto.)
+      var $root = $('body');
+      console.log('[CTWPML][DEBUG] ensureModal() - inserindo componente ML no body (modo fullscreen)');
 
-      if (!$insertTarget.length) {
-        // Fallback: body
-        $insertTarget = $('body');
-        console.log('[CTWPML][DEBUG] ensureModal() - usando body como fallback');
-      }
-
-      console.log('[CTWPML][DEBUG] ensureModal() - inserindo componente ML antes de:', $insertTarget.attr('id') || $insertTarget.prop('tagName'));
-
-      $insertTarget.before(
+      $root.append(
         '' +
           '<div id="ctwpml-address-modal-overlay" class="ctwpml-modal-overlay">' +
           '  <div class="ctwpml-modal" role="dialog" aria-modal="true" aria-label="Meus endereços">' +
@@ -955,8 +947,14 @@
       
       // Modo fullscreen: mostrar componente inline e esconder abas antigas
       $('#ctwpml-address-modal-overlay').css('display', 'block');
-      $('#cc-checkout-tabs-root').hide();
-      console.log('[CTWPML][DEBUG] openModal() - componente ML exibido, abas antigas escondidas');
+      try {
+        $('body').addClass('ctwpml-ml-open').css('overflow', 'hidden');
+      } catch (e) {}
+      // Compatibilidade: se existir root das abas antigas (modo não-ML), esconda.
+      if ($('#cc-checkout-tabs-root').length) {
+        $('#cc-checkout-tabs-root').hide();
+      }
+      console.log('[CTWPML][DEBUG] openModal() - componente ML exibido (fullscreen)');
       
       // Mostrar spinner enquanto carrega endereços
       showModalSpinner();
@@ -1049,6 +1047,9 @@
     function closeModal() {
       console.log('[CTWPML][DEBUG] closeModal() - escondendo componente ML');
       $('#ctwpml-address-modal-overlay').hide();
+      try {
+        $('body').removeClass('ctwpml-ml-open').css('overflow', '');
+      } catch (e) {}
       // Modo fullscreen: ao fechar, redireciona para o carrinho
       var cartUrl = window.wc_cart_params && window.wc_cart_params.cart_url ? window.wc_cart_params.cart_url : '/carrinho/';
       console.log('[CTWPML][DEBUG] closeModal() - redirecionando para:', cartUrl);

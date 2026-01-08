@@ -12,11 +12,13 @@
 
 /* Modo fullscreen: componente inline no checkout (não é mais modal) */
 .ctwpml-modal-overlay {
-  position: relative;
-  display: block;
-  width: 100%;
+  position: fixed;
+  inset: 0;
+  display: none; /* controlado via JS (display:block/flex) */
+  width: 100vw;
+  height: 100vh;
   background: transparent;
-  z-index: 100;
+  z-index: 999999;
 }
 
 /* Esconde quando display:none é setado via JS */
@@ -36,6 +38,30 @@
   flex-direction: column;
   /* Garantir contraste mesmo se tema aplicar cor global clara */
   color: #111;
+}
+
+/* Trava scroll do site quando o ML está aberto */
+body.ctwpml-ml-open {
+  overflow: hidden !important;
+}
+
+/* =====================================================
+   Elementor checkout widget: manter Woo no DOM, mas invisível (modo ML-only)
+   - Não usar display:none para não quebrar gateways/scripts.
+   ===================================================== */
+body.ctwpml-ml-only:not(.elementor-editor-active) .elementor-widget-woocommerce-checkout-page {
+  position: fixed !important;
+  left: -99999px !important;
+  top: -99999px !important;
+  width: 1px !important;
+  height: 1px !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+/* Também cobre o container interno do checkout do Elementor (redundância segura). */
+body.ctwpml-ml-only:not(.elementor-editor-active) .e-checkout__container {
+  pointer-events: none !important;
 }
 
 .ctwpml-modal * {
@@ -123,6 +149,41 @@
   overflow: visible;
   flex: 1;
   min-height: calc(100vh - 77px); /* altura total menos header */
+}
+
+/* =====================================================
+   Layout desktop 2 colunas (ML-only)
+   ===================================================== */
+.ctwpml-ml-layout {
+  display: block;
+}
+.ctwpml-ml-left,
+.ctwpml-ml-right {
+  display: block;
+}
+
+@media (min-width: 1024px) {
+  .ctwpml-ml-layout {
+    display: grid;
+    grid-template-columns: 1fr 420px;
+    gap: 16px;
+    height: calc(100vh - 77px);
+  }
+  .ctwpml-ml-left {
+    overflow: auto;
+    padding-right: 4px;
+  }
+  .ctwpml-ml-right {
+    overflow: auto;
+  }
+  /* No desktop, o summary não precisa ser fixed. */
+  .ctwpml-payment-footer {
+    position: sticky;
+    top: 0;
+    margin: 16px;
+    border-radius: 10px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+  }
 }
 
 .ctwpml-section-title {

@@ -61,17 +61,39 @@
     if (window.CCCheckoutTabs.setupLogger) window.CCCheckoutTabs.setupLogger(state);
     // Se estamos em modo “debug-only” (sem cc_params real), não inicializa o restante.
     if (!state.params || !state.params.ajax_url) return;
+
+    // =========================================================
+    // MODO ML DEFINITIVO (Elementor checkout widget)
+    // - Desliga completamente a lógica antiga de abas/snippet
+    // - Mantém apenas: UI + Woo events + Modal ML
+    // =========================================================
+    var isElementorCheckout = false;
+    try {
+      isElementorCheckout = !!document.querySelector(
+        '.elementor-widget-woocommerce-checkout-page, .e-checkout__container, .e-checkout-layout-two-column'
+      );
+    } catch (e) {}
+
+    var mlOnly = !!(state.params && (state.params.ml_only === 1 || state.params.ml_only === '1')) || isElementorCheckout;
+    if (mlOnly) {
+      try { document.body.classList.add('ctwpml-ml-only'); } catch (e) {}
+      state.log('INIT      ML-only ativo: lógica antiga de abas está desabilitada.', { isElementorCheckout: isElementorCheckout }, 'INIT');
+    }
+
     if (window.CCCheckoutTabs.setupUI) window.CCCheckoutTabs.setupUI(state);
-    if (window.CCCheckoutTabs.setupTabs) window.CCCheckoutTabs.setupTabs(state);
-    if (window.CCCheckoutTabs.setupStore) window.CCCheckoutTabs.setupStore(state);
-    if (window.CCCheckoutTabs.setupWebhook) window.CCCheckoutTabs.setupWebhook(state);
     if (window.CCCheckoutTabs.setupWooEvents) window.CCCheckoutTabs.setupWooEvents(state);
     if (window.CCCheckoutTabs.setupAddressModal) window.CCCheckoutTabs.setupAddressModal(state);
 
-    // bootstrap (ordem importa)
-    if (state.buildTabsAndMoveFields) state.buildTabsAndMoveFields();
-    if (state.bindNavigation) state.bindNavigation();
-    if (state.bindCepAdvance) state.bindCepAdvance();
+    if (!mlOnly) {
+      if (window.CCCheckoutTabs.setupTabs) window.CCCheckoutTabs.setupTabs(state);
+      if (window.CCCheckoutTabs.setupStore) window.CCCheckoutTabs.setupStore(state);
+      if (window.CCCheckoutTabs.setupWebhook) window.CCCheckoutTabs.setupWebhook(state);
+
+      // bootstrap (ordem importa)
+      if (state.buildTabsAndMoveFields) state.buildTabsAndMoveFields();
+      if (state.bindNavigation) state.bindNavigation();
+      if (state.bindCepAdvance) state.bindCepAdvance();
+    }
   });
 })(window);
 

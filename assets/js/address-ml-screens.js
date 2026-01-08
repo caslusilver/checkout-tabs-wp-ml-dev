@@ -309,7 +309,8 @@
 
     var html =
       '' +
-      '<div class="ctwpml-payment-screen">' +
+      '<div class="ctwpml-payment-screen ctwpml-ml-layout">' +
+      '  <div class="ctwpml-ml-left">' +
       // IMPORTANTE: Não renderizar header/footer de página aqui.
       // O header único deve ser o do modal (ctwpml-modal-header).
       // Conteúdo abaixo é apenas a "tela interna".
@@ -357,7 +358,9 @@
       '      <span class="ctwpml-payment-chevron">›</span>' +
       '    </a>' +
       '  </div>' +
-      // Footer fixo (sticky)
+      '  </div>' + // left
+      '  <div class="ctwpml-ml-right">' +
+      // Summary/rodapé (vira coluna direita no desktop e footer no mobile)
       '  <div class="ctwpml-payment-footer">' +
       '    <span class="ctwpml-payment-coupon-link" id="ctwpml-payment-coupon">Inserir código do cupom</span>' +
       '    <div class="ctwpml-payment-subtotal-row">' +
@@ -369,6 +372,7 @@
       '      <span class="ctwpml-payment-total-value" id="ctwpml-payment-total-value">' + escapeHtml(totalText) + '</span>' +
       '    </div>' +
       '  </div>' +
+      '  </div>' + // right
       '</div>' +
       // Overlay e Drawer do Cupom (fora do container principal)
       '<div id="ctwpml-coupon-overlay" class="ctwpml-coupon-overlay"></div>' +

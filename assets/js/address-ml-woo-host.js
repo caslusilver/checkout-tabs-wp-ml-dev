@@ -33,7 +33,7 @@
   }
 
   function ensureHiddenBlocksRoot() {
-    var form = getCheckoutFormEl();
+    var form = getCheckoutFormEl() || document.querySelector('.woocommerce-checkout') || document.body;
     if (!form) return null;
 
     var existing = form.querySelector('#ctwpml-wc-hidden-blocks');
@@ -41,7 +41,15 @@
 
     var root = document.createElement('div');
     root.id = 'ctwpml-wc-hidden-blocks';
-    root.style.display = 'none';
+    // Não usar display:none (pode quebrar scripts de gateway que dependem de visibilidade).
+    // Mantemos offscreen/invisível, mas presente no DOM.
+    root.style.position = 'fixed';
+    root.style.left = '-99999px';
+    root.style.top = '-99999px';
+    root.style.width = '1px';
+    root.style.height = '1px';
+    root.style.opacity = '0';
+    root.style.pointerEvents = 'none';
     root.setAttribute('aria-hidden', 'true');
     form.appendChild(root);
     return root;
