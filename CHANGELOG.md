@@ -323,9 +323,23 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
 #### Protocol: 63b625a
 
+## [v3.2.21] - 2026-01-07
+
+### Fixed
+- Correção de bug de "empilhamento" de telas: ao clicar em "Voltar" da tela de pagamento, a view anterior era exibida **sem esconder** a tela de pagamento, causando sobreposição visual.
+- Todas as funções de transição de tela (`showInitial`, `showList`, `showForm`, `showFormForNewAddress`, `showFormForEditAddress`, `showShippingPlaceholder`) agora escondem `#ctwpml-view-payment` antes de exibir a view alvo.
+
+#### Protocol: 163f06f
+## [v3.2.22] - 2026-01-08
+
+### Changed
+- Tela "Escolha quando sua compra chegará" agora exibe até 3 miniaturas do carrinho via endpoint AJAX (WooCommerce), removendo dependência do DOM do tema; UI/CSS atualizados para exibir stack de miniaturas no layout atual.
+
+#### Protocol: 163f06f
+
 ## [Unreleased]
 
 ### Changed
-- **Versão atual**: v3.2.20  
-  **Versão sugerida após a mudança**: v3.2.21  
+- **Versão atual**: v3.2.22  
+  **Versão sugerida após a mudança**: v3.2.23  
   **Descrição**: Preencher antes de commitar mudanças.
