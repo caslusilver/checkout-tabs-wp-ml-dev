@@ -344,9 +344,16 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
 #### Protocol: c3ef808
 
+## [v3.2.24] - 2026-01-08
+
+### Changed
+- Modo ML definitivo no checkout do Elementor: desativa lógica antiga de abas/CEP para não conflitar com o modal; modal ML agora é full-screen (injetado no body, z-index máximo e scroll lock); widget do checkout fica invisível/offscreen sem quebrar gateways/cálculo do Woo; layout desktop da tela “Escolha como pagar” em duas colunas (conteúdo à esquerda e resumo à direita).
+
+#### Protocol: a895bcf
+
 ## [Unreleased]
 
 ### Changed
-- **Versão atual**: v3.2.23  
+- **Versão atual**: v3.2.24  
   **Versão sugerida após a mudança**: v3.2.24  
-  **Descrição**: Modo ML definitivo no checkout do Elementor: desativa lógica antiga de abas/CEP para não conflitar com o modal; modal ML agora é full-screen (injetado no body, z-index máximo e scroll lock); widget do checkout fica invisível/offscreen sem quebrar gateways/cálculo do Woo; layout desktop da tela “Escolha como pagar” em duas colunas (conteúdo à esquerda e resumo à direita).
+  **Descrição**: Preencher antes de commitar mudanças.
