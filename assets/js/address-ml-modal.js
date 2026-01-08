@@ -256,6 +256,7 @@
       $('#ctwpml-view-form').hide();
       $('#ctwpml-view-list').hide();
       $('#ctwpml-view-shipping').hide();
+      $('#ctwpml-view-payment').hide();
       $('#ctwpml-view-initial').show();
       setFooterVisible(false);
 
@@ -386,6 +387,52 @@
     }
 
     /**
+     * Busca até 3 miniaturas do carrinho via backend (WooCommerce).
+     * Evita dependência do DOM do checkout (que varia por tema).
+     * @param {Function} done - callback (thumbUrls:Array)
+     */
+    function getCartThumbUrls(done) {
+      var log = function (msg, data) {
+        if (typeof state.log === 'function') {
+          state.log(msg, data || {}, 'SHIPPING');
+        } else {
+          console.log('[CTWPML][SHIPPING] ' + msg, data || '');
+        }
+      };
+
+      var safeDone = typeof done === 'function' ? done : function () {};
+
+      if (!state.params || !state.params.ajax_url || !state.params.cart_thumbs_nonce) {
+        log('getCartThumbUrls() - Parâmetros ausentes (ajax_url/cart_thumbs_nonce).');
+        safeDone([]);
+        return;
+      }
+
+      $.ajax({
+        url: state.params.ajax_url,
+        type: 'POST',
+        dataType: 'json',
+        data: {
+          action: 'ctwpml_get_cart_thumbs',
+          _ajax_nonce: state.params.cart_thumbs_nonce,
+        },
+        success: function (resp) {
+          if (resp && resp.success && resp.data && Array.isArray(resp.data.thumb_urls)) {
+            log('getCartThumbUrls() - Miniaturas recebidas: ' + resp.data.thumb_urls.length, resp.data.thumb_urls);
+            safeDone(resp.data.thumb_urls.slice(0, 3));
+            return;
+          }
+          log('getCartThumbUrls() - Resposta inválida, usando vazio.', resp || {});
+          safeDone([]);
+        },
+        error: function (jqXHR, textStatus, errorThrown) {
+          log('getCartThumbUrls() - ERRO AJAX:', { status: jqXHR.status, textStatus: textStatus, error: errorThrown });
+          safeDone([]);
+        },
+      });
+    }
+
+    /**
      * Exibe a tela de seleção de frete, carregando opções do backend.
      */
     function showShippingPlaceholder() {
@@ -404,107 +451,110 @@
       $('#ctwpml-view-form').hide();
       $('#ctwpml-view-list').hide();
       $('#ctwpml-view-initial').hide();
+      $('#ctwpml-view-payment').hide();
       $('#ctwpml-view-shipping').show();
       setFooterVisible(false);
 
       var it = selectedAddressId ? getAddressById(selectedAddressId) : null;
       log('showShippingPlaceholder() - Endereço selecionado:', it);
 
-      // Capturar imagem do primeiro produto do carrinho via DOM
-      var productThumbUrl = getFirstCartProductThumb();
-      log('showShippingPlaceholder() - productThumbUrl:', productThumbUrl);
+      // Buscar miniaturas do carrinho via backend (até 3).
+      // Isso elimina o problema de "Nenhuma imagem encontrada" quando o tema não renderiza imagens no DOM.
+      getCartThumbUrls(function (productThumbUrls) {
+        log('showShippingPlaceholder() - productThumbUrls:', productThumbUrls);
 
-      // Mostrar loading
-      $('#ctwpml-view-shipping').html(
-        '<div class="ctwpml-loading" style="padding:40px;text-align:center;">' +
-          '<div class="ctwpml-spinner" style="width:40px;height:40px;border:3px solid rgba(0,117,255,0.2);border-top-color:#0075ff;border-radius:50%;animation:ctwpml-spin 0.8s linear infinite;margin:0 auto 16px;"></div>' +
-          '<div>Carregando opções de frete...</div>' +
-          '</div>'
-      );
+        // Mostrar loading
+        $('#ctwpml-view-shipping').html(
+          '<div class="ctwpml-loading" style="padding:40px;text-align:center;">' +
+            '<div class="ctwpml-spinner" style="width:40px;height:40px;border:3px solid rgba(0,117,255,0.2);border-top-color:#0075ff;border-radius:50%;animation:ctwpml-spin 0.8s linear infinite;margin:0 auto 16px;"></div>' +
+            '<div>Carregando opções de frete...</div>' +
+            '</div>'
+        );
 
-      // Verificar se temos os parâmetros necessários
-      if (!state.params || !state.params.ajax_url || !state.params.shipping_options_nonce) {
-        log('showShippingPlaceholder() - ERRO: Parâmetros não disponíveis, usando fallback');
-        var hasScreensModule = !!(window.CCCheckoutTabs && window.CCCheckoutTabs.AddressMlScreens && typeof window.CCCheckoutTabs.AddressMlScreens.renderShippingPlaceholder === 'function');
-        if (hasScreensModule) {
-          var html = window.CCCheckoutTabs.AddressMlScreens.renderShippingPlaceholder(it);
-          $('#ctwpml-view-shipping').html(html);
-        } else {
-          $('#ctwpml-view-shipping').html('<div class="ctwpml-section-title">Escolha quando sua compra chegará (fallback)</div>');
-        }
-        return;
-      }
-
-      log('showShippingPlaceholder() - Fazendo requisição AJAX para ctwpml_get_shipping_options');
-
-      // Buscar opções de frete do backend
-      $.ajax({
-        url: state.params.ajax_url,
-        type: 'POST',
-        dataType: 'json',
-        data: {
-          action: 'ctwpml_get_shipping_options',
-          _ajax_nonce: state.params.shipping_options_nonce,
-          address_id: String(selectedAddressId || ''),
-        },
-        success: function (resp) {
-          log('showShippingPlaceholder() - Resposta recebida:', resp);
-
-          var hasRenderOptions = !!(
-            window.CCCheckoutTabs &&
-            window.CCCheckoutTabs.AddressMlScreens &&
-            typeof window.CCCheckoutTabs.AddressMlScreens.renderShippingOptions === 'function'
-          );
-
-          if (resp.success && resp.data && resp.data.options) {
-            log('showShippingPlaceholder() - Opções encontradas: ' + resp.data.options.length, resp.data.options);
-
-            if (hasRenderOptions) {
-              var html = window.CCCheckoutTabs.AddressMlScreens.renderShippingOptions(it, resp.data.options, {
-                productThumbUrl: productThumbUrl,
-              });
-              $('#ctwpml-view-shipping').html(html);
-            } else {
-              log('showShippingPlaceholder() - renderShippingOptions não disponível, usando placeholder');
-              var htmlFallback = window.CCCheckoutTabs.AddressMlScreens.renderShippingPlaceholder(it);
-              $('#ctwpml-view-shipping').html(htmlFallback);
-            }
-
-            // Pré-selecionar primeira opção no WC
-            var firstOption = resp.data.options[0];
-            if (firstOption) {
-              log('showShippingPlaceholder() - Pré-selecionando primeira opção:', firstOption.id);
-              setShippingMethodInWC(firstOption.id);
-            }
+        // Verificar se temos os parâmetros necessários
+        if (!state.params || !state.params.ajax_url || !state.params.shipping_options_nonce) {
+          log('showShippingPlaceholder() - ERRO: Parâmetros não disponíveis, usando fallback');
+          var hasScreensModule = !!(window.CCCheckoutTabs && window.CCCheckoutTabs.AddressMlScreens && typeof window.CCCheckoutTabs.AddressMlScreens.renderShippingPlaceholder === 'function');
+          if (hasScreensModule) {
+            var html = window.CCCheckoutTabs.AddressMlScreens.renderShippingPlaceholder(it);
+            $('#ctwpml-view-shipping').html(html);
           } else {
-            log('showShippingPlaceholder() - ERRO: Resposta inválida ou sem opções', resp);
-            var errorMsg = resp.data && resp.data.message ? resp.data.message : 'Erro ao carregar opções de frete.';
-
-            if (hasRenderOptions) {
-              // Passar array vazio para mostrar mensagem de "nenhuma opção"
-              var htmlEmpty = window.CCCheckoutTabs.AddressMlScreens.renderShippingOptions(it, [], {
-                productThumbUrl: productThumbUrl,
-              });
-              $('#ctwpml-view-shipping').html(htmlEmpty);
-            } else {
-              $('#ctwpml-view-shipping').html(
-                '<div class="ctwpml-error" style="padding:20px;text-align:center;color:#b42318;">' +
-                  '<div style="font-size:24px;margin-bottom:8px;">⚠️</div>' +
-                  '<div>' + errorMsg + '</div>' +
-                  '</div>'
-              );
-            }
+            $('#ctwpml-view-shipping').html('<div class="ctwpml-section-title">Escolha quando sua compra chegará (fallback)</div>');
           }
-        },
-        error: function (jqXHR, textStatus, errorThrown) {
-          log('showShippingPlaceholder() - ERRO AJAX:', { status: jqXHR.status, textStatus: textStatus, error: errorThrown });
-          $('#ctwpml-view-shipping').html(
-            '<div class="ctwpml-error" style="padding:20px;text-align:center;color:#b42318;">' +
-              '<div style="font-size:24px;margin-bottom:8px;">⚠️</div>' +
-              '<div>Erro de conexão. Tente novamente.</div>' +
-              '</div>'
-          );
-        },
+          return;
+        }
+
+        log('showShippingPlaceholder() - Fazendo requisição AJAX para ctwpml_get_shipping_options');
+
+        // Buscar opções de frete do backend
+        $.ajax({
+          url: state.params.ajax_url,
+          type: 'POST',
+          dataType: 'json',
+          data: {
+            action: 'ctwpml_get_shipping_options',
+            _ajax_nonce: state.params.shipping_options_nonce,
+            address_id: String(selectedAddressId || ''),
+          },
+          success: function (resp) {
+            log('showShippingPlaceholder() - Resposta recebida:', resp);
+
+            var hasRenderOptions = !!(
+              window.CCCheckoutTabs &&
+              window.CCCheckoutTabs.AddressMlScreens &&
+              typeof window.CCCheckoutTabs.AddressMlScreens.renderShippingOptions === 'function'
+            );
+
+            if (resp.success && resp.data && resp.data.options) {
+              log('showShippingPlaceholder() - Opções encontradas: ' + resp.data.options.length, resp.data.options);
+
+              if (hasRenderOptions) {
+                var html = window.CCCheckoutTabs.AddressMlScreens.renderShippingOptions(it, resp.data.options, {
+                  productThumbUrls: productThumbUrls,
+                });
+                $('#ctwpml-view-shipping').html(html);
+              } else {
+                log('showShippingPlaceholder() - renderShippingOptions não disponível, usando placeholder');
+                var htmlFallback = window.CCCheckoutTabs.AddressMlScreens.renderShippingPlaceholder(it);
+                $('#ctwpml-view-shipping').html(htmlFallback);
+              }
+
+              // Pré-selecionar primeira opção no WC
+              var firstOption = resp.data.options[0];
+              if (firstOption) {
+                log('showShippingPlaceholder() - Pré-selecionando primeira opção:', firstOption.id);
+                setShippingMethodInWC(firstOption.id);
+              }
+            } else {
+              log('showShippingPlaceholder() - ERRO: Resposta inválida ou sem opções', resp);
+              var errorMsg = resp.data && resp.data.message ? resp.data.message : 'Erro ao carregar opções de frete.';
+
+              if (hasRenderOptions) {
+                // Passar array vazio para mostrar mensagem de "nenhuma opção"
+                var htmlEmpty = window.CCCheckoutTabs.AddressMlScreens.renderShippingOptions(it, [], {
+                  productThumbUrls: productThumbUrls,
+                });
+                $('#ctwpml-view-shipping').html(htmlEmpty);
+              } else {
+                $('#ctwpml-view-shipping').html(
+                  '<div class="ctwpml-error" style="padding:20px;text-align:center;color:#b42318;">' +
+                    '<div style="font-size:24px;margin-bottom:8px;">⚠️</div>' +
+                    '<div>' + errorMsg + '</div>' +
+                    '</div>'
+                );
+              }
+            }
+          },
+          error: function (jqXHR, textStatus, errorThrown) {
+            log('showShippingPlaceholder() - ERRO AJAX:', { status: jqXHR.status, textStatus: textStatus, error: errorThrown });
+            $('#ctwpml-view-shipping').html(
+              '<div class="ctwpml-error" style="padding:20px;text-align:center;color:#b42318;">' +
+                '<div style="font-size:24px;margin-bottom:8px;">⚠️</div>' +
+                '<div>Erro de conexão. Tente novamente.</div>' +
+                '</div>'
+            );
+          },
+        });
       });
     }
 
@@ -886,6 +936,7 @@
       $('#ctwpml-modal-title').text('Meus endereços');
       $('#ctwpml-view-initial').hide();
       $('#ctwpml-view-shipping').hide();
+      $('#ctwpml-view-payment').hide();
       $('#ctwpml-view-form').hide();
       $('#ctwpml-view-list').show();
       $('#ctwpml-btn-primary').text('Continuar');
@@ -898,6 +949,7 @@
       $('#ctwpml-modal-title').text('Adicione um endereço');
       $('#ctwpml-view-initial').hide();
       $('#ctwpml-view-shipping').hide();
+      $('#ctwpml-view-payment').hide();
       $('#ctwpml-view-list').hide();
       $('#ctwpml-view-form').show();
       $('#ctwpml-btn-primary').text('Salvar');
@@ -915,6 +967,7 @@
       $('#ctwpml-modal-title').text('Adicionar endereço');
       $('#ctwpml-view-initial').hide();
       $('#ctwpml-view-shipping').hide();
+      $('#ctwpml-view-payment').hide();
       $('#ctwpml-view-list').hide();
       $('#ctwpml-view-form').show();
       $('#ctwpml-btn-primary').text('Salvar');
@@ -956,6 +1009,7 @@
       $('#ctwpml-modal-title').text('Editar endereço');
       $('#ctwpml-view-initial').hide();
       $('#ctwpml-view-shipping').hide();
+      $('#ctwpml-view-payment').hide();
       $('#ctwpml-view-list').hide();
       $('#ctwpml-view-form').show();
       $('#ctwpml-btn-primary').text('Salvar');

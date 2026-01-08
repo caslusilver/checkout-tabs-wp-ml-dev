@@ -483,6 +483,27 @@
   flex-shrink: 0;
 }
 
+.ctwpml-shipping-thumbs {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-shrink: 0;
+}
+
+/* Stack/overlap de até 3 miniaturas (sem +N). */
+.ctwpml-shipping-thumbs .ctwpml-shipping-thumb {
+  border: 2px solid #fff; /* contorno branco para separar no overlap */
+  box-shadow: 0 0 0 1px #eee; /* mantém borda suave */
+}
+
+.ctwpml-shipping-thumbs .ctwpml-shipping-thumb:not(:first-child) {
+  margin-left: -12px; /* overlap */
+}
+
+.ctwpml-shipping-thumbs .ctwpml-shipping-thumb:nth-child(1) { z-index: 3; }
+.ctwpml-shipping-thumbs .ctwpml-shipping-thumb:nth-child(2) { z-index: 2; }
+.ctwpml-shipping-thumbs .ctwpml-shipping-thumb:nth-child(3) { z-index: 1; }
+
 .ctwpml-shipping-thumb img {
   width: 100%;
   height: 100%;

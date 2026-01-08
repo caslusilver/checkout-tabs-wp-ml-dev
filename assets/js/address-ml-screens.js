@@ -164,11 +164,16 @@
     }
 
     var addrLine = formatAddressSummary(address);
-    var productThumbUrl = options.productThumbUrl || '';
+    var productThumbUrls = Array.isArray(options.productThumbUrls) ? options.productThumbUrls : [];
+    // Compatibilidade: se alguém ainda passar productThumbUrl (string), converte para array.
+    if (!productThumbUrls.length && options.productThumbUrl) {
+      productThumbUrls = [String(options.productThumbUrl)];
+    }
+    productThumbUrls = productThumbUrls.slice(0, 3);
 
     if (debugMode) {
       console.log('[CTWPML][DEBUG] renderShippingOptions - addrLine:', addrLine);
-      console.log('[CTWPML][DEBUG] renderShippingOptions - productThumbUrl:', productThumbUrl);
+      console.log('[CTWPML][DEBUG] renderShippingOptions - productThumbUrls:', productThumbUrls);
     }
 
     // Se não há opções, mostrar mensagem
@@ -229,10 +234,18 @@
         '</div>';
     });
 
-    // Gerar HTML da thumbnail (imagem real ou placeholder)
-    var thumbHtml = productThumbUrl
-      ? '<div class="ctwpml-shipping-thumb"><img src="' + escapeHtml(productThumbUrl) + '" alt="Produto" /></div>'
-      : '<div class="ctwpml-shipping-thumb" aria-hidden="true"></div>';
+    // Gerar HTML das miniaturas (até 3). Se vazio, mantém placeholder atual.
+    var thumbHtml = '';
+    if (productThumbUrls && productThumbUrls.length) {
+      thumbHtml = '<div class="ctwpml-shipping-thumbs" aria-hidden="true">';
+      productThumbUrls.forEach(function (url) {
+        if (!url) return;
+        thumbHtml += '<div class="ctwpml-shipping-thumb"><img src="' + escapeHtml(String(url)) + '" alt="Produto" /></div>';
+      });
+      thumbHtml += '</div>';
+    } else {
+      thumbHtml = '<div class="ctwpml-shipping-thumb" aria-hidden="true"></div>';
+    }
 
     var html =
       '' +
