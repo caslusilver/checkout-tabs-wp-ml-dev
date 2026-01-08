@@ -337,9 +337,16 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
 #### Protocol: 163f06f
 
+## [v3.2.23] - 2026-01-08
+
+### Changed
+- Checkout modal: integração com lógica padrão do WooCommerce via blocos AJAX (payment/review/coupon) com nonce; seleção de gateways por compatibilidade (Pix/Boleto/Cartão) e ocultação automática de meios indisponíveis; cupom aplicado via form padrão do Woo e sincronização após `updated_checkout`; footer da tela “Escolha como pagar” agora exibe Subtotal dinâmico (fonte `tr.cart-subtotal`) + total; adicionada nova etapa “Revise e confirme” no modal (sem injetar página inteira) com botão “Confirmar a compra” disparando `#place_order`; removida redundância do título “Escolha como pagar” (mantém apenas no header do modal).
+
+#### Protocol: c3ef808
+
 ## [Unreleased]
 
 ### Changed
-- **Versão atual**: v3.2.22  
+- **Versão atual**: v3.2.23  
   **Versão sugerida após a mudança**: v3.2.23  
-  **Descrição**: Checkout modal: integração com lógica padrão do WooCommerce via blocos AJAX (payment/review/coupon) com nonce; seleção de gateways por compatibilidade (Pix/Boleto/Cartão) e ocultação automática de meios indisponíveis; cupom aplicado via form padrão do Woo e sincronização após `updated_checkout`; footer da tela “Escolha como pagar” agora exibe Subtotal dinâmico (fonte `tr.cart-subtotal`) + total; adicionada nova etapa “Revise e confirme” no modal (sem injetar página inteira) com botão “Confirmar a compra” disparando `#place_order`; removida redundância do título “Escolha como pagar” (mantém apenas no header do modal).
+  **Descrição**: Preencher antes de commitar mudanças.
