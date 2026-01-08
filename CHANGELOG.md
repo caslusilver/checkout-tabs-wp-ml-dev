@@ -351,9 +351,16 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
 #### Protocol: a895bcf
 
+## [v3.2.25] - 2026-01-08
+
+### Changed
+- Remoção do enqueue condicional de scripts legados (tabs.js, store.js, webhook.js) quando ML-only; ui.js e woocommerce-events.js agora são no-op para rotinas de abas no ML-only; overlay global do checkout suprimido via CSS no ML-only; scroll interno do modal corrigido para iOS; sistema de checkpoints de debug implementado (state.checkpoint) com validação SUCCESS/FAIL para: CHK_HOST_WOO, CHK_OVERLAY_SUPPRESS, CHK_ML_ONLY, CHK_MODAL_VISIBLE, CHK_SCROLL_ENABLED, CHK_ELEMENTOR_HIDDEN, CHK_GATEWAYS, CHK_BLOCKS, CHK_PAYMENT_RENDERED, CHK_REVIEW_RENDERED, CHK_SHIPPING_OPTIONS.
+
+#### Protocol: 0267719
+
 ## [Unreleased]
 
 ### Changed
-- **Versão atual**: v3.2.24  
-  **Versão sugerida após a mudança**: v3.2.24  
+- **Versão atual**: v3.2.25  
+  **Versão sugerida após a mudança**: v3.2.25  
   **Descrição**: Preencher antes de commitar mudanças.
