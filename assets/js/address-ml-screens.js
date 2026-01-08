@@ -296,6 +296,7 @@
     options = options || {};
     var debugMode = !!(window.cc_params && window.cc_params.debug);
     var totalText = options.totalText || 'R$ 0,00';
+    var subtotalText = options.subtotalText || '';
     var pluginUrl = (window.cc_params && window.cc_params.plugin_url) ? window.cc_params.plugin_url : '';
 
     if (debugMode) {
@@ -312,7 +313,6 @@
       // IMPORTANTE: Não renderizar header/footer de página aqui.
       // O header único deve ser o do modal (ctwpml-modal-header).
       // Conteúdo abaixo é apenas a "tela interna".
-      '  <h2 class="ctwpml-payment-page-title">Escolha como pagar</h2>' +
       // Seção Recomendados
       '  <p class="ctwpml-payment-section-label">Recomendados</p>' +
       '  <div class="ctwpml-payment-group">' +
@@ -360,9 +360,13 @@
       // Footer fixo (sticky)
       '  <div class="ctwpml-payment-footer">' +
       '    <span class="ctwpml-payment-coupon-link" id="ctwpml-payment-coupon">Inserir código do cupom</span>' +
+      '    <div class="ctwpml-payment-subtotal-row">' +
+      '      <span class="ctwpml-payment-subtotal-label">Subtotal</span>' +
+      '      <span class="ctwpml-payment-subtotal-value" id="ctwpml-payment-subtotal-value">' + escapeHtml(subtotalText) + '</span>' +
+      '    </div>' +
       '    <div class="ctwpml-payment-total-row">' +
       '      <span class="ctwpml-payment-total-label">Você pagará</span>' +
-      '      <span class="ctwpml-payment-total-value">' + escapeHtml(totalText) + '</span>' +
+      '      <span class="ctwpml-payment-total-value" id="ctwpml-payment-total-value">' + escapeHtml(totalText) + '</span>' +
       '    </div>' +
       '  </div>' +
       '</div>' +
@@ -388,6 +392,110 @@
 
     if (debugMode) {
       console.log('[CTWPML][DEBUG] renderPaymentScreen - HTML gerado (primeiros 300 chars):', html.substring(0, 300));
+    }
+
+    return html;
+  };
+
+  /**
+   * Tela 4: "Revise e confirme"
+   * Estrutura interna do modal (sem <html>/<head>/<body> e sem header duplicado).
+   */
+  window.CCCheckoutTabs.AddressMlScreens.renderReviewConfirmScreen = function renderReviewConfirmScreen(options) {
+    options = options || {};
+    var debugMode = !!(window.cc_params && window.cc_params.debug);
+
+    var productCount = typeof options.productCount === 'number' ? options.productCount : 0;
+    var subtotalText = options.subtotalText || '';
+    var shippingText = options.shippingText || '';
+    var totalText = options.totalText || '';
+    var paymentLabel = options.paymentLabel || '';
+    var billingName = options.billingName || '';
+    var billingCpf = options.billingCpf || '';
+    var addressTitle = options.addressTitle || '';
+    var addressSubtitle = options.addressSubtitle || '';
+    var thumbUrls = Array.isArray(options.thumbUrls) ? options.thumbUrls : [];
+
+    var thumbsHtml = '';
+    if (thumbUrls.length) {
+      thumbsHtml = '<div class="ctwpml-review-thumbs" aria-hidden="true">';
+      thumbUrls.slice(0, 3).forEach(function (url) {
+        if (!url) return;
+        thumbsHtml += '<div class="ctwpml-review-thumb"><img src="' + escapeHtml(String(url)) + '" alt="Produto" /></div>';
+      });
+      thumbsHtml += '</div>';
+    } else {
+      thumbsHtml = '<div class="ctwpml-review-thumb" aria-hidden="true"></div>';
+    }
+
+    var html =
+      '' +
+      '<div class="ctwpml-review-screen">' +
+      '  <div class="ctwpml-review-summary-top" id="ctwpml-review-initial-summary">' +
+      '    <div class="ctwpml-review-row">' +
+      '      <span>Produtos (' + escapeHtml(String(productCount)) + ')</span>' +
+      '      <span id="ctwpml-review-products-subtotal">' + escapeHtml(subtotalText) + '</span>' +
+      '    </div>' +
+      '    <div class="ctwpml-review-row">' +
+      '      <span>Frete</span>' +
+      '      <span id="ctwpml-review-shipping">' + escapeHtml(shippingText) + '</span>' +
+      '    </div>' +
+      '    <div class="ctwpml-review-total-row">' +
+      '      <span>Você pagará</span>' +
+      '      <span id="ctwpml-review-total">' + escapeHtml(totalText) + '</span>' +
+      '    </div>' +
+      '    <span class="ctwpml-review-pay-tag" id="ctwpml-review-pay-tag">' + escapeHtml(paymentLabel) + '</span>' +
+      '    <button type="button" class="ctwpml-review-btn-confirm" id="ctwpml-review-confirm">Confirmar a compra</button>' +
+      '  </div>' +
+      '' +
+      '  <div class="ctwpml-review-section-label">Faturamento</div>' +
+      '  <div class="ctwpml-review-card">' +
+      '    <div class="ctwpml-review-card-header">' +
+      '      <div class="ctwpml-review-card-icon" aria-hidden="true">🧾</div>' +
+      '      <div class="ctwpml-review-card-content">' +
+      '        <div class="ctwpml-review-card-title" id="ctwpml-review-billing-name">' + escapeHtml(billingName) + '</div>' +
+      '        <div class="ctwpml-review-card-text" id="ctwpml-review-billing-cpf">' + escapeHtml(billingCpf) + '</div>' +
+      '      </div>' +
+      '    </div>' +
+      '    <a href="#" class="ctwpml-review-change-link" id="ctwpml-review-change-billing">Modificar dados de faturamento</a>' +
+      '  </div>' +
+      '' +
+      '  <div class="ctwpml-review-section-label">Detalhe da entrega</div>' +
+      '  <div class="ctwpml-review-card">' +
+      '    <div class="ctwpml-review-card-header">' +
+      '      <div class="ctwpml-review-card-icon" aria-hidden="true">📍</div>' +
+      '      <div class="ctwpml-review-card-content">' +
+      '        <div class="ctwpml-review-card-title" id="ctwpml-review-address-title">' + escapeHtml(addressTitle) + '</div>' +
+      '        <div class="ctwpml-review-card-text" id="ctwpml-review-address-subtitle">' + escapeHtml(addressSubtitle) + '</div>' +
+      '        <a href="#" class="ctwpml-review-change-link ctwpml-review-change-link-inline" id="ctwpml-review-change-shipping">Alterar a forma entrega</a>' +
+      '      </div>' +
+      '    </div>' +
+      '    <div class="ctwpml-review-shipment-detail">' +
+      thumbsHtml +
+      '      <div class="ctwpml-review-shipment-info">' +
+      '        <div class="ctwpml-review-shipment-eta" id="ctwpml-review-shipment-eta"></div>' +
+      '        <div class="ctwpml-review-shipment-title" id="ctwpml-review-shipment-title"></div>' +
+      '      </div>' +
+      '    </div>' +
+      '    <a href="#" class="ctwpml-review-change-link" id="ctwpml-review-change-address">Alterar ou escolher outro endereço</a>' +
+      '  </div>' +
+      '' +
+      '  <div class="ctwpml-review-section-label">Detalhe do pagamento</div>' +
+      '  <div class="ctwpml-review-card">' +
+      '    <div class="ctwpml-review-card-header">' +
+      '      <div class="ctwpml-review-card-icon" aria-hidden="true">💳</div>' +
+      '      <div class="ctwpml-review-card-content">' +
+      '        <div class="ctwpml-review-card-title" id="ctwpml-review-payment-method">' + escapeHtml(paymentLabel) + '</div>' +
+      '        <div class="ctwpml-review-card-text" id="ctwpml-review-payment-amount">' + escapeHtml(totalText) + '</div>' +
+      '        <div class="ctwpml-review-card-text ctwpml-review-card-hint">Ao confirmar a compra, você verá as informações para pagar.</div>' +
+      '      </div>' +
+      '    </div>' +
+      '    <a href="#" class="ctwpml-review-change-link" id="ctwpml-review-change-payment">Alterar forma de pagamento</a>' +
+      '  </div>' +
+      '</div>';
+
+    if (debugMode) {
+      console.log('[CTWPML][DEBUG] renderReviewConfirmScreen - HTML gerado (primeiros 300 chars):', html.substring(0, 300));
     }
 
     return html;

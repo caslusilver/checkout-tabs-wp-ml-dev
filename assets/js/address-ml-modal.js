@@ -180,6 +180,7 @@
           '      <div id="ctwpml-view-initial" style="display:none;"></div>' +
           '      <div id="ctwpml-view-shipping" style="display:none;"></div>' +
           '      <div id="ctwpml-view-payment" style="display:none;"></div>' +
+          '      <div id="ctwpml-view-review" style="display:none;"></div>' +
           '      <div id="ctwpml-view-list">' +
           '        <div class="ctwpml-section-title">Escolha onde você quer receber sua compra</div>' +
           '        <div id="ctwpml-address-list"></div>' +
@@ -257,6 +258,7 @@
       $('#ctwpml-view-list').hide();
       $('#ctwpml-view-shipping').hide();
       $('#ctwpml-view-payment').hide();
+      $('#ctwpml-view-review').hide();
       $('#ctwpml-view-initial').show();
       setFooterVisible(false);
 
@@ -452,6 +454,7 @@
       $('#ctwpml-view-list').hide();
       $('#ctwpml-view-initial').hide();
       $('#ctwpml-view-payment').hide();
+      $('#ctwpml-view-review').hide();
       $('#ctwpml-view-shipping').show();
       setFooterVisible(false);
 
@@ -582,28 +585,11 @@
       $('#ctwpml-view-list').hide();
       $('#ctwpml-view-initial').hide();
       $('#ctwpml-view-shipping').hide();
+      $('#ctwpml-view-review').hide();
       $('#ctwpml-view-payment').show();
       setFooterVisible(false);
 
-      // Obter o total do carrinho (se disponível)
-      var totalText = 'R$ 0,00';
-      try {
-        var $cartTotal = $('.woocommerce-Price-amount.amount').first();
-        if ($cartTotal.length) {
-          totalText = $cartTotal.text().trim();
-        }
-        // Fallback: tentar pegar do order review
-        if (totalText === 'R$ 0,00') {
-          var $orderTotal = $('#order_review .order-total .amount, .order-total .woocommerce-Price-amount').first();
-          if ($orderTotal.length) {
-            totalText = $orderTotal.text().trim();
-          }
-        }
-      } catch (e) {
-        log('showPaymentScreen() - Erro ao obter total:', e);
-      }
-
-      log('showPaymentScreen() - Total obtido:', totalText);
+      var woo = window.CCCheckoutTabs && window.CCCheckoutTabs.WooHost ? window.CCCheckoutTabs.WooHost : null;
 
       // Verificar se temos a função de renderização
       var hasRenderPayment = !!(
@@ -613,8 +599,10 @@
       );
 
       if (hasRenderPayment) {
+        var totals0 = woo ? woo.readTotals() : { subtotalText: '', totalText: '' };
         var html = window.CCCheckoutTabs.AddressMlScreens.renderPaymentScreen({
-          totalText: totalText,
+          subtotalText: totals0.subtotalText || '',
+          totalText: totals0.totalText || '',
         });
         $('#ctwpml-view-payment').html(html);
         log('showPaymentScreen() - Tela renderizada com sucesso');
@@ -622,12 +610,148 @@
         log('showPaymentScreen() - ERRO: renderPaymentScreen não disponível, usando fallback');
         $('#ctwpml-view-payment').html(
           '<div style="padding:20px;text-align:center;">' +
-            '<div style="font-size:22px;font-weight:500;margin-bottom:16px;">Escolha como pagar</div>' +
             '<div style="color:#666;">Carregando métodos de pagamento...</div>' +
             '</div>'
         );
       }
+
+      // Integração Woo: carrega blocos e sincroniza UI/valores.
+      if (woo && typeof woo.ensureBlocks === 'function') {
+        woo.ensureBlocks().then(function () {
+          applyPaymentAvailabilityAndSync();
+        }).catch(function (e) {
+          log('WooHost.ensureBlocks() falhou', e);
+        });
+      }
     }
+
+    function applyPaymentAvailabilityAndSync() {
+      var woo = window.CCCheckoutTabs && window.CCCheckoutTabs.WooHost ? window.CCCheckoutTabs.WooHost : null;
+      if (!woo) return;
+
+      var map = {
+        pix: woo.matchGatewayId('pix'),
+        boleto: woo.matchGatewayId('boleto'),
+        card: woo.matchGatewayId('card'),
+      };
+
+      // Ocultar meios não disponíveis.
+      ['pix', 'boleto', 'card'].forEach(function (k) {
+        if (!map[k]) {
+          $('.ctwpml-payment-option[data-method="' + k + '"]').hide();
+        } else {
+          $('.ctwpml-payment-option[data-method="' + k + '"]').show();
+        }
+      });
+
+      // Atualizar valores do footer (subtotal/total)
+      var totals = woo.readTotals();
+      if (totals.subtotalText) $('#ctwpml-payment-subtotal-value').text(totals.subtotalText);
+      if (totals.totalText) $('#ctwpml-payment-total-value').text(totals.totalText);
+
+      // Guardar mapping para clique
+      state.paymentGatewayMap = map;
+    }
+
+    function syncReviewTotalsFromWoo() {
+      var woo = window.CCCheckoutTabs && window.CCCheckoutTabs.WooHost ? window.CCCheckoutTabs.WooHost : null;
+      if (!woo) return;
+      var totals = woo.readTotals();
+      if (totals.subtotalText) $('#ctwpml-review-products-subtotal').text(totals.subtotalText);
+      if (totals.shippingText) $('#ctwpml-review-shipping').text(totals.shippingText);
+      if (totals.totalText) {
+        $('#ctwpml-review-total').text(totals.totalText);
+        $('#ctwpml-review-payment-amount').text(totals.totalText);
+      }
+      var pay = woo.getSelectedGatewayLabel();
+      if (pay) {
+        $('#ctwpml-review-pay-tag').text(pay);
+        $('#ctwpml-review-payment-method').text(pay);
+      }
+    }
+
+    function showReviewConfirmScreen() {
+      var woo = window.CCCheckoutTabs && window.CCCheckoutTabs.WooHost ? window.CCCheckoutTabs.WooHost : null;
+
+      currentView = 'review';
+      $('#ctwpml-modal-title').text('Revise e confirme');
+      $('#ctwpml-view-form').hide();
+      $('#ctwpml-view-list').hide();
+      $('#ctwpml-view-initial').hide();
+      $('#ctwpml-view-shipping').hide();
+      $('#ctwpml-view-payment').hide();
+      $('#ctwpml-view-review').show();
+      setFooterVisible(false);
+
+      var hasRenderReview = !!(
+        window.CCCheckoutTabs &&
+        window.CCCheckoutTabs.AddressMlScreens &&
+        typeof window.CCCheckoutTabs.AddressMlScreens.renderReviewConfirmScreen === 'function'
+      );
+
+      if (!hasRenderReview) {
+        $('#ctwpml-view-review').html('<div style="padding:20px;text-align:center;color:#666;">Carregando...</div>');
+        return;
+      }
+
+      var run = function () {
+        var totals = woo ? woo.readTotals() : { subtotalText: '', shippingText: '', totalText: '' };
+        var paymentLabel = woo ? woo.getSelectedGatewayLabel() : '';
+
+        var it = selectedAddressId ? getAddressById(selectedAddressId) : null;
+        var addressTitle = it ? (String(it.rua || '') + ' ' + String(it.numero || '')).trim() : '';
+        var addressSubtitle = 'Enviar no meu endereço';
+
+        // Billing (checkout real)
+        var billingName = '';
+        try {
+          var n1 = ($('#billing_first_name').val() || '').trim();
+          var n2 = ($('#billing_last_name').val() || '').trim();
+          billingName = (n1 + ' ' + n2).trim();
+        } catch (e) {}
+        if (!billingName) {
+          billingName = ($('#ctwpml-input-nome').val() || '').trim();
+        }
+        var billingCpf = ($('#billing_cpf').val() || $('#ctwpml-input-cpf').val() || '').trim();
+        if (billingCpf && billingCpf.indexOf('CPF') !== 0) billingCpf = 'CPF ' + billingCpf;
+
+        var setHtml = function (thumbs) {
+          var html = window.CCCheckoutTabs.AddressMlScreens.renderReviewConfirmScreen({
+            productCount: thumbs && typeof thumbs.count === 'number' ? thumbs.count : 0,
+            subtotalText: totals.subtotalText || '',
+            shippingText: totals.shippingText || '',
+            totalText: totals.totalText || '',
+            paymentLabel: paymentLabel || '',
+            billingName: billingName || '',
+            billingCpf: billingCpf || '',
+            addressTitle: addressTitle || '',
+            addressSubtitle: addressSubtitle || '',
+            thumbUrls: thumbs && Array.isArray(thumbs.thumb_urls) ? thumbs.thumb_urls : [],
+          });
+          $('#ctwpml-view-review').html(html);
+        };
+
+        if (woo && typeof woo.getCartThumbs === 'function') {
+          woo.getCartThumbs().then(setHtml).catch(function () { setHtml({ thumb_urls: [], count: 0 }); });
+        } else {
+          setHtml({ thumb_urls: [], count: 0 });
+        }
+      };
+
+      if (woo && typeof woo.ensureBlocks === 'function') {
+        woo.ensureBlocks().then(run).catch(run);
+      } else {
+        run();
+      }
+    }
+
+    // Sempre que o Woo atualizar o checkout, refletimos no modal (subtotal/total).
+    $(document.body).on('updated_checkout applied_coupon removed_coupon', function () {
+      try {
+        if (currentView === 'payment') applyPaymentAvailabilityAndSync();
+        if (currentView === 'review') syncReviewTotalsFromWoo();
+      } catch (e) {}
+    });
 
     function syncLoginBanner() {
       var email = (state.params && state.params.user_email) ? String(state.params.user_email) : '';
@@ -937,6 +1061,7 @@
       $('#ctwpml-view-initial').hide();
       $('#ctwpml-view-shipping').hide();
       $('#ctwpml-view-payment').hide();
+      $('#ctwpml-view-review').hide();
       $('#ctwpml-view-form').hide();
       $('#ctwpml-view-list').show();
       $('#ctwpml-btn-primary').text('Continuar');
@@ -950,6 +1075,7 @@
       $('#ctwpml-view-initial').hide();
       $('#ctwpml-view-shipping').hide();
       $('#ctwpml-view-payment').hide();
+      $('#ctwpml-view-review').hide();
       $('#ctwpml-view-list').hide();
       $('#ctwpml-view-form').show();
       $('#ctwpml-btn-primary').text('Salvar');
@@ -968,6 +1094,7 @@
       $('#ctwpml-view-initial').hide();
       $('#ctwpml-view-shipping').hide();
       $('#ctwpml-view-payment').hide();
+      $('#ctwpml-view-review').hide();
       $('#ctwpml-view-list').hide();
       $('#ctwpml-view-form').show();
       $('#ctwpml-btn-primary').text('Salvar');
@@ -1010,6 +1137,7 @@
       $('#ctwpml-view-initial').hide();
       $('#ctwpml-view-shipping').hide();
       $('#ctwpml-view-payment').hide();
+      $('#ctwpml-view-review').hide();
       $('#ctwpml-view-list').hide();
       $('#ctwpml-view-form').show();
       $('#ctwpml-btn-primary').text('Salvar');
@@ -2277,14 +2405,25 @@
       };
 
       log('Click em opção de pagamento:', { method: method });
-      // Sem lógica por enquanto: apenas log e evento (para futura integração com gateways).
 
-      // Dispara evento customizado para que outros módulos possam reagir
-      try {
-        $(document.body).trigger('ctwpml_payment_method_selected', { method: method });
-      } catch (e2) {}
+      var woo = window.CCCheckoutTabs && window.CCCheckoutTabs.WooHost ? window.CCCheckoutTabs.WooHost : null;
+      var map = state.paymentGatewayMap || {};
+      var gatewayId = map[method] || (woo ? woo.matchGatewayId(method) : '');
 
-      log('Evento ctwpml_payment_method_selected disparado');
+      if (!woo || !gatewayId) {
+        showNotification('Forma de pagamento indisponível no checkout.', 'error', 3500);
+        return;
+      }
+
+      if (!woo.selectGateway(gatewayId)) {
+        showNotification('Não foi possível selecionar o meio de pagamento.', 'error', 3500);
+        return;
+      }
+
+      state.selectedPaymentMethod = method;
+
+      // Avança para a próxima e última tela (revise e confirme)
+      showReviewConfirmScreen();
     });
 
     // Tela 3 (Pagamento): clique no link de cupom - abre drawer
@@ -2344,8 +2483,38 @@
       var couponCode = $('#ctwpml-coupon-input').val().trim();
       log('Click em adicionar cupom:', { code: couponCode });
 
-      // Sem lógica de cupom por enquanto: apenas UI/fechamento.
-      toggleCouponDrawer(false);
+      var woo = window.CCCheckoutTabs && window.CCCheckoutTabs.WooHost ? window.CCCheckoutTabs.WooHost : null;
+      if (!woo || typeof woo.ensureBlocks !== 'function') {
+        showNotification('Checkout não está pronto para aplicar cupom.', 'error', 3500);
+        return;
+      }
+      if (!couponCode) return;
+
+      woo.ensureBlocks().then(function () {
+        // Preferir form padrão do Woo (tema ou injetado).
+        var $form = $('form.checkout_coupon').first();
+        if (!$form.length) $form = $('#woocommerce-checkout-form-coupon').first();
+        if (!$form.length) {
+          showNotification('Form de cupom não encontrado.', 'error', 3500);
+          return;
+        }
+        var $code = $form.find('#coupon_code');
+        if (!$code.length) $code = $form.find('input[name="coupon_code"]');
+        if ($code.length) {
+          $code.val(couponCode).trigger('change');
+        }
+        // Submeter do jeito padrão (Woo intercepta via AJAX quando wc-checkout está ativo).
+        var $btnApply = $form.find('button[name="apply_coupon"]').first();
+        if ($btnApply.length) $btnApply.trigger('click');
+        else $form.trigger('submit');
+
+        toggleCouponDrawer(false);
+
+        // Após o Woo atualizar o checkout, sincronizamos os valores do footer.
+        setTimeout(function () {
+          applyPaymentAvailabilityAndSync();
+        }, 600);
+      });
     });
 
     /**
@@ -2381,6 +2550,53 @@
         $('body').css('overflow', ''); // Restaura scroll
       }
     }
+
+    // Tela 4 (Revise e confirme): links de alteração
+    $(document).on('click', '#ctwpml-review-change-payment', function (e) {
+      e.preventDefault();
+      showPaymentScreen();
+    });
+    $(document).on('click', '#ctwpml-review-change-shipping', function (e) {
+      e.preventDefault();
+      showShippingPlaceholder();
+    });
+    $(document).on('click', '#ctwpml-review-change-address', function (e) {
+      e.preventDefault();
+      showList();
+    });
+    $(document).on('click', '#ctwpml-review-change-billing', function (e) {
+      e.preventDefault();
+      showFormForEditAddress();
+    });
+
+    // Tela 4 (Revise e confirme): confirmar compra
+    $(document).on('click', '#ctwpml-review-confirm', function (e) {
+      e.preventDefault();
+
+      var woo = window.CCCheckoutTabs && window.CCCheckoutTabs.WooHost ? window.CCCheckoutTabs.WooHost : null;
+      if (!woo || !woo.hasCheckoutForm || !woo.hasCheckoutForm()) {
+        showNotification('Não foi possível finalizar: form do checkout não encontrado.', 'error', 4500);
+        return;
+      }
+
+      if (!woo.getSelectedGatewayId || !woo.getSelectedGatewayId()) {
+        showNotification('Selecione uma forma de pagamento para continuar.', 'error', 3500);
+        return;
+      }
+
+      // Garantir que o Woo esteja atualizado antes de finalizar.
+      try { $(document.body).trigger('update_checkout'); } catch (e2) {}
+
+      var $place = $('#place_order').first();
+      if (!$place.length) {
+        showNotification('Não foi possível finalizar: botão do WooCommerce (#place_order) não encontrado.', 'error', 4500);
+        return;
+      }
+
+      // Evita duplo clique.
+      $('#ctwpml-review-confirm').prop('disabled', true).css('opacity', '0.7');
+      $place.trigger('click');
+    });
 
     // Tela 2: ao preencher o CEP, consulta webhook e preenche campos automaticamente.
     $(document).on('input', '#ctwpml-input-cep', function () {
