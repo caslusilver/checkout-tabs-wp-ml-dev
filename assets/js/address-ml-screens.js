@@ -471,7 +471,7 @@
       '      <div class="ctwpml-review-card-content">' +
       '        <div class="ctwpml-review-card-title" id="ctwpml-review-address-title">' + escapeHtml(addressTitle) + '</div>' +
       '        <div class="ctwpml-review-card-text" id="ctwpml-review-address-subtitle">' + escapeHtml(addressSubtitle) + '</div>' +
-      '        <a href="#" class="ctwpml-review-change-link ctwpml-review-change-link-inline" id="ctwpml-review-change-shipping">Alterar a forma entrega</a>' +
+      '        <a href="#" class="ctwpml-review-change-link ctwpml-review-change-link-inline" id="ctwpml-review-change-shipping">Alterar ou escolher outro endereço</a>' +
       '      </div>' +
       '    </div>' +
       '    <div class="ctwpml-review-shipment-detail">' +
@@ -479,9 +479,11 @@
       '      <div class="ctwpml-review-shipment-info">' +
       '        <div class="ctwpml-review-shipment-eta" id="ctwpml-review-shipment-eta"></div>' +
       '        <div class="ctwpml-review-shipment-title" id="ctwpml-review-shipment-title"></div>' +
+      '        <div class="ctwpml-review-shipment-product" id="ctwpml-review-product-name"></div>' +
+      '        <div class="ctwpml-review-shipment-qty" id="ctwpml-review-product-qty"></div>' +
       '      </div>' +
       '    </div>' +
-      '    <a href="#" class="ctwpml-review-change-link" id="ctwpml-review-change-address">Alterar ou escolher outro endereço</a>' +
+      '    <a href="#" class="ctwpml-review-change-link" id="ctwpml-review-change-address">Alterar ou escolher outro prazo de entrega</a>' +
       '  </div>' +
       '' +
       '  <div class="ctwpml-review-section-label">Detalhe do pagamento</div>' +
@@ -495,6 +497,14 @@
       '      </div>' +
       '    </div>' +
       '    <a href="#" class="ctwpml-review-change-link" id="ctwpml-review-change-payment">Alterar forma de pagamento</a>' +
+      '  </div>' +
+      '' +
+      '  <div class="ctwpml-review-sticky-footer" id="ctwpml-review-sticky-footer">' +
+      '    <div class="ctwpml-review-sticky-total-row">' +
+      '      <span>Total</span>' +
+      '      <span id="ctwpml-review-sticky-total">' + escapeHtml(totalText) + '</span>' +
+      '    </div>' +
+      '    <button type="button" class="ctwpml-review-btn-confirm" id="ctwpml-review-confirm-sticky">Confirmar a compra</button>' +
       '  </div>' +
       '</div>';
 

@@ -744,12 +744,72 @@
       if (totals.totalText) {
         $('#ctwpml-review-total').text(totals.totalText);
         $('#ctwpml-review-payment-amount').text(totals.totalText);
+        $('#ctwpml-review-sticky-total').text(totals.totalText);
       }
       var pay = woo.getSelectedGatewayLabel();
       if (pay) {
         $('#ctwpml-review-pay-tag').text(pay);
         $('#ctwpml-review-payment-method').text(pay);
       }
+    }
+
+    function mapShippingName(methodId) {
+      if (methodId === 'flat_rate:1') return 'PAC Mini';
+      if (methodId === 'flat_rate:5') return 'SEDEX';
+      if (methodId === 'flat_rate:3') return 'Motoboy';
+      return '';
+    }
+
+    function fillReviewShippingDetails() {
+      var sel = state.selectedShipping || {};
+      var methodId = String(sel.methodId || '');
+      var methodName = mapShippingName(methodId);
+      var priceText = String(sel.priceText || '');
+      var label = String(sel.label || '');
+
+      // linha "Frete" no topo: preferir o preço do método selecionado
+      if (priceText) $('#ctwpml-review-shipping').text(priceText);
+
+      // Detalhe da entrega: título = método + preço, eta = label
+      var eta = label ? ('Chegará ' + label) : '';
+      if (eta) $('#ctwpml-review-shipment-eta').text(eta);
+
+      var methodLine = methodName ? methodName : '';
+      if (methodLine && priceText) methodLine += ' • ' + priceText;
+      if (!methodLine && priceText) methodLine = priceText;
+      if (methodLine) $('#ctwpml-review-shipment-title').text(methodLine);
+
+      // Produto/quantidade (pega do order_review real quando existir)
+      try {
+        var $firstItem = $('#order_review .cart_item').first();
+        if ($firstItem.length) {
+          var name = ($firstItem.find('.product-name').clone().children().remove().end().text() || '').trim();
+          var qty = ($firstItem.find('.product-quantity').text() || '').replace(/[^0-9]/g, '');
+          if (name) $('#ctwpml-review-product-name').text(name);
+          if (qty) $('#ctwpml-review-product-qty').text('Quantidade: ' + qty);
+        }
+      } catch (e) {}
+    }
+
+    function bindReviewStickyFooter() {
+      var $container = $('.ctwpml-modal-body');
+      var $footer = $('#ctwpml-review-sticky-footer');
+      var summary = document.getElementById('ctwpml-review-initial-summary');
+      if (!$container.length || !$footer.length || !summary) return;
+
+      $container.off('scroll.ctwpmlReviewSticky').on('scroll.ctwpmlReviewSticky', function () {
+        try {
+          var summaryRect = summary.getBoundingClientRect();
+          var containerRect = $container[0].getBoundingClientRect();
+          // mostra quando o resumo já saiu da área visível do container
+          var visibleTop = containerRect.top + 8;
+          if (summaryRect.bottom < visibleTop) $footer.addClass('is-visible');
+          else $footer.removeClass('is-visible');
+        } catch (e) {}
+      });
+
+      // roda 1x
+      $container.trigger('scroll.ctwpmlReviewSticky');
     }
 
     function showReviewConfirmScreen() {
@@ -811,6 +871,8 @@
             thumbUrls: thumbs && Array.isArray(thumbs.thumb_urls) ? thumbs.thumb_urls : [],
           });
           $('#ctwpml-view-review').html(html);
+          fillReviewShippingDetails();
+          bindReviewStickyFooter();
 
           // Checkpoint: tela de review renderizada
           if (typeof state.checkpoint === 'function') {
@@ -2436,6 +2498,7 @@
       var methodId = $this.data('method-id');
       var methodType = $this.data('type');
       var priceText = $this.data('price-text') || '';
+      var labelText = ($this.find('.ctwpml-shipping-option-text').text() || '').trim();
 
       log('Click em opção de frete:', { methodId: methodId, type: methodType, priceText: priceText });
 
@@ -2457,6 +2520,14 @@
 
       log('Resumo atualizado:', { priceText: priceText, summaryPrice: summaryPrice });
 
+      // Persistir seleção para a tela Review
+      state.selectedShipping = {
+        methodId: methodId || '',
+        type: methodType || '',
+        priceText: summaryPrice || priceText || '',
+        label: labelText || '',
+      };
+
       // Atualizar no WooCommerce (se methodId existir)
       if (methodId) {
         setShippingMethodInWC(methodId);
@@ -2476,6 +2547,8 @@
       var $selected = $('#ctwpml-view-shipping .ctwpml-shipping-option.is-selected');
       var selectedMethod = $selected.data('method-id');
       var selectedType = $selected.data('type');
+      var selectedPriceText = $selected.data('price-text') || '';
+      var selectedLabelText = ($selected.find('.ctwpml-shipping-option-text').text() || '').trim();
 
       log('Click em Continuar - método selecionado:', { methodId: selectedMethod, type: selectedType });
 
@@ -2486,6 +2559,14 @@
       }
 
       log('Método de frete confirmado, avançando para tela de pagamento');
+
+      // Garantir persistência (caso tenha vindo via pré-seleção automática)
+      state.selectedShipping = {
+        methodId: selectedMethod || '',
+        type: selectedType || '',
+        priceText: selectedPriceText || '',
+        label: selectedLabelText || '',
+      };
 
       // Dispara evento customizado para que outros módulos possam reagir
       $(document.body).trigger('ctwpml_shipping_selected', {
@@ -2610,12 +2691,11 @@
         var $code = $form.find('#coupon_code');
         if (!$code.length) $code = $form.find('input[name="coupon_code"]');
         if ($code.length) {
-          $code.val(couponCode).trigger('change');
+          $code.val(couponCode).trigger('input').trigger('change');
         }
-        // Submeter do jeito padrão (Woo intercepta via AJAX quando wc-checkout está ativo).
-        var $btnApply = $form.find('button[name="apply_coupon"]').first();
-        if ($btnApply.length) $btnApply.trigger('click');
-        else $form.trigger('submit');
+        // O template padrão do Woo deixa o form como display:none; garantimos submit “de verdade”.
+        try { $form.css('display', 'block'); } catch (e2) {}
+        $form.trigger('submit');
 
         toggleCouponDrawer(false);
 
@@ -2667,11 +2747,13 @@
     });
     $(document).on('click', '#ctwpml-review-change-shipping', function (e) {
       e.preventDefault();
-      showShippingPlaceholder();
+      // conforme layout: este link abre lista de endereços
+      showList();
     });
     $(document).on('click', '#ctwpml-review-change-address', function (e) {
       e.preventDefault();
-      showList();
+      // conforme layout: este link altera/seleciona prazo de entrega
+      showShippingPlaceholder();
     });
     $(document).on('click', '#ctwpml-review-change-billing', function (e) {
       e.preventDefault();
@@ -2679,7 +2761,7 @@
     });
 
     // Tela 4 (Revise e confirme): confirmar compra
-    $(document).on('click', '#ctwpml-review-confirm', function (e) {
+    $(document).on('click', '#ctwpml-review-confirm, #ctwpml-review-confirm-sticky', function (e) {
       e.preventDefault();
 
       var woo = window.CCCheckoutTabs && window.CCCheckoutTabs.WooHost ? window.CCCheckoutTabs.WooHost : null;
@@ -2703,7 +2785,7 @@
       }
 
       // Evita duplo clique.
-      $('#ctwpml-review-confirm').prop('disabled', true).css('opacity', '0.7');
+      $('#ctwpml-review-confirm, #ctwpml-review-confirm-sticky').prop('disabled', true).css('opacity', '0.7');
       $place.trigger('click');
     });
 
