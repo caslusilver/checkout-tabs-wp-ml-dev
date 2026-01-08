@@ -358,9 +358,16 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
 #### Protocol: 0267719
 
+## [v3.2.26] - 2026-01-08
+
+### Changed
+- Ajustes de fidelidade no modal ML: remove “duplo background” nas telas internas (pagamento/review) priorizando o fundo do wrapper; Review/Confirm agora exibe frete escolhido (PAC Mini/SEDEX/Motoboy + valor) e preenche detalhes (produto/quantidade); CTA “Confirmar a compra” no Review com rodapé sticky (slide ao scroll) e botão funcionando; links do Review ajustados conforme layout (endereço vs prazo); aplicação de cupom reforçada usando submit do `form.checkout_coupon` (compatível com template oficial do Woo).
+
+#### Protocol: 0375b79
+
 ## [Unreleased]
 
 ### Changed
-- **Versão atual**: v3.2.25  
+- **Versão atual**: v3.2.26  
   **Versão sugerida após a mudança**: v3.2.26  
-  **Descrição**: Ajustes de fidelidade no modal ML: remove “duplo background” nas telas internas (pagamento/review) priorizando o fundo do wrapper; Review/Confirm agora exibe frete escolhido (PAC Mini/SEDEX/Motoboy + valor) e preenche detalhes (produto/quantidade); CTA “Confirmar a compra” no Review com rodapé sticky (slide ao scroll) e botão funcionando; links do Review ajustados conforme layout (endereço vs prazo); aplicação de cupom reforçada usando submit do `form.checkout_coupon` (compatível com template oficial do Woo).
+  **Descrição**: Preencher antes de commitar mudanças.
