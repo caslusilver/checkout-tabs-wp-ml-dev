@@ -65,7 +65,8 @@
   var CLS_EXPAND = 'ctwpml-cta-expand';
   var OVERLAY_ID = 'ctwpml-success-overlay';
   var OVERLAY_VISIBLE = 'ctwpml-success-overlay--visible';
-  var DUR_LOADING_MS = 2000; // alinhado com referência
+  // Sequência alinhada com a referência: 6s loading -> 1s sucesso -> 0.8s expand.
+  var DUR_LOADING_MS = 6000;
   var DUR_SUCCESS_MS = 1000;
   var DUR_EXPAND_MS = 800;
 
@@ -80,6 +81,10 @@
     checkoutXhrEndAt: 0,
     overlayShownAt: 0,
   };
+
+  function msSinceClick() {
+    return anim.clickAt ? (Date.now() - anim.clickAt) : null;
+  }
 
   function clearTimers() {
     if (anim.t1) clearTimeout(anim.t1);
@@ -118,6 +123,14 @@
     var $ov = $('#' + OVERLAY_ID);
     $ov.addClass(OVERLAY_VISIBLE);
     anim.overlayShownAt = Date.now();
+    var afterClick = msSinceClick();
+    var isLoading = $(SELECTOR).hasClass(CLS_LOADING);
+    var isSuccess = $(SELECTOR).hasClass(CLS_SUCCESS);
+    var isExpand = $(SELECTOR).hasClass(CLS_EXPAND);
+    if (isLoading) {
+      checkpoint('CHK_CTA_OVERLAY_WHILE_LOADING', false, { source: source || 'unknown', afterClickMs: afterClick });
+    }
+    log('CTA overlay mostrado', { source: source || 'unknown', afterClickMs: afterClick, isLoading: isLoading, isSuccess: isSuccess, isExpand: isExpand });
     checkpoint('CHK_CTA_SUCCESS_OVERLAY_VISIBLE', true, { source: source || 'unknown' });
   }
 
@@ -136,16 +149,22 @@
     // Animar os dois botões (normal + sticky) para manter consistência visual.
     var $btns = $(SELECTOR);
     $btns.addClass(CLS_LOADING);
-    checkpoint('CHK_CTA_LOADING_STARTED', true, {});
+    var afterClick = msSinceClick();
+    checkpoint('CHK_CTA_LOADING_STARTED', true, { afterClickMs: afterClick });
+    log('CTA loading iniciado', { afterClickMs: afterClick });
 
     // Loading (referência: 2s). Depois, success + expand.
     anim.t1 = setTimeout(function () {
       $btns.removeClass(CLS_LOADING).addClass(CLS_SUCCESS);
-      checkpoint('CHK_CTA_SUCCESS_STATE', true, { afterClickMs: Date.now() - anim.clickAt });
+      var t1 = msSinceClick();
+      checkpoint('CHK_CTA_SUCCESS_STATE', true, { afterClickMs: t1 });
+      log('CTA success state', { afterClickMs: t1 });
 
       anim.t2 = setTimeout(function () {
         $btns.addClass(CLS_EXPAND);
-        checkpoint('CHK_CTA_EXPAND_STATE', true, { afterClickMs: Date.now() - anim.clickAt });
+        var t2 = msSinceClick();
+        checkpoint('CHK_CTA_EXPAND_STATE', true, { afterClickMs: t2 });
+        log('CTA expand state', { afterClickMs: t2 });
 
         anim.t3 = setTimeout(function () {
           // Só mostra a tela de sucesso após a expansão completar.
@@ -216,13 +235,18 @@
       var respText = jqXHR ? (jqXHR.responseText || '') : '';
       var parsed = null;
       try { parsed = respText ? JSON.parse(respText) : null; } catch (e0) {}
+      var messages = parsed && parsed.messages ? String(parsed.messages).slice(0, 500) : null;
+      var deltaOverlay = anim.overlayShownAt ? (Date.now() - anim.overlayShownAt) : null;
 
       var summary = {
         status: status,
         durationMs: durMs,
         result: parsed && parsed.result ? parsed.result : null,
         redirect: parsed && parsed.redirect ? parsed.redirect : null,
-        hasMessages: parsed && parsed.messages ? true : false,
+        hasMessages: !!messages,
+        messages: messages,
+        deltaOverlayToCompleteMs: deltaOverlay,
+        overlayShownAt: anim.overlayShownAt || null,
       };
 
       checkpoint('CHK_CTA_WC_CHECKOUT_AJAX_COMPLETE', status >= 200 && status < 500, summary);
