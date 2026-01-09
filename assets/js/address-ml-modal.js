@@ -16,6 +16,8 @@
     var lastCepOnly = '';
     var isClearingCep = false;
     var lastBillingCepOnly = '';
+    // Evita que o handler de change do CEP do checkout limpe os campos quando nós mesmos setamos programaticamente.
+    var suppressBillingCepClearOnce = false;
     var cepConsultedFor = '';
     var cepConsultInFlight = false;
     var selectedAddressId = null;
@@ -888,7 +890,27 @@
       if (!woo) return;
       var totals = woo.readTotals();
       if (totals.subtotalText) $('#ctwpml-review-products-subtotal').text(totals.subtotalText);
-      if (totals.shippingText) $('#ctwpml-review-shipping').text(totals.shippingText);
+      if (totals.shippingText) {
+        try {
+          var prev = ($('#ctwpml-review-shipping').text() || '').trim();
+          $('#ctwpml-review-shipping').text(totals.shippingText);
+          var sel = state.selectedShipping || {};
+          var selectedPrice = String(sel.priceText || '');
+          if (typeof state.checkpoint === 'function') {
+            state.checkpoint('CHK_REVIEW_SHIPPING_VALUE_SOURCE', true, {
+              context: 'syncReviewTotalsFromWoo',
+              source: 'wooTotals',
+              domPrev: prev,
+              domAfter: (totals.shippingText || '').trim(),
+              selectedShippingPrice: selectedPrice,
+              differsFromSelected: !!(selectedPrice && prev && selectedPrice !== prev),
+            });
+          }
+          if (typeof state.log === 'function') state.log('Review frete atualizado via Woo totals', { prev: prev, next: totals.shippingText, selectedShippingPrice: selectedPrice }, 'REVIEW');
+        } catch (e0) {
+          $('#ctwpml-review-shipping').text(totals.shippingText);
+        }
+      }
       if (totals.totalText) {
         $('#ctwpml-review-total').text(totals.totalText);
         $('#ctwpml-review-payment-amount').text(totals.totalText);
@@ -916,7 +938,31 @@
       var label = String(sel.label || '');
 
       // linha "Frete" no topo: preferir o preço do método selecionado
-      if (priceText) $('#ctwpml-review-shipping').text(priceText);
+      if (priceText) {
+        $('#ctwpml-review-shipping').text(priceText);
+        try {
+          if (typeof state.checkpoint === 'function') {
+            state.checkpoint('CHK_REVIEW_SHIPPING_VALUE_SOURCE', true, {
+              context: 'fillReviewShippingDetails',
+              source: 'selectedShipping',
+              selectedShippingPrice: priceText,
+              selectedShipping: { methodId: methodId, label: label },
+            });
+          }
+          if (typeof state.log === 'function') state.log('Review frete definido via selectedShipping', { priceText: priceText, methodId: methodId, label: label }, 'REVIEW');
+        } catch (e0) {}
+      } else {
+        try {
+          if (typeof state.checkpoint === 'function') {
+            state.checkpoint('CHK_REVIEW_SHIPPING_VALUE_SOURCE', false, {
+              context: 'fillReviewShippingDetails',
+              source: 'fallback',
+              reason: 'no_selectedShipping_priceText',
+              selectedShipping: sel || {},
+            });
+          }
+        } catch (e1) {}
+      }
 
       // Detalhe da entrega: título = método + preço, eta = label
       var eta = label ? ('Chegará ' + label) : '';
@@ -1078,6 +1124,38 @@
               hasPayment: !!paymentLabel
             });
           }
+
+          // Debug robusto do valor do frete no Review (fonte vs DOM) para diagnosticar fallback/overwrite.
+          try {
+            var sel0 = state.selectedShipping || {};
+            var dom0 = ($('#ctwpml-review-shipping').text() || '').trim();
+            var wooTotals0 = woo ? (woo.readTotals ? woo.readTotals() : {}) : {};
+            if (typeof state.checkpoint === 'function') {
+              state.checkpoint('CHK_REVIEW_SHIPPING_SNAPSHOT', true, {
+                phase: 'after_render',
+                selectedShipping: sel0,
+                wooTotalsShipping: wooTotals0 && wooTotals0.shippingText ? String(wooTotals0.shippingText) : '',
+                domShipping: dom0,
+              });
+            }
+            if (typeof state.log === 'function') state.log('Review shipping snapshot (after_render)', { selectedShipping: sel0, wooTotalsShipping: wooTotals0.shippingText, domShipping: dom0 }, 'REVIEW');
+            setTimeout(function () {
+              try {
+                var sel1 = state.selectedShipping || {};
+                var dom1 = ($('#ctwpml-review-shipping').text() || '').trim();
+                var wooTotals1 = woo ? (woo.readTotals ? woo.readTotals() : {}) : {};
+                if (typeof state.checkpoint === 'function') {
+                  state.checkpoint('CHK_REVIEW_SHIPPING_SNAPSHOT', true, {
+                    phase: 'after_render_400ms',
+                    selectedShipping: sel1,
+                    wooTotalsShipping: wooTotals1 && wooTotals1.shippingText ? String(wooTotals1.shippingText) : '',
+                    domShipping: dom1,
+                  });
+                }
+                if (typeof state.log === 'function') state.log('Review shipping snapshot (after_render_400ms)', { selectedShipping: sel1, wooTotalsShipping: wooTotals1.shippingText, domShipping: dom1 }, 'REVIEW');
+              } catch (e9) {}
+            }, 400);
+          } catch (e8) {}
         };
 
         if (woo && typeof woo.getCartThumbs === 'function') {
@@ -1391,6 +1469,11 @@
         } else if (!restored && typeof state.checkpoint === 'function') {
           state.checkpoint('CHK_VIEW_RESTORE', true, { restored: false, view: 'initial', reason: 'no_previous_open_state' });
         }
+
+        // Sempre que abrimos/restauramos o modal, garantir que o endereço selecionado esteja refletido no checkout real.
+        try {
+          if (selectedAddressId) applySelectedAddressToWooFields(selectedAddressId, 'openModal_restore:' + String(targetView || 'initial'));
+        } catch (e3) {}
 
         if (targetView === 'shipping') return showShippingPlaceholder();
         if (targetView === 'payment') return showPaymentScreen();
@@ -2443,6 +2526,13 @@
       var only = cepDigits($('#billing_postcode').val());
       if (only === lastBillingCepOnly) return;
       lastBillingCepOnly = only;
+      if (suppressBillingCepClearOnce) {
+        try {
+          if (typeof state.checkpoint === 'function') state.checkpoint('CHK_BILLING_CEP_CHANGED_SUPPRESSED', true, { only: only });
+          if (typeof state.log === 'function') state.log('onBillingCepChanged() suprimido (mudança programática)', { only: only }, 'BILLING_SYNC');
+        } catch (e0) {}
+        return;
+      }
       clearAddressFieldsOnCepChange();
     }
 
@@ -2461,6 +2551,139 @@
       $('#ctwpml-addr-title').text((rua || 'Endereço do checkout') + (numero ? ' ' + numero : ''));
       $('#ctwpml-addr-line').text([bairro, cidade, uf, cep ? 'CEP ' + cep : ''].filter(Boolean).join(', '));
       $('#ctwpml-addr-name').text(nome);
+    }
+
+    function ctwpmlBillingField$(idSelector, nameAttr) {
+      var $el = $(idSelector);
+      if ($el.length) return $el;
+      if (nameAttr) {
+        $el = $('input[name="' + nameAttr + '"], select[name="' + nameAttr + '"]').first();
+        if ($el.length) return $el;
+      }
+      return $();
+    }
+
+    function ctwpmlSnapshotBillingFields() {
+      var snap = {};
+      try {
+        var keys = [
+          ['billing_postcode', 'billing_postcode'],
+          ['billing_address_1', 'billing_address_1'],
+          ['billing_number', 'billing_number'],
+          ['billing_neighborhood', 'billing_neighborhood'],
+          ['billing_city', 'billing_city'],
+          ['billing_state', 'billing_state'],
+        ];
+        for (var i = 0; i < keys.length; i++) {
+          var pair = keys[i];
+          var $f = ctwpmlBillingField$('#' + pair[0], pair[1]);
+          snap[pair[0]] = $f.length ? String($f.val() || '') : null;
+        }
+      } catch (e) {}
+      return snap;
+    }
+
+    function applySelectedAddressToWooFields(addressId, context) {
+      context = context || 'unknown';
+      if (!addressId) return { ok: false, reason: 'no_address_id', context: context };
+
+      var it = getAddressById(addressId);
+      if (!it) return { ok: false, reason: 'address_not_found', addressId: addressId, context: context };
+
+      var logSync = function (msg, data) {
+        try {
+          if (typeof state.log === 'function') state.log(msg, data || {}, 'BILLING_SYNC');
+          else console.log('[CTWPML][BILLING_SYNC] ' + msg, data || {});
+        } catch (e0) {}
+      };
+
+      var cep = String(it.cep || '').replace(/\D/g, '').slice(0, 8);
+      var rua = String(it.address_1 || '');
+      var numero = String(it.number || '');
+      var bairro = String(it.neighborhood || '');
+      var cidade = String(it.city || '');
+      var uf = String(it.state || '');
+      var comp = String(it.complement || '');
+
+      var found = {
+        billing_postcode: !!ctwpmlBillingField$('#billing_postcode', 'billing_postcode').length,
+        billing_address_1: !!ctwpmlBillingField$('#billing_address_1', 'billing_address_1').length,
+        billing_number: !!ctwpmlBillingField$('#billing_number', 'billing_number').length,
+        billing_neighborhood: !!ctwpmlBillingField$('#billing_neighborhood', 'billing_neighborhood').length,
+        billing_city: !!ctwpmlBillingField$('#billing_city', 'billing_city').length,
+        billing_state: !!ctwpmlBillingField$('#billing_state', 'billing_state').length,
+      };
+
+      var before = ctwpmlSnapshotBillingFields();
+      if (typeof state.checkpoint === 'function') {
+        state.checkpoint('CHK_BILLING_SYNC_ATTEMPT', true, {
+          context: context,
+          addressId: String(addressId),
+          item: { cep: cep, address_1: rua, number: numero, neighborhood: bairro, city: cidade, state: uf },
+          found: found,
+          before: before,
+        });
+      }
+      logSync('applySelectedAddressToWooFields() - tentativa', { context: context, addressId: addressId, cep: cep, found: found, before: before });
+
+      // Proteger contra limpeza automática ao mudar CEP via código
+      suppressBillingCepClearOnce = true;
+      lastBillingCepOnly = cep;
+      try {
+        var $postcode = ctwpmlBillingField$('#billing_postcode', 'billing_postcode');
+        if ($postcode.length) $postcode.val(cep).trigger('change');
+
+        var $addr1 = ctwpmlBillingField$('#billing_address_1', 'billing_address_1');
+        if ($addr1.length) $addr1.val(rua).trigger('change');
+
+        var $num = ctwpmlBillingField$('#billing_number', 'billing_number');
+        if ($num.length) $num.val(numero).trigger('change');
+
+        var $neigh = ctwpmlBillingField$('#billing_neighborhood', 'billing_neighborhood');
+        if ($neigh.length) $neigh.val(bairro).trigger('change');
+
+        var $city = ctwpmlBillingField$('#billing_city', 'billing_city');
+        if ($city.length) $city.val(cidade).trigger('change');
+
+        var $state = ctwpmlBillingField$('#billing_state', 'billing_state');
+        if ($state.length) $state.val(uf).trigger('change');
+
+        // Opcional
+        var $comp = ctwpmlBillingField$('#billing_complemento', 'billing_complemento');
+        if ($comp.length) $comp.val(comp).trigger('change');
+
+        try { refreshFromCheckoutFields(); } catch (e2) {}
+        try { $(document.body).trigger('update_checkout'); } catch (e3) {}
+      } finally {
+        setTimeout(function () { suppressBillingCepClearOnce = false; }, 0);
+      }
+
+      var after = ctwpmlSnapshotBillingFields();
+      var missing = [];
+      if (after.billing_postcode === null) missing.push('billing_postcode');
+      if (after.billing_address_1 === null) missing.push('billing_address_1');
+      if (after.billing_number === null) missing.push('billing_number');
+      if (after.billing_neighborhood === null) missing.push('billing_neighborhood');
+      if (after.billing_city === null) missing.push('billing_city');
+      if (after.billing_state === null) missing.push('billing_state');
+
+      if (typeof state.checkpoint === 'function') {
+        state.checkpoint('CHK_BILLING_SYNC_RESULT', missing.length === 0, {
+          context: context,
+          addressId: String(addressId),
+          after: after,
+          missingFields: missing,
+        });
+      }
+
+      if (missing.length) {
+        if (typeof state.checkpoint === 'function') state.checkpoint('CHK_BILLING_SYNC_MISSING_FIELDS', false, { context: context, missingFields: missing });
+        logSync('applySelectedAddressToWooFields() - campos ausentes no DOM', { context: context, missing: missing, after: after });
+      } else {
+        logSync('applySelectedAddressToWooFields() - OK', { context: context, after: after });
+      }
+
+      return { ok: missing.length === 0, missingFields: missing, after: after, context: context };
     }
 
     function prefillFormFromCheckout() {
@@ -2687,6 +2910,10 @@
       var id = $(this).data('address-id');
       setSelectedAddressId(id);
       persistSelectedAddressId(id);
+      // Garantir que o Woo (form.checkout) receba o endereço selecionado imediatamente.
+      try {
+        applySelectedAddressToWooFields(id, 'list_card_click');
+      } catch (e0) {}
       // Evento para permitir reações externas (ex.: re-preparar checkout ao trocar endereço)
       try {
         $(document).trigger('ctwpml_address_selected', [id]);
@@ -2757,6 +2984,10 @@
       e.preventDefault();
       state.log('ACTION    [DEBUG] Click #ctwpml-initial-go - avançar para prazo', {}, 'ACTION');
       console.log('[CTWPML][DEBUG] Click #ctwpml-initial-go - avançar para tela de prazo');
+      // No fluxo initial -> shipping, garantir sync do endereço selecionado antes de avançar.
+      try {
+        if (selectedAddressId) applySelectedAddressToWooFields(selectedAddressId, 'initial_go');
+      } catch (e0) {}
       showShippingPlaceholder();
     });
     $(document).on('click', '#ctwpml-initial-manage', function (e) {

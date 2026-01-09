@@ -370,9 +370,16 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
 #### Protocol: c1b1347
 
+## [v3.2.29] - 2026-01-09
+
+### Changed
+- Checkout modal (ML): endereço selecionado passa a sincronizar com campos reais do Woo (`billing_*`) em todos os fluxos (clique no card, avançar pelo “initial”, restore), com proteção contra limpeza automática ao setar CEP via código; debug robusto (checkpoints/snapshots) para billing sync e para origem/persistência do valor de frete no Review; Review: melhora contraste do texto de termos (`#666666 !important`) e ajusta espaçamento (4px) do checkbox no rodapé sticky.
+
+#### Protocol: ecad936
+
 ## [Unreleased]
 
 ### Changed
-- **Versão atual**: v3.2.28  
-  **Versão sugerida após a mudança**: v3.2.28  
+- **Versão atual**: v3.2.29  
+  **Versão sugerida após a mudança**: v3.2.29  
   **Descrição**: Preencher antes de commitar mudanças.
