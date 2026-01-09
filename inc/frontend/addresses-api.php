@@ -710,6 +710,51 @@ add_action('wp_ajax_ctwpml_set_shipping_method', function () {
 
 	check_ajax_referer('ctwpml_set_shipping', '_ajax_nonce');
 
+	// =========================================================
+	// Garantir sessão/carrinho do Woo no contexto admin-ajax
+	// (em alguns cenários WC()->session vem null e o frete fica 0)
+	// =========================================================
+	$wc_boot = [
+		'has_wc' => (class_exists('WC') && function_exists('WC') && WC()),
+		'wc_load_cart_called' => false,
+		'init_session_called' => false,
+		'init_cart_called' => false,
+		'session_before' => null,
+		'session_after' => null,
+		'cart_before' => null,
+		'cart_after' => null,
+	];
+	try {
+		if ($wc_boot['has_wc']) {
+			$wc_boot['session_before'] = WC()->session ? get_class(WC()->session) : null;
+			$wc_boot['cart_before'] = WC()->cart ? 'yes' : 'no';
+
+			if (function_exists('wc_load_cart')) {
+				$wc_boot['wc_load_cart_called'] = true;
+				wc_load_cart();
+			}
+			// Alguns ambientes não inicializam a sessão no admin-ajax: tenta inicializar explicitamente.
+			if (!WC()->session && method_exists(WC(), 'initialize_session')) {
+				$wc_boot['init_session_called'] = true;
+				WC()->initialize_session();
+			}
+			if (!WC()->cart && method_exists(WC(), 'initialize_cart')) {
+				$wc_boot['init_cart_called'] = true;
+				WC()->initialize_cart();
+			}
+
+			$wc_boot['session_after'] = WC()->session ? get_class(WC()->session) : null;
+			$wc_boot['cart_after'] = WC()->cart ? 'yes' : 'no';
+		}
+	} catch (\Throwable $e) {
+		if ($is_debug) {
+			error_log('[CTWPML] set_shipping_method - EXCEPTION no boot WC: ' . $e->getMessage());
+		}
+	}
+	if ($is_debug) {
+		error_log('[CTWPML] set_shipping_method - wc_boot: ' . wp_json_encode($wc_boot));
+	}
+
 	$method_id = isset($_POST['method_id']) ? sanitize_text_field(wp_unslash($_POST['method_id'])) : '';
 	$address_id = isset($_POST['address_id']) ? sanitize_text_field((string) wp_unslash($_POST['address_id'])) : '';
 
@@ -837,12 +882,19 @@ add_action('wp_ajax_ctwpml_set_shipping_method', function () {
 	}
 
 	// Forçar recálculo do carrinho
+	$cart_set_session_called = false;
 	if (WC()->cart) {
 		WC()->cart->calculate_shipping();
 		WC()->cart->calculate_totals();
+		// CRÍTICO: persistir em sessão, senão shipping_total pode voltar 0 em requisições subsequentes.
+		if (method_exists(WC()->cart, 'set_session')) {
+			WC()->cart->set_session();
+			$cart_set_session_called = true;
+		}
 		if ($is_debug) {
 			error_log('[CTWPML] set_shipping_method - Carrinho recalculado');
 			error_log('[CTWPML] set_shipping_method - Novo total: ' . WC()->cart->get_total());
+			error_log('[CTWPML] set_shipping_method - cart_set_session_called: ' . ($cart_set_session_called ? 'yes' : 'no'));
 		}
 	} else {
 		if ($is_debug) {
@@ -850,11 +902,19 @@ add_action('wp_ajax_ctwpml_set_shipping_method', function () {
 		}
 	}
 
+	$chosen_methods_raw = (WC()->session) ? WC()->session->get('chosen_shipping_methods') : null;
+	$web_session = (WC()->session) ? WC()->session->get('webhook_shipping') : null;
+
 	$response = [
 		'chosen_method'       => $method_id,
 		'cart_total'          => WC()->cart ? WC()->cart->get_total() : '',
 		'cart_shipping_total' => WC()->cart ? WC()->cart->get_shipping_total() : '',
 	];
+	$response['wc_boot'] = $is_debug ? $wc_boot : null;
+	$response['cart_set_session_called'] = $cart_set_session_called;
+	$response['chosen_shipping_methods'] = $chosen_methods_raw;
+	$response['has_wc_session'] = (bool) (WC()->session);
+	$response['has_wc_cart'] = (bool) (WC()->cart);
 	$response['requested_exists'] = $requested_exists;
 	$response['validation_skipped'] = $validation_skipped;
 	$response['webhook_synced'] = (bool) ($sync['ok'] ?? false);
@@ -864,6 +924,8 @@ add_action('wp_ajax_ctwpml_set_shipping_method', function () {
 	}
 	if ($is_debug) {
 		$response['available_rate_ids'] = $available_rate_ids;
+		// Snapshot do webhook_shipping que está na sessão (pra validar se o override tem dados)
+		$response['webhook_shipping_session'] = is_array($web_session) ? $web_session : $web_session;
 	}
 
 	if ($is_debug) {

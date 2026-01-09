@@ -405,9 +405,16 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
 #### Protocol: 911ace3
 
+## [v3.2.34] - 2026-01-09
+
+### Changed
+- Frete (ML): corrigir `cart_shipping_total` zerado em `admin-ajax` — `ctwpml_set_shipping_method` força inicialização de sessão/carrinho (wc_load_cart + initialize_session/cart), persiste o carrinho via `WC()->cart->set_session()` após `calculate_totals()`, e reforça debug retornando `wc_boot`, `chosen_shipping_methods`, `webhook_shipping_session`, `cart_set_session_called` e flags `has_wc_session/has_wc_cart` para diagnóstico.
+
+#### Protocol: 16e04d5
+
 ## [Unreleased]
 
 ### Changed
-- **Versão atual**: v3.2.33  
-  **Versão sugerida após a mudança**: v3.2.33  
+- **Versão atual**: v3.2.34  
+  **Versão sugerida após a mudança**: v3.2.34  
   **Descrição**: Preencher antes de commitar mudanças.
