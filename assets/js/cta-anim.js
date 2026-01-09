@@ -65,8 +65,8 @@
   var CLS_EXPAND = 'ctwpml-cta-expand';
   var OVERLAY_ID = 'ctwpml-success-overlay';
   var OVERLAY_VISIBLE = 'ctwpml-success-overlay--visible';
-  // Sequência alinhada com a referência: 6s loading -> 1s sucesso -> 0.8s expand.
-  var DUR_LOADING_MS = 6000;
+  // Sequência alinhada com a referência: 2s loading -> 1s sucesso -> 0.8s expand.
+  var DUR_LOADING_MS = 2000;
   var DUR_SUCCESS_MS = 1000;
   var DUR_EXPAND_MS = 800;
 
