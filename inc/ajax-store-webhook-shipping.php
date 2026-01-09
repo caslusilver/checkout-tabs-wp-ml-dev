@@ -105,6 +105,10 @@ function checkout_tabs_wp_ml_store_webhook_shipping(): void {
 		}
 
 		if (WC()->cart) {
+			// Importante: limpar cache de shipping_for_package_* para forçar recálculo com o novo webhook_shipping.
+			if (function_exists('ctwpml_clear_wc_shipping_cache')) {
+				ctwpml_clear_wc_shipping_cache(5, $is_debug_enabled);
+			}
 			WC()->cart->calculate_shipping();
 			WC()->cart->calculate_totals();
 

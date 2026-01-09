@@ -173,6 +173,50 @@ function ctwpml_parse_price_to_float($value): float {
 }
 
 /**
+ * Limpa o cache de shipping do WooCommerce para forçar recálculo de rates/totals.
+ * (Woo usa chaves shipping_for_package_* na sessão e pode reutilizar custos antigos)
+ */
+function ctwpml_clear_wc_shipping_cache(int $max_packages = 5, bool $is_debug = false): array {
+	$out = [
+		'ok' => false,
+		'unset_keys' => [],
+		'reset_shipping_called' => false,
+		'has_session' => false,
+		'has_shipping' => false,
+	];
+
+	if (!function_exists('WC') || !WC()) {
+		return $out;
+	}
+
+	$out['has_session'] = (bool) (WC()->session);
+	$out['has_shipping'] = (bool) (WC()->shipping);
+
+	if (WC()->session) {
+		for ($i = 0; $i < $max_packages; $i++) {
+			$key = 'shipping_for_package_' . $i;
+			$out['unset_keys'][] = $key;
+			if (method_exists(WC()->session, '__unset')) {
+				WC()->session->__unset($key);
+			} else {
+				WC()->session->set($key, null);
+			}
+		}
+	}
+
+	if (WC()->shipping && method_exists(WC()->shipping, 'reset_shipping')) {
+		WC()->shipping->reset_shipping();
+		$out['reset_shipping_called'] = true;
+	}
+
+	$out['ok'] = true;
+	if ($is_debug) {
+		error_log('[CTWPML] clear_wc_shipping_cache: ' . wp_json_encode($out));
+	}
+	return $out;
+}
+
+/**
  * Sincroniza WC()->session['webhook_shipping'] a partir do payload salvo por address_id.
  * Isso evita que o filtro woocommerce_package_rates remova SEDEX/Motoboy durante update_checkout.
  *
@@ -247,6 +291,8 @@ function ctwpml_sync_webhook_shipping_session_from_address_payload(int $user_id,
 	];
 
 	WC()->session->set('webhook_shipping', $web);
+	// Importante: forçar recálculo de shipping rates (cache shipping_for_package_* pode manter custo 0 antigo).
+	ctwpml_clear_wc_shipping_cache(5, $is_debug);
 
 	if ($is_debug) {
 		error_log('[CTWPML] webhook_shipping synced from address payload. address_id=' . $address_id . ' values=' . wp_json_encode($web));
@@ -924,6 +970,11 @@ add_action('wp_ajax_ctwpml_set_shipping_method', function () {
 	// Forçar recálculo do carrinho
 	$cart_set_session_called = false;
 	if (WC()->cart) {
+		// Evita reuse de cache de rates no admin-ajax (shipping_for_package_*).
+		$cache_clear = ctwpml_clear_wc_shipping_cache(5, $is_debug);
+		if ($is_debug) {
+			error_log('[CTWPML] set_shipping_method - shipping cache cleared before totals: ' . wp_json_encode($cache_clear));
+		}
 		WC()->cart->calculate_shipping();
 		WC()->cart->calculate_totals();
 		// CRÍTICO: persistir em sessão, senão shipping_total pode voltar 0 em requisições subsequentes.
@@ -962,6 +1013,10 @@ add_action('wp_ajax_ctwpml_set_shipping_method', function () {
 			$sync = $sync2;
 			// Recalcula novamente agora que webhook_shipping foi setado
 			if (WC()->cart) {
+				$cache_clear2 = ctwpml_clear_wc_shipping_cache(5, $is_debug);
+				if ($is_debug) {
+					error_log('[CTWPML] set_shipping_method - shipping cache cleared before totals (retry): ' . wp_json_encode($cache_clear2));
+				}
 				WC()->cart->calculate_shipping();
 				WC()->cart->calculate_totals();
 				if (method_exists(WC()->cart, 'set_session')) {

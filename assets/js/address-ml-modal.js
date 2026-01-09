@@ -558,6 +558,21 @@
             }
           } catch (e0xr) {}
 
+          // Checkpoint extra: validar se o Woo retornou total de frete > 0 após set/sync
+          try {
+            if (typeof state.checkpoint === 'function') {
+              var shipTotalRaw = resp && resp.data ? resp.data.cart_shipping_total : null;
+              var shipTotalNum = parseFloat(String(shipTotalRaw || '').replace(',', '.'));
+              var shipOk = !!(shipTotalNum && shipTotalNum > 0);
+              state.checkpoint('CHK_CART_SHIPPING_TOTAL_NONZERO', shipOk, {
+                cart_shipping_total: shipTotalRaw,
+                chosen_method: resp && resp.data ? resp.data.chosen_method : null,
+                webhook_synced: synced,
+                webhook_values: resp && resp.data ? (resp.data.webhook_values || null) : null,
+              });
+            }
+          } catch (e0xs) {}
+
           // Observa o que o Woo realmente deixou "checked" após recalcular.
           var t0 = Date.now();
           $(document.body).one('updated_checkout', function () {

@@ -426,9 +426,9 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
 #### Protocol: 90b6792
 
-## [Unreleased]
+## [v3.2.37] - 2026-01-09
 
 ### Changed
-- **Versão atual**: v3.2.36  
-  **Versão sugerida após a mudança**: v3.2.36  
-  **Descrição**: Preencher antes de commitar mudanças.
+- Frete (ML): corrigir `cart_shipping_total=0` mesmo com `webhook_shipping` sincronizado — limpa cache de shipping do Woo (`shipping_for_package_*` + `WC()->shipping->reset_shipping()`) sempre que `webhook_shipping` é setado e antes de recalcular totals, forçando recálculo das rates com os valores do webhook; reforça debug com checkpoint `CHK_CART_SHIPPING_TOTAL_NONZERO`.
+
+#### Protocol: 30aafef
