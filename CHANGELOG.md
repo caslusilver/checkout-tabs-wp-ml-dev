@@ -377,9 +377,16 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
 #### Protocol: ecad936
 
+## [v3.2.30] - 2026-01-09
+
+### Changed
+- Frete (ML): reforço definitivo de diagnóstico para evitar fallback silencioso (ex.: cair em `flat_rate:1`): `setShippingMethodInWC` registra snapshots do DOM do Woo antes/depois do `updated_checkout` e checkpoints CHK_SHIPPING_SET_REQUEST/CHK_SHIPPING_SET_RESPONSE/CHK_SHIPPING_SET_APPLIED (requested vs applied); backend `ctwpml_set_shipping_method` valida se o `method_id` existe nos rates disponíveis e, se não existir, retorna erro com `available_rate_ids` (e snapshot detalhado em debug).
+
+#### Protocol: a6abb89
+
 ## [Unreleased]
 
 ### Changed
-- **Versão atual**: v3.2.29  
-  **Versão sugerida após a mudança**: v3.2.29  
+- **Versão atual**: v3.2.30  
+  **Versão sugerida após a mudança**: v3.2.30  
   **Descrição**: Preencher antes de commitar mudanças.

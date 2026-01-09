@@ -424,6 +424,34 @@
      * @param {string} methodId - ID do método (ex: 'flat_rate:3')
      * @param {Function} callback - Callback opcional após sucesso
      */
+    function ctwpmlReadWooShippingDomSnapshot() {
+      try {
+        var nodes = document.querySelectorAll('input[name^="shipping_method"]');
+        var inputs = Array.prototype.slice.call(nodes || []);
+        var checked = null;
+        for (var i = 0; i < inputs.length; i++) {
+          if (inputs[i] && inputs[i].checked) {
+            checked = inputs[i];
+            break;
+          }
+        }
+        return {
+          count: inputs.length,
+          checked: checked ? String(checked.value || '') : '',
+          all: inputs.slice(0, 30).map(function (el) {
+            return {
+              name: String(el && el.name ? el.name : ''),
+              value: String(el && el.value ? el.value : ''),
+              checked: !!(el && el.checked),
+              disabled: !!(el && el.disabled),
+            };
+          }),
+        };
+      } catch (e) {
+        return { error: e && e.message ? e.message : 'snapshot_failed' };
+      }
+    }
+
     function setShippingMethodInWC(methodId, callback) {
       var log = function (msg, data) {
         if (typeof state.log === 'function') {
@@ -440,6 +468,18 @@
         return;
       }
 
+      var requested = String(methodId || '');
+      var beforeSnap = ctwpmlReadWooShippingDomSnapshot();
+      try {
+        if (typeof state.checkpoint === 'function') {
+          state.checkpoint('CHK_SHIPPING_SET_REQUEST', !!requested, {
+            requested: requested,
+            wooDomBefore: beforeSnap,
+            selectedShippingState: state.selectedShipping || null,
+          });
+        }
+      } catch (e0) {}
+
       $.ajax({
         url: state.params.ajax_url,
         type: 'POST',
@@ -452,29 +492,89 @@
         success: function (resp) {
           log('setShippingMethodInWC() - Resposta:', resp);
 
-          if (resp.success) {
-            log('setShippingMethodInWC() - Sucesso! Disparando update_checkout');
+          var ok = !!(resp && resp.success);
+          try {
+            if (typeof state.checkpoint === 'function') {
+              state.checkpoint('CHK_SHIPPING_SET_RESPONSE', ok, { requested: requested, resp: resp });
+            }
+          } catch (e1) {}
+
+          if (!ok) {
+            log('setShippingMethodInWC() - ERRO na resposta:', resp);
             try {
               if (typeof state.checkpoint === 'function') {
-                state.checkpoint('CHK_OVERLAY_SOURCES', true, {
-                  source: 'set_shipping_method',
-                  hasBlockOverlay: document.querySelectorAll('.blockUI.blockOverlay').length,
-                  hasBlockMsg: document.querySelectorAll('.blockUI.blockMsg').length,
-                  hasNoticeGroup: document.querySelectorAll('.woocommerce-NoticeGroup, .woocommerce-NoticeGroup-checkout').length,
+                state.checkpoint('CHK_SHIPPING_SET_APPLIED', false, {
+                  requested: requested,
+                  reason: 'ajax_error_or_wp_error',
+                  resp: resp,
                 });
               }
-            } catch (e0) {}
-            // Trigger update_checkout para atualizar totais
-            $(document.body).trigger('update_checkout');
-            if (typeof callback === 'function') {
-              callback(resp.data);
+            } catch (e2) {}
+            return;
+          }
+
+          // Observa o que o Woo realmente deixou "checked" após recalcular.
+          var t0 = Date.now();
+          $(document.body).one('updated_checkout', function () {
+            var afterSnap = ctwpmlReadWooShippingDomSnapshot();
+            var applied = afterSnap && afterSnap.checked ? String(afterSnap.checked) : '';
+            var match = !!(applied && requested && applied === requested);
+            log('setShippingMethodInWC() - POST updated_checkout snapshot', {
+              requested: requested,
+              applied: applied,
+              match: match,
+              ms: Date.now() - t0,
+              wooDomAfter: afterSnap,
+              apiAvailableRateIds: resp && resp.data ? (resp.data.available_rate_ids || []) : [],
+            });
+            try {
+              if (typeof state.checkpoint === 'function') {
+                state.checkpoint('CHK_SHIPPING_SET_APPLIED', match, {
+                  requested: requested,
+                  applied: applied,
+                  ms: Date.now() - t0,
+                  domCount: afterSnap ? afterSnap.count : 0,
+                  apiRequestedExists: resp && resp.data ? resp.data.requested_exists : undefined,
+                  apiAvailableRateIds: resp && resp.data ? (resp.data.available_rate_ids || []) : [],
+                });
+              }
+            } catch (e3) {}
+          });
+
+          log('setShippingMethodInWC() - Sucesso! Disparando update_checkout');
+          try {
+            if (typeof state.checkpoint === 'function') {
+              state.checkpoint('CHK_OVERLAY_SOURCES', true, {
+                source: 'set_shipping_method',
+                hasBlockOverlay: document.querySelectorAll('.blockUI.blockOverlay').length,
+                hasBlockMsg: document.querySelectorAll('.blockUI.blockMsg').length,
+                hasNoticeGroup: document.querySelectorAll('.woocommerce-NoticeGroup, .woocommerce-NoticeGroup-checkout').length,
+              });
             }
-          } else {
-            log('setShippingMethodInWC() - ERRO na resposta:', resp);
+          } catch (e4) {}
+
+          // Trigger update_checkout para atualizar totais
+          $(document.body).trigger('update_checkout');
+          if (typeof callback === 'function') {
+            callback(resp.data);
           }
         },
         error: function (jqXHR, textStatus, errorThrown) {
           log('setShippingMethodInWC() - ERRO AJAX:', { status: jqXHR.status, textStatus: textStatus, error: errorThrown });
+          try {
+            if (typeof state.checkpoint === 'function') {
+              state.checkpoint('CHK_SHIPPING_SET_RESPONSE', false, {
+                requested: requested,
+                status: jqXHR && jqXHR.status ? jqXHR.status : '',
+                textStatus: textStatus || '',
+                error: errorThrown || '',
+              });
+              state.checkpoint('CHK_SHIPPING_SET_APPLIED', false, {
+                requested: requested,
+                reason: 'ajax_transport_error',
+              });
+            }
+          } catch (e5) {}
         },
       });
     }
