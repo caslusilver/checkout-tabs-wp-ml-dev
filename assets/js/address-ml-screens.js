@@ -85,12 +85,18 @@
 
     console.log('[CTWPML][DEBUG] renderShippingPlaceholder - addrLine:', addrLine);
 
+    var pluginUrl = (window.cc_params && window.cc_params.plugin_url) ? String(window.cc_params.plugin_url) : '';
+    var gpsIconUrl = pluginUrl ? (pluginUrl + 'assets/img/icones/gps-1.png') : '';
+    var pinHtml = gpsIconUrl
+      ? '<img class="ctwpml-shipping-pin-icon" src="' + escapeHtml(gpsIconUrl) + '" alt="" aria-hidden="true" />'
+      : '📍';
+
     var html = (
       '' +
       '<div class="ctwpml-shipping-header">' +
       '  <div class="ctwpml-shipping-title">Escolha quando sua compra chegará</div>' +
       '  <div class="ctwpml-shipping-address">' +
-      '    <span class="ctwpml-shipping-pin">📍</span>' +
+      '    <span class="ctwpml-shipping-pin">' + pinHtml + '</span>' +
       '    <span class="ctwpml-shipping-address-text">Envio para ' + escapeHtml(addrLine || 'seu endereço') + '</span>' +
       '  </div>' +
       '</div>' +
@@ -247,12 +253,19 @@
       thumbHtml = '<div class="ctwpml-shipping-thumb" aria-hidden="true"></div>';
     }
 
+    var pluginUrl = (window.cc_params && window.cc_params.plugin_url) ? String(window.cc_params.plugin_url) : '';
+    var gpsIconUrl = pluginUrl ? (pluginUrl + 'assets/img/icones/gps-1.png') : '';
+
+    var pinHtml = gpsIconUrl
+      ? '<img class="ctwpml-shipping-pin-icon" src="' + escapeHtml(gpsIconUrl) + '" alt="" aria-hidden="true" />'
+      : '📍';
+
     var html =
       '' +
       '<div class="ctwpml-shipping-header">' +
       '  <div class="ctwpml-shipping-title">Escolha quando sua compra chegará</div>' +
       '  <div class="ctwpml-shipping-address">' +
-      '    <span class="ctwpml-shipping-pin">📍</span>' +
+      '    <span class="ctwpml-shipping-pin">' + pinHtml + '</span>' +
       '    <span class="ctwpml-shipping-address-text">Envio para ' + escapeHtml(addrLine || 'seu endereço') + '</span>' +
       '  </div>' +
       '</div>' +
@@ -408,9 +421,10 @@
   window.CCCheckoutTabs.AddressMlScreens.renderReviewConfirmScreen = function renderReviewConfirmScreen(options) {
     options = options || {};
     var debugMode = !!(window.cc_params && window.cc_params.debug);
-    var billingIconUrl = options.billingIconUrl || 'https://cubensisstore.com.br/wp-content/uploads/2026/01/bill.png';
-    var shippingIconUrl = options.shippingIconUrl || 'https://cubensisstore.com.br/wp-content/uploads/2026/01/gps-1.png';
-    var paymentIconUrl = options.paymentIconUrl || 'https://cubensisstore.com.br/wp-content/uploads/2026/01/bank-card.png';
+    var pluginUrl = (window.cc_params && window.cc_params.plugin_url) ? String(window.cc_params.plugin_url) : '';
+    var billingIconUrl = options.billingIconUrl || (pluginUrl ? (pluginUrl + 'assets/img/icones/recipt.png') : 'https://cubensisstore.com.br/wp-content/uploads/2026/01/bill.png');
+    var shippingIconUrl = options.shippingIconUrl || (pluginUrl ? (pluginUrl + 'assets/img/icones/gps-1.png') : 'https://cubensisstore.com.br/wp-content/uploads/2026/01/gps-1.png');
+    var paymentIconUrl = options.paymentIconUrl || (pluginUrl ? (pluginUrl + 'assets/img/icones/bank-card.png') : 'https://cubensisstore.com.br/wp-content/uploads/2026/01/bank-card.png');
 
     var productCount = typeof options.productCount === 'number' ? options.productCount : 0;
     var subtotalText = options.subtotalText || '';
@@ -439,6 +453,7 @@
       '' +
       '<div class="ctwpml-review-screen">' +
       '  <div class="ctwpml-review-summary-top" id="ctwpml-review-initial-summary">' +
+      '    <div class="ctwpml-review-errors" id="ctwpml-review-errors" style="display:none;"></div>' +
       '    <div class="ctwpml-review-row">' +
       '      <span>Produtos (' + escapeHtml(String(productCount)) + ')</span>' +
       '      <span id="ctwpml-review-products-subtotal">' + escapeHtml(subtotalText) + '</span>' +
@@ -452,6 +467,12 @@
       '      <span id="ctwpml-review-total">' + escapeHtml(totalText) + '</span>' +
       '    </div>' +
       '    <span class="ctwpml-review-pay-tag" id="ctwpml-review-pay-tag">' + escapeHtml(paymentLabel) + '</span>' +
+      '    <div class="ctwpml-review-terms">' +
+      '      <label class="ctwpml-review-terms-label">' +
+      '        <input type="checkbox" id="ctwpml-review-terms" class="ctwpml-review-terms-checkbox" />' +
+      '        <span>Li e concordo com os termos e a política de privacidade.</span>' +
+      '      </label>' +
+      '    </div>' +
       '    <button type="button" class="ctwpml-review-btn-confirm" id="ctwpml-review-confirm">Confirmar a compra</button>' +
       '  </div>' +
       '' +
@@ -506,6 +527,12 @@
       '    <div class="ctwpml-review-sticky-total-row">' +
       '      <span>Total</span>' +
       '      <span id="ctwpml-review-sticky-total">' + escapeHtml(totalText) + '</span>' +
+      '    </div>' +
+      '    <div class="ctwpml-review-terms ctwpml-review-terms--sticky">' +
+      '      <label class="ctwpml-review-terms-label">' +
+      '        <input type="checkbox" id="ctwpml-review-terms-sticky" class="ctwpml-review-terms-checkbox" />' +
+      '        <span>Li e concordo com os termos e a política de privacidade.</span>' +
+      '      </label>' +
       '    </div>' +
       '    <button type="button" class="ctwpml-review-btn-confirm" id="ctwpml-review-confirm-sticky">Confirmar a compra</button>' +
       '  </div>' +

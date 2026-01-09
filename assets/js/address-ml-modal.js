@@ -960,6 +960,34 @@
       $container.trigger('scroll.ctwpmlReviewSticky');
     }
 
+    function ctwpmlSetReviewCtaEnabled(enabled) {
+      $('#ctwpml-review-confirm, #ctwpml-review-confirm-sticky')
+        .prop('disabled', !enabled)
+        .css('opacity', enabled ? '' : '0.6');
+    }
+
+    function ctwpmlSyncWooTerms(checked) {
+      // Termos nativos do Woo
+      var $terms = $('#terms');
+      if ($terms.length) $terms.prop('checked', !!checked).trigger('change');
+
+      // Plugin antigo (cs_terms_policy_accepted)
+      var $cs = $('#cs_terms_policy_accepted');
+      if ($cs.length) $cs.prop('checked', !!checked).trigger('change');
+    }
+
+    function ctwpmlInitReviewTermsState() {
+      var $checks = $('.ctwpml-review-terms-checkbox');
+      if (!$checks.length) {
+        // Se a tela não tem checkbox, não travamos CTA.
+        ctwpmlSetReviewCtaEnabled(true);
+        return;
+      }
+      var checked = $checks.first().is(':checked');
+      ctwpmlSetReviewCtaEnabled(checked);
+      ctwpmlSyncWooTerms(checked);
+    }
+
     function showReviewConfirmScreen() {
       var woo = window.CCCheckoutTabs && window.CCCheckoutTabs.WooHost ? window.CCCheckoutTabs.WooHost : null;
 
@@ -994,13 +1022,17 @@
         var addressTitle = 'Enviar no meu endereço';
         var addressSubtitle = it ? formatFullAddressLine(it) : '';
 
-        // Ícones do Review (conforme HTML modelo)
-        var billingIconUrl = 'https://cubensisstore.com.br/wp-content/uploads/2026/01/bill.png';
-        var shippingIconUrl = 'https://cubensisstore.com.br/wp-content/uploads/2026/01/gps-1.png';
+        // Ícones do Review (preferência: assets locais do plugin)
+        var pluginUrl = (window.cc_params && window.cc_params.plugin_url) ? String(window.cc_params.plugin_url) : '';
+        var billingIconUrl = pluginUrl ? (pluginUrl + 'assets/img/icones/recipt.png') : 'https://cubensisstore.com.br/wp-content/uploads/2026/01/bill.png';
+        var shippingIconUrl = pluginUrl ? (pluginUrl + 'assets/img/icones/gps-1.png') : 'https://cubensisstore.com.br/wp-content/uploads/2026/01/gps-1.png';
         var paymentIconUrl = '';
         try {
-          if ((state.selectedPaymentMethod || '').toString() === 'pix') paymentIconUrl = 'https://cubensisstore.com.br/wp-content/uploads/2026/01/artpoin-logo-pix-1-scaled.png';
-          else paymentIconUrl = 'https://cubensisstore.com.br/wp-content/uploads/2026/01/bank-card.png';
+          if ((state.selectedPaymentMethod || '').toString() === 'pix') {
+            paymentIconUrl = 'https://cubensisstore.com.br/wp-content/uploads/2026/01/artpoin-logo-pix-1-scaled.png';
+          } else {
+            paymentIconUrl = pluginUrl ? (pluginUrl + 'assets/img/icones/bank-card.png') : 'https://cubensisstore.com.br/wp-content/uploads/2026/01/bank-card.png';
+          }
         } catch (e0) {}
 
         // Billing (checkout real)
@@ -1033,8 +1065,10 @@
             thumbUrls: thumbs && Array.isArray(thumbs.thumb_urls) ? thumbs.thumb_urls : [],
           });
           $('#ctwpml-view-review').html(html);
+          $('#ctwpml-review-errors').hide().text('');
           fillReviewShippingDetails();
           bindReviewStickyFooter();
+          ctwpmlInitReviewTermsState();
 
           // Checkpoint: tela de review renderizada
           if (typeof state.checkpoint === 'function') {
@@ -1064,7 +1098,15 @@
     $(document.body).on('updated_checkout applied_coupon removed_coupon', function () {
       try {
         if (currentView === 'payment') applyPaymentAvailabilityAndSync();
-        if (currentView === 'review') syncReviewTotalsFromWoo();
+        if (currentView === 'review') {
+          syncReviewTotalsFromWoo();
+          // Re-sincroniza termos (Woo pode re-renderizar o DOM).
+          try {
+            var checked = $('.ctwpml-review-terms-checkbox').first().is(':checked');
+            ctwpmlSyncWooTerms(checked);
+            ctwpmlSetReviewCtaEnabled(checked);
+          } catch (e2) {}
+        }
       } catch (e) {}
     });
 
@@ -1355,7 +1397,7 @@
         if (targetView === 'review') return showReviewConfirmScreen();
         if (targetView === 'form') return showFormForNewAddress();
         if (targetView === 'list') {
-          showList();
+      showList();
           renderAddressList();
           return;
         }
@@ -1429,18 +1471,34 @@
       });
     }
 
-    function closeModal() {
-      console.log('[CTWPML][DEBUG] closeModal() - escondendo componente ML');
+    function closeModal(opts) {
+      opts = opts || {};
+      var reason = opts.reason || 'unknown';
+      var allowNavigateBack = (typeof opts.allowNavigateBack === 'boolean') ? opts.allowNavigateBack : true;
+
+      state.log('ACTION    closeModal()', { reason: reason, allowNavigateBack: allowNavigateBack, currentView: currentView }, 'ACTION');
+      console.log('[CTWPML][DEBUG] closeModal() - reason:', reason, 'allowNavigateBack:', allowNavigateBack, 'currentView:', currentView);
+
       $('#ctwpml-address-modal-overlay').hide();
       try {
         $('body').removeClass('ctwpml-ml-open').css('overflow', '');
       } catch (e) {}
+
       // Se o usuário fechou, não devemos restaurar automaticamente após reload.
       clearModalState();
-      // Modo fullscreen: ao fechar, redireciona para o carrinho
-      var cartUrl = window.wc_cart_params && window.wc_cart_params.cart_url ? window.wc_cart_params.cart_url : '/carrinho/';
-      console.log('[CTWPML][DEBUG] closeModal() - redirecionando para:', cartUrl);
-      window.location.href = cartUrl;
+
+      // NÃO redirecionar automaticamente pro carrinho (isso estava causando o bug).
+      // Em modo fullscreen, se existir histórico de navegação, preferimos voltar.
+      if (allowNavigateBack) {
+        try {
+          var hasHistory = (window.history && window.history.length && window.history.length > 1);
+          var hasReferrer = !!(document.referrer && document.referrer !== window.location.href);
+          if (hasHistory && hasReferrer) {
+            state.log('ACTION    closeModal(): history.back()', { reason: reason, historyLength: window.history.length, referrer: document.referrer }, 'ACTION');
+            window.history.back();
+          }
+        } catch (e2) {}
+      }
     }
 
     function showList() {
@@ -2482,19 +2540,25 @@
       openModal();
     });
     $(document).on('click', '#ctwpml-modal-back', function () {
-      state.log('ACTION    [DEBUG] Click #ctwpml-modal-back', { currentView: currentView }, 'ACTION');
-      console.log('[CTWPML][DEBUG] Click #ctwpml-modal-back - currentView:', currentView);
+      state.log('ACTION    [DEBUG] Click #ctwpml-modal-back', { currentView: currentView, historyLength: (window.history && window.history.length) || 0 }, 'ACTION');
+      console.log('[CTWPML][DEBUG] Click #ctwpml-modal-back - currentView:', currentView, 'history.length:', (window.history && window.history.length) || 0);
 
       // Navegação entre telas:
       // payment → shipping
       // shipping → initial
       // list → initial
       // form → list
+      // review → payment
       // initial → fecha modal (ou history.back quando for fullscreen)
 
       if (currentView === 'payment') {
         console.log('[CTWPML][DEBUG] - voltando de payment para shipping');
         showShippingPlaceholder();
+        return;
+      }
+      if (currentView === 'review') {
+        console.log('[CTWPML][DEBUG] - voltando de review para payment');
+        showPaymentScreen();
         return;
       }
       if (currentView === 'shipping') {
@@ -2515,11 +2579,11 @@
       }
       if (currentView === 'initial') {
         console.log('[CTWPML][DEBUG] - fechando modal (estava em initial)');
-        closeModal();
+        closeModal({ reason: 'back_from_initial', allowNavigateBack: true });
         return;
       }
       console.log('[CTWPML][DEBUG] - fechando modal (view desconhecida)');
-      closeModal();
+      closeModal({ reason: 'back_unknown_view', allowNavigateBack: true });
     });
     $(document).on('click', '#ctwpml-edit-address', function (e) {
       e.preventDefault();
@@ -3041,6 +3105,22 @@
       showFormForEditAddress();
     });
 
+    // Tela 4 (Revise e confirme): termos (sync entre checkbox topo e sticky + Woo)
+    $(document).on('change', '.ctwpml-review-terms-checkbox', function () {
+      try {
+        var checked = $(this).is(':checked');
+        // sync entre os dois checkboxes do modal
+        $('.ctwpml-review-terms-checkbox').prop('checked', checked);
+        // habilita/desabilita CTA
+        ctwpmlSetReviewCtaEnabled(checked);
+        // sync no Woo (terms + cs_terms_policy_accepted)
+        ctwpmlSyncWooTerms(checked);
+        // limpa erro se marcou
+        if (checked) $('#ctwpml-review-errors').hide().text('');
+        if (typeof state.checkpoint === 'function') state.checkpoint('CHK_REVIEW_TERMS_CHANGED', true, { checked: checked });
+      } catch (e0) {}
+    });
+
     // Tela 4 (Revise e confirme): confirmar compra
     $(document).on('click', '#ctwpml-review-confirm, #ctwpml-review-confirm-sticky', function (e) {
       e.preventDefault();
@@ -3050,6 +3130,21 @@
           if (typeof state.log === 'function') state.log(msg, data || {}, 'REVIEW');
         } catch (_) {}
       };
+
+      // Bloqueio por termos: se não aceitou, não tenta submit.
+      try {
+        var $terms = $('.ctwpml-review-terms-checkbox').first();
+        if ($terms.length && !$terms.is(':checked')) {
+          showNotification('Você precisa aceitar os termos para continuar.', 'error', 3500);
+          var $boxT = $('#ctwpml-review-errors');
+          if ($boxT.length) $boxT.text('Você precisa aceitar os termos para continuar.').show();
+          ctwpmlSetReviewCtaEnabled(false);
+          ctwpmlSyncWooTerms(false);
+          if (typeof state.checkpoint === 'function') state.checkpoint('CHK_REVIEW_TERMS_REQUIRED', false, {});
+          return;
+        }
+        if (typeof state.checkpoint === 'function') state.checkpoint('CHK_REVIEW_TERMS_REQUIRED', true, { checked: $terms.length ? true : null });
+      } catch (eT) {}
 
       var woo = window.CCCheckoutTabs && window.CCCheckoutTabs.WooHost ? window.CCCheckoutTabs.WooHost : null;
       if (!woo || !woo.hasCheckoutForm || !woo.hasCheckoutForm()) {
@@ -3072,8 +3167,30 @@
         try {
           $('#ctwpml-review-confirm, #ctwpml-review-confirm-sticky').prop('disabled', false).css('opacity', '');
           var $err = $('.woocommerce-error, .woocommerce-NoticeGroup-checkout').first();
-          log('checkout_error recebido', { text: $err.length ? $err.text().trim() : '' });
-          if (typeof state.checkpoint === 'function') state.checkpoint('CHK_CHECKOUT_ERROR', true, { text: $err.length ? $err.text().trim() : '' });
+          var errText = $err.length ? $err.text().trim() : '';
+          log('checkout_error recebido', { text: errText });
+          if (typeof state.checkpoint === 'function') state.checkpoint('CHK_CHECKOUT_ERROR', true, {
+            text: errText,
+            hasWooError: document.querySelectorAll('.woocommerce-error').length,
+            hasNoticeGroup: document.querySelectorAll('.woocommerce-NoticeGroup, .woocommerce-NoticeGroup-checkout').length,
+          });
+
+          // Exibir erro dentro do modal (senão parece que o botão “não funciona”).
+          if (!errText) errText = 'Não foi possível finalizar. Verifique os campos obrigatórios e tente novamente.';
+          showNotification(errText, 'error', 5000);
+
+          var $box = $('#ctwpml-review-errors');
+          if ($box.length) {
+            $box.text(errText).show();
+            // Scroll interno do modal até o erro.
+            var $modalBody = $('.ctwpml-modal-body').first();
+            if ($modalBody.length) {
+              try {
+                var top = $box.position().top;
+                $modalBody.animate({ scrollTop: $modalBody.scrollTop() + top - 16 }, 250);
+              } catch (e3) {}
+            }
+          }
         } catch (_) {}
       });
 
@@ -3119,7 +3236,7 @@
 
       if (cepDebounceTimer) clearTimeout(cepDebounceTimer);
       cepDebounceTimer = setTimeout(function () {
-        consultCepAndFillForm();
+      consultCepAndFillForm();
       }, 250);
     });
 

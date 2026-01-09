@@ -363,9 +363,16 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
 #### Protocol: d74719a
 
+## [v3.2.28] - 2026-01-09
+
+### Changed
+- Review (“Revise e confirme”): adiciona checkbox de termos (topo e rodapé sticky) e bloqueia/libera os CTAs “Confirmar a compra” com feedback; sincroniza com checkboxes nativos do Woo (`#terms` e `#cs_terms_policy_accepted`) e re-sincroniza após `updated_checkout` para evitar divergência; assets do modal: adiciona `assets/img/icones/` (gps/cartão/excluir/editar/recibo) para uso local.
+
+#### Protocol: c1b1347
+
 ## [Unreleased]
 
 ### Changed
-- **Versão atual**: v3.2.27  
-  **Versão sugerida após a mudança**: v3.2.27  
+- **Versão atual**: v3.2.28  
+  **Versão sugerida após a mudança**: v3.2.28  
   **Descrição**: Preencher antes de commitar mudanças.
