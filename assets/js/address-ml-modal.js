@@ -470,6 +470,16 @@
 
       var requested = String(methodId || '');
       var beforeSnap = ctwpmlReadWooShippingDomSnapshot();
+      // Guarda último resultado para bloquear avanço caso Woo não aplique.
+      state.__ctwpmlLastShippingSet = {
+        ok: null,
+        requested: requested,
+        applied: '',
+        match: null,
+        validationSkipped: null,
+        requestedExists: null,
+        ts: Date.now(),
+      };
       try {
         if (typeof state.checkpoint === 'function') {
           state.checkpoint('CHK_SHIPPING_SET_REQUEST', !!requested, {
@@ -493,6 +503,14 @@
           log('setShippingMethodInWC() - Resposta:', resp);
 
           var ok = !!(resp && resp.success);
+          try {
+            if (state.__ctwpmlLastShippingSet && state.__ctwpmlLastShippingSet.requested === requested) {
+              state.__ctwpmlLastShippingSet.ok = ok;
+              state.__ctwpmlLastShippingSet.validationSkipped = resp && resp.data ? !!resp.data.validation_skipped : null;
+              state.__ctwpmlLastShippingSet.requestedExists = resp && resp.data ? !!resp.data.requested_exists : null;
+              state.__ctwpmlLastShippingSet.resp = resp;
+            }
+          } catch (e0a) {}
           try {
             if (typeof state.checkpoint === 'function') {
               state.checkpoint('CHK_SHIPPING_SET_RESPONSE', ok, { requested: requested, resp: resp });
@@ -528,6 +546,12 @@
               apiAvailableRateIds: resp && resp.data ? (resp.data.available_rate_ids || []) : [],
             });
             try {
+              if (state.__ctwpmlLastShippingSet && state.__ctwpmlLastShippingSet.requested === requested) {
+                state.__ctwpmlLastShippingSet.applied = applied;
+                state.__ctwpmlLastShippingSet.match = match;
+              }
+            } catch (e0b) {}
+            try {
               if (typeof state.checkpoint === 'function') {
                 state.checkpoint('CHK_SHIPPING_SET_APPLIED', match, {
                   requested: requested,
@@ -561,6 +585,12 @@
         },
         error: function (jqXHR, textStatus, errorThrown) {
           log('setShippingMethodInWC() - ERRO AJAX:', { status: jqXHR.status, textStatus: textStatus, error: errorThrown });
+          try {
+            if (state.__ctwpmlLastShippingSet && state.__ctwpmlLastShippingSet.requested === requested) {
+              state.__ctwpmlLastShippingSet.ok = false;
+              state.__ctwpmlLastShippingSet.error = { status: jqXHR && jqXHR.status ? jqXHR.status : '', textStatus: textStatus || '', error: errorThrown || '' };
+            }
+          } catch (e0c) {}
           try {
             if (typeof state.checkpoint === 'function') {
               state.checkpoint('CHK_SHIPPING_SET_RESPONSE', false, {
@@ -3174,6 +3204,31 @@
         showNotification('Selecione uma opção de entrega.', 'error');
         return;
       }
+
+      // Bloquear avanço se o Woo NÃO aplicou de fato o método selecionado (evita finalizar com PAC por fallback).
+      try {
+        var last = state.__ctwpmlLastShippingSet || null;
+        var wooSnap = ctwpmlReadWooShippingDomSnapshot();
+        var wooChecked = wooSnap && wooSnap.checked ? String(wooSnap.checked) : '';
+
+        // Se tivemos tentativa de set pro mesmo método e falhou, não avança.
+        if (last && last.requested === String(selectedMethod) && last.ok === false) {
+          log('Bloqueando avanço: setShippingMethodInWC falhou para o método selecionado', { last: last, wooChecked: wooChecked });
+          if (typeof state.checkpoint === 'function') state.checkpoint('CHK_SHIPPING_CONTINUE_BLOCKED', true, { reason: 'set_failed', selectedMethod: String(selectedMethod), last: last, wooChecked: wooChecked });
+          showNotification('Não foi possível aplicar o frete selecionado no checkout. Tente escolher o frete novamente.', 'error', 4500);
+          return;
+        }
+
+        // Se o Woo está com outro método checked, não avança (mesmo que UI esteja em outro).
+        if (wooChecked && String(wooChecked) !== String(selectedMethod)) {
+          log('Bloqueando avanço: Woo checked != UI selected', { selectedMethod: String(selectedMethod), wooChecked: wooChecked, last: last });
+          if (typeof state.checkpoint === 'function') state.checkpoint('CHK_SHIPPING_CONTINUE_BLOCKED', true, { reason: 'woo_mismatch', selectedMethod: String(selectedMethod), wooChecked: wooChecked, last: last });
+          showNotification('O checkout ainda não aplicou o frete selecionado. Aguarde 2 segundos e tente novamente.', 'error', 4500);
+          return;
+        }
+
+        if (typeof state.checkpoint === 'function') state.checkpoint('CHK_SHIPPING_CONTINUE_ALLOWED', true, { selectedMethod: String(selectedMethod), wooChecked: wooChecked, last: last });
+      } catch (e0) {}
 
       log('Método de frete confirmado, avançando para tela de pagamento');
 

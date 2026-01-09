@@ -653,8 +653,21 @@ add_action('wp_ajax_ctwpml_set_shipping_method', function () {
 	$available_rate_ids = [];
 	$available_rates_snapshot = [];
 	try {
-		if (function_exists('WC') && WC() && WC()->shipping) {
+		if (function_exists('WC') && WC() && WC()->cart && WC()->shipping) {
+			// Força cálculo para popular rates (em admin-ajax, get_packages() pode vir vazio).
+			WC()->cart->calculate_shipping();
+			WC()->cart->calculate_totals();
+
 			$packages = WC()->shipping->get_packages();
+			if (!is_array($packages) || empty($packages)) {
+				// Fallback: calcula via shipping packages do cart.
+				$cart_packages = WC()->cart->get_shipping_packages();
+				if (is_array($cart_packages) && !empty($cart_packages)) {
+					WC()->shipping->calculate_shipping($cart_packages);
+					$packages = WC()->shipping->get_packages();
+				}
+			}
+
 			foreach ((array) $packages as $pIndex => $pkg) {
 				if (empty($pkg['rates']) || !is_array($pkg['rates'])) {
 					continue;
@@ -670,6 +683,27 @@ add_action('wp_ajax_ctwpml_set_shipping_method', function () {
 					];
 				}
 			}
+
+			// Fallback extra: rates em sessão (shipping_for_package_0...)
+			if (empty($available_rate_ids) && WC()->session) {
+				for ($i = 0; $i < 5; $i++) {
+					$k = 'shipping_for_package_' . $i;
+					$session_pkg = WC()->session->get($k);
+					if (!is_array($session_pkg) || empty($session_pkg['rates']) || !is_array($session_pkg['rates'])) {
+						continue;
+					}
+					foreach ($session_pkg['rates'] as $rate_id => $rate) {
+						$rid = (string) $rate_id;
+						$available_rate_ids[] = $rid;
+						$available_rates_snapshot[] = [
+							'package' => (int) $i,
+							'id'      => $rid,
+							'label'   => is_object($rate) && method_exists($rate, 'get_label') ? (string) $rate->get_label() : '',
+							'cost'    => is_object($rate) && method_exists($rate, 'get_cost') ? $rate->get_cost() : '',
+						];
+					}
+				}
+			}
 		}
 	} catch (\Throwable $e) {
 		if ($is_debug) {
@@ -679,6 +713,7 @@ add_action('wp_ajax_ctwpml_set_shipping_method', function () {
 
 	$available_rate_ids = array_values(array_unique(array_filter($available_rate_ids)));
 	$requested_exists = in_array($method_id, $available_rate_ids, true);
+	$validation_skipped = empty($available_rate_ids);
 
 	if ($is_debug) {
 		error_log('[CTWPML] set_shipping_method - Available rate ids: ' . implode(', ', $available_rate_ids));
@@ -686,7 +721,8 @@ add_action('wp_ajax_ctwpml_set_shipping_method', function () {
 		error_log('[CTWPML] set_shipping_method - Available rates snapshot (first 15): ' . substr(print_r(array_slice($available_rates_snapshot, 0, 15), true), 0, 2000));
 	}
 
-	if (!$requested_exists) {
+	// Só bloquear se conseguimos validar (lista não vazia).
+	if (!$validation_skipped && !$requested_exists) {
 		wp_send_json_error([
 			'message' => 'Método de frete solicitado não existe no WooCommerce neste momento (provável mismatch de instance_id).',
 			'requested' => $method_id,
@@ -727,7 +763,8 @@ add_action('wp_ajax_ctwpml_set_shipping_method', function () {
 		'cart_total'          => WC()->cart ? WC()->cart->get_total() : '',
 		'cart_shipping_total' => WC()->cart ? WC()->cart->get_shipping_total() : '',
 	];
-	$response['requested_exists'] = true;
+	$response['requested_exists'] = $requested_exists;
+	$response['validation_skipped'] = $validation_skipped;
 	if ($is_debug) {
 		$response['available_rate_ids'] = $available_rate_ids;
 	}

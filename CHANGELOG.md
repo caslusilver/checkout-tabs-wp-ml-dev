@@ -384,9 +384,16 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
 #### Protocol: a6abb89
 
+## [v3.2.31] - 2026-01-09
+
+### Changed
+- Frete (ML): correção para evitar finalizar com frete errado por fallback — backend `ctwpml_set_shipping_method` força cálculo de shipping/totals e lê rates também via sessão (`shipping_for_package_*`) para evitar falso-negativo de “rate não existe”; validação só bloqueia quando há lista confiável (`validation_skipped=false`) e retorna flags `requested_exists`/`validation_skipped`; frontend bloqueia o botão Continuar quando o Woo não aplicou o método selecionado (requested≠checked), com checkpoints CHK_SHIPPING_CONTINUE_BLOCKED/CHK_SHIPPING_CONTINUE_ALLOWED e snapshot do último set em `state.__ctwpmlLastShippingSet`.
+
+#### Protocol: bec1672
+
 ## [Unreleased]
 
 ### Changed
-- **Versão atual**: v3.2.30  
-  **Versão sugerida após a mudança**: v3.2.30  
+- **Versão atual**: v3.2.31  
+  **Versão sugerida após a mudança**: v3.2.31  
   **Descrição**: Preencher antes de commitar mudanças.
