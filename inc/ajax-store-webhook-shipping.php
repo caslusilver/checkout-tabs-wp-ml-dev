@@ -44,7 +44,8 @@ function checkout_tabs_wp_ml_store_webhook_shipping(): void {
 		error_log('[CTWPML] store_webhook_shipping - Iniciando');
 		error_log('[CTWPML] Dados recebidos POST: ' . print_r(array_keys($_POST), true));
 		error_log('[CTWPML] User ID: ' . get_current_user_id());
-		error_log('[CTWPML] WooCommerce ativo: ' . (class_exists('WC') ? 'sim' : 'não'));
+		// WooCommerce expõe a função WC() (a classe principal não é "WC").
+		error_log('[CTWPML] WooCommerce ativo: ' . ((function_exists('WC') && WC()) ? 'sim' : 'não'));
 	}
 
 	// Validar nonce
@@ -57,7 +58,7 @@ function checkout_tabs_wp_ml_store_webhook_shipping(): void {
 	}
 
 	// Verificar WooCommerce
-	if (!class_exists('WC') || !function_exists('WC')) {
+	if (!function_exists('WC') || !WC()) {
 		if ($is_debug_enabled) {
 			error_log('[CTWPML ERROR] store_webhook_shipping - WooCommerce não disponível');
 		}

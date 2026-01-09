@@ -419,9 +419,16 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
 #### Protocol: 2de42bf
 
+## [v3.2.36] - 2026-01-09
+
+### Changed
+- Frete (ML): corrigir detecção do WooCommerce (bug crítico) — substitui checagens inválidas `class_exists('WC')` por `function_exists('WC') && WC()` em `ctwpml_sync_webhook_shipping_session_from_address_payload`, `woocommerce_package_rates` override, Checkout Blocks API e `store_webhook_shipping`, permitindo que `webhook_shipping` seja setado e o custo do frete seja aplicado (não ficar `cart_shipping_total=0`).
+
+#### Protocol: 90b6792
+
 ## [Unreleased]
 
 ### Changed
-- **Versão atual**: v3.2.35  
-  **Versão sugerida após a mudança**: v3.2.35  
+- **Versão atual**: v3.2.36  
+  **Versão sugerida após a mudança**: v3.2.36  
   **Descrição**: Preencher antes de commitar mudanças.

@@ -182,7 +182,8 @@ function ctwpml_parse_price_to_float($value): float {
  * - values: array (valores usados)
  */
 function ctwpml_sync_webhook_shipping_session_from_address_payload(int $user_id, string $address_id, bool $is_debug = false): array {
-	if (!class_exists('WC') || !function_exists('WC')) {
+	// WooCommerce expõe a função WC() (a classe principal não é "WC").
+	if (!function_exists('WC') || !WC()) {
 		return ['ok' => false, 'reason' => 'no_wc', 'values' => []];
 	}
 
@@ -742,7 +743,7 @@ add_action('wp_ajax_ctwpml_set_shipping_method', function () {
 	// (em alguns cenários WC()->session vem null e o frete fica 0)
 	// =========================================================
 	$wc_boot = [
-		'has_wc' => (class_exists('WC') && function_exists('WC')),
+		'has_wc' => (function_exists('WC') && WC()),
 		'wc_load_cart_called' => false,
 		'init_session_called' => false,
 		'init_cart_called' => false,

@@ -17,7 +17,8 @@ if (!defined('ABSPATH')) {
  * @return bool
  */
 function ctwpml_is_wc_ready_for_blocks(): bool {
-	if (!class_exists('WC') || !function_exists('WC')) {
+	// WooCommerce expõe a função WC() (a classe principal não é "WC").
+	if (!function_exists('WC') || !WC()) {
 		return false;
 	}
 	// WC() pode existir mas cart/checkout não (dependendo do contexto).

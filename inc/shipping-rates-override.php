@@ -7,7 +7,8 @@ if (!defined('ABSPATH')) {
 add_filter('woocommerce_package_rates', 'checkout_tabs_wp_ml_override_shipping_rates_with_webhook', 999, 2);
 
 function checkout_tabs_wp_ml_override_shipping_rates_with_webhook($rates, $package) {
-	if (!class_exists('WC') || !function_exists('WC') || !WC()->session) {
+	// WooCommerce expõe a função WC() (a classe principal não é "WC").
+	if (!function_exists('WC') || !WC() || !WC()->session) {
 		return $rates;
 	}
 
