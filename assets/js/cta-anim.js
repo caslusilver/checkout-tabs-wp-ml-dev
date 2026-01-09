@@ -65,6 +65,9 @@
   var CLS_EXPAND = 'ctwpml-cta-expand';
   var OVERLAY_ID = 'ctwpml-success-overlay';
   var OVERLAY_VISIBLE = 'ctwpml-success-overlay--visible';
+  var DUR_LOADING_MS = 2000; // alinhado com referência
+  var DUR_SUCCESS_MS = 1000;
+  var DUR_EXPAND_MS = 800;
 
   var anim = {
     active: false,
@@ -75,7 +78,7 @@
     checkoutStartedAt: 0,
     checkoutXhrStartAt: 0,
     checkoutXhrEndAt: 0,
-    fallbackOverlayTimer: null,
+    overlayShownAt: 0,
   };
 
   function clearTimers() {
@@ -83,8 +86,6 @@
     if (anim.t2) clearTimeout(anim.t2);
     if (anim.t3) clearTimeout(anim.t3);
     anim.t1 = anim.t2 = anim.t3 = null;
-    if (anim.fallbackOverlayTimer) clearTimeout(anim.fallbackOverlayTimer);
-    anim.fallbackOverlayTimer = null;
   }
 
   function resetCtas() {
@@ -94,6 +95,7 @@
     anim.checkoutStartedAt = 0;
     anim.checkoutXhrStartAt = 0;
     anim.checkoutXhrEndAt = 0;
+    anim.overlayShownAt = 0;
     $(SELECTOR).removeClass(CLS_LOADING + ' ' + CLS_SUCCESS + ' ' + CLS_EXPAND);
     hideOverlay();
   }
@@ -115,6 +117,7 @@
     ensureOverlay();
     var $ov = $('#' + OVERLAY_ID);
     $ov.addClass(OVERLAY_VISIBLE);
+    anim.overlayShownAt = Date.now();
     checkpoint('CHK_CTA_SUCCESS_OVERLAY_VISIBLE', true, { source: source || 'unknown' });
   }
 
@@ -135,19 +138,21 @@
     $btns.addClass(CLS_LOADING);
     checkpoint('CHK_CTA_LOADING_STARTED', true, {});
 
-    // Se o checkout AJAX demorar para começar, mostra o overlay mesmo assim (UX).
-    anim.fallbackOverlayTimer = setTimeout(function () {
-      if (!anim.checkoutStartedAt) {
-        showOverlay('fallback_500ms');
-        log('Overlay de sucesso exibido por fallback (checkout ainda não iniciou)', { sinceClickMs: Date.now() - anim.clickAt });
-      }
-    }, 500);
-
-    // Não travar o fluxo: sucesso visual rápido (sem delay artificial de 2s).
+    // Loading (referência: 2s). Depois, success + expand.
     anim.t1 = setTimeout(function () {
       $btns.removeClass(CLS_LOADING).addClass(CLS_SUCCESS);
       checkpoint('CHK_CTA_SUCCESS_STATE', true, { afterClickMs: Date.now() - anim.clickAt });
-    }, 150);
+
+      anim.t2 = setTimeout(function () {
+        $btns.addClass(CLS_EXPAND);
+        checkpoint('CHK_CTA_EXPAND_STATE', true, { afterClickMs: Date.now() - anim.clickAt });
+
+        anim.t3 = setTimeout(function () {
+          // Só mostra a tela de sucesso após a expansão completar.
+          showOverlay('expand_done');
+        }, DUR_EXPAND_MS);
+      }, DUR_SUCCESS_MS);
+    }, DUR_LOADING_MS);
   }
 
   // Clique no CTA do review (delegado, pois o HTML é re-renderizado).

@@ -1111,10 +1111,22 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
   transform: translate(-50%, -50%) !important;
   transition: width 0.8s ease-in, height 0.8s ease-in, border-radius 0.5s;
   pointer-events: none;
+  background: var(--ctwpml-ml-green) !important;
+  color: transparent !important;
 }
 
 .ctwpml-review-btn-confirm.ctwpml-cta-expand .ctwpml-success-icon {
   opacity: 0;
+}
+
+.ctwpml-review-btn-confirm.ctwpml-cta-expand span {
+  opacity: 0;
+}
+
+.ctwpml-review-btn-confirm.ctwpml-cta-expand::before {
+  width: 150vmax;
+  height: 150vmax;
+  transition: width 0.8s ease-in, height 0.8s ease-in;
 }
 
 /* =====================================================
