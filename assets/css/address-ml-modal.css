@@ -1061,20 +1061,27 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
   width: 100%;
 }
 
-/* Sucesso: vira círculo + mostra check */
+/* Sucesso: círculo central + mostra check (sem encolher o botão) */
 .ctwpml-review-btn-confirm.ctwpml-cta-success {
-  width: 50px !important;
-  height: 50px !important;
-  border-radius: 50% !important;
-  background: var(--ctwpml-ml-green) !important;
-  padding: 0 !important;
-  display: flex !important;
-  align-items: center;
-  justify-content: center;
+  /* Mantém o botão full-width para não “pular”/ir para a lateral */
+  background: #3483fa !important;
 }
 
 .ctwpml-review-btn-confirm.ctwpml-cta-success::after {
   display: none;
+}
+
+.ctwpml-review-btn-confirm.ctwpml-cta-success::before {
+  content: '';
+  position: absolute;
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  background: var(--ctwpml-ml-green);
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 2;
 }
 
 .ctwpml-review-btn-confirm.ctwpml-cta-success span {
@@ -1084,6 +1091,7 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
 .ctwpml-review-btn-confirm.ctwpml-cta-success .ctwpml-success-icon {
   display: block;
   animation: ctwpmlScaleIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  z-index: 3;
 }
 
 @keyframes ctwpmlScaleIn {
@@ -1107,6 +1115,49 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
 
 .ctwpml-review-btn-confirm.ctwpml-cta-expand .ctwpml-success-icon {
   opacity: 0;
+}
+
+/* =====================================================
+   Overlay “Sucesso” (fullscreen) — cobre o modal inteiro
+   ===================================================== */
+#ctwpml-success-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000000;
+  display: none;
+  background: #00a650;
+  color: #fff;
+  font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+}
+
+#ctwpml-success-overlay.ctwpml-success-overlay--visible {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#ctwpml-success-overlay .ctwpml-success-message {
+  text-align: center;
+  animation: ctwpmlFadeInSuccess 0.5s ease-out;
+  padding: 0 18px;
+}
+
+#ctwpml-success-overlay .ctwpml-success-message h1 {
+  font-size: 24px;
+  margin: 0 0 10px;
+  color: #fff;
+}
+
+#ctwpml-success-overlay .ctwpml-success-message p {
+  font-size: 16px;
+  opacity: 0.9;
+  margin: 0;
+  color: #fff;
+}
+
+@keyframes ctwpmlFadeInSuccess {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 /* CTA padrão (shipping/payment) */
