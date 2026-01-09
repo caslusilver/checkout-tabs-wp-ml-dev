@@ -356,18 +356,16 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 ### Changed
 - Remoção do enqueue condicional de scripts legados (tabs.js, store.js, webhook.js) quando ML-only; ui.js e woocommerce-events.js agora são no-op para rotinas de abas no ML-only; overlay global do checkout suprimido via CSS no ML-only; scroll interno do modal corrigido para iOS; sistema de checkpoints de debug implementado (state.checkpoint) com validação SUCCESS/FAIL para: CHK_HOST_WOO, CHK_OVERLAY_SUPPRESS, CHK_ML_ONLY, CHK_MODAL_VISIBLE, CHK_SCROLL_ENABLED, CHK_ELEMENTOR_HIDDEN, CHK_GATEWAYS, CHK_BLOCKS, CHK_PAYMENT_RENDERED, CHK_REVIEW_RENDERED, CHK_SHIPPING_OPTIONS.
 
-#### Protocol: 0267719
-
-## [v3.2.26] - 2026-01-08
+## [v3.2.27] - 2026-01-08
 
 ### Changed
-- Ajustes de fidelidade no modal ML: remove “duplo background” nas telas internas (pagamento/review) priorizando o fundo do wrapper; Review/Confirm agora exibe frete escolhido (PAC Mini/SEDEX/Motoboy + valor) e preenche detalhes (produto/quantidade); CTA “Confirmar a compra” no Review com rodapé sticky (slide ao scroll) e botão funcionando; links do Review ajustados conforme layout (endereço vs prazo); aplicação de cupom reforçada usando submit do `form.checkout_coupon` (compatível com template oficial do Woo).
+- Modal ML (Elementor): fidelidade visual e UX (remove “duplo background” em pagamento/review; CTAs em largura total e cor padrão; títulos de pagamento garantidos via CSS); Review/Confirm com rodapé sticky (slide) e CTA funcionando com submit nativo do Woo + reabilita em `checkout_error`; frete persistente (não reseta para a 1ª opção) e exibição do método/valor no Review; cupom com fallback para UI do Elementor quando `form.checkout_coupon` não existir; **estado do modal persistente após reload via `sessionStorage` (restaura view/endereço/frete/pagamento)** e checkpoint **CHK_VIEW_RESTORE**; **Review: ícones via `<img>` (modelo oficial) + card “Detalhe da entrega” com endereço selecionado no subtítulo**; debug/checkpoints adicionais: CHK_COUPON_BLOCK_FETCHED, CHK_COUPON_FORM_FOUND, CHK_PAYMENT_TITLES_VISIBLE, CHK_PLACE_ORDER_NATIVE, CHK_FORM_SUBMIT_NATIVE, CHK_CHECKOUT_ERROR, CHK_SHIPPING_PERSISTENCE, CHK_OVERLAY_SOURCES.
 
-#### Protocol: 0375b79
+#### Protocol: d74719a
 
 ## [Unreleased]
 
 ### Changed
-- **Versão atual**: v3.2.26  
-  **Versão sugerida após a mudança**: v3.2.26  
+- **Versão atual**: v3.2.27  
+  **Versão sugerida após a mudança**: v3.2.27  
   **Descrição**: Preencher antes de commitar mudanças.
