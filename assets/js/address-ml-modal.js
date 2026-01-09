@@ -25,6 +25,71 @@
     var CACHE_DURATION = 60000; // 1 minuto
     var isSavingAddress = false;
 
+    // =========================================================
+    // PERSISTÊNCIA DO ESTADO DO MODAL (sessionStorage)
+    // =========================================================
+    var CTWPML_MODAL_STATE_KEY = 'ctwpml_ml_modal_state_v1';
+    var restoreStateOnOpen = null;
+
+    function safeReadModalState() {
+      try {
+        if (!window.sessionStorage) return null;
+        var raw = window.sessionStorage.getItem(CTWPML_MODAL_STATE_KEY);
+        if (!raw) return null;
+        var obj = JSON.parse(raw);
+        if (!obj || typeof obj !== 'object') return null;
+        return obj;
+      } catch (e) {
+        return null;
+      }
+    }
+
+    function safeWriteModalState(obj) {
+      try {
+        if (!window.sessionStorage) return;
+        window.sessionStorage.setItem(CTWPML_MODAL_STATE_KEY, JSON.stringify(obj));
+      } catch (e) {}
+    }
+
+    function clearModalState() {
+      try {
+        if (!window.sessionStorage) return;
+        window.sessionStorage.removeItem(CTWPML_MODAL_STATE_KEY);
+      } catch (e) {}
+    }
+
+    function persistModalState(patch) {
+      patch = patch || {};
+      var prev = safeReadModalState() || {};
+      var next = {
+        open: typeof patch.open === 'boolean' ? patch.open : !!prev.open,
+        view: patch.view || prev.view || currentView || 'list',
+        selectedAddressId: (typeof patch.selectedAddressId !== 'undefined') ? patch.selectedAddressId : (selectedAddressId || prev.selectedAddressId || ''),
+        selectedShipping: (typeof patch.selectedShipping !== 'undefined') ? patch.selectedShipping : (state.selectedShipping || prev.selectedShipping || null),
+        selectedPaymentMethod: (typeof patch.selectedPaymentMethod !== 'undefined') ? patch.selectedPaymentMethod : (state.selectedPaymentMethod || prev.selectedPaymentMethod || ''),
+        ts: Date.now(),
+      };
+      safeWriteModalState(next);
+    }
+
+    function tryRestoreModalOnBoot() {
+      var s = safeReadModalState();
+      if (!s || !s.open) {
+        if (typeof state.checkpoint === 'function') state.checkpoint('CHK_VIEW_RESTORE', true, { restored: false, reason: 'no_state' });
+        return;
+      }
+      // Só tenta restaurar se estivermos na página de checkout (form do Woo presente) e logado.
+      var hasCheckoutForm = !!document.querySelector('form.checkout, form.woocommerce-checkout');
+      if (!hasCheckoutForm || !isLoggedIn()) {
+        if (typeof state.checkpoint === 'function') state.checkpoint('CHK_VIEW_RESTORE', false, { restored: false, reason: 'not_checkout_or_not_logged', hasCheckoutForm: hasCheckoutForm, isLoggedIn: isLoggedIn() });
+        return;
+      }
+      restoreStateOnOpen = s;
+      setTimeout(function () {
+        try { openModal(); } catch (e) {}
+      }, 50);
+    }
+
     function cepDigits(value) {
       return String(value || '').replace(/\D/g, '').slice(0, 8);
     }
@@ -318,6 +383,7 @@
       console.log('[CTWPML][DEBUG] showInitial() - selectedAddressId:', selectedAddressId, 'cache:', addressesCache.length);
 
       currentView = 'initial';
+      persistModalState({ view: 'initial' });
       $('#ctwpml-modal-title').text('Escolha a forma de entrega');
       $('#ctwpml-view-form').hide();
       $('#ctwpml-view-list').hide();
@@ -386,6 +452,16 @@
 
           if (resp.success) {
             log('setShippingMethodInWC() - Sucesso! Disparando update_checkout');
+            try {
+              if (typeof state.checkpoint === 'function') {
+                state.checkpoint('CHK_OVERLAY_SOURCES', true, {
+                  source: 'set_shipping_method',
+                  hasBlockOverlay: document.querySelectorAll('.blockUI.blockOverlay').length,
+                  hasBlockMsg: document.querySelectorAll('.blockUI.blockMsg').length,
+                  hasNoticeGroup: document.querySelectorAll('.woocommerce-NoticeGroup, .woocommerce-NoticeGroup-checkout').length,
+                });
+              }
+            } catch (e0) {}
             // Trigger update_checkout para atualizar totais
             $(document.body).trigger('update_checkout');
             if (typeof callback === 'function') {
@@ -514,6 +590,7 @@
       log('showShippingPlaceholder() - INICIANDO', { selectedAddressId: selectedAddressId });
 
       currentView = 'shipping';
+      persistModalState({ view: 'shipping' });
       $('#ctwpml-modal-title').text('Checkout');
       $('#ctwpml-view-form').hide();
       $('#ctwpml-view-list').hide();
@@ -553,6 +630,55 @@
         }
 
         log('showShippingPlaceholder() - Fazendo requisição AJAX para ctwpml_get_shipping_options');
+
+        function getWooChosenShippingMethodId() {
+          try {
+            var $checked = $('input[name^="shipping_method"]:checked').first();
+            return $checked.length ? String($checked.val() || '') : '';
+          } catch (e) {}
+          return '';
+        }
+
+        function pickPreferredShippingMethodId(options) {
+          var preferred = '';
+          try {
+            if (state.selectedShipping && state.selectedShipping.methodId) preferred = String(state.selectedShipping.methodId);
+          } catch (e) {}
+          if (!preferred) preferred = getWooChosenShippingMethodId();
+          if (preferred) {
+            for (var i = 0; i < options.length; i++) {
+              if (String(options[i].id || '') === preferred) return preferred;
+            }
+          }
+          return options && options[0] ? String(options[0].id || '') : '';
+        }
+
+        function applySelectedShippingUI(methodId, options) {
+          if (!methodId) return;
+          $('#ctwpml-view-shipping .ctwpml-shipping-option').removeClass('is-selected');
+          var $opt = $('#ctwpml-view-shipping .ctwpml-shipping-option[data-method-id="' + methodId + '"]').first();
+          if ($opt.length) $opt.addClass('is-selected');
+
+          // atualizar resumo (frete) e persistir no state
+          var priceText = ($opt.data('price-text') || '').toString();
+          var labelText = ($opt.find('.ctwpml-shipping-option-text').text() || '').trim();
+          try { $('.ctwpml-shipping-summary-price').text(window.CCCheckoutTabs.AddressMlScreens.formatShippingSummaryPrice(priceText)); } catch (e) {}
+          state.selectedShipping = {
+            methodId: methodId,
+            type: ($opt.data('type') || '').toString(),
+            priceText: priceText,
+            label: labelText,
+          };
+          persistModalState({ selectedShipping: state.selectedShipping, view: 'shipping' });
+
+          if (typeof state.checkpoint === 'function') {
+            state.checkpoint('CHK_SHIPPING_PERSISTENCE', true, {
+              stateSelected: state.selectedShipping ? state.selectedShipping.methodId : '',
+              wooChosen: getWooChosenShippingMethodId(),
+              uiSelected: methodId,
+            });
+          }
+        }
 
         // Buscar opções de frete do backend
         $.ajax({
@@ -595,11 +721,16 @@
                 $('#ctwpml-view-shipping').html(htmlFallback);
               }
 
-              // Pré-selecionar primeira opção no WC
-              var firstOption = resp.data.options[0];
-              if (firstOption) {
-                log('showShippingPlaceholder() - Pré-selecionando primeira opção:', firstOption.id);
-                setShippingMethodInWC(firstOption.id);
+              // Seleção persistente (não resetar para 1ª opção se usuário já escolheu)
+              var preferredId = pickPreferredShippingMethodId(resp.data.options);
+              if (preferredId) {
+                log('showShippingPlaceholder() - Seleção preferida:', { preferredId: preferredId, stateSelected: state.selectedShipping ? state.selectedShipping.methodId : '', wooChosen: getWooChosenShippingMethodId() });
+                applySelectedShippingUI(preferredId, resp.data.options);
+                // Só setar no WC se for diferente do escolhido atual
+                var chosen = getWooChosenShippingMethodId();
+                if (!chosen || chosen !== preferredId) {
+                  setShippingMethodInWC(preferredId);
+                }
               }
             } else {
               log('showShippingPlaceholder() - ERRO: Resposta inválida ou sem opções', resp);
@@ -651,6 +782,7 @@
       log('showPaymentScreen() - INICIANDO');
 
       currentView = 'payment';
+      persistModalState({ view: 'payment' });
       // IMPORTANTE: a tela de pagamento é uma "view interna".
       // O header deve ser o do modal (sem header duplicado dentro do conteúdo).
       $('#ctwpml-modal-title').text('Escolha como pagar');
@@ -697,6 +829,22 @@
             var paymentHtml = $('#ctwpml-view-payment').html() || '';
             state.checkpoint('CHK_PAYMENT_RENDERED', paymentHtml.length > 100, { htmlLength: paymentHtml.length });
             checkGateways();
+          }
+          // Checkpoint: títulos/estilos visíveis
+          if (typeof state.checkpoint === 'function') {
+            try {
+              var titleEl = document.querySelector('.ctwpml-payment-method-title');
+              var ok = !!(titleEl && String(titleEl.textContent || '').trim());
+              var cs = titleEl ? window.getComputedStyle(titleEl) : null;
+              state.checkpoint('CHK_PAYMENT_TITLES_VISIBLE', ok, titleEl ? {
+                text: String(titleEl.textContent || '').trim(),
+                display: cs ? cs.display : '',
+                color: cs ? cs.color : '',
+                fontSize: cs ? cs.fontSize : '',
+              } : { found: false });
+            } catch (e) {
+              state.checkpoint('CHK_PAYMENT_TITLES_VISIBLE', false, { reason: 'exception' });
+            }
           }
         }).catch(function (e) {
           log('WooHost.ensureBlocks() falhou', e);
@@ -816,6 +964,7 @@
       var woo = window.CCCheckoutTabs && window.CCCheckoutTabs.WooHost ? window.CCCheckoutTabs.WooHost : null;
 
       currentView = 'review';
+      persistModalState({ view: 'review' });
       $('#ctwpml-modal-title').text('Revise e confirme');
       $('#ctwpml-view-form').hide();
       $('#ctwpml-view-list').hide();
@@ -841,8 +990,18 @@
         var paymentLabel = woo ? woo.getSelectedGatewayLabel() : '';
 
         var it = selectedAddressId ? getAddressById(selectedAddressId) : null;
-        var addressTitle = it ? (String(it.rua || '') + ' ' + String(it.numero || '')).trim() : '';
-        var addressSubtitle = 'Enviar no meu endereço';
+        // Fidelidade: título fixo, subtítulo com endereço selecionado (mesmo padrão do frete)
+        var addressTitle = 'Enviar no meu endereço';
+        var addressSubtitle = it ? formatFullAddressLine(it) : '';
+
+        // Ícones do Review (conforme HTML modelo)
+        var billingIconUrl = 'https://cubensisstore.com.br/wp-content/uploads/2026/01/bill.png';
+        var shippingIconUrl = 'https://cubensisstore.com.br/wp-content/uploads/2026/01/gps-1.png';
+        var paymentIconUrl = '';
+        try {
+          if ((state.selectedPaymentMethod || '').toString() === 'pix') paymentIconUrl = 'https://cubensisstore.com.br/wp-content/uploads/2026/01/artpoin-logo-pix-1-scaled.png';
+          else paymentIconUrl = 'https://cubensisstore.com.br/wp-content/uploads/2026/01/bank-card.png';
+        } catch (e0) {}
 
         // Billing (checkout real)
         var billingName = '';
@@ -868,6 +1027,9 @@
             billingCpf: billingCpf || '',
             addressTitle: addressTitle || '',
             addressSubtitle: addressSubtitle || '',
+            billingIconUrl: billingIconUrl,
+            shippingIconUrl: shippingIconUrl,
+            paymentIconUrl: paymentIconUrl,
             thumbUrls: thumbs && Array.isArray(thumbs.thumb_urls) ? thumbs.thumb_urls : [],
           });
           $('#ctwpml-view-review').html(html);
@@ -1105,12 +1267,15 @@
 
       ensureModal();
       refreshFromCheckoutFields();
+      restoreStateOnOpen = safeReadModalState();
       
       // Modo fullscreen: mostrar componente inline e esconder abas antigas
       $('#ctwpml-address-modal-overlay').css('display', 'block');
       try {
         $('body').addClass('ctwpml-ml-open').css('overflow', 'hidden');
       } catch (e) {}
+      // Marcar modal como "aberto" para restaurar após reload.
+      persistModalState({ open: true, view: currentView || 'list' });
       // Compatibilidade: se existir root das abas antigas (modo não-ML), esconda.
       if ($('#cc-checkout-tabs-root').length) {
       $('#cc-checkout-tabs-root').hide();
@@ -1145,6 +1310,56 @@
           selectedAddressId = items[0].id;
           console.log('[CTWPML][DEBUG] openModal() - selectedAddressId definido para:', selectedAddressId);
         }
+
+        // Aplicar restore (view + seleção) se houver.
+        var restored = false;
+        var targetView = 'initial';
+        try {
+          if (restoreStateOnOpen && restoreStateOnOpen.open) {
+            // selectedAddressId (se existir no cache atual)
+            if (restoreStateOnOpen.selectedAddressId) {
+              var maybe = getAddressById(restoreStateOnOpen.selectedAddressId);
+              if (maybe) selectedAddressId = restoreStateOnOpen.selectedAddressId;
+            }
+            // shipping selection
+            if (restoreStateOnOpen.selectedShipping && restoreStateOnOpen.selectedShipping.methodId) {
+              state.selectedShipping = restoreStateOnOpen.selectedShipping;
+            }
+            // payment selection
+            if (restoreStateOnOpen.selectedPaymentMethod) {
+              state.selectedPaymentMethod = restoreStateOnOpen.selectedPaymentMethod;
+              try {
+                var woo = window.CCCheckoutTabs && window.CCCheckoutTabs.WooHost ? window.CCCheckoutTabs.WooHost : null;
+                if (woo && typeof woo.matchGatewayId === 'function' && typeof woo.selectGateway === 'function') {
+                  var map = state.paymentGatewayMap || {};
+                  var gId = map[state.selectedPaymentMethod] || woo.matchGatewayId(state.selectedPaymentMethod);
+                  if (gId) woo.selectGateway(gId);
+                }
+              } catch (e2) {}
+            }
+
+            targetView = (restoreStateOnOpen.view || '').toString() || 'initial';
+            restored = true;
+          }
+        } catch (e) {}
+
+        console.log('[CTWPML][DEBUG] openModal() - restore view:', targetView, 'restored:', restored);
+        if (restored && typeof state.checkpoint === 'function') {
+          state.checkpoint('CHK_VIEW_RESTORE', true, { restored: true, view: targetView, selectedAddressId: selectedAddressId || '' });
+        } else if (!restored && typeof state.checkpoint === 'function') {
+          state.checkpoint('CHK_VIEW_RESTORE', true, { restored: false, view: 'initial', reason: 'no_previous_open_state' });
+        }
+
+        if (targetView === 'shipping') return showShippingPlaceholder();
+        if (targetView === 'payment') return showPaymentScreen();
+        if (targetView === 'review') return showReviewConfirmScreen();
+        if (targetView === 'form') return showFormForNewAddress();
+        if (targetView === 'list') {
+          showList();
+          renderAddressList();
+          return;
+        }
+
         console.log('[CTWPML][DEBUG] openModal() - chamando showInitial()');
         showInitial();
       });
@@ -1220,6 +1435,8 @@
       try {
         $('body').removeClass('ctwpml-ml-open').css('overflow', '');
       } catch (e) {}
+      // Se o usuário fechou, não devemos restaurar automaticamente após reload.
+      clearModalState();
       // Modo fullscreen: ao fechar, redireciona para o carrinho
       var cartUrl = window.wc_cart_params && window.wc_cart_params.cart_url ? window.wc_cart_params.cart_url : '/carrinho/';
       console.log('[CTWPML][DEBUG] closeModal() - redirecionando para:', cartUrl);
@@ -1238,6 +1455,7 @@
       $('#ctwpml-btn-primary').text('Continuar');
       $('#ctwpml-btn-secondary').text('Adicionar novo endereço');
       setFooterVisible(true);
+      persistModalState({ view: 'list' });
     }
 
     function showForm() {
@@ -1257,6 +1475,7 @@
       syncCpfUiFromCheckout();
       loadContactMeta(); // Carregar WhatsApp e CPF salvos
       setFooterVisible(true);
+      persistModalState({ view: 'form' });
     }
 
     function showFormForNewAddress() {
@@ -1294,6 +1513,7 @@
       // v3.2.13: Carregar CPF e WhatsApp do perfil (user_meta) para novo endereço
       loadContactMeta();
       setFooterVisible(true);
+      persistModalState({ view: 'form' });
     }
 
     function showFormForEditAddress(addressId) {
@@ -1498,6 +1718,7 @@
     function setSelectedAddressId(id) {
       selectedAddressId = id || null;
       renderAddressList();
+      persistModalState({ selectedAddressId: selectedAddressId || '', view: currentView });
     }
 
     function persistSelectedAddressId(id) {
@@ -2527,6 +2748,7 @@
         priceText: summaryPrice || priceText || '',
         label: labelText || '',
       };
+      persistModalState({ selectedShipping: state.selectedShipping, view: 'shipping' });
 
       // Atualizar no WooCommerce (se methodId existir)
       if (methodId) {
@@ -2567,6 +2789,7 @@
         priceText: selectedPriceText || '',
         label: selectedLabelText || '',
       };
+      persistModalState({ selectedShipping: state.selectedShipping, view: 'shipping' });
 
       // Dispara evento customizado para que outros módulos possam reagir
       $(document.body).trigger('ctwpml_shipping_selected', {
@@ -2611,6 +2834,7 @@
       }
 
       state.selectedPaymentMethod = method;
+      persistModalState({ selectedPaymentMethod: method, view: 'payment' });
 
       // Avança para a próxima e última tela (revise e confirme)
       showReviewConfirmScreen();
@@ -2681,21 +2905,78 @@
       if (!couponCode) return;
 
       woo.ensureBlocks().then(function () {
+        // Debug/Checkpoint: tentativa de injeção do bloco de cupom
+        if (typeof state.checkpoint === 'function') {
+          try {
+            var last = window.CCCheckoutTabs && window.CCCheckoutTabs.__ctwpmlLastEnsureBlocks
+              ? window.CCCheckoutTabs.__ctwpmlLastEnsureBlocks
+              : null;
+            if (last && last.coupon) {
+              state.checkpoint('CHK_COUPON_BLOCK_FETCHED', !!last.coupon.fetched, {
+                fetched: last.coupon.fetched,
+                success: last.coupon.success,
+                htmlLength: last.coupon.htmlLength,
+              });
+            } else {
+              state.checkpoint('CHK_COUPON_BLOCK_FETCHED', false, { reason: 'no_lastEnsureBlocks' });
+            }
+          } catch (e0) {
+            state.checkpoint('CHK_COUPON_BLOCK_FETCHED', false, { reason: 'exception' });
+          }
+        }
+
+        // Debug/Checkpoint: presença de forms/elementor UI no DOM
+        if (typeof state.checkpoint === 'function') {
+          var counts = {
+            checkout_coupon: document.querySelectorAll('form.checkout_coupon').length,
+            woocommerce_checkout_form_coupon: document.querySelectorAll('#woocommerce-checkout-form-coupon').length,
+            elementor_coupon_box: document.querySelectorAll('.e-coupon-box').length,
+            elementor_apply_btn: document.querySelectorAll('.e-apply-coupon').length,
+            elementor_coupon_code: document.querySelectorAll('.e-coupon-box #coupon_code, .e-coupon-anchor #coupon_code, #coupon_code').length,
+          };
+          state.checkpoint('CHK_COUPON_FORM_FOUND', (counts.checkout_coupon + counts.woocommerce_checkout_form_coupon) > 0 || counts.elementor_apply_btn > 0, counts);
+        }
+
         // Preferir form padrão do Woo (tema ou injetado).
         var $form = $('form.checkout_coupon').first();
         if (!$form.length) $form = $('#woocommerce-checkout-form-coupon').first();
-        if (!$form.length) {
-          showNotification('Form de cupom não encontrado.', 'error', 3500);
-          return;
+        if ($form.length) {
+          var $code = $form.find('#coupon_code');
+          if (!$code.length) $code = $form.find('input[name="coupon_code"]');
+          if ($code.length) {
+            $code.val(couponCode).trigger('input').trigger('change');
+          }
+          // O template padrão do Woo deixa o form como display:none; garantimos submit “de verdade”.
+          try { $form.css('display', 'block'); } catch (e2) {}
+          $form.trigger('submit');
+        } else {
+          // Fallback Elementor: usa UI do Elementor (input #coupon_code + botão .e-apply-coupon)
+          try {
+            var $show = $('.e-show-coupon-form').first();
+            if ($show.length) $show.trigger('click');
+          } catch (e3) {}
+
+          var $elCode = $('.e-coupon-box #coupon_code, .e-coupon-anchor #coupon_code, #coupon_code').first();
+          var $elApply = $('.e-apply-coupon').first();
+          if ($elCode.length && $elApply.length) {
+            $elCode.val(couponCode).trigger('input').trigger('change');
+            // click real para permitir handlers do Elementor
+            try { $elApply[0].click(); } catch (e4) { $elApply.trigger('click'); }
+          } else {
+            showNotification('Form de cupom não encontrado.', 'error', 3500);
+            return;
+          }
         }
-        var $code = $form.find('#coupon_code');
-        if (!$code.length) $code = $form.find('input[name="coupon_code"]');
-        if ($code.length) {
-          $code.val(couponCode).trigger('input').trigger('change');
-        }
-        // O template padrão do Woo deixa o form como display:none; garantimos submit “de verdade”.
-        try { $form.css('display', 'block'); } catch (e2) {}
-        $form.trigger('submit');
+        try {
+          if (typeof state.checkpoint === 'function') {
+            state.checkpoint('CHK_OVERLAY_SOURCES', true, {
+              source: 'apply_coupon',
+              hasBlockOverlay: document.querySelectorAll('.blockUI.blockOverlay').length,
+              hasBlockMsg: document.querySelectorAll('.blockUI.blockMsg').length,
+              hasNoticeGroup: document.querySelectorAll('.woocommerce-NoticeGroup, .woocommerce-NoticeGroup-checkout').length,
+            });
+          }
+        } catch (e5) {}
 
         toggleCouponDrawer(false);
 
@@ -2764,29 +3045,64 @@
     $(document).on('click', '#ctwpml-review-confirm, #ctwpml-review-confirm-sticky', function (e) {
       e.preventDefault();
 
+      var log = function (msg, data) {
+        try {
+          if (typeof state.log === 'function') state.log(msg, data || {}, 'REVIEW');
+        } catch (_) {}
+      };
+
       var woo = window.CCCheckoutTabs && window.CCCheckoutTabs.WooHost ? window.CCCheckoutTabs.WooHost : null;
       if (!woo || !woo.hasCheckoutForm || !woo.hasCheckoutForm()) {
         showNotification('Não foi possível finalizar: form do checkout não encontrado.', 'error', 4500);
+        if (typeof state.checkpoint === 'function') state.checkpoint('CHK_CTA_SUBMIT', false, { reason: 'no_form' });
         return;
       }
 
       if (!woo.getSelectedGatewayId || !woo.getSelectedGatewayId()) {
         showNotification('Selecione uma forma de pagamento para continuar.', 'error', 3500);
-        return;
-      }
-
-      // Garantir que o Woo esteja atualizado antes de finalizar.
-      try { $(document.body).trigger('update_checkout'); } catch (e2) {}
-
-      var $place = $('#place_order').first();
-      if (!$place.length) {
-        showNotification('Não foi possível finalizar: botão do WooCommerce (#place_order) não encontrado.', 'error', 4500);
+        if (typeof state.checkpoint === 'function') state.checkpoint('CHK_CTA_SUBMIT', false, { reason: 'no_gateway' });
         return;
       }
 
       // Evita duplo clique.
       $('#ctwpml-review-confirm, #ctwpml-review-confirm-sticky').prop('disabled', true).css('opacity', '0.7');
-      $place.trigger('click');
+
+      // Se o Woo emitir erro, reabilita CTA e loga.
+      $(document.body).one('checkout_error', function () {
+        try {
+          $('#ctwpml-review-confirm, #ctwpml-review-confirm-sticky').prop('disabled', false).css('opacity', '');
+          var $err = $('.woocommerce-error, .woocommerce-NoticeGroup-checkout').first();
+          log('checkout_error recebido', { text: $err.length ? $err.text().trim() : '' });
+          if (typeof state.checkpoint === 'function') state.checkpoint('CHK_CHECKOUT_ERROR', true, { text: $err.length ? $err.text().trim() : '' });
+        } catch (_) {}
+      });
+
+      // (Opcional) garante update_checkout antes do submit.
+      try { $(document.body).trigger('update_checkout'); } catch (e2) {}
+
+      // Preferência 1: click NATIVO no botão submit
+      var btn = document.getElementById('place_order');
+      if (btn && typeof btn.click === 'function') {
+        log('CTA submit via place_order.click() nativo');
+        if (typeof state.checkpoint === 'function') state.checkpoint('CHK_PLACE_ORDER_NATIVE', true, {});
+        btn.click();
+        return;
+      }
+      if (typeof state.checkpoint === 'function') state.checkpoint('CHK_PLACE_ORDER_NATIVE', false, { found: !!btn });
+
+      // Preferência 2: submit NATIVO do form
+      var form = document.querySelector('form.checkout, form.woocommerce-checkout');
+      if (form && typeof form.submit === 'function') {
+        log('CTA submit via form.checkout.submit() nativo');
+        if (typeof state.checkpoint === 'function') state.checkpoint('CHK_FORM_SUBMIT_NATIVE', true, {});
+        form.submit();
+        return;
+      }
+      if (typeof state.checkpoint === 'function') state.checkpoint('CHK_FORM_SUBMIT_NATIVE', false, { found: !!form });
+
+      // Fallback: jQuery submit
+      $('form.checkout, form.woocommerce-checkout').first().trigger('submit');
+      log('CTA submit via jQuery trigger(submit)');
     });
 
     // Tela 2: ao preencher o CEP, consulta webhook e preenche campos automaticamente.

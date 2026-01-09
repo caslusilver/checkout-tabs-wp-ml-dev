@@ -408,6 +408,9 @@
   window.CCCheckoutTabs.AddressMlScreens.renderReviewConfirmScreen = function renderReviewConfirmScreen(options) {
     options = options || {};
     var debugMode = !!(window.cc_params && window.cc_params.debug);
+    var billingIconUrl = options.billingIconUrl || 'https://cubensisstore.com.br/wp-content/uploads/2026/01/bill.png';
+    var shippingIconUrl = options.shippingIconUrl || 'https://cubensisstore.com.br/wp-content/uploads/2026/01/gps-1.png';
+    var paymentIconUrl = options.paymentIconUrl || 'https://cubensisstore.com.br/wp-content/uploads/2026/01/bank-card.png';
 
     var productCount = typeof options.productCount === 'number' ? options.productCount : 0;
     var subtotalText = options.subtotalText || '';
@@ -455,7 +458,7 @@
       '  <div class="ctwpml-review-section-label">Faturamento</div>' +
       '  <div class="ctwpml-review-card">' +
       '    <div class="ctwpml-review-card-header">' +
-      '      <div class="ctwpml-review-card-icon" aria-hidden="true">🧾</div>' +
+      '      <div class="ctwpml-review-card-icon" aria-hidden="true"><img src="' + escapeHtml(billingIconUrl) + '" alt="" /></div>' +
       '      <div class="ctwpml-review-card-content">' +
       '        <div class="ctwpml-review-card-title" id="ctwpml-review-billing-name">' + escapeHtml(billingName) + '</div>' +
       '        <div class="ctwpml-review-card-text" id="ctwpml-review-billing-cpf">' + escapeHtml(billingCpf) + '</div>' +
@@ -467,7 +470,7 @@
       '  <div class="ctwpml-review-section-label">Detalhe da entrega</div>' +
       '  <div class="ctwpml-review-card">' +
       '    <div class="ctwpml-review-card-header">' +
-      '      <div class="ctwpml-review-card-icon" aria-hidden="true">📍</div>' +
+      '      <div class="ctwpml-review-card-icon" aria-hidden="true"><img src="' + escapeHtml(shippingIconUrl) + '" alt="" /></div>' +
       '      <div class="ctwpml-review-card-content">' +
       '        <div class="ctwpml-review-card-title" id="ctwpml-review-address-title">' + escapeHtml(addressTitle) + '</div>' +
       '        <div class="ctwpml-review-card-text" id="ctwpml-review-address-subtitle">' + escapeHtml(addressSubtitle) + '</div>' +
@@ -489,7 +492,7 @@
       '  <div class="ctwpml-review-section-label">Detalhe do pagamento</div>' +
       '  <div class="ctwpml-review-card">' +
       '    <div class="ctwpml-review-card-header">' +
-      '      <div class="ctwpml-review-card-icon" aria-hidden="true">💳</div>' +
+      '      <div class="ctwpml-review-card-icon" aria-hidden="true"><img src="' + escapeHtml(paymentIconUrl) + '" alt="" /></div>' +
       '      <div class="ctwpml-review-card-content">' +
       '        <div class="ctwpml-review-card-title" id="ctwpml-review-payment-method">' + escapeHtml(paymentLabel) + '</div>' +
       '        <div class="ctwpml-review-card-text" id="ctwpml-review-payment-amount">' + escapeHtml(totalText) + '</div>' +

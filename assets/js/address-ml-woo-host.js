@@ -76,6 +76,10 @@
     return ajaxPost({ action: action, _ajax_nonce: nonce });
   }
 
+  function fetchCouponBlock() {
+    return fetchBlock('ctwpml_get_coupon_block');
+  }
+
   function hasPaymentInDom() {
     return !!document.querySelector('#payment input[name="payment_method"]');
   }
@@ -103,7 +107,7 @@
     var tasks = [];
     if (needsPayment) tasks.push(fetchBlock('ctwpml_get_payment_block').then(function (r) { return { k: 'payment', r: r }; }));
     if (needsReview) tasks.push(fetchBlock('ctwpml_get_review_block').then(function (r) { return { k: 'review', r: r }; }));
-    if (needsCoupon) tasks.push(fetchBlock('ctwpml_get_coupon_block').then(function (r) { return { k: 'coupon', r: r }; }));
+    if (needsCoupon) tasks.push(fetchCouponBlock().then(function (r) { return { k: 'coupon', r: r }; }));
 
     if (!tasks.length) {
       log('ensureBlocks() - DOM já possui payment/review/coupon, nada a injetar');
@@ -111,18 +115,40 @@
     }
 
     var results = await Promise.allSettled(tasks);
+    var summary = {
+      ok: true,
+      injected: true,
+      needsPayment: needsPayment,
+      needsReview: needsReview,
+      needsCoupon: needsCoupon,
+      coupon: { fetched: false, success: false, htmlLength: 0 },
+    };
+
     results.forEach(function (it) {
       if (it.status !== 'fulfilled') return;
       var k = it.value.k;
       var resp = it.value.r || {};
       if (!resp.success) {
         log('ensureBlocks() - falha ao obter bloco: ' + k, resp);
+        if (k === 'coupon') {
+          summary.coupon.fetched = true;
+          summary.coupon.success = false;
+          summary.coupon.htmlLength = 0;
+        }
         return;
       }
       var html = (resp.data && typeof resp.data.html === 'string') ? resp.data.html : '';
       if (k === 'coupon' && html === '') {
         // cupons desabilitados → ok
+        summary.coupon.fetched = true;
+        summary.coupon.success = true;
+        summary.coupon.htmlLength = 0;
         return;
+      }
+      if (k === 'coupon') {
+        summary.coupon.fetched = true;
+        summary.coupon.success = true;
+        summary.coupon.htmlLength = html.length;
       }
       var wrap = document.createElement('div');
       wrap.className = 'ctwpml-wc-block ctwpml-wc-block-' + k;
@@ -130,7 +156,9 @@
       root.appendChild(wrap);
     });
 
-    return { ok: true, injected: true };
+    window.CCCheckoutTabs = window.CCCheckoutTabs || {};
+    window.CCCheckoutTabs.__ctwpmlLastEnsureBlocks = summary;
+    return summary;
   }
 
   function getPaymentRoot() {
@@ -239,6 +267,7 @@
 
   window.CCCheckoutTabs.WooHost = {
     ensureBlocks: ensureBlocks,
+    fetchCouponBlock: fetchCouponBlock,
     listGateways: listGateways,
     matchGatewayId: matchGatewayId,
     selectGateway: selectGateway,

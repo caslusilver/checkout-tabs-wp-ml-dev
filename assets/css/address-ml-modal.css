@@ -837,15 +837,18 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
 }
 
 .ctwpml-payment-method-title {
-  font-size: 15px;
-  font-weight: 500;
-  color: #333;
+  font-size: 15px !important;
+  font-weight: 700 !important;
+  color: #333 !important;
+  display: block !important;
+  line-height: 1.2 !important;
 }
 
 .ctwpml-payment-method-subtitle {
-  font-size: 13px;
-  color: #999;
-  margin-top: 2px;
+  font-size: 13px !important;
+  color: #999 !important;
+  margin-top: 2px !important;
+  display: block !important;
 }
 
 /* Título azul (ex: "Novo cartão de crédito") */
@@ -969,8 +972,9 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
 }
 
 .ctwpml-review-btn-confirm {
-  width: 100%;
-  background: #3483fa;
+  width: 100% !important;
+  display: block !important;
+  background: #3483fa !important;
   color: #fff;
   padding: 14px 16px;
   border-radius: 6px;
@@ -978,6 +982,13 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
   font-weight: 700;
   border: none;
   cursor: pointer;
+}
+
+/* CTA padrão (shipping/payment) */
+.ctwpml-shipping-continue,
+.ctwpml-add-coupon-btn {
+  width: 100% !important;
+  display: block !important;
 }
 
 /* Sticky footer do Review (slide no scroll) */
@@ -1039,6 +1050,13 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+}
+
+.ctwpml-review-card-icon img {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+  display: block;
 }
 
 .ctwpml-review-card-title {
