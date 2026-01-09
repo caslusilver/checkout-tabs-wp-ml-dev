@@ -9,6 +9,15 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 - Criar o repositório: `caslusilver/checkout-tabs-wp-ml-dev`
 - Branch principal do fluxo: `develop`
 
+## [v1.0.0] - 2026-01-09
+
+### Stable Release
+- Primeira versão estável do plugin **Checkout Tabs WP ML**.
+- Baseada em `v3.2.37` (branch `develop`).
+- Inclui todas as funcionalidades desenvolvidas: modal ML fullscreen no checkout, integração com webhook de frete, popup de login/cadastro, geolocalização, painel admin com abas (Integrações/Debug/Styles), reCAPTCHA v2, persistência de endereços/WhatsApp/CPF, telas de frete e pagamento estilo Mercado Livre, e sistema de checkpoints de debug.
+
+---
+
 ## [v3.1.20] - 2026-01-05
 
 ### Added

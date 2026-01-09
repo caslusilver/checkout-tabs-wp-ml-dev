@@ -1,0 +1,179 @@
+DOC — Fluxo de Frete (ML) no Checkout Modal (v3.2.37)
+=====================================================
+
+Contexto
+--------
+Este documento descreve o funcionamento esperado da etapa de FRETE (prazo/entrega) do modal ML-only
+e o diagnóstico “cirúrgico” (via logs/checkpoints) do problema que levamos horas para resolver:
+
+- Sintoma clássico: o usuário escolhe SEDEX (ex.: flat_rate:5), mas o pedido finaliza com outro método
+  (ex.: PAC Mini flat_rate:1) e/ou o valor do frete fica 0.
+
+Na v3.2.37, o fluxo foi estabilizado para:
+- aplicar o método selecionado de forma consistente no WooCommerce
+- garantir que o custo do frete (vindo do webhook) seja aplicado no recálculo
+- evitar o reaproveitamento de cache de shipping do Woo que fazia o total de frete voltar para 0
+
+
+Visão geral (o que “TEM que acontecer”)
+---------------------------------------
+1) Usuário escolhe um endereço (address_id).
+2) Front chama AJAX para buscar opções de frete para esse endereço:
+   - action: ctwpml_get_shipping_options
+   - resposta traz opções do tipo:
+     - flat_rate:5 (SEDEX)
+     - flat_rate:1 (PAC Mini)
+     - flat_rate:3 (Motoboy)
+3) Usuário escolhe uma opção (method_id, ex.: flat_rate:5).
+4) Front chama AJAX para aplicar no Woo:
+   - action: ctwpml_set_shipping_method
+   - payload inclui method_id e (idealmente) address_id
+5) Back-end:
+   - garante boot de WC()->session e WC()->cart no contexto admin-ajax
+   - sincroniza WC()->session['webhook_shipping'] com base no payload do endereço selecionado
+   - valida se o rate solicitado existe agora (available_rate_ids)
+   - define WC()->session['chosen_shipping_methods'] = [method_id]
+   - limpa cache de shipping do Woo (shipping_for_package_*) e reseta shipping
+   - recalcula shipping/totals e persiste com WC()->cart->set_session()
+6) Front sincroniza o radio do Woo (input shipping_method checked + change) e dispara update_checkout.
+7) Review mostra o frete vindo dos totals do Woo (não “inventado” pelo front).
+
+
+Por que o bug acontecia (causa raiz)
+-----------------------------------
+O plugin usa override de rates no Woo via:
+  inc/shipping-rates-override.php
+  filtro: woocommerce_package_rates
+
+Esse filtro altera/remover rates com base em:
+  WC()->session['webhook_shipping']
+
+Regra crítica (exemplos do código):
+- flat_rate:5 (SEDEX) é REMOVIDO se webhook_shipping.freteSedex.valor estiver vazio/inválido/<=0.
+- flat_rate:3 (Motoboy) é REMOVIDO se webhook_shipping.freteMotoboy.valor estiver vazio/inválido/<=0.
+- flat_rate:1 (PAC Mini) geralmente NÃO é removido (comportamento “fallback”).
+
+Quando WC()->session estava indisponível (admin-ajax) OU quando o Woo reutilizava cache antigo de rates,
+o webhook_shipping não era aplicado no momento do cálculo → SEDEX/Motoboy sumiam → o Woo caía no rate
+restante (geralmente PAC Mini) e/ou o total de frete ficava 0.
+
+
+Onde está a solução (arquivos e pontos importantes)
+---------------------------------------------------
+Front-end (modal e checkpoints):
+- assets/js/address-ml-modal.js
+  - sincroniza o radio do Woo antes do update_checkout
+  - checkpoints relevantes:
+    - CHK_SHIPPING_SET_REQUEST
+    - CHK_SHIPPING_SET_RESPONSE
+    - CHK_WEBHOOK_SHIPPING_SESSION_SYNC
+    - CHK_CART_SHIPPING_TOTAL_NONZERO
+    - CHK_SHIPPING_RADIO_SYNC
+    - CHK_SHIPPING_SET_APPLIED
+    - CHK_SHIPPING_CONTINUE_ALLOWED
+
+Back-end (aplicar método + custo real):
+- inc/frontend/addresses-api.php
+  - wp_ajax_ctwpml_set_shipping_method
+    - faz “boot WC” (wc_load_cart + initialize_session + initialize_cart + set_customer_session_cookie)
+    - sincroniza webhook_shipping a partir do payload do address_id selecionado
+    - valida existência do rate (available_rate_ids) para evitar fallback silencioso
+    - limpa cache shipping_for_package_* + WC()->shipping->reset_shipping()
+    - recalcula totals e persiste (WC()->cart->set_session())
+    - retry do sync quando o primeiro falha por no_wc_session
+
+Back-end (fonte do custo):
+- inc/shipping-rates-override.php
+  - aplica custos (set_cost) e pode remover rates inválidos
+  - depende de WC()->session['webhook_shipping']
+
+
+Checklist de validação (sem console, só pelos logs)
+---------------------------------------------------
+Durante um teste normal (escolhendo SEDEX, por exemplo), você deve ver:
+
+1) Na etapa do frete:
+   - CHECK ✓ OK CHK_SHIPPING_OPTIONS
+   - CHECK ✓ OK CHK_SHIPPING_SET_REQUEST
+   - CHECK ✓ OK CHK_SHIPPING_SET_RESPONSE
+   - CHECK ✓ OK CHK_WEBHOOK_SHIPPING_SESSION_SYNC
+   - CHECK ✓ OK CHK_CART_SHIPPING_TOTAL_NONZERO   <-- o “ponto final” do frete com custo aplicado
+   - CHECK ✓ OK CHK_SHIPPING_RADIO_SYNC
+   - CHECK ✓ OK CHK_SHIPPING_SET_APPLIED
+
+2) Indo para o Review:
+   - CHECK ✓ OK CHK_REVIEW_SHIPPING_VALUE_SOURCE (via Woo totals)
+   - CHECK ✓ OK CHK_REVIEW_RENDERED
+   - CHECK ✓ OK CHK_REVIEW_SHIPPING_SNAPSHOT
+
+Interpretação rápida:
+- Se CHK_CART_SHIPPING_TOTAL_NONZERO = OK → o Woo está retornando frete > 0 no recálculo.
+- Se CHK_SHIPPING_SET_APPLIED = OK → o método selecionado foi efetivamente aplicado (não só “pedido”).
+
+
+Diagnóstico rápido quando quebrar (ordem recomendada)
+-----------------------------------------------------
+1) Quebrou com “frete trocado” (SEDEX -> PAC Mini)?
+   - Procure CHK_SHIPPING_SET_RESPONSE (expandir JSON se exibido)
+   - Se houver “requested_exists=false” ou “available_rate_ids” sem flat_rate:5:
+     - o SEDEX foi removido pelo override (webhook_shipping inválido ou não sincronizado)
+
+2) Quebrou com “frete = 0” mesmo escolhendo SEDEX?
+   - Procure CHK_CART_SHIPPING_TOTAL_NONZERO:
+     - FAIL geralmente indica:
+       - webhook_shipping não setado na sessão no momento do cálculo, ou
+       - cache de shipping do Woo reutilizado (shipping_for_package_*) e não recalculou com dados novos
+
+3) CHK_WEBHOOK_SHIPPING_SESSION_SYNC = FAIL:
+   - No back-end o motivo típico era “no_wc_session” no admin-ajax.
+   - Na v3.2.37 existe:
+     - boot explícito de sessão/carrinho
+     - retry do sync quando falha por no_wc_session
+
+4) “ERRO AJAX” isolado (setShippingMethodInWC):
+   - Pode ser request abortado por navegação/duplicidade (race).
+   - Se isso virar recorrente, reforçar no front o log de:
+     - status, readyState, responseText
+   - E garantir “última requisição vence” (ignorar resposta atrasada de request anterior).
+
+
+Sinais de que está 100% correto (padrão-ouro)
+---------------------------------------------
+- CHK_WEBHOOK_SHIPPING_SESSION_SYNC ✓ OK
+- CHK_CART_SHIPPING_TOTAL_NONZERO ✓ OK
+- CHK_SHIPPING_SET_APPLIED ✓ OK
+- Review atualiza “frete via Woo totals”
+- Pedido finaliza com o método escolhido (ex.: flat_rate:5) e com custo correto.
+
+
+Notas de manutenção (pra lembrar no futuro)
+-------------------------------------------
+1) O override de rates remove SEDEX/Motoboy quando valores do webhook são inválidos.
+   Então: “aplicar SEDEX” depende de sincronizar webhook_shipping ANTES do cálculo de rates.
+
+2) WooCommerce pode cachear rates na sessão em shipping_for_package_*.
+   Se o webhook_shipping muda, é obrigatório limpar esse cache antes de recalcular totals
+   (senão o custo não atualiza e o frete pode voltar a 0).
+
+3) Admin-ajax nem sempre inicializa WC()->session automaticamente.
+   Por isso o boot explícito em ctwpml_set_shipping_method é crítico.
+
+
+Anexo — Referências no código (para procurar rápido)
+----------------------------------------------------
+- inc/frontend/addresses-api.php
+  - wp_ajax_ctwpml_set_shipping_method (logs: “[CTWPML] set_shipping_method - ...”)
+  - ctwpml_clear_wc_shipping_cache()
+  - ctwpml_sync_webhook_shipping_session_from_address_payload()
+
+- inc/shipping-rates-override.php
+  - checkout_tabs_wp_ml_override_shipping_rates_with_webhook()
+  - casos:
+    - flat_rate:1 (PAC Mini)
+    - flat_rate:5 (SEDEX)
+    - flat_rate:3 (Motoboy)
+
+- assets/js/address-ml-modal.js
+  - setShippingMethodInWC()
+  - checkpoints: CHK_CART_SHIPPING_TOTAL_NONZERO / CHK_SHIPPING_RADIO_SYNC / CHK_SHIPPING_SET_APPLIED
+
