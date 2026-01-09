@@ -4,6 +4,7 @@
   --ctwpml-brand-orange: #ff8500;
   --ctwpml-header-text: #0c0829;
   --ctwpml-ml-blue: #3483fa;
+  --ctwpml-ml-green: #00a650;
   /* Fundo padrão (referência ML): evita “duplo background” nas telas internas */
   --ctwpml-ml-bg: #f5f5f5;
   --ctwpml-ml-text-gray: #666666;
@@ -1021,6 +1022,91 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
   font-weight: 700;
   border: none;
   cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+
+.ctwpml-review-btn-confirm span {
+  position: relative;
+  z-index: 2;
+}
+
+.ctwpml-review-btn-confirm .ctwpml-success-icon {
+  display: none;
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 3;
+}
+
+/* Overlay/progresso */
+.ctwpml-review-btn-confirm::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 0;
+  background-color: rgba(0, 0, 0, 0.18);
+  transition: width 2s linear;
+  z-index: 1;
+}
+
+.ctwpml-review-btn-confirm.ctwpml-cta-loading::after {
+  width: 100%;
+}
+
+/* Sucesso: vira círculo + mostra check */
+.ctwpml-review-btn-confirm.ctwpml-cta-success {
+  width: 50px !important;
+  height: 50px !important;
+  border-radius: 50% !important;
+  background: var(--ctwpml-ml-green) !important;
+  padding: 0 !important;
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+}
+
+.ctwpml-review-btn-confirm.ctwpml-cta-success::after {
+  display: none;
+}
+
+.ctwpml-review-btn-confirm.ctwpml-cta-success span {
+  opacity: 0;
+}
+
+.ctwpml-review-btn-confirm.ctwpml-cta-success .ctwpml-success-icon {
+  display: block;
+  animation: ctwpmlScaleIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes ctwpmlScaleIn {
+  0% { transform: translate(-50%, -50%) scale(0); opacity: 0; }
+  100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+}
+
+/* Expansão final (cosmética) */
+.ctwpml-review-btn-confirm.ctwpml-cta-expand {
+  position: fixed !important;
+  z-index: 999999 !important;
+  top: 50% !important;
+  left: 50% !important;
+  width: 150vmax !important;
+  height: 150vmax !important;
+  border-radius: 50% !important;
+  transform: translate(-50%, -50%) !important;
+  transition: width 0.8s ease-in, height 0.8s ease-in, border-radius 0.5s;
+  pointer-events: none;
+}
+
+.ctwpml-review-btn-confirm.ctwpml-cta-expand .ctwpml-success-icon {
+  opacity: 0;
 }
 
 /* CTA padrão (shipping/payment) */

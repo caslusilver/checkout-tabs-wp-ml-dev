@@ -425,6 +425,7 @@
     var billingIconUrl = options.billingIconUrl || (pluginUrl ? (pluginUrl + 'assets/img/icones/recipt.png') : 'https://cubensisstore.com.br/wp-content/uploads/2026/01/bill.png');
     var shippingIconUrl = options.shippingIconUrl || (pluginUrl ? (pluginUrl + 'assets/img/icones/gps-1.png') : 'https://cubensisstore.com.br/wp-content/uploads/2026/01/gps-1.png');
     var paymentIconUrl = options.paymentIconUrl || (pluginUrl ? (pluginUrl + 'assets/img/icones/bank-card.png') : 'https://cubensisstore.com.br/wp-content/uploads/2026/01/bank-card.png');
+    var checkIconUrl = options.checkIconUrl || (pluginUrl ? (pluginUrl + 'assets/img/icones/check.svg') : '');
 
     var productCount = typeof options.productCount === 'number' ? options.productCount : 0;
     var subtotalText = options.subtotalText || '';
@@ -473,7 +474,10 @@
       '        <span>Li e concordo com os termos e a política de privacidade.</span>' +
       '      </label>' +
       '    </div>' +
-      '    <button type="button" class="ctwpml-review-btn-confirm" id="ctwpml-review-confirm">Confirmar a compra</button>' +
+      '    <button type="button" class="ctwpml-review-btn-confirm" id="ctwpml-review-confirm">' +
+      '      <span>Confirmar a compra</span>' +
+      (checkIconUrl ? ('      <img src="' + escapeHtml(checkIconUrl) + '" class="ctwpml-success-icon" alt="Sucesso" aria-hidden="true" />') : '') +
+      '    </button>' +
       '  </div>' +
       '' +
       '  <div class="ctwpml-review-section-label">Faturamento</div>' +
@@ -534,7 +538,10 @@
       '        <span>Li e concordo com os termos e a política de privacidade.</span>' +
       '      </label>' +
       '    </div>' +
-      '    <button type="button" class="ctwpml-review-btn-confirm" id="ctwpml-review-confirm-sticky">Confirmar a compra</button>' +
+      '    <button type="button" class="ctwpml-review-btn-confirm" id="ctwpml-review-confirm-sticky">' +
+      '      <span>Confirmar a compra</span>' +
+      (checkIconUrl ? ('      <img src="' + escapeHtml(checkIconUrl) + '" class="ctwpml-success-icon" alt="Sucesso" aria-hidden="true" />') : '') +
+      '    </button>' +
       '  </div>' +
       '</div>';
 

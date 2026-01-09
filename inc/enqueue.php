@@ -195,6 +195,13 @@ add_action('wp_enqueue_scripts', function () {
 		true
 	);
 	wp_enqueue_script(
+		'checkout-tabs-wp-ml-cta-anim',
+		CHECKOUT_TABS_WP_ML_URL . 'assets/js/cta-anim.js',
+		['checkout-tabs-wp-ml-address-ml-modal'],
+		$version,
+		true
+	);
+	wp_enqueue_script(
 		'checkout-tabs-wp-ml-login-signup',
 		CHECKOUT_TABS_WP_ML_URL . 'assets/js/login-signup.js',
 		['jquery'],
@@ -204,7 +211,7 @@ add_action('wp_enqueue_scripts', function () {
 	wp_enqueue_script(
 		'checkout-tabs-wp-ml-main',
 		CHECKOUT_TABS_WP_ML_URL . 'assets/js/checkout-tabs.js',
-		['checkout-tabs-wp-ml-address-ml-modal', 'checkout-tabs-wp-ml-login-signup'],
+		['checkout-tabs-wp-ml-address-ml-modal', 'checkout-tabs-wp-ml-cta-anim', 'checkout-tabs-wp-ml-login-signup'],
 		$version,
 		true
 	);
@@ -212,6 +219,7 @@ add_action('wp_enqueue_scripts', function () {
 	wp_localize_script('checkout-tabs-wp-ml-main', 'cc_params', [
 		// Passar como 1/0 evita ambiguidades (ex.: 'true'/'false') no JS.
 		'debug'      => checkout_tabs_wp_ml_is_debug_enabled() ? 1 : 0,
+		'cta_anim'   => 1,
 		'is_logged_in' => is_user_logged_in() ? 1 : 0,
 		'ml_only'    => $ml_only ? 1 : 0, // Modo ML definitivo (sem abas legadas)
 		'ajax_url'   => admin_url('admin-ajax.php'),

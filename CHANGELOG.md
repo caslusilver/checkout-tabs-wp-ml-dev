@@ -9,6 +9,13 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 - Criar o repositório: `caslusilver/checkout-tabs-wp-ml-dev`
 - Branch principal do fluxo: `develop`
 
+## [v3.2.38] - 2026-01-09
+
+### Changed
+- Checkout (ML): animação visual no CTA “Confirmar a compra” no Review (botão normal + sticky) com estados `loading/success/expand`, ícone local (`check.svg`) e reset automático em `checkout_error`; mudança apenas de UI (não altera o submit nem o fluxo de frete).
+
+#### Protocol: 4576789
+
 ## [v3.1.20] - 2026-01-05
 
 ### Added
