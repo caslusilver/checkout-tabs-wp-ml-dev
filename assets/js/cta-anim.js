@@ -121,6 +121,11 @@
   function showOverlay(source) {
     ensureOverlay();
     var $ov = $('#' + OVERLAY_ID);
+    // Evita exibir duas vezes (wc_ajax_checkout_send + expand_done).
+    if ($ov.hasClass(OVERLAY_VISIBLE)) {
+      log('CTA overlay ignorado (já visível)', { source: source || 'unknown', afterClickMs: msSinceClick() });
+      return;
+    }
     $ov.addClass(OVERLAY_VISIBLE);
     anim.overlayShownAt = Date.now();
     var afterClick = msSinceClick();
@@ -220,7 +225,7 @@
         afterClickMs: anim.clickAt ? (anim.checkoutStartedAt - anim.clickAt) : null,
         url: url,
       });
-      showOverlay('wc_ajax_checkout_send');
+      // Importante: NÃO mostrar overlay aqui. A referência pede: overlay só após expand_done.
     } catch (e) {}
   });
 

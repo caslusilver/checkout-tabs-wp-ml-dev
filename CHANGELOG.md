@@ -9,12 +9,12 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 - Criar o repositório: `caslusilver/checkout-tabs-wp-ml-dev`
 - Branch principal do fluxo: `develop`
 
-## [v3.2.41] - 2026-01-09
+## [v3.2.42] - 2026-01-09
 
 ### Changed
-- Checkout (ML): ajuste da animação do CTA para não encolher o botão (círculo+check centralizados via pseudo-elemento); adiciona overlay fullscreen de “Pedido Confirmado” (estilo `sucesso.html`) cobrindo toda a tela durante a finalização; debugs reforçados na animação (tempos por fase) e no `wc-ajax=checkout` (status/result/redirect/messages, delta overlay→complete); tela de sucesso só após a expansão do círculo verde.
+- Ajuste na animação do CTA: impedir que o overlay de sucesso seja exibido no `wc-ajax=checkout` (ajaxSend) e garantir que a tela de sucesso apareça apenas após `expand_done` (fim da expansão do círculo verde), eliminando `CHK_CTA_OVERLAY_WHILE_LOADING`.
 
-#### Protocol: cc4dfed
+#### Protocol: 9f39160
 
 ## [v3.2.38] - 2026-01-09
 
