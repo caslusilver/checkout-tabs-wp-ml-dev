@@ -398,9 +398,16 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
 #### Protocol: 7abb823
 
+## [v3.2.33] - 2026-01-09
+
+### Changed
+- Frete (ML): sincroniza o radio real do Woo (`input[name^="shipping_method"]`) antes do `update_checkout` (checkpoint CHK_SHIPPING_RADIO_SYNC), evitando que o Woo reverta para o método previamente marcado (ex.: PAC `flat_rate:1`) mesmo após `chosen_shipping_methods` ter sido setado via AJAX.
+
+#### Protocol: 911ace3
+
 ## [Unreleased]
 
 ### Changed
-- **Versão atual**: v3.2.32  
-  **Versão sugerida após a mudança**: v3.2.32  
+- **Versão atual**: v3.2.33  
+  **Versão sugerida após a mudança**: v3.2.33  
   **Descrição**: Preencher antes de commitar mudanças.

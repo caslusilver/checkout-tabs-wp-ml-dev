@@ -578,6 +578,40 @@
             } catch (e3) {}
           });
 
+          // =========================================================
+          // CRÍTICO: o Woo considera o radio shipping_method como fonte de verdade.
+          // Precisamos marcar o input correspondente ANTES do update_checkout,
+          // senão ele pode reverter para o método que estava checked (ex.: flat_rate:1).
+          // =========================================================
+          try {
+            var $input = $('input[name^="shipping_method"][value="' + requested.replace(/"/g, '\\"') + '"]').first();
+            var beforeRadio = ctwpmlReadWooShippingDomSnapshot();
+            var radioOk = false;
+            if ($input.length && !$input.prop('disabled')) {
+              $input.prop('checked', true);
+              // change real para o Woo capturar
+              try { $input[0].dispatchEvent(new Event('change', { bubbles: true })); } catch (e1) { $input.trigger('change'); }
+              radioOk = true;
+            }
+            var afterRadio = ctwpmlReadWooShippingDomSnapshot();
+            log('setShippingMethodInWC() - Radio sync', {
+              requested: requested,
+              found: $input.length,
+              disabled: $input.length ? !!$input.prop('disabled') : null,
+              beforeChecked: beforeRadio ? beforeRadio.checked : '',
+              afterChecked: afterRadio ? afterRadio.checked : '',
+            });
+            if (typeof state.checkpoint === 'function') {
+              state.checkpoint('CHK_SHIPPING_RADIO_SYNC', radioOk && afterRadio && afterRadio.checked === requested, {
+                requested: requested,
+                found: $input.length,
+                disabled: $input.length ? !!$input.prop('disabled') : null,
+                beforeChecked: beforeRadio ? beforeRadio.checked : '',
+                afterChecked: afterRadio ? afterRadio.checked : '',
+              });
+            }
+          } catch (e0y) {}
+
           log('setShippingMethodInWC() - Sucesso! Disparando update_checkout');
           try {
             if (typeof state.checkpoint === 'function') {
