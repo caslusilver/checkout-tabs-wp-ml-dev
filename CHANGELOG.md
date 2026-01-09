@@ -391,9 +391,16 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
 #### Protocol: bec1672
 
+## [v3.2.32] - 2026-01-09
+
+### Changed
+- Frete (ML): correção para impedir o Woo de reverter para PAC (`flat_rate:1`) após `update_checkout` — backend `ctwpml_set_shipping_method` sincroniza `WC()->session->webhook_shipping` a partir do payload do endereço (`address_id`) antes do recálculo, garantindo que o filtro `woocommerce_package_rates` não remova SEDEX/Motoboy; frontend envia `address_id` no set e registra checkpoint `CHK_WEBHOOK_SHIPPING_SESSION_SYNC` para confirmar o sync.
+
+#### Protocol: 7abb823
+
 ## [Unreleased]
 
 ### Changed
-- **Versão atual**: v3.2.31  
-  **Versão sugerida após a mudança**: v3.2.31  
+- **Versão atual**: v3.2.32  
+  **Versão sugerida após a mudança**: v3.2.32  
   **Descrição**: Preencher antes de commitar mudanças.

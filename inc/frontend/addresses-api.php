@@ -153,6 +153,84 @@ function ctwpml_addresses_generate_id(): string {
 	return 'ctwpml_' . time() . '_' . wp_rand(1000, 9999);
 }
 
+/**
+ * Parse defensivo de preço (aceita "R$ 23,20", "23.20", 23.2).
+ */
+function ctwpml_parse_price_to_float($value): float {
+	if (is_numeric($value)) {
+		return (float) $value;
+	}
+	$s = is_string($value) ? $value : (is_null($value) ? '' : (string) $value);
+	$s = trim($s);
+	if ($s === '') {
+		return 0.0;
+	}
+	// Remove moeda e espaços, mantém dígitos, vírgula e ponto.
+	$s = preg_replace('/[^\d,\.]+/', '', $s);
+	// Converte vírgula para ponto (pt-BR).
+	$s = str_replace(',', '.', $s);
+	return is_numeric($s) ? (float) $s : 0.0;
+}
+
+/**
+ * Sincroniza WC()->session['webhook_shipping'] a partir do payload salvo por address_id.
+ * Isso evita que o filtro woocommerce_package_rates remova SEDEX/Motoboy durante update_checkout.
+ *
+ * Retorna array com:
+ * - ok: bool
+ * - reason: string
+ * - values: array (valores usados)
+ */
+function ctwpml_sync_webhook_shipping_session_from_address_payload(int $user_id, string $address_id, bool $is_debug = false): array {
+	if (!class_exists('WC') || !function_exists('WC') || !WC()->session) {
+		return ['ok' => false, 'reason' => 'no_wc_session', 'values' => []];
+	}
+	if ($address_id === '') {
+		return ['ok' => false, 'reason' => 'no_address_id', 'values' => []];
+	}
+
+	$map = ctwpml_address_payload_map_get($user_id);
+	$payload = isset($map[$address_id]) && is_array($map[$address_id]) ? $map[$address_id] : null;
+
+	// Fallback: payload global (legado)
+	if (empty($payload) || !is_array($payload)) {
+		$legacy = get_user_meta($user_id, CTWPML_ADDRESS_PAYLOAD_META_KEY, true);
+		if (is_array($legacy) && !empty($legacy)) {
+			$payload = $legacy;
+		}
+	}
+
+	if (empty($payload) || !is_array($payload)) {
+		return ['ok' => false, 'reason' => 'no_payload', 'values' => []];
+	}
+
+	$raw = $payload['raw'] ?? $payload;
+	$raw = ctwpml_normalize_webhook_payload_to_assoc($raw);
+
+	$preco_pac = ctwpml_parse_price_to_float($raw['preco_pac'] ?? ($raw['preco_pacmini'] ?? ''));
+	$preco_sedex = ctwpml_parse_price_to_float($raw['preco_sedex'] ?? '');
+	$preco_motoboy = ctwpml_parse_price_to_float($raw['preco_motoboy'] ?? '');
+
+	// Estrutura esperada por inc/shipping-rates-override.php
+	$web = [
+		'fretePACMini' => ['valor' => $preco_pac],
+		'freteSedex'   => ['valor' => $preco_sedex],
+		'freteMotoboy' => ['valor' => $preco_motoboy],
+	];
+
+	WC()->session->set('webhook_shipping', $web);
+
+	if ($is_debug) {
+		error_log('[CTWPML] webhook_shipping synced from address payload. address_id=' . $address_id . ' values=' . wp_json_encode($web));
+	}
+
+	return [
+		'ok' => true,
+		'reason' => 'synced',
+		'values' => $web,
+	];
+}
+
 add_action('wp_ajax_ctwpml_get_addresses', function () {
 	if (!is_user_logged_in()) {
 		wp_send_json_error('Usuário não autenticado.');
@@ -633,9 +711,11 @@ add_action('wp_ajax_ctwpml_set_shipping_method', function () {
 	check_ajax_referer('ctwpml_set_shipping', '_ajax_nonce');
 
 	$method_id = isset($_POST['method_id']) ? sanitize_text_field(wp_unslash($_POST['method_id'])) : '';
+	$address_id = isset($_POST['address_id']) ? sanitize_text_field((string) wp_unslash($_POST['address_id'])) : '';
 
 	if ($is_debug) {
 		error_log('[CTWPML] set_shipping_method - Method ID recebido: ' . $method_id);
+		error_log('[CTWPML] set_shipping_method - Address ID recebido: ' . ($address_id !== '' ? $address_id : 'VAZIO'));
 	}
 
 	if (empty($method_id)) {
@@ -644,6 +724,18 @@ add_action('wp_ajax_ctwpml_set_shipping_method', function () {
 		}
 		wp_send_json_error(['message' => 'Método de frete não informado.']);
 		return;
+	}
+
+	$user_id = get_current_user_id();
+	if ($address_id === '') {
+		// Fallback: usa o endereço selecionado persistido no user_meta.
+		$address_id = ctwpml_addresses_get_selected_id($user_id);
+	}
+
+	// 0) Sincroniza webhook_shipping na sessão ANTES do cálculo de rates/totals.
+	$sync = ctwpml_sync_webhook_shipping_session_from_address_payload($user_id, $address_id, $is_debug);
+	if ($is_debug) {
+		error_log('[CTWPML] set_shipping_method - webhook_shipping sync: ' . ($sync['ok'] ? 'OK' : 'FAIL') . ' reason=' . ($sync['reason'] ?? ''));
 	}
 
 	// =========================================================
@@ -765,6 +857,11 @@ add_action('wp_ajax_ctwpml_set_shipping_method', function () {
 	];
 	$response['requested_exists'] = $requested_exists;
 	$response['validation_skipped'] = $validation_skipped;
+	$response['webhook_synced'] = (bool) ($sync['ok'] ?? false);
+	$response['webhook_sync_reason'] = (string) ($sync['reason'] ?? '');
+	if ($is_debug && !empty($sync['values'])) {
+		$response['webhook_values'] = $sync['values'];
+	}
 	if ($is_debug) {
 		$response['available_rate_ids'] = $available_rate_ids;
 	}

@@ -498,6 +498,7 @@
           action: 'ctwpml_set_shipping_method',
           _ajax_nonce: state.params.set_shipping_nonce,
           method_id: methodId,
+          address_id: String(selectedAddressId || ''),
         },
         success: function (resp) {
           log('setShippingMethodInWC() - Resposta:', resp);
@@ -530,6 +531,18 @@
             } catch (e2) {}
             return;
           }
+
+          // Checkpoint: sync do webhook_shipping no backend (para não remover SEDEX/Motoboy no update_checkout)
+          try {
+            if (typeof state.checkpoint === 'function') {
+              var synced = resp && resp.data ? !!resp.data.webhook_synced : false;
+              state.checkpoint('CHK_WEBHOOK_SHIPPING_SESSION_SYNC', synced, {
+                addressId: String(selectedAddressId || ''),
+                reason: resp && resp.data ? (resp.data.webhook_sync_reason || '') : '',
+                values: resp && resp.data ? (resp.data.webhook_values || null) : null,
+              });
+            }
+          } catch (e0x) {}
 
           // Observa o que o Woo realmente deixou "checked" após recalcular.
           var t0 = Date.now();
