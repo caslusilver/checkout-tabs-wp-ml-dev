@@ -182,7 +182,34 @@ function ctwpml_parse_price_to_float($value): float {
  * - values: array (valores usados)
  */
 function ctwpml_sync_webhook_shipping_session_from_address_payload(int $user_id, string $address_id, bool $is_debug = false): array {
-	if (!class_exists('WC') || !function_exists('WC') || !WC()->session) {
+	if (!class_exists('WC') || !function_exists('WC')) {
+		return ['ok' => false, 'reason' => 'no_wc', 'values' => []];
+	}
+
+	// Em admin-ajax, WC()->session pode vir null. Tentar bootar antes de desistir.
+	try {
+		if (function_exists('wc_load_cart')) {
+			wc_load_cart();
+		}
+		if (function_exists('WC') && WC()) {
+			if (!WC()->session && method_exists(WC(), 'initialize_session')) {
+				WC()->initialize_session();
+			}
+			if (!WC()->cart && method_exists(WC(), 'initialize_cart')) {
+				WC()->initialize_cart();
+			}
+			// Ajuda a garantir cookie de sessão em contexto AJAX (quando aplicável)
+			if (WC()->session && method_exists(WC()->session, 'set_customer_session_cookie')) {
+				WC()->session->set_customer_session_cookie(true);
+			}
+		}
+	} catch (\Throwable $e) {
+		if ($is_debug) {
+			error_log('[CTWPML] webhook_shipping sync - EXCEPTION boot session: ' . $e->getMessage());
+		}
+	}
+
+	if (!function_exists('WC') || !WC() || !WC()->session) {
 		return ['ok' => false, 'reason' => 'no_wc_session', 'values' => []];
 	}
 	if ($address_id === '') {
@@ -715,25 +742,26 @@ add_action('wp_ajax_ctwpml_set_shipping_method', function () {
 	// (em alguns cenários WC()->session vem null e o frete fica 0)
 	// =========================================================
 	$wc_boot = [
-		'has_wc' => (class_exists('WC') && function_exists('WC') && WC()),
+		'has_wc' => (class_exists('WC') && function_exists('WC')),
 		'wc_load_cart_called' => false,
 		'init_session_called' => false,
 		'init_cart_called' => false,
+		'set_customer_cookie_called' => false,
 		'session_before' => null,
 		'session_after' => null,
 		'cart_before' => null,
 		'cart_after' => null,
 	];
 	try {
-		if ($wc_boot['has_wc']) {
-			$wc_boot['session_before'] = WC()->session ? get_class(WC()->session) : null;
-			$wc_boot['cart_before'] = WC()->cart ? 'yes' : 'no';
+		$wc_boot['session_before'] = (function_exists('WC') && WC() && WC()->session) ? get_class(WC()->session) : null;
+		$wc_boot['cart_before'] = (function_exists('WC') && WC() && WC()->cart) ? 'yes' : 'no';
 
-			if (function_exists('wc_load_cart')) {
-				$wc_boot['wc_load_cart_called'] = true;
-				wc_load_cart();
-			}
-			// Alguns ambientes não inicializam a sessão no admin-ajax: tenta inicializar explicitamente.
+		if (function_exists('wc_load_cart')) {
+			$wc_boot['wc_load_cart_called'] = true;
+			wc_load_cart();
+		}
+		// Alguns ambientes não inicializam a sessão no admin-ajax: tenta inicializar explicitamente.
+		if (function_exists('WC') && WC()) {
 			if (!WC()->session && method_exists(WC(), 'initialize_session')) {
 				$wc_boot['init_session_called'] = true;
 				WC()->initialize_session();
@@ -742,10 +770,15 @@ add_action('wp_ajax_ctwpml_set_shipping_method', function () {
 				$wc_boot['init_cart_called'] = true;
 				WC()->initialize_cart();
 			}
-
-			$wc_boot['session_after'] = WC()->session ? get_class(WC()->session) : null;
-			$wc_boot['cart_after'] = WC()->cart ? 'yes' : 'no';
+			// Ajuda a estabilizar a sessão em AJAX (quando aplicável)
+			if (WC()->session && method_exists(WC()->session, 'set_customer_session_cookie')) {
+				WC()->session->set_customer_session_cookie(true);
+				$wc_boot['set_customer_cookie_called'] = true;
+			}
 		}
+
+		$wc_boot['session_after'] = (function_exists('WC') && WC() && WC()->session) ? get_class(WC()->session) : null;
+		$wc_boot['cart_after'] = (function_exists('WC') && WC() && WC()->cart) ? 'yes' : 'no';
 	} catch (\Throwable $e) {
 		if ($is_debug) {
 			error_log('[CTWPML] set_shipping_method - EXCEPTION no boot WC: ' . $e->getMessage());
@@ -778,7 +811,13 @@ add_action('wp_ajax_ctwpml_set_shipping_method', function () {
 	}
 
 	// 0) Sincroniza webhook_shipping na sessão ANTES do cálculo de rates/totals.
+	$sync_attempts = [];
 	$sync = ctwpml_sync_webhook_shipping_session_from_address_payload($user_id, $address_id, $is_debug);
+	$sync_attempts[] = [
+		'at' => time(),
+		'ok' => (bool) ($sync['ok'] ?? false),
+		'reason' => (string) ($sync['reason'] ?? ''),
+	];
 	if ($is_debug) {
 		error_log('[CTWPML] set_shipping_method - webhook_shipping sync: ' . ($sync['ok'] ? 'OK' : 'FAIL') . ' reason=' . ($sync['reason'] ?? ''));
 	}
@@ -902,6 +941,36 @@ add_action('wp_ajax_ctwpml_set_shipping_method', function () {
 		}
 	}
 
+	// =========================================================
+	// Retry do sync: em alguns ambientes, a sessão só fica disponível APÓS wc_load_cart/cálculo.
+	// Se falhou por no_wc_session, tenta de novo e recalcula para aplicar os custos do override.
+	// =========================================================
+	$did_retry_sync = false;
+	if (!(bool) ($sync['ok'] ?? false) && (string) ($sync['reason'] ?? '') === 'no_wc_session' && WC()->session) {
+		$did_retry_sync = true;
+		$sync2 = ctwpml_sync_webhook_shipping_session_from_address_payload($user_id, $address_id, $is_debug);
+		$sync_attempts[] = [
+			'at' => time(),
+			'ok' => (bool) ($sync2['ok'] ?? false),
+			'reason' => (string) ($sync2['reason'] ?? ''),
+		];
+		if ($is_debug) {
+			error_log('[CTWPML] set_shipping_method - webhook_shipping sync RETRY: ' . ($sync2['ok'] ? 'OK' : 'FAIL') . ' reason=' . ($sync2['reason'] ?? ''));
+		}
+		if ((bool) ($sync2['ok'] ?? false)) {
+			$sync = $sync2;
+			// Recalcula novamente agora que webhook_shipping foi setado
+			if (WC()->cart) {
+				WC()->cart->calculate_shipping();
+				WC()->cart->calculate_totals();
+				if (method_exists(WC()->cart, 'set_session')) {
+					WC()->cart->set_session();
+					$cart_set_session_called = true;
+				}
+			}
+		}
+	}
+
 	$chosen_methods_raw = (WC()->session) ? WC()->session->get('chosen_shipping_methods') : null;
 	$web_session = (WC()->session) ? WC()->session->get('webhook_shipping') : null;
 
@@ -915,6 +984,8 @@ add_action('wp_ajax_ctwpml_set_shipping_method', function () {
 	$response['chosen_shipping_methods'] = $chosen_methods_raw;
 	$response['has_wc_session'] = (bool) (WC()->session);
 	$response['has_wc_cart'] = (bool) (WC()->cart);
+	$response['did_retry_webhook_sync'] = $did_retry_sync;
+	$response['webhook_sync_attempts'] = $is_debug ? $sync_attempts : null;
 	$response['requested_exists'] = $requested_exists;
 	$response['validation_skipped'] = $validation_skipped;
 	$response['webhook_synced'] = (bool) ($sync['ok'] ?? false);

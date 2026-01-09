@@ -412,9 +412,16 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
 #### Protocol: 16e04d5
 
+## [v3.2.35] - 2026-01-09
+
+### Changed
+- Frete (ML): correção definitiva para `webhook_shipping` não persistir em AJAX — `ctwpml_sync_webhook_shipping_session_from_address_payload` tenta inicializar sessão/carrinho do Woo (wc_load_cart + initialize_session/cart + cookie) antes de retornar `no_wc_session`; `ctwpml_set_shipping_method` adiciona retry do sync quando a sessão só fica disponível após o recálculo e executa um segundo `calculate_totals()` para aplicar o custo do override; debug reforçado com `did_retry_webhook_sync`, `webhook_sync_attempts` e `set_customer_cookie_called` no `wc_boot`.
+
+#### Protocol: 2de42bf
+
 ## [Unreleased]
 
 ### Changed
-- **Versão atual**: v3.2.34  
-  **Versão sugerida após a mudança**: v3.2.34  
+- **Versão atual**: v3.2.35  
+  **Versão sugerida após a mudança**: v3.2.35  
   **Descrição**: Preencher antes de commitar mudanças.

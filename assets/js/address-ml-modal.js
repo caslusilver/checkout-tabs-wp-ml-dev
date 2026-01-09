@@ -544,6 +544,20 @@
             }
           } catch (e0x) {}
 
+          // Checkpoint extra: retry do sync (quando a sessão só fica disponível após recálculo)
+          try {
+            if (typeof state.checkpoint === 'function') {
+              var didRetry = resp && resp.data ? !!resp.data.did_retry_webhook_sync : false;
+              var attempts = resp && resp.data ? (resp.data.webhook_sync_attempts || null) : null;
+              state.checkpoint('CHK_WEBHOOK_SHIPPING_SYNC_RETRY', !didRetry || synced, {
+                didRetry: didRetry,
+                attempts: attempts,
+                finalSynced: synced,
+                finalReason: resp && resp.data ? (resp.data.webhook_sync_reason || '') : '',
+              });
+            }
+          } catch (e0xr) {}
+
           // Observa o que o Woo realmente deixou "checked" após recalcular.
           var t0 = Date.now();
           $(document.body).one('updated_checkout', function () {
