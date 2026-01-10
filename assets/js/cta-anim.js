@@ -14,7 +14,7 @@
       var s = getState();
       if (s && s.params && (s.params.debug === 1 || s.params.debug === '1' || s.params.debug === true)) return true;
       if (window.cc_params && (window.cc_params.debug === 1 || window.cc_params.debug === '1' || window.cc_params.debug === true)) return true;
-    } catch (e) {}
+    } catch (e) { }
     return false;
   }
 
@@ -25,12 +25,12 @@
         s.log(msg, data || {}, 'CTA');
         return;
       }
-    } catch (e) {}
+    } catch (e) { }
     if (debugEnabled()) {
       try {
         console.log('[CTWPML] CTA        ' + msg);
         if (data) console.log(data);
-      } catch (e2) {}
+      } catch (e2) { }
     }
   }
 
@@ -41,12 +41,12 @@
         s.checkpoint(name, !!ok, data || {});
         return;
       }
-    } catch (e) {}
+    } catch (e) { }
     // fallback: sem checkpoint fora do debug panel
     if (debugEnabled()) {
       try {
         console.log('[CTWPML] CHECK      ' + (ok ? '✓ OK ' : '✗ FAIL ') + name, data || {});
-      } catch (e2) {}
+      } catch (e2) { }
     }
   }
 
@@ -56,7 +56,7 @@
     if (window.cc_params && typeof window.cc_params.cta_anim !== 'undefined') {
       enabled = !!(window.cc_params.cta_anim === 1 || window.cc_params.cta_anim === '1' || window.cc_params.cta_anim === true);
     }
-  } catch (e) {}
+  } catch (e) { }
   if (!enabled) return;
 
   var SELECTOR = '#ctwpml-review-confirm, #ctwpml-review-confirm-sticky';
@@ -109,12 +109,12 @@
     if (document.getElementById(OVERLAY_ID)) return;
     $('body').append(
       '' +
-        '<div id="' + OVERLAY_ID + '" aria-hidden="true">' +
-        '  <div class="ctwpml-success-message">' +
-        '    <h1>Pedido Confirmado!</h1>' +
-        '    <p>Você será redirecionado para efetuar o pagamento...</p>' +
-        '  </div>' +
-        '</div>'
+      '<div id="' + OVERLAY_ID + '" aria-hidden="true">' +
+      '  <div class="ctwpml-success-message">' +
+      '    <h1>Pedido Confirmado!</h1>' +
+      '    <p>Você será redirecionado para efetuar o pagamento...</p>' +
+      '  </div>' +
+      '</div>'
     );
   }
 
@@ -145,28 +145,30 @@
     $ov.removeClass(OVERLAY_VISIBLE);
   }
 
-  function startAnimation() {
+  function startAnimation($btn) {
     if (anim.active) return;
     anim.active = true;
     anim.clickAt = Date.now();
     checkpoint('CHK_CTA_CLICK', true, { at: anim.clickAt });
 
-    // Animar os dois botões (normal + sticky) para manter consistência visual.
-    var $btns = $(SELECTOR);
-    $btns.addClass(CLS_LOADING);
+    // Se $btn não for passado (ex: chamada manual), tenta pegar todos (mas o ideal é clicar)
+    // Para corrigir o erro de "dois círculos", usamos apenas o botão clicado se disponível.
+    var $targets = $btn || $(SELECTOR);
+
+    $targets.addClass(CLS_LOADING);
     var afterClick = msSinceClick();
     checkpoint('CHK_CTA_LOADING_STARTED', true, { afterClickMs: afterClick });
     log('CTA loading iniciado', { afterClickMs: afterClick });
 
     // Loading (referência: 2s). Depois, success + expand.
     anim.t1 = setTimeout(function () {
-      $btns.removeClass(CLS_LOADING).addClass(CLS_SUCCESS);
+      $targets.removeClass(CLS_LOADING).addClass(CLS_SUCCESS);
       var t1 = msSinceClick();
       checkpoint('CHK_CTA_SUCCESS_STATE', true, { afterClickMs: t1 });
       log('CTA success state', { afterClickMs: t1 });
 
       anim.t2 = setTimeout(function () {
-        $btns.addClass(CLS_EXPAND);
+        $targets.addClass(CLS_EXPAND);
         var t2 = msSinceClick();
         checkpoint('CHK_CTA_EXPAND_STATE', true, { afterClickMs: t2 });
         log('CTA expand state', { afterClickMs: t2 });
@@ -185,8 +187,8 @@
       var $btn = $(this);
       if ($btn.is(':disabled')) return;
       if ($btn.hasClass(CLS_LOADING) || $btn.hasClass(CLS_SUCCESS)) return;
-      startAnimation();
-    } catch (e) {}
+      startAnimation($btn);
+    } catch (e) { }
   });
 
   // Se Woo detectar erro (ex.: pagamento/termos), resetar para não “travar” no loading.
@@ -226,7 +228,7 @@
         url: url,
       });
       // Importante: NÃO mostrar overlay aqui. A referência pede: overlay só após expand_done.
-    } catch (e) {}
+    } catch (e) { }
   });
 
   // Captura término do request de checkout + resposta (result/redirect)
@@ -239,7 +241,7 @@
       var status = jqXHR ? jqXHR.status : null;
       var respText = jqXHR ? (jqXHR.responseText || '') : '';
       var parsed = null;
-      try { parsed = respText ? JSON.parse(respText) : null; } catch (e0) {}
+      try { parsed = respText ? JSON.parse(respText) : null; } catch (e0) { }
       var messages = parsed && parsed.messages ? String(parsed.messages).slice(0, 500) : null;
       var deltaOverlay = anim.overlayShownAt ? (Date.now() - anim.overlayShownAt) : null;
 
@@ -264,7 +266,7 @@
         // mas se não vier checkout_error, garantimos que o overlay não fique preso.
         resetCtas();
       }
-    } catch (e) {}
+    } catch (e) { }
   });
 })(window);
 
