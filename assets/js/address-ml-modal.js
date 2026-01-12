@@ -870,10 +870,7 @@
           // atualizar resumo (frete) e persistir no state
           var priceText = ($opt.data('price-text') || '').toString();
           var labelText = ($opt.find('.ctwpml-shipping-option-text').text() || '').trim();
-          try { 
-            $('.ctwpml-shipping-summary-price').text(window.CCCheckoutTabs.AddressMlScreens.formatShippingSummaryPrice(priceText))
-              .addClass('ctwpml-resolved').attr('data-ctwpml-resolved', 'true');
-          } catch (e) {}
+          try { $('.ctwpml-shipping-summary-price').text(window.CCCheckoutTabs.AddressMlScreens.formatShippingSummaryPrice(priceText)); } catch (e) {}
           state.selectedShipping = {
             methodId: methodId,
             type: ($opt.data('type') || '').toString(),
@@ -926,8 +923,6 @@
                   productThumbUrls: productThumbUrls,
                 });
                 $('#ctwpml-view-shipping').html(html);
-                // Marcar elementos como resolvidos após renderizar
-                $('#ctwpml-view-shipping .ctwpml-pending-value').addClass('ctwpml-resolved').attr('data-ctwpml-resolved', 'true');
               } else {
                 log('showShippingPlaceholder() - renderShippingOptions não disponível, usando placeholder');
                 var htmlFallback = window.CCCheckoutTabs.AddressMlScreens.renderShippingPlaceholder(it);
@@ -1089,14 +1084,8 @@
 
       // Atualizar valores do footer (subtotal/total)
       var totals = woo.readTotals();
-      if (totals.subtotalText) {
-        $('#ctwpml-payment-subtotal-value').text(totals.subtotalText)
-          .addClass('ctwpml-resolved').attr('data-ctwpml-resolved', 'true');
-      }
-      if (totals.totalText) {
-        $('#ctwpml-payment-total-value').text(totals.totalText)
-          .addClass('ctwpml-resolved').attr('data-ctwpml-resolved', 'true');
-      }
+      if (totals.subtotalText) $('#ctwpml-payment-subtotal-value').text(totals.subtotalText);
+      if (totals.totalText) $('#ctwpml-payment-total-value').text(totals.totalText);
 
       // Guardar mapping para clique
       state.paymentGatewayMap = map;
@@ -3249,8 +3238,7 @@
         : function(p) { return p || 'Grátis'; };
 
       var summaryPrice = formatFn(priceText);
-      $('.ctwpml-shipping-summary-price').text(summaryPrice)
-        .addClass('ctwpml-resolved').attr('data-ctwpml-resolved', 'true');
+      $('.ctwpml-shipping-summary-price').text(summaryPrice);
 
       log('Resumo atualizado:', { priceText: priceText, summaryPrice: summaryPrice });
 

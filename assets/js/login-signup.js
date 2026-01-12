@@ -121,22 +121,7 @@
         } catch (e) {}
       }
       if (!recaptchaResponse) {
-        // Se não tem reCAPTCHA response, mostrar mensagem com link
-        var linkHtml = '<a href="#" id="ctwpml-goto-recaptcha" style="color:#3483fa;font-weight:bold;">Clique aqui para completar o reCAPTCHA</a>';
-        setMsg($msg, 'Por favor, complete o reCAPTCHA. ' + linkHtml, true);
-        
-        // Handler para voltar à aba de login e destacar reCAPTCHA
-        $(document).off('click', '#ctwpml-goto-recaptcha').on('click', '#ctwpml-goto-recaptcha', function(e) {
-          e.preventDefault();
-          // Trocar para aba login
-          $('#login-popup .ctwpml-auth-tab[data-tab="login"]').trigger('click');
-          // Destacar reCAPTCHA
-          $('#g-recaptcha-login').css({
-            'border': '2px solid #dc2626',
-            'border-radius': '4px',
-            'padding': '2px'
-          });
-        });
+        setMsg($msg, 'Por favor, complete o reCAPTCHA.', true);
         return;
       }
 
@@ -157,8 +142,7 @@
         success: function (resp) {
           if (resp && resp.success) {
             setMsg($msg, 'Conta criada! Atualizando...', false);
-            // Usar redirecionamento forçado para garantir nova sessão
-            window.location.href = window.location.href.split('?')[0] + '?ctwpml_session_refresh=' + Date.now();
+            window.location.reload();
             return;
           }
           var m = (resp && resp.data && resp.data.message) || (resp && resp.data) || 'Erro ao criar conta.';
@@ -239,8 +223,7 @@
         success: function (resp) {
           if (resp && resp.success) {
             setMsg($msg, 'Login realizado! Atualizando...', false);
-            // Usar redirecionamento forçado para garantir nova sessão
-            window.location.href = window.location.href.split('?')[0] + '?ctwpml_session_refresh=' + Date.now();
+            window.location.reload();
             return;
           }
           var m = (resp && resp.data && resp.data.message) || (resp && resp.data) || 'Erro ao fazer login.';

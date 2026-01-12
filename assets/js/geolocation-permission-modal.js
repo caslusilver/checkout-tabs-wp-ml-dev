@@ -1,20 +1,6 @@
 (function (window) {
   'use strict';
 
-  var DEBUG_GEO = true; // Forçar debug temporariamente
-  
-  function geoLog(msg, data) {
-    if (!DEBUG_GEO) return;
-    try {
-      var prefix = '[CTWPML GEO DEBUG] ';
-      if (data) {
-        console.log(prefix + msg, data);
-      } else {
-        console.log(prefix + msg);
-      }
-    } catch(e) {}
-  }
-
   var GEO = window.CTWPMLGeo || {};
   var PROMPT_SHOWN_KEY = 'ctwpml_geo_prompt_shown';
 
@@ -78,17 +64,9 @@
     overlay.style.display = 'none';
   }
 
-  function setStatus(msg, isLoading) {
+  function setStatus(msg) {
     var el = document.getElementById('ctwpml-geo-status');
-    if (!el) return;
-    
-    if (isLoading) {
-      el.innerHTML = '<span class="ctwpml-geo-loading-text">' + 
-        (msg || 'Carregando') + 
-        '<span class="ctwpml-dots"></span></span>';
-    } else {
-      el.textContent = msg || '';
-    }
+    if (el) el.textContent = msg || '';
   }
 
   function setButtonsDisabled(disabled) {
@@ -110,7 +88,7 @@
 
     allowBtn.addEventListener('click', function () {
       setButtonsDisabled(true);
-      setStatus('Ativando localização', true);  // true = isLoading
+      setStatus('Ativando localização…');
 
       Promise.resolve()
         .then(function () {
@@ -134,33 +112,19 @@
   }
 
   function shouldShowModalViaPermissionsApi() {
-    geoLog('Verificando permissions API...');
-    
-    if (!navigator || !navigator.permissions || !navigator.permissions.query) {
-      geoLog('Permissions API não disponível, retornando true');
-      return Promise.resolve(true);
-    }
-    
+    if (!navigator || !navigator.permissions || !navigator.permissions.query) return Promise.resolve(true);
     return navigator.permissions
       .query({ name: 'geolocation' })
       .then(function (res) {
-        geoLog('Permissions query result:', res ? res.state : 'null');
         // só mostra se estiver em prompt (evita insistir se já negado ou concedido)
         return res && res.state === 'prompt';
       })
-      .catch(function (err) {
-        geoLog('Permissions query error:', err);
+      .catch(function () {
         return true;
       });
   }
 
   function init() {
-    geoLog('init() chamado');
-    geoLog('navigator.geolocation disponível:', 'geolocation' in navigator);
-    geoLog('navigator.permissions disponível:', !!(navigator && navigator.permissions));
-    geoLog('GEO.ensureSessionCache:', typeof GEO.ensureSessionCache);
-    geoLog('GEO.requestAndFetch:', typeof GEO.requestAndFetch);
-    
     // 1) Se já existe cache na sessão, já entrega o contrato e não mostra modal.
     if (typeof GEO.ensureSessionCache === 'function' && GEO.ensureSessionCache()) return;
 

@@ -236,7 +236,7 @@
         '    <div class="ctwpml-shipping-radio"></div>' +
         '    <span class="ctwpml-shipping-option-text">' + escapeHtml(opt.label) + '</span>' +
         '  </div>' +
-        '  <span class="ctwpml-shipping-price' + (priceText && priceText !== '—' ? '' : ' ctwpml-pending-value') + '">' + escapeHtml(priceText) + '</span>' +
+        '  <span class="ctwpml-shipping-price">' + escapeHtml(priceText) + '</span>' +
         '</div>';
     });
 
@@ -281,7 +281,7 @@
       '<div class="ctwpml-shipping-footer">' +
       '  <div class="ctwpml-shipping-summary-row">' +
       '    <span>Frete</span>' +
-      '    <span class="ctwpml-shipping-summary-price' + (initialSummaryPrice && initialSummaryPrice !== 'Grátis' && initialSummaryPrice !== '—' ? '' : ' ctwpml-pending-value') + '">' + escapeHtml(initialSummaryPrice) + '</span>' +
+      '    <span class="ctwpml-shipping-summary-price">' + escapeHtml(initialSummaryPrice) + '</span>' +
       '  </div>' +
       '  <button type="button" class="ctwpml-shipping-continue" id="ctwpml-shipping-continue">Continuar</button>' +
       '</div>';
@@ -382,7 +382,7 @@
       '    </div>' +
       '    <div class="ctwpml-payment-total-row">' +
       '      <span class="ctwpml-payment-total-label">Você pagará</span>' +
-      '      <span class="ctwpml-payment-total-value' + (totalText && totalText !== 'R$ 0,00' ? '' : ' ctwpml-pending-value') + '" id="ctwpml-payment-total-value">' + escapeHtml(totalText) + '</span>' +
+      '      <span class="ctwpml-payment-total-value" id="ctwpml-payment-total-value">' + escapeHtml(totalText) + '</span>' +
       '    </div>' +
       '  </div>' +
       '  </div>' + // right

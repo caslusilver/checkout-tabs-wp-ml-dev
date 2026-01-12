@@ -234,24 +234,4 @@ body.processing {
   }
 }
 
-/* Ocultar elementos com placeholders não resolvidos */
-[data-ctwpml-placeholder]:not([data-ctwpml-resolved]) {
-  visibility: hidden !important;
-}
-
-/* Ou usar classe específica */
-.ctwpml-pending-value {
-  visibility: hidden;
-}
-
-.ctwpml-pending-value.ctwpml-resolved {
-  visibility: visible;
-}
-
-/* Fallback: ocultar textos que parecem variáveis */
-.ctwpml-shipping-price:empty,
-.ctwpml-payment-total-value:empty {
-  visibility: hidden;
-}
-
 

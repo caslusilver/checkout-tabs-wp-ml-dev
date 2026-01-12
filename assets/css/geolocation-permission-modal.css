@@ -96,28 +96,5 @@
   cursor: not-allowed;
 }
 
-/* Animação de carregamento com pontos */
-.ctwpml-geo-loading-text {
-  display: inline-flex;
-  align-items: center;
-}
-
-.ctwpml-geo-loading-text .ctwpml-dots {
-  display: inline-block;
-  width: 20px;
-  text-align: left;
-}
-
-.ctwpml-geo-loading-text .ctwpml-dots::after {
-  content: '';
-  animation: ctwpml-dots-alt 1.2s infinite step-end;
-}
-
-@keyframes ctwpml-dots-alt {
-  0% { content: '•'; }
-  33% { content: '••'; }
-  66% { content: '•••'; }
-}
-
 
 

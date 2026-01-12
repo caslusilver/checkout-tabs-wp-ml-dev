@@ -57,15 +57,6 @@
     try {
       document.dispatchEvent(new CustomEvent('freteDataReady', { detail: data }));
     } catch (e) {}
-    
-    // Após persistir, marcar elementos como resolvidos
-    try {
-      document.querySelectorAll('.ctwpml-pending-value').forEach(function(el) {
-        el.classList.add('ctwpml-resolved');
-      });
-      // Disparar evento customizado
-      document.dispatchEvent(new CustomEvent('ctwpml_values_resolved', { detail: data }));
-    } catch(e) {}
   }
 
   function fetchProxy(lat, lon) {
