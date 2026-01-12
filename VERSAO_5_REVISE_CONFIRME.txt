@@ -1,0 +1,869 @@
+================================================================================
+                   CHECKOUT TABS WP ML - VERSÃO 5.0
+                   REVISE E CONFIRME (RESUMO DO PEDIDO)
+================================================================================
+
+Data de Criação: 12/01/2026
+Status: Pendente
+Prioridade: Alta
+Escopo: Tela de revisão, exibição de produtos, desconto, lógica de redirecionamento
+
+================================================================================
+                           ÍNDICE DE MELHORIAS
+================================================================================
+
+[5.1] Exibir quantidade dinâmica dos produtos no resumo
+[5.2] Exibir produtos do carrinho em lista com fotos individuais
+[5.3] Exibir desconto no total final com antes/depois e nome do cupom
+[5.4] Corrigir redirecionamento após finalização (evitar "Revise e confirme")
+
+================================================================================
+                        DETALHAMENTO DAS MELHORIAS
+================================================================================
+
+--------------------------------------------------------------------------------
+[5.1] EXIBIR QUANTIDADE DINÂMICA DOS PRODUTOS NO RESUMO
+--------------------------------------------------------------------------------
+
+PROBLEMA IDENTIFICADO:
+Na seção de resumo onde está escrito "Produtos (quantidade)", o valor não é
+dinâmico - precisa mostrar a quantidade real de itens no carrinho.
+
+ARQUIVOS A MODIFICAR:
+
+1. assets/js/address-ml-screens.js
+   Localização: função renderReviewConfirmScreen (linhas 421-553)
+   
+   SITUAÇÃO ATUAL (linha 459):
+   ```javascript
+   '    <div class="ctwpml-review-row">' +
+   '      <span>Produtos (' + escapeHtml(String(productCount)) + ')</span>' +
+   '      <span id="ctwpml-review-products-subtotal">' + escapeHtml(subtotalText) + '</span>' +
+   '    </div>' +
+   ```
+   
+   PROBLEMA: productCount vem de options.productCount mas pode não estar
+   sendo passado corretamente.
+   
+   VERIFICAÇÃO NECESSÁRIA:
+   - Quem chama renderReviewConfirmScreen?
+   - De onde vem options.productCount?
+   
+   BUSCAR em address-ml-modal.js por:
+   - "renderReviewConfirmScreen"
+   - "productCount"
+
+2. assets/js/address-ml-modal.js
+   
+   AÇÃO: Localizar onde a tela de review é renderizada e garantir que
+   productCount seja passado corretamente
+   
+   CÓDIGO A VERIFICAR/ADICIONAR:
+   ```javascript
+   // Ao renderizar tela de review, buscar quantidade do carrinho
+   function getCartProductCount() {
+     return new Promise(function(resolve) {
+       $.ajax({
+         url: window.cc_params.ajax_url,
+         type: 'POST',
+         dataType: 'json',
+         data: {
+           action: 'ctwpml_get_cart_summary',
+           _ajax_nonce: window.cc_params.cart_thumbs_nonce
+         },
+         success: function(resp) {
+           if (resp && resp.success && resp.data) {
+             resolve({
+               count: resp.data.item_count || 0,
+               subtotal: resp.data.subtotal || '',
+               total: resp.data.total || '',
+               items: resp.data.items || []
+             });
+           } else {
+             resolve({ count: 0, subtotal: '', total: '', items: [] });
+           }
+         },
+         error: function() {
+           resolve({ count: 0, subtotal: '', total: '', items: [] });
+         }
+       });
+     });
+   }
+   
+   // Ao navegar para tela de review:
+   function showReviewScreen() {
+     getCartProductCount().then(function(cartData) {
+       var html = CCCheckoutTabs.AddressMlScreens.renderReviewConfirmScreen({
+         productCount: cartData.count,  // Quantidade total de itens
+         subtotalText: cartData.subtotal,
+         totalText: cartData.total,
+         thumbUrls: cartData.items.map(function(item) { return item.thumbnail; }),
+         // ... outros parâmetros
+       });
+       
+       $('#ctwpml-view-review').html(html);
+     });
+   }
+   ```
+
+3. inc/frontend/cart-api.php
+   
+   VERIFICAR se já existe endpoint para obter resumo do carrinho.
+   Se não existir, CRIAR:
+   
+   ```php
+   add_action('wp_ajax_ctwpml_get_cart_summary', 'ctwpml_get_cart_summary');
+   add_action('wp_ajax_nopriv_ctwpml_get_cart_summary', 'ctwpml_get_cart_summary');
+   
+   function ctwpml_get_cart_summary(): void {
+     if (!function_exists('WC') || !WC()->cart) {
+       wp_send_json_error(['message' => 'Carrinho não disponível']);
+       return;
+     }
+     
+     $cart = WC()->cart;
+     $items = [];
+     
+     foreach ($cart->get_cart() as $cart_item_key => $cart_item) {
+       $product = $cart_item['data'];
+       $thumbnail_id = $product->get_image_id();
+       $thumbnail_url = $thumbnail_id ? wp_get_attachment_image_url($thumbnail_id, 'thumbnail') : '';
+       
+       $items[] = [
+         'key' => $cart_item_key,
+         'product_id' => $cart_item['product_id'],
+         'variation_id' => $cart_item['variation_id'] ?? 0,
+         'name' => $product->get_name(),
+         'quantity' => $cart_item['quantity'],
+         'price' => wc_price($cart_item['line_total']),
+         'unit_price' => wc_price($product->get_price()),
+         'thumbnail' => $thumbnail_url,
+       ];
+     }
+     
+     wp_send_json_success([
+       'item_count' => $cart->get_cart_contents_count(),
+       'subtotal' => $cart->get_cart_subtotal(),
+       'total' => $cart->get_total(),
+       'items' => $items,
+     ]);
+   }
+   ```
+
+TESTES REQUERIDOS:
+- [ ] Adicionar 1 produto ao carrinho - verificar se mostra "Produtos (1)"
+- [ ] Adicionar mais produtos - verificar se quantidade atualiza
+- [ ] Adicionar produto com quantidade 3 - verificar se conta corretamente
+- [ ] Verificar se subtotal corresponde aos produtos
+
+--------------------------------------------------------------------------------
+[5.2] EXIBIR PRODUTOS DO CARRINHO EM LISTA COM FOTOS INDIVIDUAIS
+--------------------------------------------------------------------------------
+
+PROBLEMA IDENTIFICADO:
+Os produtos selecionados são exibidos apenas como thumbnails empilhados.
+Precisa exibir em lista com foto, nome, quantidade e preço de cada produto.
+
+ARQUIVOS A MODIFICAR:
+
+1. assets/css/address-ml-modal.css
+   
+   AÇÃO: Adicionar estilos para lista de produtos
+
+   CÓDIGO A ADICIONAR:
+   ```css
+   /* =====================================================
+      LISTA DE PRODUTOS NO REVIEW
+      ===================================================== */
+   
+   .ctwpml-review-products-list {
+     margin: 16px 0;
+   }
+   
+   .ctwpml-review-product-item {
+     display: flex;
+     align-items: center;
+     gap: 12px;
+     padding: 12px 0;
+     border-bottom: 1px solid #f0f0f0;
+   }
+   
+   .ctwpml-review-product-item:last-child {
+     border-bottom: none;
+   }
+   
+   .ctwpml-review-product-thumb {
+     width: 60px;
+     height: 60px;
+     border-radius: 8px;
+     border: 1px solid #eee;
+     overflow: hidden;
+     flex-shrink: 0;
+     background: #fafafa;
+   }
+   
+   .ctwpml-review-product-thumb img {
+     width: 100%;
+     height: 100%;
+     object-fit: cover;
+   }
+   
+   .ctwpml-review-product-info {
+     flex: 1;
+     min-width: 0;
+   }
+   
+   .ctwpml-review-product-name {
+     font-size: 14px;
+     font-weight: 600;
+     color: #333;
+     margin-bottom: 4px;
+     /* Truncar se muito longo */
+     overflow: hidden;
+     text-overflow: ellipsis;
+     display: -webkit-box;
+     -webkit-line-clamp: 2;
+     -webkit-box-orient: vertical;
+   }
+   
+   .ctwpml-review-product-qty {
+     font-size: 13px;
+     color: #666;
+   }
+   
+   .ctwpml-review-product-price {
+     font-size: 14px;
+     font-weight: 700;
+     color: #333;
+     text-align: right;
+     white-space: nowrap;
+   }
+   
+   /* Separador entre produtos e resumo */
+   .ctwpml-review-products-divider {
+     height: 1px;
+     background: #e0e0e0;
+     margin: 16px 0;
+   }
+   
+   /* Título da seção de produtos */
+   .ctwpml-review-products-title {
+     font-size: 15px;
+     font-weight: 700;
+     color: #333;
+     margin-bottom: 12px;
+     display: flex;
+     justify-content: space-between;
+     align-items: center;
+   }
+   
+   .ctwpml-review-products-count {
+     font-size: 13px;
+     font-weight: 400;
+     color: #666;
+   }
+   ```
+
+2. assets/js/address-ml-screens.js
+   Localização: função renderReviewConfirmScreen
+   
+   AÇÃO: Adicionar renderização da lista de produtos
+   
+   CÓDIGO A ADICIONAR/MODIFICAR:
+   ```javascript
+   /**
+    * Renderiza lista de produtos para a tela de review
+    * @param {Array} products - Lista de produtos do carrinho
+    * @returns {string} HTML da lista
+    */
+   function renderProductsList(products) {
+     if (!products || !products.length) {
+       return '';
+     }
+     
+     var html = '<div class="ctwpml-review-products-title">' +
+                '  <span>Seus produtos</span>' +
+                '  <span class="ctwpml-review-products-count">(' + products.length + ' ' + 
+                   (products.length === 1 ? 'item' : 'itens') + ')</span>' +
+                '</div>';
+     
+     html += '<div class="ctwpml-review-products-list">';
+     
+     products.forEach(function(product) {
+       var thumbUrl = product.thumbnail || '';
+       var name = product.name || 'Produto';
+       var qty = product.quantity || 1;
+       var price = product.price || '';
+       
+       html += '<div class="ctwpml-review-product-item">';
+       
+       // Thumbnail
+       html += '  <div class="ctwpml-review-product-thumb">';
+       if (thumbUrl) {
+         html += '    <img src="' + escapeHtml(thumbUrl) + '" alt="' + escapeHtml(name) + '" />';
+       }
+       html += '  </div>';
+       
+       // Info
+       html += '  <div class="ctwpml-review-product-info">';
+       html += '    <div class="ctwpml-review-product-name">' + escapeHtml(name) + '</div>';
+       html += '    <div class="ctwpml-review-product-qty">Quantidade: ' + escapeHtml(String(qty)) + '</div>';
+       html += '  </div>';
+       
+       // Preço
+       html += '  <div class="ctwpml-review-product-price">' + escapeHtml(price) + '</div>';
+       
+       html += '</div>';
+     });
+     
+     html += '</div>';
+     html += '<div class="ctwpml-review-products-divider"></div>';
+     
+     return html;
+   }
+   
+   // Expor função
+   window.CCCheckoutTabs.AddressMlScreens.renderProductsList = renderProductsList;
+   ```
+   
+   MODIFICAR renderReviewConfirmScreen para incluir lista de produtos:
+   ```javascript
+   // Adicionar parâmetro products em options
+   var products = Array.isArray(options.products) ? options.products : [];
+   
+   // Antes do summary-top, adicionar lista de produtos
+   var productsListHtml = renderProductsList(products);
+   
+   var html =
+     '' +
+     '<div class="ctwpml-review-screen">' +
+     productsListHtml +  // NOVO: Lista de produtos
+     '  <div class="ctwpml-review-summary-top" id="ctwpml-review-initial-summary">' +
+     // ... resto do código existente
+   ```
+
+3. assets/js/address-ml-modal.js
+   
+   AÇÃO: Passar produtos ao renderizar tela de review
+   
+   MODIFICAR chamada para renderReviewConfirmScreen:
+   ```javascript
+   function showReviewScreen() {
+     getCartProductCount().then(function(cartData) {
+       var html = CCCheckoutTabs.AddressMlScreens.renderReviewConfirmScreen({
+         productCount: cartData.count,
+         subtotalText: cartData.subtotal,
+         totalText: cartData.total,
+         thumbUrls: cartData.items.map(function(item) { return item.thumbnail; }),
+         products: cartData.items,  // NOVO: Lista completa de produtos
+         // ... outros parâmetros
+       });
+       
+       $('#ctwpml-view-review').html(html);
+     });
+   }
+   ```
+
+TESTES REQUERIDOS:
+- [ ] Adicionar múltiplos produtos ao carrinho
+- [ ] Navegar até tela "Revise e confirme"
+- [ ] Verificar se cada produto aparece com foto
+- [ ] Verificar se nome do produto está correto
+- [ ] Verificar se quantidade está correta
+- [ ] Verificar se preço está correto
+- [ ] Testar com produto sem imagem
+- [ ] Testar responsividade em telas pequenas
+
+--------------------------------------------------------------------------------
+[5.3] EXIBIR DESCONTO NO TOTAL FINAL COM ANTES/DEPOIS E NOME DO CUPOM
+--------------------------------------------------------------------------------
+
+PROBLEMA IDENTIFICADO:
+O valor do desconto não é exibido de forma clara no total final da tela
+"Revise e confirme". Precisa mostrar antes/depois e nome do cupom.
+
+ARQUIVOS A MODIFICAR:
+
+1. assets/css/address-ml-modal.css
+   
+   CÓDIGO A ADICIONAR:
+   ```css
+   /* =====================================================
+      DESCONTO NA TELA DE REVIEW
+      ===================================================== */
+   
+   /* Linha de desconto */
+   .ctwpml-review-discount-row {
+     display: flex;
+     justify-content: space-between;
+     align-items: center;
+     margin-bottom: 8px;
+     font-size: 14px;
+     color: #00a650;
+   }
+   
+   .ctwpml-review-discount-label {
+     display: flex;
+     align-items: center;
+     gap: 6px;
+   }
+   
+   .ctwpml-review-discount-label::before {
+     content: '🎫';
+     font-size: 14px;
+   }
+   
+   .ctwpml-review-discount-value {
+     font-weight: 700;
+   }
+   
+   /* Cupom aplicado */
+   .ctwpml-review-coupon-applied {
+     background: rgba(0, 166, 80, 0.08);
+     border: 1px solid rgba(0, 166, 80, 0.2);
+     border-radius: 6px;
+     padding: 10px 12px;
+     margin: 12px 0;
+     font-size: 13px;
+     color: #333;
+   }
+   
+   .ctwpml-review-coupon-name {
+     font-weight: 700;
+     color: #00a650;
+   }
+   
+   /* Total com desconto */
+   .ctwpml-review-total-row.has-discount {
+     flex-direction: column;
+     align-items: flex-start;
+     gap: 8px;
+   }
+   
+   .ctwpml-review-total-row.has-discount .ctwpml-review-total-wrapper {
+     width: 100%;
+     display: flex;
+     justify-content: space-between;
+     align-items: center;
+   }
+   
+   .ctwpml-review-original-total {
+     font-size: 14px;
+     color: #999;
+     text-decoration: line-through;
+     font-weight: 400;
+   }
+   
+   .ctwpml-review-discounted-total {
+     font-size: 20px;
+     font-weight: 700;
+     color: #00a650;
+   }
+   
+   /* Economia destacada */
+   .ctwpml-review-savings {
+     font-size: 12px;
+     color: #00a650;
+     text-align: right;
+     margin-top: 4px;
+   }
+   
+   .ctwpml-review-savings strong {
+     font-weight: 700;
+   }
+   ```
+
+2. assets/js/address-ml-screens.js
+   Localização: função renderReviewConfirmScreen
+   
+   AÇÃO: Modificar para suportar desconto
+   
+   CÓDIGO A ADICIONAR/MODIFICAR:
+   ```javascript
+   // Extrair parâmetros de desconto
+   var hasDiscount = options.originalTotal && options.discountedTotal && 
+                     options.originalTotal !== options.discountedTotal;
+   var couponName = options.couponName || '';
+   var discountAmount = options.discountAmount || '';
+   
+   // Gerar HTML do desconto
+   var discountHtml = '';
+   if (hasDiscount) {
+     discountHtml = 
+       '<div class="ctwpml-review-discount-row">' +
+       '  <span class="ctwpml-review-discount-label">Desconto</span>' +
+       '  <span class="ctwpml-review-discount-value">- ' + escapeHtml(discountAmount) + '</span>' +
+       '</div>';
+     
+     if (couponName) {
+       discountHtml += 
+         '<div class="ctwpml-review-coupon-applied">' +
+         '  Cupom <span class="ctwpml-review-coupon-name">"' + escapeHtml(couponName) + '"</span> aplicado' +
+         '</div>';
+     }
+   }
+   
+   // Gerar HTML do total
+   var totalHtml = '';
+   if (hasDiscount) {
+     totalHtml = 
+       '<div class="ctwpml-review-total-row has-discount">' +
+       '  <div class="ctwpml-review-total-wrapper">' +
+       '    <span>Você pagará</span>' +
+       '    <div>' +
+       '      <span class="ctwpml-review-original-total">' + escapeHtml(options.originalTotal) + '</span>' +
+       '      <span class="ctwpml-review-discounted-total" id="ctwpml-review-total">' + 
+              escapeHtml(options.discountedTotal) + '</span>' +
+       '    </div>' +
+       '  </div>' +
+       '  <div class="ctwpml-review-savings">Você economiza <strong>' + 
+            escapeHtml(discountAmount) + '</strong></div>' +
+       '</div>';
+   } else {
+     totalHtml = 
+       '<div class="ctwpml-review-total-row">' +
+       '  <span>Você pagará</span>' +
+       '  <span id="ctwpml-review-total">' + escapeHtml(totalText) + '</span>' +
+       '</div>';
+   }
+   
+   // Inserir no HTML principal (após linha de frete, antes do total)
+   // ... dentro do summary-top ...
+   '    <div class="ctwpml-review-row">' +
+   '      <span>Frete</span>' +
+   '      <span id="ctwpml-review-shipping">' + escapeHtml(shippingText) + '</span>' +
+   '    </div>' +
+   discountHtml +  // NOVO: Linha de desconto
+   totalHtml +     // MODIFICADO: Total com desconto
+   // ... resto do código
+   ```
+
+3. assets/js/address-ml-modal.js
+   
+   AÇÃO: Passar dados de desconto ao renderizar
+   
+   MODIFICAR chamada:
+   ```javascript
+   // Ao renderizar tela de review com cupom aplicado
+   var html = CCCheckoutTabs.AddressMlScreens.renderReviewConfirmScreen({
+     productCount: cartData.count,
+     subtotalText: cartData.subtotal,
+     totalText: cartData.total,
+     originalTotal: cartData.originalTotal,      // NOVO
+     discountedTotal: cartData.discountedTotal,  // NOVO
+     couponName: cartData.couponCode,            // NOVO
+     discountAmount: cartData.discountAmount,    // NOVO
+     // ... outros parâmetros
+   });
+   ```
+
+4. inc/frontend/cart-api.php
+   
+   AÇÃO: Incluir informações de desconto no endpoint
+   
+   MODIFICAR função ctwpml_get_cart_summary:
+   ```php
+   function ctwpml_get_cart_summary(): void {
+     // ... código existente ...
+     
+     $cart = WC()->cart;
+     
+     // Informações de desconto
+     $applied_coupons = $cart->get_applied_coupons();
+     $discount_total = $cart->get_discount_total();
+     $original_total = $cart->get_subtotal() + $cart->get_shipping_total();
+     $discounted_total = $cart->get_total('edit');
+     
+     wp_send_json_success([
+       'item_count' => $cart->get_cart_contents_count(),
+       'subtotal' => $cart->get_cart_subtotal(),
+       'total' => $cart->get_total(),
+       'items' => $items,
+       // NOVOS campos:
+       'original_total' => wc_price($original_total),
+       'discounted_total' => wc_price($discounted_total),
+       'discount_amount' => wc_price($discount_total),
+       'coupon_code' => !empty($applied_coupons) ? $applied_coupons[0] : '',
+       'has_discount' => $discount_total > 0,
+     ]);
+   }
+   ```
+
+TESTES REQUERIDOS:
+- [ ] Adicionar produtos ao carrinho
+- [ ] Aplicar cupom de desconto
+- [ ] Navegar até tela "Revise e confirme"
+- [ ] Verificar se linha de desconto aparece
+- [ ] Verificar se nome do cupom aparece em destaque
+- [ ] Verificar se total original está riscado
+- [ ] Verificar se total com desconto está em verde
+- [ ] Verificar se economia está exibida
+- [ ] Testar sem cupom (deve mostrar formato normal)
+
+--------------------------------------------------------------------------------
+[5.4] CORRIGIR REDIRECIONAMENTO APÓS FINALIZAÇÃO DO PEDIDO
+--------------------------------------------------------------------------------
+
+PROBLEMA IDENTIFICADO:
+Após finalizar o pedido e chegar na página de sucesso, se o usuário clicar
+em "Finalizar a compra" em outro produto, ele é redirecionado de volta para
+a tela "Revise e confirme" em vez da tela inicial do modal de frete.
+
+ARQUIVOS A MODIFICAR:
+
+1. assets/js/address-ml-modal.js
+   
+   AÇÃO: Limpar estado do modal após finalização bem-sucedida
+   
+   CÓDIGO A ADICIONAR:
+   ```javascript
+   // Constantes para chaves de sessionStorage
+   var SS_KEY_MODAL_STATE = 'ctwpml_modal_state';
+   var SS_KEY_LAST_VIEW = 'ctwpml_last_view';
+   var SS_KEY_ORDER_COMPLETED = 'ctwpml_order_completed';
+   
+   /**
+    * Limpa o estado do modal (chamar após pedido confirmado)
+    */
+   function clearModalState() {
+     try {
+       sessionStorage.removeItem(SS_KEY_MODAL_STATE);
+       sessionStorage.removeItem(SS_KEY_LAST_VIEW);
+       sessionStorage.setItem(SS_KEY_ORDER_COMPLETED, Date.now().toString());
+       
+       if (window.cc_params && window.cc_params.debug) {
+         console.log('[CTWPML] Estado do modal limpo após finalização');
+       }
+     } catch(e) {}
+   }
+   
+   /**
+    * Verifica se deve resetar para tela inicial
+    * @returns {boolean}
+    */
+   function shouldResetToInitial() {
+     try {
+       var orderCompleted = sessionStorage.getItem(SS_KEY_ORDER_COMPLETED);
+       if (orderCompleted) {
+         // Se pedido foi completado recentemente (últimos 5 minutos), resetar
+         var completedAt = parseInt(orderCompleted, 10);
+         var now = Date.now();
+         var fiveMinutes = 5 * 60 * 1000;
+         
+         if (now - completedAt < fiveMinutes) {
+           // Limpar flag após usar
+           sessionStorage.removeItem(SS_KEY_ORDER_COMPLETED);
+           return true;
+         }
+         
+         // Flag expirada, limpar
+         sessionStorage.removeItem(SS_KEY_ORDER_COMPLETED);
+       }
+     } catch(e) {}
+     
+     return false;
+   }
+   
+   /**
+    * Inicializa o modal na tela correta
+    */
+   function initializeModalView() {
+     // Se pedido foi completado recentemente, sempre começar do início
+     if (shouldResetToInitial()) {
+       showView('initial');
+       return;
+     }
+     
+     // Verificar se estamos em página de sucesso/agradecimento
+     if (isOrderSuccessPage()) {
+       clearModalState();
+       return;
+     }
+     
+     // Comportamento normal: restaurar última view se existir
+     var lastView = getLastView();
+     if (lastView && isValidView(lastView)) {
+       showView(lastView);
+     } else {
+       showView('initial');
+     }
+   }
+   
+   /**
+    * Verifica se estamos na página de sucesso do pedido
+    */
+   function isOrderSuccessPage() {
+     // Verificar URL
+     var url = window.location.href.toLowerCase();
+     if (url.indexOf('order-received') !== -1 || 
+         url.indexOf('pedido-recebido') !== -1 ||
+         url.indexOf('thank-you') !== -1 ||
+         url.indexOf('obrigado') !== -1) {
+       return true;
+     }
+     
+     // Verificar body class
+     if (document.body.classList.contains('woocommerce-order-received')) {
+       return true;
+     }
+     
+     return false;
+   }
+   
+   // Expor funções
+   window.CCCheckoutTabs = window.CCCheckoutTabs || {};
+   window.CCCheckoutTabs.clearModalState = clearModalState;
+   ```
+
+2. assets/js/cta-anim.js
+   
+   AÇÃO: Limpar estado do modal quando checkout é bem-sucedido
+   
+   LOCALIZAR: Onde o checkout é detectado como bem-sucedido (ajaxComplete)
+   
+   MODIFICAR (após linha ~263):
+   ```javascript
+   // Se o Woo respondeu com success e tem redirect
+   if (parsed && parsed.result && String(parsed.result).toLowerCase() === 'success') {
+     // Limpar estado do modal para próxima compra
+     if (window.CCCheckoutTabs && typeof window.CCCheckoutTabs.clearModalState === 'function') {
+       window.CCCheckoutTabs.clearModalState();
+     }
+     
+     checkpoint('CHK_CTA_ORDER_SUCCESS_MODAL_CLEARED', true, {});
+     log('Estado do modal limpo para próxima compra');
+   }
+   ```
+
+3. assets/js/preparing-checkout.js
+   
+   AÇÃO: Garantir que preparação respeite estado limpo
+   
+   VERIFICAR função initCheckoutPreparation:
+   ```javascript
+   function initCheckoutPreparation() {
+     // ... código existente ...
+     
+     // Verificar se é nova compra (após sucesso anterior)
+     if (window.CCCheckoutTabs && typeof window.CCCheckoutTabs.shouldResetToInitial === 'function') {
+       if (window.CCCheckoutTabs.shouldResetToInitial()) {
+         log('Nova compra detectada - preparação do zero');
+         // Resetar flags de preparação
+         markPrepareDone();  // Permite nova preparação
+         sessionStorage.removeItem(SS_KEY_DONE);
+       }
+     }
+     
+     // ... resto do código
+   }
+   ```
+
+4. VERIFICAR se há persistência de view em outros lugares:
+   
+   BUSCAR por:
+   - "sessionStorage"
+   - "localStorage"
+   - "lastView"
+   - "currentView"
+   - "modalState"
+
+5. ADICIONAR limpeza na página de sucesso:
+   
+   CRIAR/MODIFICAR script para página de sucesso do WooCommerce:
+   
+   Em inc/enqueue.php ou arquivo apropriado:
+   ```php
+   // Limpar estado do modal na página de sucesso
+   add_action('wp_footer', function() {
+     if (!function_exists('is_wc_endpoint_url') || !is_wc_endpoint_url('order-received')) {
+       return;
+     }
+     ?>
+     <script>
+     (function() {
+       try {
+         // Limpar tudo relacionado ao modal de checkout
+         sessionStorage.removeItem('ctwpml_modal_state');
+         sessionStorage.removeItem('ctwpml_last_view');
+         sessionStorage.removeItem('ctwpml_prepare_on_checkout');
+         sessionStorage.removeItem('ctwpml_prepare_done_for_checkout_entry');
+         sessionStorage.removeItem('ctwpml_prepare_last_address_id');
+         
+         // Marcar que pedido foi completado
+         sessionStorage.setItem('ctwpml_order_completed', Date.now().toString());
+         
+         console.log('[CTWPML] Estado do checkout limpo na página de sucesso');
+       } catch(e) {}
+     })();
+     </script>
+     <?php
+   }, 100);
+   ```
+
+TESTES REQUERIDOS:
+- [ ] Fazer pedido completo até página de sucesso
+- [ ] Navegar para outra página de produto
+- [ ] Clicar em "Comprar" ou "Finalizar Compra"
+- [ ] Verificar se modal abre na tela INICIAL (não em "Revise e confirme")
+- [ ] Verificar se dados do pedido anterior foram limpos
+- [ ] Testar com navegação via botão voltar do navegador
+- [ ] Testar abrindo nova aba e iniciando nova compra
+
+================================================================================
+                        CHECKLIST DE IMPLEMENTAÇÃO
+================================================================================
+
+[ ] 5.1 - Quantidade dinâmica de produtos
+    [ ] Verificar passagem de productCount
+    [ ] Criar/verificar endpoint de resumo do carrinho
+    [ ] Garantir que quantidade é obtida do WooCommerce
+    [ ] Testar com diferentes quantidades
+
+[ ] 5.2 - Lista de produtos com fotos
+    [ ] Adicionar CSS para lista de produtos
+    [ ] Criar função renderProductsList
+    [ ] Modificar renderReviewConfirmScreen
+    [ ] Garantir que thumbnails são passados
+    [ ] Testar exibição
+
+[ ] 5.3 - Desconto no total final
+    [ ] Adicionar CSS para desconto
+    [ ] Modificar renderReviewConfirmScreen para desconto
+    [ ] Adicionar campos de desconto no endpoint
+    [ ] Testar com e sem cupom
+
+[ ] 5.4 - Corrigir redirecionamento
+    [ ] Implementar clearModalState
+    [ ] Implementar shouldResetToInitial
+    [ ] Limpar estado após checkout bem-sucedido
+    [ ] Limpar estado na página de sucesso
+    [ ] Testar fluxo completo
+
+================================================================================
+                           NOTAS DE DESENVOLVIMENTO
+================================================================================
+
+PERSISTÊNCIA DE ESTADO:
+- Usar sessionStorage (não localStorage) para dados temporários
+- Limpar estado após pedido confirmado
+- Verificar flags de expiração
+
+INTEGRAÇÃO COM WOOCOMMERCE:
+- Usar hooks do WC para detectar pedido confirmado
+- Respeitar endpoints nativos (order-received)
+- Não interferir com outros plugins
+
+EDGE CASES A CONSIDERAR:
+- Usuário usa múltiplas abas
+- Usuário usa botão voltar do navegador
+- Timeout de sessão
+- Erro no checkout (não limpar estado)
+
+DEBUGGING:
+- Logs detalhados quando debug está ativo
+- Checkpoints para rastrear fluxo
+- Ferramentas de dev para inspecionar sessionStorage
+
+================================================================================
+                              FIM DO DOCUMENTO
+================================================================================

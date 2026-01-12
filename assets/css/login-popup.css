@@ -191,4 +191,18 @@ body .ctwpml-login-popup .ctwpml-auth-tab:not(.is-active),
   background-color: transparent !important;
 }
 
+/* Estilos para estado de erro do reCAPTCHA */
+.ctwpml-recaptcha-error {
+  border: 2px solid #dc2626 !important;
+  border-radius: 4px;
+  padding: 2px;
+  animation: ctwpml-shake 0.5s ease-in-out;
+}
+
+@keyframes ctwpml-shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-5px); }
+  75% { transform: translateX(5px); }
+}
+
 

@@ -37,6 +37,17 @@ add_action('wp_enqueue_scripts', function () {
 		$version,
 		true
 	);
+	
+	// Script de debug temporário (pode ser removido após resolver problemas)
+	if ($debug) {
+		wp_enqueue_script(
+			'checkout-tabs-wp-ml-geolocation-debug',
+			CHECKOUT_TABS_WP_ML_URL . 'assets/js/geolocation-debug.js',
+			[],
+			$version,
+			true
+		);
+	}
 
 	$rest_url = function_exists('get_rest_url') ? get_rest_url(null, 'geolocation/v1/send') : '';
 	$debug = function_exists('checkout_tabs_wp_ml_is_debug_enabled') && checkout_tabs_wp_ml_is_debug_enabled() ? 1 : 0;

@@ -132,6 +132,12 @@ add_action('wp_ajax_nopriv_ctwpml_signup', function () {
 	// Loga automaticamente
 	wp_set_current_user($user_id);
 	wp_set_auth_cookie($user_id, true);
+	
+	// Verificação de debug
+	if (function_exists('checkout_tabs_wp_ml_is_debug_enabled') && checkout_tabs_wp_ml_is_debug_enabled()) {
+		error_log('[CTWPML] Signup: Cookie de autenticação definido para user_id=' . $user_id);
+		error_log('[CTWPML] Signup: is_user_logged_in()=' . (is_user_logged_in() ? 'true' : 'false'));
+	}
 
 	wp_send_json_success(['user_id' => $user_id]);
 });
