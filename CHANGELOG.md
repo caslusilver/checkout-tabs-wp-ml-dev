@@ -9,13 +9,6 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 - Criar o repositório: `caslusilver/checkout-tabs-wp-ml-dev`
 - Branch principal do fluxo: `develop`
 
-## [v3.2.46] - 2026-01-12
-
-### Changed
-- Rollback: reverte mudanças problemáticas introduzidas em `v3.2.45`, retornando o plugin ao estado funcional equivalente a `v3.2.44`.
-
-#### Protocol: cbacf09
-
 ## [v3.2.44] - 2026-01-09
 
 ### Changed
