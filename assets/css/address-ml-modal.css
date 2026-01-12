@@ -16,7 +16,8 @@
 .ctwpml-modal-overlay {
   position: fixed;
   inset: 0;
-  display: none; /* controlado via JS (display:block/flex) */
+  display: none;
+  /* controlado via JS (display:block/flex) */
   width: 100vw;
   height: 100vh;
   background: transparent;
@@ -85,6 +86,7 @@ body.ctwpml-ml-only:not(.elementor-editor-active) .e-checkout__container {
   background: #fff !important;
   border-radius: 3px !important;
 }
+
 .ctwpml-login-banner {
   background: rgba(52, 131, 250, 0.10);
   color: #1f2937 !important;
@@ -103,7 +105,8 @@ body.ctwpml-ml-only:not(.elementor-editor-active) .e-checkout__container {
 
 .ctwpml-modal-header {
   background: var(--ctwpml-brand-orange);
-  padding: 45px 16px 16px 16px; /* padding-top maior para safe area mobile */
+  padding: 45px 16px 16px 16px;
+  /* padding-top maior para safe area mobile */
   display: flex;
   align-items: center;
   gap: 12px;
@@ -136,7 +139,8 @@ body.ctwpml-ml-only:not(.elementor-editor-active) .e-checkout__container {
 .ctwpml-modal-back img {
   width: 24px;
   height: 24px;
-  filter: brightness(0) invert(1); /* Torna a seta branca para combinar com o header */
+  filter: brightness(0) invert(1);
+  /* Torna a seta branca para combinar com o header */
 }
 
 .ctwpml-modal-title {
@@ -147,12 +151,17 @@ body.ctwpml-ml-only:not(.elementor-editor-active) .e-checkout__container {
 
 .ctwpml-modal-body {
   padding: 16px;
-  padding-bottom: 120px; /* espaço para footer quando visível */
-  overflow: auto !important; /* scroll interno do modal */
-  -webkit-overflow-scrolling: touch; /* scroll suave no iOS */
+  padding-bottom: 120px;
+  /* espaço para footer quando visível */
+  overflow: auto !important;
+  /* scroll interno do modal */
+  -webkit-overflow-scrolling: touch;
+  /* scroll suave no iOS */
   flex: 1;
-  min-height: calc(100vh - 77px); /* altura total menos header */
-  max-height: calc(100vh - 77px); /* limita altura para scroll funcionar */
+  min-height: calc(100vh - 77px);
+  /* altura total menos header */
+  max-height: calc(100vh - 77px);
+  /* limita altura para scroll funcionar */
 }
 
 /* =====================================================
@@ -184,6 +193,7 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
 .ctwpml-ml-layout {
   display: block;
 }
+
 .ctwpml-ml-left,
 .ctwpml-ml-right {
   display: block;
@@ -196,13 +206,16 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
     gap: 16px;
     height: calc(100vh - 77px);
   }
+
   .ctwpml-ml-left {
     overflow: auto;
     padding-right: 4px;
   }
+
   .ctwpml-ml-right {
     overflow: auto;
   }
+
   /* No desktop, o summary não precisa ser fixed. */
   .ctwpml-payment-footer {
     position: sticky;
@@ -549,7 +562,8 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
   border-radius: 6px;
   overflow: hidden;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
-  margin-bottom: 90px; /* espaço para footer fixo */
+  margin-bottom: 90px;
+  /* espaço para footer fixo */
 }
 
 .ctwpml-shipping-package {
@@ -588,17 +602,28 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
 
 /* Stack/overlap de até 3 miniaturas (sem +N). */
 .ctwpml-shipping-thumbs .ctwpml-shipping-thumb {
-  border: 2px solid #fff; /* contorno branco para separar no overlap */
-  box-shadow: 0 0 0 1px #eee; /* mantém borda suave */
+  border: 2px solid #fff;
+  /* contorno branco para separar no overlap */
+  box-shadow: 0 0 0 1px #eee;
+  /* mantém borda suave */
 }
 
 .ctwpml-shipping-thumbs .ctwpml-shipping-thumb:not(:first-child) {
-  margin-left: -12px; /* overlap */
+  margin-left: -12px;
+  /* overlap */
 }
 
-.ctwpml-shipping-thumbs .ctwpml-shipping-thumb:nth-child(1) { z-index: 3; }
-.ctwpml-shipping-thumbs .ctwpml-shipping-thumb:nth-child(2) { z-index: 2; }
-.ctwpml-shipping-thumbs .ctwpml-shipping-thumb:nth-child(3) { z-index: 1; }
+.ctwpml-shipping-thumbs .ctwpml-shipping-thumb:nth-child(1) {
+  z-index: 3;
+}
+
+.ctwpml-shipping-thumbs .ctwpml-shipping-thumb:nth-child(2) {
+  z-index: 2;
+}
+
+.ctwpml-shipping-thumbs .ctwpml-shipping-thumb:nth-child(3) {
+  z-index: 1;
+}
 
 .ctwpml-shipping-thumb img {
   width: 100%;
@@ -943,7 +968,8 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
   /* O background vem do wrapper .ctwpml-modal (evita 2 camadas) */
   background: transparent !important;
   min-height: auto;
-  padding: 16px 0 140px; /* espaço para rodapé fixo interno */
+  padding: 16px 0 140px;
+  /* espaço para rodapé fixo interno */
 }
 
 .ctwpml-review-summary-top {
@@ -970,7 +996,8 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
 }
 
 .ctwpml-review-terms--sticky {
-  margin: 0 0 4px 0; /* 4px de distância do checkbox para o CTA sticky */
+  margin: 0 0 4px 0;
+  /* 4px de distância do checkbox para o CTA sticky */
 }
 
 .ctwpml-review-terms-label {
@@ -978,13 +1005,15 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
   gap: 8px;
   align-items: flex-start;
   font-size: 12px;
-  color: #666666 !important; /* garantir contraste independente do tema */
+  color: #666666 !important;
+  /* garantir contraste independente do tema */
   line-height: 1.25;
 }
 
 .ctwpml-review-terms-label input[type="checkbox"] {
   margin-top: 2px;
 }
+
 .ctwpml-review-row {
   display: flex;
   justify-content: space-between;
@@ -1086,20 +1115,29 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
 }
 
 .ctwpml-review-btn-confirm.ctwpml-cta-success span {
-  display: none; /* remove texto do fluxo */
+  display: none;
+  /* remove texto do fluxo */
 }
 
 .ctwpml-review-btn-confirm.ctwpml-cta-success .ctwpml-success-icon {
   display: block;
   animation: ctwpmlScaleIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-  position: static; /* não precisa ser absolute pois o pai é flex center */
+  position: static;
+  /* não precisa ser absolute pois o pai é flex center */
   transform: none;
   z-index: 3;
 }
 
 @keyframes ctwpmlScaleIn {
-  from { transform: scale(0); opacity: 0; }
-  to { transform: scale(1); opacity: 1; }
+  from {
+    transform: scale(0);
+    opacity: 0;
+  }
+
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
 }
 
 /* Expansão final (Cover screen) */
@@ -1113,7 +1151,8 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
   border-radius: 50% !important;
   transform: translate(-50%, -50%) !important;
   transition: width 0.8s ease-in, height 0.8s ease-in, border-radius 0.5s;
-  pointer-events: none; /* Prevent clicks during expansion */
+  pointer-events: none;
+  /* Prevent clicks during expansion */
   background: var(--ctwpml-ml-green) !important;
   color: transparent !important;
   margin: 0 !important;
@@ -1172,8 +1211,15 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
 }
 
 @keyframes ctwpmlFadeInSuccess {
-  from { opacity: 0; transform: translateY(20px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* CTA padrão (shipping/payment) */
@@ -1421,7 +1467,8 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
   font-size: 18px;
   font-weight: 600;
   margin: 0;
-  margin-right: 44px; /* Compensar o botão fechar para centralizar */
+  margin-right: 44px;
+  /* Compensar o botão fechar para centralizar */
   color: #333;
 }
 
@@ -1498,3 +1545,21 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
 }
 
 
+/* Ocultar elementos com placeholders não resolvidos */
+[data-ctwpml-placeholder]:not([data-ctwpml-resolved]) {
+  visibility: hidden !important;
+}
+
+.ctwpml-pending-value {
+  visibility: hidden;
+}
+
+.ctwpml-pending-value.ctwpml-resolved {
+  visibility: visible;
+}
+
+/* Fallback: ocultar textos que parecem variáveis */
+.ctwpml-shipping-price:empty,
+.ctwpml-payment-total-value:empty {
+  visibility: hidden;
+}

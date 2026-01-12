@@ -9,6 +9,13 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 - Criar o repositório: `caslusilver/checkout-tabs-wp-ml-dev`
 - Branch principal do fluxo: `develop`
 
+## [v3.2.47] - 2026-01-12
+
+### Changed
+- Melhorias no popup de inicialização (login/signup) e geolocalização: reCAPTCHA na aba de signup com mensagem de erro melhorada e link para voltar à aba de login; animação de carregamento com pontos ("•••") ao aceitar localização; reforço de debug de geolocalização para Desktop com logs detalhados e script de diagnóstico; persistência de sessão após login/signup com redirecionamento forçado; ocultação de variáveis/códigos HTML quebrados enquanto localização não é aceita usando classes CSS e marcação de elementos como resolvidos. Sistema de telemetria implementado para rastrear eficiência de cada funcionalidade (tempo de execução, taxa de sucesso, eventos) com painel visual e exportação de relatórios JSON.
+
+#### Protocol: 4c21dcd
+
 ## [v3.2.44] - 2026-01-09
 
 ### Changed

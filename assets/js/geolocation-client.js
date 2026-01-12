@@ -9,7 +9,7 @@
     try {
       // eslint-disable-next-line no-console
       console.log.apply(console, ['[CTWPML GEO]'].concat([].slice.call(arguments)));
-    } catch (e) {}
+    } catch (e) { }
   }
 
   function getRestUrl() {
@@ -43,20 +43,52 @@
     try {
       if (!window.sessionStorage) return;
       sessionStorage.setItem(CACHE_KEY, JSON.stringify(data));
-    } catch (e) {}
+    } catch (e) { }
   }
 
   function persistContract(data) {
+    // Telemetria: início da persistência de dados
+    var telemetryStart = window.CCTelemetry ? window.CCTelemetry.start('1.5-hide-placeholders') : null;
+    
     // CONTRATO: manter como no plugin antigo
     try {
       window.freteData = data;
-    } catch (e) {}
+    } catch (e) { }
     try {
       if (window.localStorage) localStorage.setItem('freteData', JSON.stringify(data));
-    } catch (e) {}
+    } catch (e) { }
     try {
       document.dispatchEvent(new CustomEvent('freteDataReady', { detail: data }));
-    } catch (e) {}
+    } catch (e) { }
+
+    // Após persistir, marcar elementos como resolvidos
+    try {
+      var pending = document.querySelectorAll('.ctwpml-pending-value');
+      var resolvedCount = 0;
+      for (var i = 0; i < pending.length; i++) {
+        pending[i].classList.add('ctwpml-resolved');
+        resolvedCount++;
+      }
+      
+      // Telemetria: elementos marcados como resolvidos
+      if (window.CCTelemetry && telemetryStart) {
+        window.CCTelemetry.end('1.5-hide-placeholders', telemetryStart, true, {
+          pendingElementsFound: pending.length,
+          resolvedCount: resolvedCount,
+          hasData: !!data
+        });
+      }
+      
+      // Disparar evento customizado de resolução
+      document.dispatchEvent(new CustomEvent('ctwpml_values_resolved', { detail: data }));
+    } catch (e) {
+      // Telemetria: erro ao marcar elementos
+      if (window.CCTelemetry && telemetryStart) {
+        window.CCTelemetry.end('1.5-hide-placeholders', telemetryStart, false, {
+          error: e && e.message ? e.message : 'unknown_error'
+        });
+      }
+    }
   }
 
   function fetchProxy(lat, lon) {

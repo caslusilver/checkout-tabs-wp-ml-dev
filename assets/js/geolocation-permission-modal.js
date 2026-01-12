@@ -4,6 +4,19 @@
   var GEO = window.CTWPMLGeo || {};
   var PROMPT_SHOWN_KEY = 'ctwpml_geo_prompt_shown';
 
+  var DEBUG_GEO = true; // Forçar debug temporariamente
+  function geoLog(msg, data) {
+    if (!DEBUG_GEO) return;
+    try {
+      var prefix = '[CTWPML GEO DEBUG] ';
+      if (data) {
+        console.log(prefix + msg, data);
+      } else {
+        console.log(prefix + msg);
+      }
+    } catch (e) { }
+  }
+
   function safeSessionGet(key) {
     try {
       if (!window.sessionStorage) return null;
@@ -17,7 +30,7 @@
     try {
       if (!window.sessionStorage) return;
       sessionStorage.setItem(key, String(val));
-    } catch (e) {}
+    } catch (e) { }
   }
 
   function createModalIfMissing() {
@@ -64,9 +77,17 @@
     overlay.style.display = 'none';
   }
 
-  function setStatus(msg) {
+  function setStatus(msg, isLoading) {
     var el = document.getElementById('ctwpml-geo-status');
-    if (el) el.textContent = msg || '';
+    if (!el) return;
+
+    if (isLoading) {
+      el.innerHTML = '<span class="ctwpml-geo-loading-text">' +
+        (msg || 'Carregando') +
+        '<span class="ctwpml-dots"></span></span>';
+    } else {
+      el.textContent = msg || '';
+    }
   }
 
   function setButtonsDisabled(disabled) {
@@ -87,19 +108,44 @@
     allowBtn.setAttribute('data-ctwpml-bound', '1');
 
     allowBtn.addEventListener('click', function () {
+      // Telemetria: início da solicitação de geolocalização
+      var telemetryStart = window.CCTelemetry ? window.CCTelemetry.start('1.2-geolocation-animation') : null;
+      
       setButtonsDisabled(true);
-      setStatus('Ativando localização…');
+      setStatus('Ativando localização', true);
+      
+      // Telemetria: animação iniciada
+      if (window.CCTelemetry) {
+        window.CCTelemetry.track('1.2-geolocation-animation', 'animation-start', {
+          timestamp: Date.now()
+        });
+      }
 
       Promise.resolve()
         .then(function () {
           if (typeof GEO.requestAndFetch !== 'function') throw new Error('Cliente de geolocalização não carregou.');
           return GEO.requestAndFetch();
         })
-        .then(function () {
+        .then(function (data) {
+          // Telemetria: geolocalização obtida com sucesso
+          if (window.CCTelemetry && telemetryStart) {
+            window.CCTelemetry.end('1.2-geolocation-animation', telemetryStart, true, {
+              hasData: !!data,
+              dataKeys: data ? Object.keys(data) : []
+            });
+          }
+          
           setStatus('');
           closeModal();
         })
         .catch(function (err) {
+          // Telemetria: erro ao obter geolocalização
+          if (window.CCTelemetry && telemetryStart) {
+            window.CCTelemetry.end('1.2-geolocation-animation', telemetryStart, false, {
+              error: err && err.message ? err.message : 'unknown_error'
+            });
+          }
+          
           var msg = (err && err.message) || 'Não foi possível obter sua localização.';
           setStatus(msg);
           setButtonsDisabled(false);
@@ -112,21 +158,52 @@
   }
 
   function shouldShowModalViaPermissionsApi() {
-    if (!navigator || !navigator.permissions || !navigator.permissions.query) return Promise.resolve(true);
+    geoLog('Verificando permissions API...');
+
+    if (!navigator || !navigator.permissions || !navigator.permissions.query) {
+      geoLog('Permissions API não disponível, retornando true');
+      return Promise.resolve(true);
+    }
     return navigator.permissions
       .query({ name: 'geolocation' })
       .then(function (res) {
+        geoLog('Permissions query result:', res ? res.state : 'null');
         // só mostra se estiver em prompt (evita insistir se já negado ou concedido)
         return res && res.state === 'prompt';
       })
-      .catch(function () {
+      .catch(function (err) {
+        geoLog('Permissions query error:', err);
         return true;
       });
   }
 
   function init() {
+    // Telemetria: inicialização do modal de geolocalização
+    if (window.CCTelemetry) {
+      window.CCTelemetry.track('1.3-geolocation-debug', 'init-start', {
+        hasGeolocation: 'geolocation' in navigator,
+        hasPermissions: !!(navigator && navigator.permissions),
+        hasGEO: typeof GEO.ensureSessionCache === 'function',
+        hasRequestAndFetch: typeof GEO.requestAndFetch === 'function'
+      });
+    }
+    
+    geoLog('init() chamado');
+    geoLog('navigator.geolocation disponível:', 'geolocation' in navigator);
+    geoLog('navigator.permissions disponível:', !!(navigator && navigator.permissions));
+    geoLog('GEO.ensureSessionCache:', typeof GEO.ensureSessionCache);
+    geoLog('GEO.requestAndFetch:', typeof GEO.requestAndFetch);
+    
     // 1) Se já existe cache na sessão, já entrega o contrato e não mostra modal.
-    if (typeof GEO.ensureSessionCache === 'function' && GEO.ensureSessionCache()) return;
+    if (typeof GEO.ensureSessionCache === 'function' && GEO.ensureSessionCache()) {
+      // Telemetria: cache encontrado, não mostra modal
+      if (window.CCTelemetry) {
+        window.CCTelemetry.track('1.3-geolocation-debug', 'cache-hit', {
+          skipped: true
+        });
+      }
+      return;
+    }
 
     // 2) Modal só 1x por sessão
     if (safeSessionGet(PROMPT_SHOWN_KEY) === '1') return;
@@ -134,15 +211,30 @@
 
     // 3) Mostrar modal apenas quando fizer sentido
     shouldShowModalViaPermissionsApi().then(function (shouldShow) {
+      // Telemetria: resultado da verificação de permissões
+      if (window.CCTelemetry) {
+        window.CCTelemetry.track('1.3-geolocation-debug', 'permission-check-result', {
+          shouldShow: shouldShow,
+          promptShown: safeSessionGet(PROMPT_SHOWN_KEY) === '1'
+        });
+      }
+      
       if (!shouldShow) {
         // se já estiver granted, tenta buscar sem modal (sem prompt nativo)
         if (typeof GEO.requestAndFetch === 'function') {
-          GEO.requestAndFetch().catch(function () {});
+          GEO.requestAndFetch().catch(function () { });
         }
         return;
       }
       bindEventsOnce();
       showModal();
+      
+      // Telemetria: modal exibido
+      if (window.CCTelemetry) {
+        window.CCTelemetry.track('1.3-geolocation-debug', 'modal-shown', {
+          timestamp: Date.now()
+        });
+      }
     });
   }
 

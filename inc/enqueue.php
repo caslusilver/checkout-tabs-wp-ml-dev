@@ -124,6 +124,26 @@ add_action('wp_enqueue_scripts', function () {
 	// =========================================================
 	$ml_only = ((string) get_option('checkout_tabs_wp_ml_mode', 'ml_only') === 'ml_only');
 
+	// Sistema de telemetria para rastrear eficiência das funcionalidades
+	wp_enqueue_script(
+		'checkout-tabs-wp-ml-telemetry',
+		CHECKOUT_TABS_WP_ML_URL . 'assets/js/telemetry.js',
+		[],
+		$version,
+		true
+	);
+	
+	// Painel visual de telemetria (apenas se debug estiver ativo)
+	if (checkout_tabs_wp_ml_is_debug_enabled()) {
+		wp_enqueue_script(
+			'checkout-tabs-wp-ml-telemetry-panel',
+			CHECKOUT_TABS_WP_ML_URL . 'assets/js/telemetry-panel.js',
+			['checkout-tabs-wp-ml-telemetry'],
+			$version,
+			true
+		);
+	}
+	
 	wp_enqueue_script(
 		'checkout-tabs-wp-ml-logger',
 		CHECKOUT_TABS_WP_ML_URL . 'assets/js/logger.js',
