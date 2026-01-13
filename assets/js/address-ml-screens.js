@@ -21,12 +21,17 @@
     if (!address) return '';
     var a1 = (address.address_1 || '').trim();
     var num = (address.number || '').trim();
+    var complement = (address.complement || '').trim();
     var bairro = (address.neighborhood || '').trim();
     var cidade = (address.city || '').trim();
     var uf = (address.state || '').trim();
     var cep = (address.cep || '').trim();
 
-    var line1 = (a1 ? a1 : 'Endereço') + (num ? ' ' + num : '');
+    // Linha 1: Rua + Número + Complemento
+    var line1 = (a1 ? a1 : 'Endereço') + (num ? ', ' + num : '');
+    if (complement) {
+      line1 += ' - ' + complement;
+    }
     var parts = [];
     if (bairro) parts.push(bairro);
     if (cidade) parts.push(cidade);

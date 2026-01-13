@@ -1566,7 +1566,16 @@
       });
     }
 
-    function saveContactMeta(callback) {
+    function saveContactMeta(optionsOrCallback, maybeCallback) {
+      var opts = {};
+      var callback = null;
+      if (typeof optionsOrCallback === 'function') {
+        callback = optionsOrCallback;
+      } else {
+        opts = optionsOrCallback && typeof optionsOrCallback === 'object' ? optionsOrCallback : {};
+        callback = typeof maybeCallback === 'function' ? maybeCallback : null;
+      }
+
       if (!isLoggedIn()) {
         if (callback) callback();
         return;
@@ -1619,8 +1628,10 @@
               $('#ctwpml-input-cpf').prop('readonly', true);
               $('#ctwpml-generate-cpf-modal').hide();
             }
-            // Feedback de sucesso para contato também (se salvar apenas contato)
-            showNotification('Dados de contato salvos com sucesso!', 'success', 2000);
+            // Feedback de sucesso para contato (somente quando não for fluxo de salvar endereço)
+            if (!opts || !opts.silent) {
+              showNotification('Dados de contato salvos com sucesso!', 'success', 2000);
+            }
           } else {
             var errorMsg = (response && response.data && response.data.message) || 'Erro ao salvar dados de contato';
             showNotification(errorMsg, 'error', 3000);
@@ -1845,6 +1856,39 @@
                 searchInput.setAttribute('pattern', '[0-9]*');
               }
             } catch (e0) {}
+
+            // Abrir dropdown para CIMA (evita ficar escondido pelo footer/teclado).
+            try {
+              var self = this;
+              window.requestAnimationFrame(function () {
+                try {
+                  var control = self && self.control ? self.control : null;
+                  if (!control || !dropdown || !control.getBoundingClientRect) return;
+
+                  dropdown.style.position = 'fixed';
+                  dropdown.style.zIndex = '9999999';
+
+                  var cRect = control.getBoundingClientRect();
+                  // Garantir width alinhada ao controle.
+                  dropdown.style.left = String(Math.max(8, Math.round(cRect.left))) + 'px';
+                  dropdown.style.width = String(Math.round(cRect.width)) + 'px';
+
+                  // Calcula altura atual do dropdown (pode variar).
+                  var ddHeight = dropdown.offsetHeight || 0;
+                  var minTop = 8;
+                  var desiredTop = Math.round(cRect.top - ddHeight - 8);
+
+                  // Se não couber totalmente, limita altura e ancora no topo possível.
+                  var maxHeight = Math.max(120, Math.round(cRect.top - minTop - 12));
+                  dropdown.style.maxHeight = String(maxHeight) + 'px';
+                  dropdown.style.overflowY = 'auto';
+
+                  if (desiredTop < minTop) desiredTop = minTop;
+                  dropdown.style.top = String(desiredTop) + 'px';
+                  dropdown.style.bottom = 'auto';
+                } catch (e2) {}
+              });
+            } catch (e1) {}
           },
         });
 
@@ -1852,6 +1896,35 @@
           updateMask(String(val || ''), false);
           try { setTimeout(function () { inputEl.focus(); }, 100); } catch (e0) {}
         });
+
+        function setNationalDigits(countryCode, digits, opts) {
+          try {
+            var cc = String(countryCode || '').toUpperCase();
+            var only = String(digits || '').replace(/\D/g, '');
+            if (!cc) cc = 'BR';
+
+            // BR: nunca permitir que o DDI apareça no input (somente no seletor).
+            // Se vier um número com DDI repetido (ex.: 5555...), remove apenas um prefixo de DDI.
+            if (cc === 'BR') {
+              var brDdi = String((countryData.BR && countryData.BR[1]) || '55');
+              if (only.length >= 12 && only.indexOf(brDdi) === 0) {
+                only = only.slice(brDdi.length);
+              }
+            }
+
+            tom.setValue(cc, true);
+            updateMask(cc, true);
+
+            if (maskInstance) {
+              try { maskInstance.unmaskedValue = only; } catch (e1) {}
+            } else {
+              inputEl.value = only;
+            }
+
+            var ddi = (countryData[cc] && countryData[cc][1]) ? String(countryData[cc][1]) : '';
+            updateHidden(cc, ddi, only);
+          } catch (e0) {}
+        }
 
         // API para o resto do modal
         window.ctwpmlPhoneWidget = {
@@ -1863,12 +1936,23 @@
           },
           getPhoneFull: function () { return String(hiddenEl.value || ''); },
           getDigits: function () { return String(hiddenEl.value || '').replace(/\D/g, ''); },
+          setNationalDigits: function (countryCode, digits) {
+            setNationalDigits(countryCode, digits);
+          },
           setPhoneFull: function (phoneFull) {
             try {
               var pf = String(phoneFull || '').trim();
               if (!pf) return;
+              var hasPlus = pf.indexOf('+') === 0;
               var digits = pf.replace(/\D/g, '');
               if (!digits) return;
+
+              // Se não vier em formato E.164 (sem +), NÃO tenta inferir DDI.
+              // Isso evita “roubar” prefixos (ex.: DDD 55) e duplicar DDI no input.
+              if (!hasPlus) {
+                setNationalDigits('BR', digits);
+                return;
+              }
 
               // Encontrar país por match de DDI (maior DDI primeiro)
               var best = { code: 'XX', ddi: '', rest: digits };
@@ -2242,45 +2326,44 @@
       var receiverName = String(item.receiver_name || (first + ' ' + last)).trim();
       $('#ctwpml-input-nome').val(receiverName);
       
-      // WhatsApp: tentar do checkout primeiro
+      // WhatsApp: fonte da verdade é phone_full do perfil; billing_cellphone é fallback.
       initInternationalPhoneInput(); // v2.0 [2.3]
-      var phoneFromCheckout = ($('#billing_cellphone').val() || '').trim();
-      try {
-        var digits = phoneDigits(String(phoneFromCheckout || ''));
-        if (window.ctwpmlPhoneWidget && typeof window.ctwpmlPhoneWidget.setPhoneFull === 'function') {
-          if (digits && (digits.length === 10 || digits.length === 11)) {
-            window.ctwpmlPhoneWidget.setPhoneFull('+55' + digits);
-          } else if (digits && digits.length >= 8) {
-            // Fallback: assume que já contém DDI (somente dígitos)
-            window.ctwpmlPhoneWidget.setPhoneFull('+' + digits);
+
+      // 1) Primeiro tenta perfil (phone_full) para evitar duplicidade de DDI no input.
+      loadContactMeta(function (meta) {
+        var filled = false;
+        try {
+          if (meta && meta.phone_full && window.ctwpmlPhoneWidget && typeof window.ctwpmlPhoneWidget.setPhoneFull === 'function') {
+            window.ctwpmlPhoneWidget.setPhoneFull(String(meta.phone_full));
+            filled = true;
           }
-        } else {
-          $('#ctwpml-input-fone').val(formatPhone(phoneFromCheckout));
-        }
-      } catch (e0) {
-        $('#ctwpml-input-fone').val(formatPhone(phoneFromCheckout));
-      }
-      
-      // v3.2.7: Se WhatsApp/CPF estiverem vazios, carregar do perfil (user_meta)
-      var needsContactMeta = !phoneFromCheckout;
-      if (needsContactMeta) {
-        loadContactMeta(function(meta) {
-          if (meta) {
-            // Preencher WhatsApp se estiver vazio
-            try {
-              if (window.ctwpmlPhoneWidget && typeof window.ctwpmlPhoneWidget.setPhoneFull === 'function' && meta.phone_full) {
-                window.ctwpmlPhoneWidget.setPhoneFull(String(meta.phone_full));
-              } else if (!$('#ctwpml-input-fone').val() && meta.whatsapp) {
-                $('#ctwpml-input-fone').val(formatPhone(meta.whatsapp));
+        } catch (e0) {}
+
+        // 2) Fallback: billing_cellphone do checkout (assumir nacional BR e nunca injetar DDI no input).
+        if (!filled) {
+          var phoneFromCheckout = ($('#billing_cellphone').val() || '').trim();
+          try {
+            var digits = phoneDigits(String(phoneFromCheckout || ''));
+            if (digits && window.ctwpmlPhoneWidget) {
+              // Se já vier com DDI 55 + DDD + número (13 dígitos), remove DDI para preencher só o nacional no input.
+              if (digits.length >= 12 && digits.indexOf('55') === 0) {
+                digits = digits.slice(2);
               }
-            } catch (e1) {
-              if (!$('#ctwpml-input-fone').val() && meta.whatsapp) {
-                $('#ctwpml-input-fone').val(formatPhone(meta.whatsapp));
+              if (typeof window.ctwpmlPhoneWidget.setNationalDigits === 'function') {
+                window.ctwpmlPhoneWidget.setNationalDigits('BR', digits);
+              } else if (typeof window.ctwpmlPhoneWidget.setPhoneFull === 'function') {
+                window.ctwpmlPhoneWidget.setPhoneFull('+' + '55' + digits);
+              } else {
+                $('#ctwpml-input-fone').val(formatPhone(phoneFromCheckout));
               }
+            } else {
+              $('#ctwpml-input-fone').val(formatPhone(phoneFromCheckout));
             }
+          } catch (e1) {
+            $('#ctwpml-input-fone').val(formatPhone(phoneFromCheckout));
           }
-        });
-      }
+        }
+      });
       
       syncLoginBanner();
       syncCpfUiFromCheckout();
@@ -3599,7 +3682,7 @@
         }
         applyFormToCheckout();
         // Salvar WhatsApp e CPF antes do endereço
-        saveContactMeta(function () {
+        saveContactMeta({ silent: true }, function () {
           saveAddressFromForm(function (res) {
             if (!res || !res.ok) {
               // Não precisa de alert, a notificação já foi exibida
@@ -3607,11 +3690,9 @@
               return;
             }
 
-            // Aguardar 800ms para usuário ver a confirmação, depois voltar para lista
-            setTimeout(function () {
-              showList();
-              renderAddressList();
-            }, 800);
+            // Voltar imediatamente para lista (toast de sucesso já foi exibido no saveAddressFromForm)
+            showList();
+            renderAddressList();
           });
         });
       } else {
@@ -4304,93 +4385,104 @@
 
     // v2.0 [2.1]: Auto-scroll ao focar campos perto do footer fixo (evita sobreposição/teclado).
     // Delegado para funcionar após re-render de views.
-    $(document).on('focus', '#ctwpml-view-form input, #ctwpml-view-form textarea', function () {
-      function autoScroll(reason) {
+    function ctwpmlAutoScrollInModal(targetEl, reason, topOffsetPx) {
+      try {
+        var $body = $('.ctwpml-modal-body').first();
+        if (!$body.length) return;
+        var bodyEl = $body[0];
+        if (!bodyEl || !targetEl || !targetEl.getBoundingClientRect) return;
+
+        var footerH = 0;
         try {
-          var $body = $('.ctwpml-modal-body').first();
-          if (!$body.length) return;
+          var $footer = $('.ctwpml-footer:visible').first();
+          footerH = $footer.length ? ($footer.outerHeight() || 0) : 0;
+        } catch (e0) {}
+        if (!footerH) footerH = 180;
 
-          var bodyEl = $body[0];
-          var inputEl = this;
-          if (!bodyEl || !inputEl || !inputEl.getBoundingClientRect) return;
+        var bodyRect = bodyEl.getBoundingClientRect();
+        var tRect = targetEl.getBoundingClientRect();
 
-          var footerH = 0;
-          try {
-            var $footer = $('.ctwpml-footer:visible').first();
-            footerH = $footer.length ? ($footer.outerHeight() || 0) : 0;
-          } catch (e0) {}
-          if (!footerH) footerH = 180;
+        var vv = window.visualViewport;
+        var viewportTop = vv ? (vv.offsetTop || 0) : 0;
+        var viewportBottom = vv ? ((vv.offsetTop || 0) + (vv.height || window.innerHeight)) : window.innerHeight;
 
-          var bodyRect = bodyEl.getBoundingClientRect();
-          var inputRect = inputEl.getBoundingClientRect();
+        var padding = 16;
+        var targetTopOffset = (typeof topOffsetPx === 'number' && topOffsetPx > 0) ? topOffsetPx : 60;
+        var visibleTop = Math.max(bodyRect.top, viewportTop) + targetTopOffset;
+        var visibleBottom = Math.min(bodyRect.bottom, viewportBottom) - footerH - padding;
+        if (visibleBottom < visibleTop) visibleBottom = visibleTop + 10;
 
-          // Viewport real (mobile/teclado): visualViewport quando disponível.
-          var vv = window.visualViewport;
-          var viewportTop = vv ? (vv.offsetTop || 0) : 0;
-          var viewportBottom = vv ? ((vv.offsetTop || 0) + (vv.height || window.innerHeight)) : window.innerHeight;
+        var shouldScroll = false;
+        var nextTop = bodyEl.scrollTop;
+        var delta = 0;
 
-          // Área visível dentro do modal-body, respeitando viewport e footer.
-          var padding = 16;
-          var targetTopOffset = 40; // requisito: manter ~40px acima
-          var visibleTop = Math.max(bodyRect.top, viewportTop) + targetTopOffset;
-          var visibleBottom = Math.min(bodyRect.bottom, viewportBottom) - footerH - padding;
-          if (visibleBottom < visibleTop) visibleBottom = visibleTop + 10;
+        if (tRect.top < visibleTop) {
+          delta = (tRect.top - visibleTop) - 12;
+          nextTop = Math.max(0, bodyEl.scrollTop + delta);
+          shouldScroll = true;
+        } else if (tRect.bottom > visibleBottom) {
+          delta = (tRect.bottom - visibleBottom) + 12;
+          nextTop = Math.max(0, bodyEl.scrollTop + delta);
+          shouldScroll = true;
+        }
 
-          var shouldScroll = false;
-          var nextTop = bodyEl.scrollTop;
-          var delta = 0;
+        if (!shouldScroll) return;
 
-          if (inputRect.top < visibleTop) {
-            delta = (inputRect.top - visibleTop) - 12;
-            nextTop = Math.max(0, bodyEl.scrollTop + delta);
-            shouldScroll = true;
-          } else if (inputRect.bottom > visibleBottom) {
-            delta = (inputRect.bottom - visibleBottom) + 12;
-            nextTop = Math.max(0, bodyEl.scrollTop + delta);
-            shouldScroll = true;
-          }
+        try {
+          $body.stop(true).animate({ scrollTop: nextTop }, 220);
+        } catch (e1) {
+          bodyEl.scrollTop = nextTop;
+        }
 
-          if (!shouldScroll) return;
+        if (state && typeof state.checkpoint === 'function') {
+          state.checkpoint('CHK_SCROLL_FOCUS_MOBILE', true, {
+            reason: String(reason || ''),
+            fieldId: String(targetEl.id || ''),
+            footerH: footerH,
+            delta: delta,
+            nextTop: nextTop,
+            vvHeight: vv ? vv.height : null,
+          });
+        }
+        if (typeof state.log === 'function') {
+          state.log('UI        v2.0 [2.1] Auto-scroll no foco (mobile)', {
+            reason: String(reason || ''),
+            fieldId: String(targetEl.id || ''),
+            footerH: footerH,
+            delta: delta,
+            scrollTop: bodyEl.scrollTop,
+            nextTop: nextTop,
+            vvHeight: vv ? vv.height : null,
+          }, 'UI');
+        }
+      } catch (e2) {}
+    }
 
-          try {
-            $body.stop(true).animate({ scrollTop: nextTop }, 220);
-          } catch (e1) {
-            bodyEl.scrollTop = nextTop;
-          }
-
-          if (state && typeof state.checkpoint === 'function') {
-            state.checkpoint('CHK_SCROLL_FOCUS_MOBILE', true, {
-              reason: String(reason || ''),
-              fieldId: String(inputEl.id || ''),
-              footerH: footerH,
-              delta: delta,
-              nextTop: nextTop,
-              vvHeight: vv ? vv.height : null,
-            });
-          }
-          if (typeof state.log === 'function') {
-            state.log('UI        v2.0 [2.1] Auto-scroll no foco (mobile)', {
-              reason: String(reason || ''),
-              fieldId: String(inputEl.id || ''),
-              footerH: footerH,
-              delta: delta,
-              scrollTop: bodyEl.scrollTop,
-              nextTop: nextTop,
-              vvHeight: vv ? vv.height : null,
-            }, 'UI');
-          }
-        } catch (e2) {}
-      }
-
+    $(document).on('focus', '#ctwpml-view-form input, #ctwpml-view-form textarea', function () {
       // 1ª passada: imediata (antes do teclado terminar animação)
-      autoScroll.call(this, 'focus_immediate');
+      ctwpmlAutoScrollInModal(this, 'focus_immediate', 60);
       // 2ª passada: após o teclado abrir (principalmente mobile)
       try {
         var el = this;
         setTimeout(function () {
-          autoScroll.call(el, 'focus_delayed');
+          ctwpmlAutoScrollInModal(el, 'focus_delayed', 60);
         }, 260);
       } catch (e3) {}
+    });
+
+    // Auto-scroll também ao tocar no seletor de DDI (TomSelect) - faz parte do mesmo campo.
+    $(document).on('click', '.ctwpml-phone-wrap, .ctwpml-phone-wrap .ts-control, .ctwpml-phone-wrap .ts-wrapper', function (e) {
+      try {
+        // Evitar disparar em cliques fora da tela do form.
+        if (!$('#ctwpml-view-form').is(':visible')) return;
+        var inputEl = document.getElementById('ctwpml-input-fone');
+        if (!inputEl) return;
+        ctwpmlAutoScrollInModal(inputEl, 'ddi_click', 80);
+        // Segunda passada para acompanhar animação do teclado.
+        setTimeout(function () {
+          ctwpmlAutoScrollInModal(inputEl, 'ddi_click_delayed', 80);
+        }, 260);
+      } catch (e0) {}
     });
 
     // Se o usuário alterar o CEP direto no checkout (fora do modal), limpamos os campos também.

@@ -9,17 +9,17 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 - Criar o repositório: `caslusilver/checkout-tabs-wp-ml-dev`
 - Branch principal do fluxo: `develop`
 
-## [v3.2.50] - 2026-01-13
+## [v3.2.51] - 2026-01-13
 
 ### Changed
-- Overlay “Preparando tudo…” agora dispara também via botão do Elementor (finalizar-compra) e, no checkout, usa endereço selecionado para ALWAYS-REFRESH do payload + prefetch de opções de frete; UX do formulário: campo WhatsApp padronizado em tamanho, scroll robusto no foco (mobile/teclado), scroll automático para o 1º erro na validação e confirmação nativa ao voltar com alterações não salvas.
+- Telefone internacional: impede DDI aparecer no input (DDI fica só no seletor) e melhora restauração no editar endereço; dropdown do DDI abre para cima e auto-scroll dispara também ao tocar no DDI; formulário: espaçamento do footer e link “Excluir endereço” fica visível acima dos botões (safe-area iOS); salvar endereço: remove toast duplicado e volta imediatamente para lista; frete/telas: inclui complemento no resumo do endereço e evita quebra de linha nos preços.
 
-#### Protocol: 3eb9b09
+#### Protocol: 2c222bc
 
 ## [Unreleased]
 
 ### Changed
-- **Versão atual**: v3.2.50  
+- **Versão atual**: v3.2.51  
   **Versão sugerida após a mudança**: vX.Y.Z  
   **Descrição**: texto objetivo do que mudou e impacto (pode listar itens separados por ponto e vírgula).
 

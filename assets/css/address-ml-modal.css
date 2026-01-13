@@ -152,7 +152,7 @@ body.ctwpml-ml-only:not(.elementor-editor-active) .e-checkout__container {
 .ctwpml-modal-body {
   padding: 16px;
   /* Espaço para footer fixo (evita sobreposição dos últimos campos) */
-  padding-bottom: 200px;
+  padding-bottom: calc(320px + env(safe-area-inset-bottom));
   /* espaço para footer quando visível */
   overflow: auto !important;
   /* scroll interno do modal */
@@ -317,11 +317,11 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
 }
 
 .ctwpml-footer {
-  padding: 14px 16px;
+  padding: 14px 16px calc(14px + env(safe-area-inset-bottom));
   background: var(--ctwpml-ml-white);
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 14px;
   position: fixed;
   bottom: 0;
   left: 0;
@@ -330,6 +330,23 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
   box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.12);
   /* Garantir que o fundo não seja transparente */
   backdrop-filter: none;
+}
+
+/* Link de exclusão (deve ficar evidente e não “sumir” atrás do footer) */
+.ctwpml-delete-link {
+  display: block;
+  margin-top: 14px;
+  margin-bottom: 24px;
+  color: #dc2626 !important;
+  font-weight: 800;
+  text-decoration: none;
+  font-size: 14px;
+}
+
+.ctwpml-delete-link:active,
+.ctwpml-delete-link:focus,
+.ctwpml-delete-link:hover {
+  text-decoration: underline;
 }
 
 /* Separador visual entre conteúdo e botões (evita “sumir” o fim do form) */
@@ -695,6 +712,8 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
   font-size: 14px;
   color: var(--ctwpml-ml-text-gray) !important;
   font-weight: 800;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .ctwpml-shipping-footer {
