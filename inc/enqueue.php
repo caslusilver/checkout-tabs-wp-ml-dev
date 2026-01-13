@@ -108,6 +108,21 @@ add_action('wp_enqueue_scripts', function () {
 		);
 	}
 
+	// =========================================================
+	// v2.0 [2.3] Campo DDI (NOVO FORMATO: TomSelect + IMask)
+	// - Carregado apenas no checkout
+	// - Init é lazy (só quando abrir tela do formulário do modal)
+	// =========================================================
+	if (!wp_script_is('ctwpml-imask', 'enqueued') && !wp_script_is('ctwpml-imask', 'registered')) {
+		wp_enqueue_script('ctwpml-imask', 'https://unpkg.com/imask', [], '7.0.1', true);
+	}
+	if (!wp_style_is('ctwpml-tomselect-css', 'enqueued') && !wp_style_is('ctwpml-tomselect-css', 'registered')) {
+		wp_enqueue_style('ctwpml-tomselect-css', 'https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/css/tom-select.default.min.css', [], '2.2.2');
+	}
+	if (!wp_script_is('ctwpml-tomselect-js', 'enqueued') && !wp_script_is('ctwpml-tomselect-js', 'registered')) {
+		wp_enqueue_script('ctwpml-tomselect-js', 'https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/js/tom-select.complete.min.js', [], '2.2.2', true);
+	}
+
 	$deps = ['jquery'];
 	if (wp_script_is('wc-checkout', 'registered') || wp_script_is('wc-checkout', 'enqueued')) {
 		$deps[] = 'wc-checkout';

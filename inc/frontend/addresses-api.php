@@ -1079,6 +1079,24 @@ add_action('wp_ajax_ctwpml_get_contact_meta', function (): void {
 	if (empty($whatsapp)) {
 		$whatsapp = get_user_meta($user_id, 'billing_cellphone', true);
 	}
+
+	// v2.0 [2.3] Telefone internacional (E.164 + metadados)
+	$phone_full = get_user_meta($user_id, '_ctwpml_phone_full', true);
+	$country_code = get_user_meta($user_id, '_ctwpml_country_code', true);
+	$dial_code = get_user_meta($user_id, '_ctwpml_dial_code', true);
+	if (empty($phone_full) && !empty($whatsapp)) {
+		// Fallback BR: monta +55 + dígitos nacionais se parecer celular BR
+		$digits = preg_replace('/\D+/', '', (string) $whatsapp);
+		if (strlen($digits) === 10 || strlen($digits) === 11) {
+			$phone_full = '+55' . $digits;
+			if (empty($country_code)) {
+				$country_code = 'BR';
+			}
+			if (empty($dial_code)) {
+				$dial_code = '+55';
+			}
+		}
+	}
 	
 	$cpf = get_user_meta($user_id, '_ctwpml_cpf', true);
 	if (empty($cpf)) {
@@ -1088,11 +1106,17 @@ add_action('wp_ajax_ctwpml_get_contact_meta', function (): void {
 	$cpf_locked = get_user_meta($user_id, '_ctwpml_cpf_locked', true);
 
 	error_log('[CTWPML] get_contact_meta - WhatsApp: ' . $whatsapp);
+	error_log('[CTWPML] get_contact_meta - phone_full: ' . $phone_full);
+	error_log('[CTWPML] get_contact_meta - country_code: ' . $country_code);
+	error_log('[CTWPML] get_contact_meta - dial_code: ' . $dial_code);
 	error_log('[CTWPML] get_contact_meta - CPF: ' . $cpf);
 	error_log('[CTWPML] get_contact_meta - CPF locked: ' . ($cpf_locked ? 'yes' : 'no'));
 
 	wp_send_json_success([
 		'whatsapp' => $whatsapp ?: '',
+		'phone_full' => $phone_full ?: '',
+		'country_code' => $country_code ?: '',
+		'dial_code' => $dial_code ?: '',
 		'cpf' => $cpf ?: '',
 		'cpf_locked' => (bool) $cpf_locked,
 	]);
@@ -1112,9 +1136,15 @@ add_action('wp_ajax_ctwpml_save_contact_meta', function (): void {
 	error_log('[CTWPML] save_contact_meta - User ID: ' . $user_id);
 
 	$whatsapp = isset($_POST['whatsapp']) ? sanitize_text_field((string) $_POST['whatsapp']) : '';
+	$phone_full = isset($_POST['phone_full']) ? sanitize_text_field((string) $_POST['phone_full']) : '';
+	$country_code = isset($_POST['country_code']) ? sanitize_text_field((string) $_POST['country_code']) : '';
+	$dial_code = isset($_POST['dial_code']) ? sanitize_text_field((string) $_POST['dial_code']) : '';
 	$cpf = isset($_POST['cpf']) ? sanitize_text_field((string) $_POST['cpf']) : '';
 
 	error_log('[CTWPML] save_contact_meta - WhatsApp recebido: ' . $whatsapp);
+	error_log('[CTWPML] save_contact_meta - phone_full recebido: ' . $phone_full);
+	error_log('[CTWPML] save_contact_meta - country_code recebido: ' . $country_code);
+	error_log('[CTWPML] save_contact_meta - dial_code recebido: ' . $dial_code);
 	error_log('[CTWPML] save_contact_meta - CPF recebido: ' . $cpf);
 
 	$updated = false;
@@ -1122,13 +1152,45 @@ add_action('wp_ajax_ctwpml_save_contact_meta', function (): void {
 	// Salvar WhatsApp
 	if (!empty($whatsapp)) {
 		$whatsapp_digits = preg_replace('/\D/', '', $whatsapp);
-		if (strlen($whatsapp_digits) >= 10 && strlen($whatsapp_digits) <= 11) {
+		// v2.0 [2.3]: permitir internacional (E.164 tem até 15 dígitos)
+		if (strlen($whatsapp_digits) >= 8 && strlen($whatsapp_digits) <= 15) {
 			update_user_meta($user_id, '_ctwpml_whatsapp', $whatsapp_digits);
 			update_user_meta($user_id, 'billing_cellphone', $whatsapp_digits);
 			error_log('[CTWPML] save_contact_meta - WhatsApp salvo: ' . $whatsapp_digits);
 			$updated = true;
 		} else {
 			error_log('[CTWPML] save_contact_meta - WhatsApp inválido: ' . $whatsapp_digits);
+		}
+	}
+
+	// v2.0 [2.3]: Salvar telefone completo (E.164) e metadados (opcionais)
+	if (!empty($phone_full)) {
+		$pf = trim((string) $phone_full);
+		// Normaliza: mantém apenas + e dígitos
+		$pf = preg_replace('/[^\d\+]+/', '', $pf);
+		$pf_digits = preg_replace('/\D+/', '', $pf);
+		if ($pf_digits !== '' && strlen($pf_digits) >= 8 && strlen($pf_digits) <= 15) {
+			$pf = '+' . $pf_digits;
+			update_user_meta($user_id, '_ctwpml_phone_full', $pf);
+			error_log('[CTWPML] save_contact_meta - phone_full salvo: ' . $pf);
+			$updated = true;
+		} else {
+			error_log('[CTWPML] save_contact_meta - phone_full inválido: ' . $pf);
+		}
+	}
+	if (!empty($country_code)) {
+		$cc = strtoupper(preg_replace('/[^A-Za-z]/', '', (string) $country_code));
+		if ($cc !== '' && strlen($cc) <= 3) {
+			update_user_meta($user_id, '_ctwpml_country_code', $cc);
+			$updated = true;
+		}
+	}
+	if (!empty($dial_code)) {
+		$dc = preg_replace('/[^\d\+]+/', '', (string) $dial_code);
+		$dc_digits = preg_replace('/\D+/', '', $dc);
+		if ($dc_digits !== '' && strlen($dc_digits) <= 4) {
+			update_user_meta($user_id, '_ctwpml_dial_code', '+' . $dc_digits);
+			$updated = true;
 		}
 	}
 

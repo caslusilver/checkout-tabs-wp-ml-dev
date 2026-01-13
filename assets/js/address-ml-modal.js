@@ -353,7 +353,14 @@
           '          <div class="ctwpml-contact-title">Dados de contato</div>' +
           '          <div class="ctwpml-contact-subtitle">Se houver algum problema no envio, você receberá uma ligação neste número.</div>' +
           '          <div class="ctwpml-form-group"><label for="ctwpml-input-nome">Nome completo</label><input id="ctwpml-input-nome" type="text" /></div>' +
-          '          <div class="ctwpml-form-group"><label for="ctwpml-input-fone">Seu WhatsApp</label><input id="ctwpml-input-fone" type="tel" inputmode="tel" placeholder="11 9 1234-5678" /></div>' +
+          '          <div class="ctwpml-form-group" id="ctwpml-group-phone">' +
+          '            <label for="ctwpml-input-fone">Telefone / WhatsApp</label>' +
+          '            <div class="ctwpml-phone-wrap" id="ctwpml-phone-wrap">' +
+          '              <select id="ctwpml-phone-country" autocomplete="off" placeholder="DDI"></select>' +
+          '              <input id="ctwpml-input-fone" type="tel" inputmode="numeric" placeholder="Digite o número" autocomplete="tel" />' +
+          '              <input type="hidden" id="ctwpml-phone-full" name="phone_full" />' +
+          '            </div>' +
+          '          </div>' +
           '          <div class="ctwpml-form-group" id="ctwpml-group-cpf">' +
           '            <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">' +
           '              <label for="ctwpml-input-cpf" style="margin:0;">CPF</label>' +
@@ -1477,7 +1484,7 @@
       $('#ctwpml-generate-cpf-modal').css('display', allow && !locked ? 'inline-block' : 'none');
     }
 
-    function loadContactMeta() {
+    function loadContactMeta(callback) {
       if (!isLoggedIn()) return;
 
       state.log('UI        Carregando dados de contato do perfil...', {}, 'UI');
@@ -1491,17 +1498,36 @@
         success: function (response) {
           if (response && response.success && response.data) {
             var whatsapp = response.data.whatsapp || '';
+            var phoneFull = response.data.phone_full || '';
+            var countryCode = response.data.country_code || '';
+            var dialCode = response.data.dial_code || '';
             var cpf = response.data.cpf || '';
             var cpfLocked = response.data.cpf_locked || false;
 
             state.log('UI        Dados de contato carregados', { 
               whatsapp: whatsapp, 
+              phoneFull: phoneFull,
+              countryCode: countryCode,
+              dialCode: dialCode,
               cpf: cpf,
               cpfLocked: cpfLocked 
             }, 'UI');
 
-            if (whatsapp) {
-              $('#ctwpml-input-fone').val(formatPhone(whatsapp));
+            // Telefone (novo formato): se phone_full existir, restaurar país + máscara; senão fallback para whatsapp.
+            try {
+              if (window.ctwpmlPhoneWidget && typeof window.ctwpmlPhoneWidget.setPhoneFull === 'function' && phoneFull) {
+                window.ctwpmlPhoneWidget.setPhoneFull(String(phoneFull));
+              } else if (whatsapp) {
+                $('#ctwpml-input-fone').val(formatPhone(whatsapp));
+                // Também tenta popular hidden para persistência
+                var digits = phoneDigits(whatsapp);
+                if (digits && (digits.length === 10 || digits.length === 11)) {
+                  var h = document.getElementById('ctwpml-phone-full');
+                  if (h) h.value = '+55' + digits;
+                }
+              }
+            } catch (e0) {
+              if (whatsapp) $('#ctwpml-input-fone').val(formatPhone(whatsapp));
             }
 
             if (cpf) {
@@ -1511,8 +1537,18 @@
                 $('#ctwpml-generate-cpf-modal').hide();
               }
             }
+            if (typeof callback === 'function') {
+              try {
+                callback(response.data);
+              } catch (eCb) {}
+            }
           } else {
             state.log('UI        Nenhum dado de contato encontrado no perfil', {}, 'UI');
+            if (typeof callback === 'function') {
+              try {
+                callback(null);
+              } catch (eCb2) {}
+            }
           }
         },
         error: function (xhr, status, error) {
@@ -1520,6 +1556,11 @@
             status: status, 
             error: error 
           }, 'UI');
+          if (typeof callback === 'function') {
+            try {
+              callback(null);
+            } catch (eCb3) {}
+          }
         },
       });
     }
@@ -1530,14 +1571,30 @@
         return;
       }
 
-      // IMPORTANTE: Remover máscara do WhatsApp antes de enviar
-      var whatsappRaw = $('#ctwpml-input-fone').val() || '';
-      var whatsappDigits = phoneDigits(whatsappRaw); // Remove formatação
+      // v2.0 [2.3] (novo formato): o valor fonte da verdade é #ctwpml-phone-full
+      var phoneFull = '';
+      var countryCode = '';
+      var dialCode = '';
+      var whatsappDigits = '';
+      try {
+        phoneFull = ($('#ctwpml-phone-full').val() || '').toString();
+        if (window.ctwpmlPhoneWidget && typeof window.ctwpmlPhoneWidget.getSelectedCountry === 'function') {
+          countryCode = String(window.ctwpmlPhoneWidget.getSelectedCountry() || '');
+          dialCode = String(window.ctwpmlPhoneWidget.getDialCode ? window.ctwpmlPhoneWidget.getDialCode() : '');
+        }
+        // compat: whatsapp = apenas dígitos (pode incluir DDI)
+        whatsappDigits = phoneFull ? String(phoneFull).replace(/\D/g, '') : phoneDigits($('#ctwpml-input-fone').val() || '');
+      } catch (e0) {
+        whatsappDigits = phoneDigits($('#ctwpml-input-fone').val() || '');
+      }
       var cpfRaw = $('#ctwpml-input-cpf').val() || '';
       var cpfDigits = cpfDigitsOnly(cpfRaw); // Remove formatação
 
       state.log('UI        Salvando dados de contato', { 
         whatsapp: whatsappDigits, 
+        phone_full: phoneFull,
+        country_code: countryCode,
+        dial_code: dialCode,
         cpf: cpfDigits 
       }, 'UI');
 
@@ -1549,6 +1606,9 @@
         data: {
           action: 'ctwpml_save_contact_meta',
           whatsapp: whatsappDigits,
+          phone_full: phoneFull,
+          country_code: countryCode,
+          dial_code: dialCode,
           cpf: cpfDigits,
         },
         success: function (response) {
@@ -1580,6 +1640,268 @@
           hideModalSpinner();
         },
       });
+    }
+
+    // v2.0 [2.3]: Campo DDI (NOVO FORMATO: TomSelect + IMask) - baseado no modelo externo
+    function initInternationalPhoneInput() {
+      try {
+        var selectEl = document.getElementById('ctwpml-phone-country');
+        var inputEl = document.getElementById('ctwpml-input-fone');
+        var hiddenEl = document.getElementById('ctwpml-phone-full');
+
+        if (!selectEl || !inputEl || !hiddenEl) {
+          if (typeof state.checkpoint === 'function') state.checkpoint('CHK_PHONE_WIDGET_INIT', false, { reason: 'missing_dom', hasSelect: !!selectEl, hasInput: !!inputEl, hasHidden: !!hiddenEl });
+          return;
+        }
+
+        if (String(inputEl.getAttribute('data-ctwpml-phone-initialized') || '') === '1') return;
+
+        // deps
+        if (!window.IMask || !window.TomSelect) {
+          if (typeof state.log === 'function') state.log('UI        v2.0 [2.3] deps ausentes (IMask/TomSelect)', { hasIMask: !!window.IMask, hasTomSelect: !!window.TomSelect }, 'UI');
+          if (typeof state.checkpoint === 'function') state.checkpoint('CHK_PHONE_WIDGET_INIT', false, { reason: 'missing_deps', hasIMask: !!window.IMask, hasTomSelect: !!window.TomSelect });
+          return;
+        }
+
+        // countryData: ISO2 -> [Nome, DDI, Máscara]
+        var countryData = {
+          BR: ['Brasil', '55', '(00) 00000-0000'],
+          US: ['Estados Unidos', '1', '(000) 000-0000'],
+          PT: ['Portugal', '351', '000 000 000'],
+          AO: ['Angola', '244', '000 000 000'],
+          AR: ['Argentina', '54', '(000) 000-0000'],
+          AU: ['Austrália', '61', '0000 000 000'],
+          GB: ['Reino Unido', '44', '0000 000000'],
+          DE: ['Alemanha', '49', '0000 0000000'],
+          ES: ['Espanha', '34', '000 000 000'],
+          FR: ['França', '33', '0 00 00 00 00'],
+          IT: ['Itália', '39', '000 000 0000'],
+          CA: ['Canadá', '1', '(000) 000-0000'],
+          JP: ['Japão', '81', '00-0000-0000'],
+          CN: ['China', '86', '000 0000 0000'],
+          PY: ['Paraguai', '595', '000 000 000'],
+          UY: ['Uruguai', '598', '00 000 000'],
+          CL: ['Chile', '56', '9 0000 0000'],
+          CO: ['Colômbia', '57', '000 000 0000'],
+          MX: ['México', '52', '(000) 000-0000'],
+          PE: ['Peru', '51', '000 000 000'],
+          VE: ['Venezuela', '58', '(000) 000-0000'],
+          ZA: ['África do Sul', '27', '00 000 0000'],
+          CH: ['Suíça', '41', '00 000 00 00'],
+          SE: ['Suécia', '46', '00-000 000 00'],
+          NL: ['Holanda', '31', '06 00000000'],
+          BE: ['Bélgica', '32', '000 00 00 00'],
+          AT: ['Áustria', '43', '000 0000000'],
+          DK: ['Dinamarca', '45', '00 00 00 00'],
+          NO: ['Noruega', '47', '000 00 000'],
+          FI: ['Finlândia', '358', '00 000 0000'],
+          NZ: ['Nova Zelândia', '64', '000 000 000'],
+          IE: ['Irlanda', '353', '00 000 0000'],
+          TR: ['Turquia', '90', '(000) 000 00 00'],
+          KR: ['Coreia do Sul', '82', '00-0000-0000'],
+          IL: ['Israel', '972', '00-000-0000'],
+          SA: ['Arábia Saudita', '966', '00 000 0000'],
+          AE: ['Emirados Árabes', '971', '00 000 0000'],
+          IN: ['Índia', '91', '00000 00000'],
+          ID: ['Indonésia', '62', '000-0000-0000'],
+          RU: ['Rússia', '7', '(000) 000-00-00'],
+          PL: ['Polônia', '48', '000 000 000'],
+          UA: ['Ucrânia', '380', '00 000 00 00'],
+          XX: ['Outro', '', '000000000000000'],
+        };
+
+        function getFlagEmoji(code) {
+          try {
+            if (code === 'XX') return '🌐';
+            return String(code || '')
+              .toUpperCase()
+              .replace(/./g, function (char) {
+                return String.fromCodePoint(char.charCodeAt(0) + 127397);
+              });
+          } catch (e) {
+            return '';
+          }
+        }
+
+        var options = [];
+        Object.keys(countryData).forEach(function (code) {
+          if (code === 'XX') return;
+          options.push({
+            value: code,
+            text: countryData[code][0],
+            ddi: countryData[code][1],
+            flag: getFlagEmoji(code),
+          });
+        });
+        options.sort(function (a, b) {
+          return String(a.text || '').localeCompare(String(b.text || ''));
+        });
+        options.push({ value: 'XX', text: 'Outro', ddi: '+', flag: getFlagEmoji('XX') });
+
+        var maskInstance = null;
+
+        function updateHidden(countryCode, ddi, unmaskedValue) {
+          var val = String(unmaskedValue || '');
+          var ddiStr = String(ddi || '');
+          var full = '';
+          if (countryCode === 'XX') {
+            full = val ? ('+' + val.replace(/\D/g, '')) : '';
+          } else {
+            full = val ? ('+' + ddiStr + val.replace(/\D/g, '')) : '';
+          }
+          hiddenEl.value = full;
+
+          // Mantém billing_cellphone sincronizado (somente dígitos)
+          var digits = full ? full.replace(/\D/g, '') : '';
+          if (digits) $('#billing_cellphone').val(digits).trigger('change');
+
+          if (typeof state.log === 'function') {
+            state.log('UI        v2.0 [2.3] Phone accept', { country: countryCode, ddi: ddiStr ? ('+' + ddiStr) : '', digitsLen: digits.length, phone_full: full.slice(0, 8) + '...' }, 'UI');
+          }
+        }
+
+        function updateMask(countryCode, isInitCall) {
+          var data = countryData[countryCode];
+          if (!data) return;
+          var maskPattern = data[2];
+          var ddi = data[1];
+
+          if (maskInstance && typeof maskInstance.destroy === 'function') {
+            try { maskInstance.destroy(); } catch (e0) {}
+          }
+
+          var maskOpts = { lazy: true };
+          if (countryCode === 'BR') {
+            maskOpts.mask = [{ mask: '(00) 0000-0000' }, { mask: '(00) 00000-0000' }];
+          } else {
+            maskOpts.mask = maskPattern;
+          }
+
+          try {
+            maskInstance = window.IMask(inputEl, maskOpts);
+            maskInstance.on('accept', function () {
+              updateHidden(countryCode, ddi, maskInstance.unmaskedValue);
+            });
+
+            if (countryCode === 'BR') inputEl.placeholder = '(11) 99999-9999';
+            else inputEl.placeholder = String(maskPattern || '').replace(/0/g, '0');
+
+            // No modelo, ao trocar país limpa input/hidden (mantém UX consistente)
+            if (!isInitCall) {
+              inputEl.value = '';
+              hiddenEl.value = '';
+              $('#billing_cellphone').val('').trigger('change');
+            }
+
+            if (typeof state.checkpoint === 'function') {
+              state.checkpoint('CHK_PHONE_COUNTRY_CHANGED', true, { country: countryCode, dial_code: ddi ? ('+' + ddi) : '' });
+            }
+          } catch (e1) {
+            if (typeof state.checkpoint === 'function') {
+              state.checkpoint('CHK_PHONE_COUNTRY_CHANGED', false, { error: e1 && e1.message, country: countryCode });
+            }
+          }
+        }
+
+        var tom = new window.TomSelect(selectEl, {
+          options: options,
+          items: ['BR'],
+          valueField: 'value',
+          labelField: 'text',
+          searchField: ['text', 'ddi'],
+          maxOptions: null,
+          create: false,
+          openOnFocus: true,
+          render: {
+            option: function (data, escape) {
+              var ddiLabel = data.ddi === '+' ? '' : '+' + escape(data.ddi);
+              return (
+                '<div class="option-content" style="display:flex; align-items:center;">' +
+                '  <span class="option-flag" style="font-size:24px;margin-right:8px;line-height:1;">' + (data.flag || '') + '</span>' +
+                '  <div style="display:flex; flex-direction:column; margin-left:10px;">' +
+                '    <span class="option-name" style="font-weight:bold;">' + escape(data.text || '') + '</span>' +
+                '    <span class="option-ddi" style="color:#555;">' + ddiLabel + '</span>' +
+                '  </div>' +
+                '</div>'
+              );
+            },
+            item: function (data, escape) {
+              var ddiLabel = data.ddi === '+' ? '' : '+' + escape(data.ddi);
+              return (
+                '<div class="option-content" style="display:flex; align-items:center;">' +
+                '  <span class="option-flag" style="font-size:24px;line-height:1;">' + (data.flag || '') + '</span>' +
+                '  <span class="option-ddi" style="margin-left:5px;">' + ddiLabel + '</span>' +
+                '</div>'
+              );
+            },
+          },
+          dropdownParent: 'body',
+          onDropdownOpen: function (dropdown) {
+            try {
+              var searchInput = dropdown.querySelector('.dropdown-input');
+              if (searchInput) {
+                searchInput.setAttribute('inputmode', 'numeric');
+                searchInput.setAttribute('pattern', '[0-9]*');
+              }
+            } catch (e0) {}
+          },
+        });
+
+        tom.on('change', function (val) {
+          updateMask(String(val || ''), false);
+          try { setTimeout(function () { inputEl.focus(); }, 100); } catch (e0) {}
+        });
+
+        // API para o resto do modal
+        window.ctwpmlPhoneWidget = {
+          getSelectedCountry: function () { return String(tom.getValue() || ''); },
+          getDialCode: function () {
+            var cc = String(tom.getValue() || '');
+            var ddi = (countryData[cc] && countryData[cc][1]) ? String(countryData[cc][1]) : '';
+            return ddi ? ('+' + ddi) : '';
+          },
+          getPhoneFull: function () { return String(hiddenEl.value || ''); },
+          getDigits: function () { return String(hiddenEl.value || '').replace(/\D/g, ''); },
+          setPhoneFull: function (phoneFull) {
+            try {
+              var pf = String(phoneFull || '').trim();
+              if (!pf) return;
+              var digits = pf.replace(/\D/g, '');
+              if (!digits) return;
+
+              // Encontrar país por match de DDI (maior DDI primeiro)
+              var best = { code: 'XX', ddi: '', rest: digits };
+              Object.keys(countryData).forEach(function (code) {
+                var ddi = (countryData[code] && countryData[code][1]) ? String(countryData[code][1]) : '';
+                if (!ddi) return;
+                if (digits.indexOf(ddi) === 0 && ddi.length > (best.ddi || '').length) {
+                  best = { code: code, ddi: ddi, rest: digits.slice(ddi.length) };
+                }
+              });
+
+              tom.setValue(best.code, true);
+              updateMask(best.code, true);
+              if (maskInstance) {
+                try { maskInstance.unmaskedValue = String(best.rest || ''); } catch (e1) {}
+              } else {
+                inputEl.value = String(best.rest || '');
+              }
+              updateHidden(best.code, best.ddi, String(best.rest || ''));
+            } catch (e0) {}
+          },
+        };
+
+        // init default BR
+        updateMask('BR', true);
+        inputEl.setAttribute('data-ctwpml-phone-initialized', '1');
+
+        if (typeof state.checkpoint === 'function') state.checkpoint('CHK_PHONE_WIDGET_INIT', true, { defaultCountry: 'BR' });
+        if (typeof state.log === 'function') state.log('UI        v2.0 [2.3] Phone widget inicializado (TomSelect+IMask)', {}, 'UI');
+      } catch (e0) {
+        try {
+          if (typeof state.checkpoint === 'function') state.checkpoint('CHK_PHONE_WIDGET_INIT', false, { error: e0 && e0.message });
+        } catch (_) {}
+      }
     }
 
     function openModal() {
@@ -1820,6 +2142,7 @@
       prefillFormFromCheckout();
       syncLoginBanner();
       syncCpfUiFromCheckout();
+      initInternationalPhoneInput(); // v2.0 [2.3] (TomSelect + IMask)
       loadContactMeta(); // Carregar WhatsApp e CPF salvos
       setFooterVisible(true);
       persistModalState({ view: 'form' });
@@ -1858,6 +2181,7 @@
       syncLoginBanner();
       syncCpfUiFromCheckout();
       // v3.2.13: Carregar CPF e WhatsApp do perfil (user_meta) para novo endereço
+      initInternationalPhoneInput(); // v2.0 [2.3] (TomSelect + IMask)
       loadContactMeta();
       setFooterVisible(true);
       persistModalState({ view: 'form' });
@@ -1914,8 +2238,23 @@
       $('#ctwpml-input-nome').val(receiverName);
       
       // WhatsApp: tentar do checkout primeiro
+      initInternationalPhoneInput(); // v2.0 [2.3]
       var phoneFromCheckout = ($('#billing_cellphone').val() || '').trim();
-      $('#ctwpml-input-fone').val(formatPhone(phoneFromCheckout));
+      try {
+        var digits = phoneDigits(String(phoneFromCheckout || ''));
+        if (window.ctwpmlPhoneWidget && typeof window.ctwpmlPhoneWidget.setPhoneFull === 'function') {
+          if (digits && (digits.length === 10 || digits.length === 11)) {
+            window.ctwpmlPhoneWidget.setPhoneFull('+55' + digits);
+          } else if (digits && digits.length >= 8) {
+            // Fallback: assume que já contém DDI (somente dígitos)
+            window.ctwpmlPhoneWidget.setPhoneFull('+' + digits);
+          }
+        } else {
+          $('#ctwpml-input-fone').val(formatPhone(phoneFromCheckout));
+        }
+      } catch (e0) {
+        $('#ctwpml-input-fone').val(formatPhone(phoneFromCheckout));
+      }
       
       // v3.2.7: Se WhatsApp/CPF estiverem vazios, carregar do perfil (user_meta)
       var needsContactMeta = !phoneFromCheckout;
@@ -1923,8 +2262,16 @@
         loadContactMeta(function(meta) {
           if (meta) {
             // Preencher WhatsApp se estiver vazio
-            if (!$('#ctwpml-input-fone').val() && meta.whatsapp) {
-              $('#ctwpml-input-fone').val(formatPhone(meta.whatsapp));
+            try {
+              if (window.ctwpmlPhoneWidget && typeof window.ctwpmlPhoneWidget.setPhoneFull === 'function' && meta.phone_full) {
+                window.ctwpmlPhoneWidget.setPhoneFull(String(meta.phone_full));
+              } else if (!$('#ctwpml-input-fone').val() && meta.whatsapp) {
+                $('#ctwpml-input-fone').val(formatPhone(meta.whatsapp));
+              }
+            } catch (e1) {
+              if (!$('#ctwpml-input-fone').val() && meta.whatsapp) {
+                $('#ctwpml-input-fone').val(formatPhone(meta.whatsapp));
+              }
             }
           }
         });
@@ -2287,7 +2634,14 @@
       if ($('#ctwpml-type-work').hasClass('is-active')) label = 'Trabalho';
 
       var receiverName = ($('#ctwpml-input-nome').val() || '').trim();
-      var whatsappDigits = phoneDigits($('#ctwpml-input-fone').val());
+      // v2.0 [2.3] (novo formato): preferir digits do hidden phone_full
+      var whatsappDigits = '';
+      try {
+        var phoneFull = ($('#ctwpml-phone-full').val() || '').toString();
+        whatsappDigits = phoneFull ? phoneFull.replace(/\D/g, '') : phoneDigits($('#ctwpml-input-fone').val());
+      } catch (e0) {
+        whatsappDigits = phoneDigits($('#ctwpml-input-fone').val());
+      }
       var cpfDigits = cpfDigitsOnly($('#ctwpml-input-cpf').val());
 
       // v3.2.13: Primeiro, chamar webhook com evento consultaEnderecoFrete (completo)
@@ -3711,6 +4065,18 @@
         return;
       }
 
+      // v2.0 [2.2]: overlay de preparação ao tentar finalizar compra (intenção de compra).
+      // Importante: só mostra após validar termos + gateway para não “piscar” com erro imediato.
+      var prep = window.CTWPMLPrepare || null;
+      var overlayShown = false;
+      try {
+        if (prep && typeof prep.showPreparingOverlay === 'function') {
+          prep.showPreparingOverlay('Preparando tudo para sua compra');
+          overlayShown = true;
+        }
+      } catch (eP0) {}
+      log('CTA click: iniciando finalização', { overlayShown: overlayShown, gateway: woo.getSelectedGatewayId ? woo.getSelectedGatewayId() : '' });
+
       // Evita duplo clique.
       $('#ctwpml-review-confirm, #ctwpml-review-confirm-sticky').prop('disabled', true).css('opacity', '0.7');
 
@@ -3718,6 +4084,10 @@
       $(document.body).one('checkout_error', function () {
         try {
           $('#ctwpml-review-confirm, #ctwpml-review-confirm-sticky').prop('disabled', false).css('opacity', '');
+          // Hide overlay se estiver visível
+          try {
+            if (prep && typeof prep.hidePreparingOverlay === 'function') prep.hidePreparingOverlay();
+          } catch (eP1) {}
           var $err = $('.woocommerce-error, .woocommerce-NoticeGroup-checkout').first();
           var errText = $err.length ? $err.text().trim() : '';
           log('checkout_error recebido', { text: errText });
@@ -3748,6 +4118,22 @@
 
       // (Opcional) garante update_checkout antes do submit.
       try { $(document.body).trigger('update_checkout'); } catch (e2) {}
+
+      // Watchdog: se nada acontecer (sem redirect/sem erro) por muito tempo, liberar para retry.
+      try {
+        setTimeout(function () {
+          try {
+            // Se ainda está na mesma página e CTA continua desabilitado, liberar.
+            var $cta = $('#ctwpml-review-confirm, #ctwpml-review-confirm-sticky');
+            if ($cta.length && $cta.is(':disabled')) {
+              $cta.prop('disabled', false).css('opacity', '');
+              if (prep && typeof prep.hidePreparingOverlay === 'function') prep.hidePreparingOverlay();
+              log('Watchdog: liberando CTA após timeout', { ms: 25000 });
+              if (typeof state.checkpoint === 'function') state.checkpoint('CHK_CTA_WATCHDOG_RELEASE', true, { ms: 25000 });
+            }
+          } catch (eW) {}
+        }, 25000);
+      } catch (eW0) {}
 
       // Preferência 1: click NATIVO no botão submit
       var btn = document.getElementById('place_order');
@@ -3803,17 +4189,75 @@
       if ($(this).is('#ctwpml-input-rua')) setRuaHint('', false);
     });
 
+    // v2.0 [2.1]: Auto-scroll ao focar campos perto do footer fixo (evita sobreposição/teclado).
+    // Delegado para funcionar após re-render de views.
+    $(document).on('focus', '#ctwpml-view-form input, #ctwpml-view-form textarea', function () {
+      try {
+        var $body = $('.ctwpml-modal-body').first();
+        if (!$body.length) return;
+
+        var bodyEl = $body[0];
+        var inputEl = this;
+        if (!bodyEl || !inputEl || !inputEl.getBoundingClientRect) return;
+
+        var footerH = 0;
+        try {
+          var $footer = $('.ctwpml-footer:visible').first();
+          footerH = $footer.length ? ($footer.outerHeight() || 0) : 0;
+        } catch (e0) {}
+        if (!footerH) footerH = 180;
+
+        var bodyRect = bodyEl.getBoundingClientRect();
+        var inputRect = inputEl.getBoundingClientRect();
+
+        // “Área visível” no body levando em conta o footer fixo e uma folga.
+        var padding = 16;
+        var visibleBottom = bodyRect.bottom - footerH - padding;
+
+        if (inputRect.bottom > visibleBottom) {
+          var delta = (inputRect.bottom - visibleBottom) + 12;
+          var nextTop = Math.max(0, bodyEl.scrollTop + delta);
+
+          // Scroll suave dentro do modal
+          try {
+            $body.stop(true).animate({ scrollTop: nextTop }, 220);
+          } catch (e1) {
+            bodyEl.scrollTop = nextTop;
+          }
+
+          if (typeof state.log === 'function') {
+            state.log('UI        v2.0 [2.1] Auto-scroll no foco (campo perto do footer)', {
+              fieldId: String(inputEl.id || ''),
+              footerH: footerH,
+              delta: delta,
+              scrollTop: bodyEl.scrollTop,
+              nextTop: nextTop,
+            }, 'UI');
+          }
+        }
+      } catch (e2) {}
+    });
+
     // Se o usuário alterar o CEP direto no checkout (fora do modal), limpamos os campos também.
     $(document).on('input change', '#billing_postcode', function () {
       onBillingCepChanged();
     });
 
-    // Máscara/regex do celular no modal (XX - X XXXX-XXXX)
+    // Máscara/regex do celular no modal
     $(document).on('input', '#ctwpml-input-fone', function () {
       var $input = $('#ctwpml-input-fone');
+
+      // v2.0 [2.3] (novo formato): IMask controla o input; aqui só mantemos sincronização defensiva
+      try {
+        var phoneFull = ($('#ctwpml-phone-full').val() || '').toString();
+        var digits = phoneFull ? phoneFull.replace(/\D/g, '') : phoneDigits($input.val());
+        if (digits) $('#billing_cellphone').val(digits).trigger('change');
+        return;
+      } catch (e0) {}
+
+      // Fallback (se widget não estiver ativo)
       var formatted = formatPhone($input.val());
       if ($input.val() !== formatted) $input.val(formatted);
-      // Mantém o campo real do checkout com dígitos (máscaras do tema/plugin podem formatar depois).
       $('#billing_cellphone').val(phoneDigits(formatted)).trigger('change');
     });
 

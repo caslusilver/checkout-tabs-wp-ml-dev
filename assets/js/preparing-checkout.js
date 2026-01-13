@@ -10,8 +10,14 @@
   }
 
   function log(msg, data) {
-    if (!isDebug()) return;
     try {
+      // Preferir logger do plugin (vai para painel + backend), se existir.
+      var st = window.CCCheckoutTabsState;
+      if (st && typeof st.log === 'function' && isDebug()) {
+        st.log('PREPARE   ' + msg, data || {}, 'UI');
+        return;
+      }
+      if (!isDebug()) return;
       console.log('[CTWPML][PREPARE] ' + msg, data || '');
     } catch (e) {}
   }
@@ -95,6 +101,85 @@
     var el = ensureOverlay();
     el.classList.remove('is-visible');
   }
+
+  // =========================================================
+  // v2.0 [2.2] API pública: overlay e intenção de compra
+  // - Usado pelo modal ML (address-ml-modal.js) e por futuras integrações.
+  // =========================================================
+  window.CTWPMLPrepare = window.CTWPMLPrepare || {};
+
+  window.CTWPMLPrepare.showPreparingOverlay = function (message) {
+    try {
+      var el = ensureOverlay();
+      try {
+        var titleEl = el.querySelector('.ctwpml-preparing-title');
+        if (titleEl && message) titleEl.textContent = String(message);
+      } catch (e1) {}
+      showOverlay();
+      log('Overlay exibido', { message: message || '' });
+    } catch (e0) {}
+  };
+
+  window.CTWPMLPrepare.hidePreparingOverlay = function () {
+    try {
+      hideOverlay();
+      log('Overlay ocultado');
+    } catch (e0) {}
+  };
+
+  // Preparar checkout quando usuário demonstra intenção de compra.
+  // Não abre login (apenas informa needsLogin) e nunca deve “quebrar” o fluxo.
+  window.CTWPMLPrepare.prepareForPurchaseIntent = function () {
+    return new Promise(function (resolve, reject) {
+      try {
+        if (!isCheckout()) {
+          log('prepareForPurchaseIntent: não é checkout (skip)');
+          resolve({ ok: false, skipped: true, reason: 'not_checkout' });
+          return;
+        }
+        if (!isLoggedIn()) {
+          log('prepareForPurchaseIntent: usuário não logado (adiado)');
+          resolve({ ok: false, needsLogin: true });
+          return;
+        }
+        if (!window.cc_params || !window.cc_params.ajax_url) {
+          log('prepareForPurchaseIntent: cc_params indisponível', { hasCcParams: !!window.cc_params });
+          resolve({ ok: false, reason: 'no_cc_params' });
+          return;
+        }
+
+        window.CTWPMLPrepare.showPreparingOverlay('Preparando tudo para sua compra');
+
+        ajaxPost({ action: 'ctwpml_get_addresses', _ajax_nonce: window.cc_params.addresses_nonce })
+          .then(function (resp) {
+            var items = resp && resp.success && resp.data && Array.isArray(resp.data.items) ? resp.data.items : [];
+            var first = items[0] || null;
+            if (!first) {
+              log('prepareForPurchaseIntent: nenhum endereço cadastrado');
+              resolve({ ok: false, noAddress: true });
+              return null;
+            }
+            log('prepareForPurchaseIntent: preparando primeiro endereço', { id: first.id });
+            setLastPreparedAddressId(first.id);
+            return prepareForAddress(first);
+          })
+          .then(function (result) {
+            if (!result) return;
+            log('prepareForPurchaseIntent: concluído', result);
+            resolve({ ok: true, result: result });
+          })
+          .catch(function (err) {
+            log('prepareForPurchaseIntent: falhou', err);
+            reject(err);
+          })
+          .finally(function () {
+            window.CTWPMLPrepare.hidePreparingOverlay();
+          });
+      } catch (e0) {
+        reject(e0);
+      }
+    });
+  };
 
   function ajaxPost(data) {
     return new Promise(function (resolve, reject) {

@@ -151,7 +151,8 @@ body.ctwpml-ml-only:not(.elementor-editor-active) .e-checkout__container {
 
 .ctwpml-modal-body {
   padding: 16px;
-  padding-bottom: 120px;
+  /* Espaço para footer fixo (evita sobreposição dos últimos campos) */
+  padding-bottom: 200px;
   /* espaço para footer quando visível */
   overflow: auto !important;
   /* scroll interno do modal */
@@ -326,7 +327,21 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
   left: 0;
   right: 0;
   z-index: 99;
-  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.12);
+  /* Garantir que o fundo não seja transparente */
+  backdrop-filter: none;
+}
+
+/* Separador visual entre conteúdo e botões (evita “sumir” o fim do form) */
+.ctwpml-footer::before {
+  content: '';
+  position: absolute;
+  top: -20px;
+  left: 0;
+  right: 0;
+  height: 20px;
+  background: linear-gradient(to top, rgba(255, 255, 255, 1) 0%, rgba(255, 255, 255, 0) 100%);
+  pointer-events: none;
 }
 
 .ctwpml-btn {
@@ -739,6 +754,91 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
   font-size: 15px;
   outline: none;
   background: #fff;
+}
+
+/* =====================================================
+   v2.0 [2.3] Campo DDI (NOVO FORMATO: TomSelect + IMask)
+   - Segue o MODELO FORMULARIO INTERNACIONAL PARA NUMEROS.PHP
+   ===================================================== */
+.ctwpml-phone-wrap {
+  display: flex;
+  flex-wrap: nowrap !important;
+  width: 100%;
+  position: relative;
+  background: #fff;
+  border: 1px solid #dcdcdc;
+  border-radius: 6px;
+  align-items: center;
+  height: 65px;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.ctwpml-phone-wrap:focus-within {
+  border-color: #000;
+  box-shadow: 0 0 0 1px #000;
+}
+
+/* TomSelect: largura fixa para bandeira + +DDI */
+.ctwpml-phone-wrap .ts-wrapper.single {
+  width: 130px !important;
+  min-width: 130px !important;
+  height: 100%;
+}
+
+.ctwpml-phone-wrap .ts-wrapper.single .ts-control {
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  padding: 0 0 0 15px !important;
+  height: 100% !important;
+  display: flex !important;
+  align-items: center !important;
+}
+
+.ctwpml-phone-wrap .ts-wrapper.single .ts-control .item {
+  display: flex;
+  align-items: center;
+  white-space: nowrap;
+}
+
+.ts-dropdown {
+  z-index: 9999999 !important;
+  margin-top: 5px;
+  border-radius: 8px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+  border: 1px solid #ccc;
+  background: #fff;
+  padding-bottom: 20px !important;
+  min-width: 250px;
+}
+
+.ts-dropdown .dropdown-input {
+  font-size: 18px !important;
+  padding: 12px !important;
+  color: #000 !important;
+  border-bottom: 2px solid #eee !important;
+}
+
+/* Input telefone (visível) */
+#ctwpml-input-fone {
+  flex: 1;
+  min-width: 0;
+  border: none !important;
+  background: transparent !important;
+  padding: 0 15px !important;
+  font-size: 20px !important;
+  outline: none !important;
+  color: #000 !important;
+  height: 100%;
+  border-left: 1px solid #eee !important;
+  margin: 0 !important;
+}
+
+#ctwpml-input-fone::placeholder {
+  color: #999;
+  font-size: 18px;
+  opacity: 1;
 }
 
 .ctwpml-form-group.is-error input,
