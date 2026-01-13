@@ -9,19 +9,26 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 - Criar o repositório: `caslusilver/checkout-tabs-wp-ml-dev`
 - Branch principal do fluxo: `develop`
 
+## [v3.2.52] - 2026-01-13
+
+### Changed
+- WhatsApp: auto-scroll reposicionado para ~20% do topo (80% de espaço abaixo) e dropdown do DDI volta a abrir para baixo; salvar endereço: spinner persiste até confirmação + retorno para lista (evita janela de interação); endereços: complemento passa a aparecer também na lista e no “Detalhe da entrega” (review); pagamento: UI de cupom/desconto com preço original riscado + valor final e feedback visual (sucesso/erro).
+
+#### Protocol: f2e5560
+
+## [Unreleased]
+
+### Changed
+- **Versão atual**: v3.2.52  
+  **Versão sugerida após a mudança**: vX.Y.Z  
+  **Descrição**: texto objetivo do que mudou e impacto (pode listar itens separados por ponto e vírgula).
+
 ## [v3.2.51] - 2026-01-13
 
 ### Changed
 - Telefone internacional: impede DDI aparecer no input (DDI fica só no seletor) e melhora restauração no editar endereço; dropdown do DDI abre para cima e auto-scroll dispara também ao tocar no DDI; formulário: espaçamento do footer e link “Excluir endereço” fica visível acima dos botões (safe-area iOS); salvar endereço: remove toast duplicado e volta imediatamente para lista; frete/telas: inclui complemento no resumo do endereço e evita quebra de linha nos preços.
 
 #### Protocol: 2c222bc
-
-## [Unreleased]
-
-### Changed
-- **Versão atual**: v3.2.51  
-  **Versão sugerida após a mudança**: vX.Y.Z  
-  **Descrição**: texto objetivo do que mudou e impacto (pode listar itens separados por ponto e vírgula).
 
 ## [v3.2.48] - 2026-01-13
 

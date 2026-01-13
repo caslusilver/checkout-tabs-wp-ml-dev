@@ -229,6 +229,29 @@
       $('#ctwpml-address-modal-overlay').css('pointer-events', '');
     }
 
+    // Spinner lock/refcount: evita “janela” sem spinner em fluxos encadeados (contato -> endereço).
+    var ctwpmlSpinnerLocks = 0;
+    function ctwpmlSpinnerAcquire(source) {
+      try {
+        ctwpmlSpinnerLocks = (ctwpmlSpinnerLocks || 0) + 1;
+        showModalSpinner();
+        if (typeof state.checkpoint === 'function') {
+          state.checkpoint('CHK_SPINNER_ACQUIRE', true, { source: String(source || ''), locks: ctwpmlSpinnerLocks });
+        }
+      } catch (e0) {}
+    }
+    function ctwpmlSpinnerRelease(source) {
+      try {
+        ctwpmlSpinnerLocks = Math.max(0, (ctwpmlSpinnerLocks || 0) - 1);
+        if (typeof state.checkpoint === 'function') {
+          state.checkpoint('CHK_SPINNER_RELEASE', true, { source: String(source || ''), locks: ctwpmlSpinnerLocks });
+        }
+        if (ctwpmlSpinnerLocks === 0) {
+          hideModalSpinner();
+        }
+      } catch (e0) {}
+    }
+
     /**
      * Exibe notificação toast para o usuário
      * @param {string} message - Mensagem a exibir
@@ -1071,7 +1094,7 @@
       }
     }
 
-    function applyPaymentAvailabilityAndSync() {
+    function applyPaymentAvailabilityAndSync(eventType) {
       var woo = window.CCCheckoutTabs && window.CCCheckoutTabs.WooHost ? window.CCCheckoutTabs.WooHost : null;
       if (!woo) return;
 
@@ -1092,8 +1115,136 @@
 
       // Atualizar valores do footer (subtotal/total)
       var totals = woo.readTotals();
-      if (totals.subtotalText) $('#ctwpml-payment-subtotal-value').text(totals.subtotalText);
-      if (totals.totalText) $('#ctwpml-payment-total-value').text(totals.totalText);
+
+      // v4.0: UI de desconto/cupom (preço riscado + valor final)
+      // Guardamos tentativa/estado em state para sobreviver a updated_checkout.
+      state.__ctwpmlPaymentDiscount = state.__ctwpmlPaymentDiscount || null;
+      state.__ctwpmlCouponAttempt = state.__ctwpmlCouponAttempt || null;
+
+      function resetCouponUi() {
+        try {
+          $('#ctwpml-add-coupon-btn').removeClass('is-success');
+          $('#ctwpml-coupon-input').removeClass('is-error');
+        } catch (e0) {}
+      }
+
+      function renderTotalsNoDiscount() {
+        try {
+          var $totalRow = $('.ctwpml-payment-total-row').first();
+          var $subtotalRow = $('.ctwpml-payment-subtotal-row').first();
+
+          if ($subtotalRow.length) {
+            $subtotalRow.removeClass('has-discount');
+            // garantir formato simples
+            $subtotalRow.html(
+              '<span class="ctwpml-payment-subtotal-label">Subtotal</span>' +
+              '<span class="ctwpml-payment-subtotal-value" id="ctwpml-payment-subtotal-value">' + escapeHtml(totals.subtotalText || '') + '</span>'
+            );
+          } else if (totals.subtotalText) {
+            $('#ctwpml-payment-subtotal-value').text(totals.subtotalText);
+          }
+
+          if ($totalRow.length) {
+            $totalRow.removeClass('has-discount');
+            $totalRow.html(
+              '<span class="ctwpml-payment-total-label">Você pagará</span>' +
+              '<span class="ctwpml-payment-total-value" id="ctwpml-payment-total-value">' + escapeHtml(totals.totalText || '') + '</span>'
+            );
+          } else if (totals.totalText) {
+            $('#ctwpml-payment-total-value').text(totals.totalText);
+          }
+        } catch (e1) {
+          if (totals.subtotalText) $('#ctwpml-payment-subtotal-value').text(totals.subtotalText);
+          if (totals.totalText) $('#ctwpml-payment-total-value').text(totals.totalText);
+        }
+      }
+
+      function renderTotalsWithDiscount(discount) {
+        try {
+          var $totalRow = $('.ctwpml-payment-total-row').first();
+          var $subtotalRow = $('.ctwpml-payment-subtotal-row').first();
+          var couponName = discount && discount.couponName ? String(discount.couponName) : '';
+
+          if ($subtotalRow.length && discount.originalSubtotal && discount.discountedSubtotal && String(discount.originalSubtotal) !== String(discount.discountedSubtotal)) {
+            $subtotalRow.addClass('has-discount');
+            $subtotalRow.html(
+              '<span class="ctwpml-payment-subtotal-label">Subtotal</span>' +
+              '<span class="ctwpml-payment-subtotal-value" id="ctwpml-payment-subtotal-value">' +
+              '  <span class="ctwpml-payment-subtotal-original">' + escapeHtml(discount.originalSubtotal) + '</span>' +
+              '  <span class="ctwpml-payment-subtotal-discounted" id="ctwpml-payment-subtotal-discounted">' + escapeHtml(discount.discountedSubtotal) + '</span>' +
+              '</span>'
+            );
+          } else if ($subtotalRow.length) {
+            $subtotalRow.removeClass('has-discount');
+            $subtotalRow.html(
+              '<span class="ctwpml-payment-subtotal-label">Subtotal</span>' +
+              '<span class="ctwpml-payment-subtotal-value" id="ctwpml-payment-subtotal-value">' + escapeHtml(totals.subtotalText || '') + '</span>'
+            );
+          }
+
+          if ($totalRow.length) {
+            $totalRow.addClass('has-discount');
+            $totalRow.html(
+              '<span class="ctwpml-payment-total-label">Você pagará</span>' +
+              '<div class="ctwpml-payment-price-wrapper">' +
+              '  <span class="ctwpml-payment-original-price" id="ctwpml-payment-original-price">' + escapeHtml(discount.originalTotal || '') + '</span>' +
+              '  <span class="ctwpml-payment-discounted-price" id="ctwpml-payment-total-value">' + escapeHtml(discount.discountedTotal || (totals.totalText || '')) + '</span>' +
+              (couponName ? '  <span class="ctwpml-discount-tag" id="ctwpml-discount-tag">' + escapeHtml(couponName) + '</span>' : '') +
+              '</div>'
+            );
+          }
+        } catch (e2) {
+          renderTotalsNoDiscount();
+        }
+      }
+
+      // Evento de remoção do cupom: limpa estado e volta ao normal
+      if (String(eventType || '') === 'removed_coupon') {
+        state.__ctwpmlPaymentDiscount = null;
+        state.__ctwpmlCouponAttempt = null;
+        resetCouponUi();
+        renderTotalsNoDiscount();
+      } else {
+        // Se houver tentativa recente, tenta derivar “antes/depois”
+        var attempt = state.__ctwpmlCouponAttempt;
+        if (attempt && attempt.originalTotal && totals.totalText) {
+          var changed = String(attempt.originalTotal) !== String(totals.totalText);
+          if (changed) {
+            state.__ctwpmlPaymentDiscount = {
+              originalTotal: String(attempt.originalTotal || ''),
+              discountedTotal: String(totals.totalText || ''),
+              originalSubtotal: String(attempt.originalSubtotal || ''),
+              discountedSubtotal: String(totals.subtotalText || ''),
+              couponName: String(attempt.couponName || attempt.code || ''),
+            };
+            try { $('#ctwpml-add-coupon-btn').addClass('is-success'); } catch (e4) {}
+            try { $('#ctwpml-coupon-input').removeClass('is-error'); } catch (e5) {}
+          } else if (String(eventType || '') === 'applied_coupon') {
+            // Cupom aplicado sem mudar total (ex.: efeito só no frete, etc.) – mantém UI normal.
+            try { $('#ctwpml-add-coupon-btn').addClass('is-success'); } catch (e6) {}
+            try { $('#ctwpml-coupon-input').removeClass('is-error'); } catch (e7) {}
+          } else if (String(eventType || '') === 'apply_coupon') {
+            // Tentativa concluída sem efeito aparente no total: marcar visualmente como erro (sem travar o usuário).
+            try { $('#ctwpml-add-coupon-btn').removeClass('is-success'); } catch (e8) {}
+            try { $('#ctwpml-coupon-input').addClass('is-error'); } catch (e9) {}
+            try {
+              if (typeof state.checkpoint === 'function') {
+                state.checkpoint('CHK_COUPON_APPLY_NO_CHANGE', false, {
+                  code: String(attempt.code || ''),
+                  originalTotal: String(attempt.originalTotal || ''),
+                  afterTotal: String(totals.totalText || ''),
+                });
+              }
+            } catch (e10) {}
+          }
+        }
+
+        if (state.__ctwpmlPaymentDiscount && state.__ctwpmlPaymentDiscount.originalTotal && state.__ctwpmlPaymentDiscount.discountedTotal) {
+          renderTotalsWithDiscount(state.__ctwpmlPaymentDiscount);
+        } else {
+          renderTotalsNoDiscount();
+        }
+      }
 
       // Guardar mapping para clique
       state.paymentGatewayMap = map;
@@ -1387,9 +1538,9 @@
     }
 
     // Sempre que o Woo atualizar o checkout, refletimos no modal (subtotal/total).
-    $(document.body).on('updated_checkout applied_coupon removed_coupon', function () {
+    $(document.body).on('updated_checkout applied_coupon removed_coupon', function (e) {
       try {
-        if (currentView === 'payment') applyPaymentAvailabilityAndSync();
+        if (currentView === 'payment') applyPaymentAvailabilityAndSync(e && e.type ? e.type : '');
         if (currentView === 'review') {
           syncReviewTotalsFromWoo();
           // Re-sincroniza termos (Woo pode re-renderizar o DOM).
@@ -1608,7 +1759,8 @@
         cpf: cpfDigits 
       }, 'UI');
 
-      showModalSpinner();
+      var spinnerManagedByCaller = !!(opts && opts.spinnerManagedByCaller);
+      if (!spinnerManagedByCaller) ctwpmlSpinnerAcquire('save_contact_meta');
 
       $.ajax({
         url: state.params.ajax_url,
@@ -1649,7 +1801,7 @@
           if (callback) callback();
         },
         complete: function () {
-          hideModalSpinner();
+          if (!spinnerManagedByCaller) ctwpmlSpinnerRelease('save_contact_meta');
         },
       });
     }
@@ -1856,39 +2008,6 @@
                 searchInput.setAttribute('pattern', '[0-9]*');
               }
             } catch (e0) {}
-
-            // Abrir dropdown para CIMA (evita ficar escondido pelo footer/teclado).
-            try {
-              var self = this;
-              window.requestAnimationFrame(function () {
-                try {
-                  var control = self && self.control ? self.control : null;
-                  if (!control || !dropdown || !control.getBoundingClientRect) return;
-
-                  dropdown.style.position = 'fixed';
-                  dropdown.style.zIndex = '9999999';
-
-                  var cRect = control.getBoundingClientRect();
-                  // Garantir width alinhada ao controle.
-                  dropdown.style.left = String(Math.max(8, Math.round(cRect.left))) + 'px';
-                  dropdown.style.width = String(Math.round(cRect.width)) + 'px';
-
-                  // Calcula altura atual do dropdown (pode variar).
-                  var ddHeight = dropdown.offsetHeight || 0;
-                  var minTop = 8;
-                  var desiredTop = Math.round(cRect.top - ddHeight - 8);
-
-                  // Se não couber totalmente, limita altura e ancora no topo possível.
-                  var maxHeight = Math.max(120, Math.round(cRect.top - minTop - 12));
-                  dropdown.style.maxHeight = String(maxHeight) + 'px';
-                  dropdown.style.overflowY = 'auto';
-
-                  if (desiredTop < minTop) desiredTop = minTop;
-                  dropdown.style.top = String(desiredTop) + 'px';
-                  dropdown.style.bottom = 'auto';
-                } catch (e2) {}
-              });
-            } catch (e1) {}
           },
         });
 
@@ -2637,22 +2756,25 @@
 
     function formatFullAddressLine(it) {
       it = it || {};
-      var label = (it.label || '').trim();
+      var label = (it.label || '').trim(); // Casa/Trabalho (opcional)
+      var a1 = (it.address_1 || '').trim();
       var number = (it.number || '').trim();
-      var prefix = '';
-      if (label) prefix = label + (number ? ' ' + number : '');
-      else if (number) prefix = number;
+      var complement = (it.complement || '').trim();
 
-      var location = [];
-      if (it.neighborhood) location.push(it.neighborhood);
-      if (it.city) location.push(it.city);
-      if (it.state) location.push(it.state);
+      // Linha 1: Rua + Número + Complemento
+      var line1 = (a1 ? a1 : 'Endereço') + (number ? ', ' + number : '');
+      if (complement) line1 += ' - ' + complement;
 
-      var line = '';
-      if (prefix) line += prefix;
-      if (prefix && location.length) line += ' - ';
-      line += location.join(', ');
+      var parts = [];
+      if (it.neighborhood) parts.push(String(it.neighborhood));
+      if (it.city) parts.push(String(it.city));
+      if (it.state) parts.push(String(it.state));
+
+      var line = line1 + (parts.length ? ' - ' + parts.join(', ') : '');
       if (it.cep) line += (line ? ', ' : '') + 'CEP ' + formatCep(it.cep);
+
+      // Prefixo opcional com label (não duplicar número aqui)
+      if (label) line = label + ': ' + line;
       return line;
     }
 
@@ -2779,8 +2901,17 @@
       });
     }
 
-    function saveAddressFromForm(done) {
+    function saveAddressFromForm(optionsOrDone, maybeDone) {
+      var opts = {};
+      var done = null;
+      if (typeof optionsOrDone === 'function') {
+        done = optionsOrDone;
+      } else {
+        opts = optionsOrDone && typeof optionsOrDone === 'object' ? optionsOrDone : {};
+        done = typeof maybeDone === 'function' ? maybeDone : null;
+      }
       done = typeof done === 'function' ? done : function () {};
+
       if (!state.params || !state.params.ajax_url || !state.params.addresses_nonce) {
         done({ ok: false, message: 'AJAX indisponível.' });
         return;
@@ -2791,7 +2922,8 @@
       }
       isSavingAddress = true;
       $('#ctwpml-btn-primary').prop('disabled', true);
-      showModalSpinner();
+      var spinnerManagedByCaller = !!(opts && opts.spinnerManagedByCaller);
+      if (!spinnerManagedByCaller) ctwpmlSpinnerAcquire('save_address_flow');
 
       var cepOnly = cepDigits($('#ctwpml-input-cep').val());
       var label = '';
@@ -2851,7 +2983,7 @@
           if (normalized && normalized.whatsappValido === false) {
             isSavingAddress = false;
             $('#ctwpml-btn-primary').prop('disabled', false);
-            hideModalSpinner();
+            if (!spinnerManagedByCaller) ctwpmlSpinnerRelease('save_address_flow');
             setFieldError('#ctwpml-input-fone', true);
             showNotification('Por favor, confira o seu número de WhatsApp.', 'error', 5000);
             done({ ok: false, message: 'WhatsApp inválido.' });
@@ -2859,7 +2991,7 @@
           }
 
           // Agora salvar o endereço no backend; payload será persistido APÓS obter address_id
-          doSaveAddressToBackend(cepOnly, label, receiverName, normalized, done, webhookData);
+          doSaveAddressToBackend(cepOnly, label, receiverName, normalized, done, webhookData, { spinnerManagedByCaller: spinnerManagedByCaller });
         },
         error: function (jqXHR, textStatus, errorThrown) {
           if (typeof state.log === 'function')
@@ -2867,13 +2999,15 @@
           
           // Mesmo com erro no webhook, tentar salvar o endereço usando dados em cache
           if (typeof state.log === 'function') state.log('UI        Salvando endereço sem resposta do webhook (usando cache)...', {}, 'UI');
-          doSaveAddressToBackend(cepOnly, label, receiverName, lastCepLookup, done, null);
+          doSaveAddressToBackend(cepOnly, label, receiverName, lastCepLookup, done, null, { spinnerManagedByCaller: spinnerManagedByCaller });
         },
       });
     }
 
     // v3.2.13: Função auxiliar para salvar endereço no backend (após validação do webhook)
-    function doSaveAddressToBackend(cepOnly, label, receiverName, webhookData, done, webhookRawForPayload) {
+    function doSaveAddressToBackend(cepOnly, label, receiverName, webhookData, done, webhookRawForPayload, opts) {
+      opts = opts && typeof opts === 'object' ? opts : {};
+      var spinnerManagedByCaller = !!opts.spinnerManagedByCaller;
       // Usar dados do webhook ou fallback para lastCepLookup ou campos do checkout
       var neighborhood = '';
       var city = '';
@@ -2961,7 +3095,7 @@
           done({ ok: false, message: 'Erro ao salvar endereço.' });
         },
         complete: function () {
-          hideModalSpinner();
+          if (!spinnerManagedByCaller) ctwpmlSpinnerRelease('save_address_flow');
         },
       });
     }
@@ -3681,18 +3815,27 @@
           return;
         }
         applyFormToCheckout();
-        // Salvar WhatsApp e CPF antes do endereço
-        saveContactMeta({ silent: true }, function () {
-          saveAddressFromForm(function (res) {
+        // Spinner deve persistir até confirmação + retorno para lista (evita confusão/janela sem bloqueio).
+        ctwpmlSpinnerAcquire('primary_save_click');
+
+        var releaseOnce = function (ok) {
+          try { ctwpmlSpinnerRelease('primary_save_click'); } catch (e0) {}
+        };
+
+        // Salvar WhatsApp e CPF antes do endereço (sem mexer no spinner aqui).
+        saveContactMeta({ silent: true, spinnerManagedByCaller: true }, function () {
+          saveAddressFromForm({ spinnerManagedByCaller: true }, function (res) {
             if (!res || !res.ok) {
               // Não precisa de alert, a notificação já foi exibida
               state.log('ERROR     saveAddressFromForm falhou', res || {}, 'ERROR');
+              releaseOnce(false);
               return;
             }
 
-            // Voltar imediatamente para lista (toast de sucesso já foi exibido no saveAddressFromForm)
+            // Toast de sucesso já foi exibido dentro do save; agora voltamos para lista e só então liberamos spinner.
             showList();
             renderAddressList();
+            releaseOnce(true);
           });
         });
       } else {
@@ -4058,6 +4201,28 @@
       }
       if (!couponCode) return;
 
+      // v4.0: capturar total/subtotal antes do cupom para exibir preço riscado após updated_checkout.
+      try {
+        var before = woo.readTotals ? woo.readTotals() : {};
+        state.__ctwpmlCouponAttempt = {
+          code: String(couponCode || ''),
+          couponName: String(couponCode || '').toUpperCase(),
+          originalTotal: String(before && before.totalText ? before.totalText : ''),
+          originalSubtotal: String(before && before.subtotalText ? before.subtotalText : ''),
+          ts: Date.now(),
+        };
+        // Reset visual de erro/sucesso antes de tentar novamente.
+        $('#ctwpml-add-coupon-btn').removeClass('is-success');
+        $('#ctwpml-coupon-input').removeClass('is-error');
+        if (typeof state.checkpoint === 'function') {
+          state.checkpoint('CHK_COUPON_ATTEMPT_CAPTURED', true, {
+            code: state.__ctwpmlCouponAttempt.code,
+            originalTotal: state.__ctwpmlCouponAttempt.originalTotal,
+            originalSubtotal: state.__ctwpmlCouponAttempt.originalSubtotal,
+          });
+        }
+      } catch (eCap) {}
+
       woo.ensureBlocks().then(function () {
         // Debug/Checkpoint: tentativa de injeção do bloco de cupom
         if (typeof state.checkpoint === 'function') {
@@ -4136,7 +4301,7 @@
 
         // Após o Woo atualizar o checkout, sincronizamos os valores do footer.
         setTimeout(function () {
-          applyPaymentAvailabilityAndSync();
+          applyPaymentAvailabilityAndSync('apply_coupon');
         }, 600);
       });
     });
@@ -4404,11 +4569,20 @@
 
         var vv = window.visualViewport;
         var viewportTop = vv ? (vv.offsetTop || 0) : 0;
-        var viewportBottom = vv ? ((vv.offsetTop || 0) + (vv.height || window.innerHeight)) : window.innerHeight;
+        var viewportH = vv ? (vv.height || window.innerHeight) : window.innerHeight;
+        var viewportBottom = vv ? ((vv.offsetTop || 0) + viewportH) : window.innerHeight;
 
         var padding = 16;
-        var targetTopOffset = (typeof topOffsetPx === 'number' && topOffsetPx > 0) ? topOffsetPx : 60;
-        var visibleTop = Math.max(bodyRect.top, viewportTop) + targetTopOffset;
+        // v3.2.52 (UX): auto-scroll por proporção
+        // Objetivo: deixar ~80% de espaço abaixo do campo (campo perto de ~20% do topo do viewport).
+        // Mantemos compat com topOffsetPx (assinatura antiga), mas a regra principal é proporcional.
+        var desiredTop = viewportTop + Math.round(viewportH * 0.2);
+        var minTop = Math.max(bodyRect.top, viewportTop) + 12;
+        var maxTop = Math.min(bodyRect.bottom, viewportBottom) - footerH - padding - 40;
+        if (maxTop < minTop) maxTop = minTop + 10;
+        if (desiredTop < minTop) desiredTop = minTop;
+        if (desiredTop > maxTop) desiredTop = maxTop;
+        var visibleTop = desiredTop;
         var visibleBottom = Math.min(bodyRect.bottom, viewportBottom) - footerH - padding;
         if (visibleBottom < visibleTop) visibleBottom = visibleTop + 10;
 
@@ -4416,14 +4590,26 @@
         var nextTop = bodyEl.scrollTop;
         var delta = 0;
 
-        if (tRect.top < visibleTop) {
-          delta = (tRect.top - visibleTop) - 12;
-          nextTop = Math.max(0, bodyEl.scrollTop + delta);
-          shouldScroll = true;
-        } else if (tRect.bottom > visibleBottom) {
-          delta = (tRect.bottom - visibleBottom) + 12;
-          nextTop = Math.max(0, bodyEl.scrollTop + delta);
-          shouldScroll = true;
+        // Para foco: só ajusta se sair da janela visível (evita “pulos” desnecessários).
+        // Para cliques no DDI/wrap: preferimos alinhar o input no topo desejado para sobrar espaço para o dropdown abrir para baixo.
+        var forceAlign = String(reason || '').indexOf('ddi') >= 0;
+        if (forceAlign) {
+          delta = (tRect.top - visibleTop);
+          if (Math.abs(delta) > 10) {
+            nextTop = Math.max(0, bodyEl.scrollTop + delta);
+            shouldScroll = true;
+          }
+        } else {
+          if (tRect.top < visibleTop) {
+            delta = (tRect.top - visibleTop) - 12;
+            nextTop = Math.max(0, bodyEl.scrollTop + delta);
+            shouldScroll = true;
+          } else if (tRect.bottom > visibleBottom) {
+            // Em vez de “empurrar” só até caber, alinhamos o topo no ponto desejado (20%).
+            delta = (tRect.top - visibleTop);
+            nextTop = Math.max(0, bodyEl.scrollTop + delta);
+            shouldScroll = true;
+          }
         }
 
         if (!shouldScroll) return;
@@ -4441,6 +4627,7 @@
             footerH: footerH,
             delta: delta,
             nextTop: nextTop,
+            desiredTop: visibleTop,
             vvHeight: vv ? vv.height : null,
           });
         }
@@ -4452,6 +4639,7 @@
             delta: delta,
             scrollTop: bodyEl.scrollTop,
             nextTop: nextTop,
+            desiredTop: visibleTop,
             vvHeight: vv ? vv.height : null,
           }, 'UI');
         }
@@ -4460,12 +4648,12 @@
 
     $(document).on('focus', '#ctwpml-view-form input, #ctwpml-view-form textarea', function () {
       // 1ª passada: imediata (antes do teclado terminar animação)
-      ctwpmlAutoScrollInModal(this, 'focus_immediate', 60);
+      ctwpmlAutoScrollInModal(this, 'focus_immediate');
       // 2ª passada: após o teclado abrir (principalmente mobile)
       try {
         var el = this;
         setTimeout(function () {
-          ctwpmlAutoScrollInModal(el, 'focus_delayed', 60);
+          ctwpmlAutoScrollInModal(el, 'focus_delayed');
         }, 260);
       } catch (e3) {}
     });
@@ -4477,10 +4665,10 @@
         if (!$('#ctwpml-view-form').is(':visible')) return;
         var inputEl = document.getElementById('ctwpml-input-fone');
         if (!inputEl) return;
-        ctwpmlAutoScrollInModal(inputEl, 'ddi_click', 80);
+        ctwpmlAutoScrollInModal(inputEl, 'ddi_click');
         // Segunda passada para acompanhar animação do teclado.
         setTimeout(function () {
-          ctwpmlAutoScrollInModal(inputEl, 'ddi_click_delayed', 80);
+          ctwpmlAutoScrollInModal(inputEl, 'ddi_click_delayed');
         }, 260);
       } catch (e0) {}
     });

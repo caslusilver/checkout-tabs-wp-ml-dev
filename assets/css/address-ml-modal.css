@@ -1080,6 +1080,83 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
 }
 
 /* =====================================================
+   DESCONTO/CUPOM APLICADO (v4.0)
+   ===================================================== */
+
+/* Container de preço com desconto */
+.ctwpml-payment-price-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+/* Preço original (riscado) */
+.ctwpml-payment-original-price {
+  font-size: 14px;
+  color: #999 !important;
+  text-decoration: line-through;
+  font-weight: 400;
+}
+
+/* Preço com desconto (destacado) */
+.ctwpml-payment-discounted-price {
+  font-size: 18px;
+  color: #00a650 !important;
+  font-weight: 700;
+}
+
+/* Linha do "Você pagará" no footer */
+.ctwpml-payment-total-row.has-discount {
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.ctwpml-payment-total-row.has-discount .ctwpml-payment-total-label {
+  align-self: flex-start;
+}
+
+/* Tag de desconto */
+.ctwpml-discount-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(0, 166, 80, 0.1);
+  color: #00a650;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  margin-top: 4px;
+}
+
+.ctwpml-discount-tag::before {
+  content: '🎫';
+  font-size: 14px;
+}
+
+/* Subtotal com desconto */
+.ctwpml-payment-subtotal-row.has-discount .ctwpml-payment-subtotal-value {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.ctwpml-payment-subtotal-original {
+  font-size: 12px;
+  color: #999;
+  text-decoration: line-through;
+}
+
+.ctwpml-payment-subtotal-discounted {
+  font-size: 14px;
+  font-weight: 700;
+  color: #00a650;
+}
+
+/* =====================================================
    TELA "REVISE E CONFIRME" (Review / Confirm)
    ===================================================== */
 
@@ -1661,6 +1738,46 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
 
 .ctwpml-add-coupon-btn.is-active:hover {
   background-color: #2968c8;
+}
+
+/* =====================================================
+   CUPOM: FEEDBACK VISUAL (v4.2)
+   ===================================================== */
+
+.ctwpml-add-coupon-btn.is-success {
+  background-color: #00a650 !important;
+  color: #fff !important;
+  cursor: pointer;
+  animation: ctwpml-coupon-success 0.5s ease-out;
+}
+
+@keyframes ctwpml-coupon-success {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+  100% { transform: scale(1); }
+}
+
+.ctwpml-add-coupon-btn.is-success::before {
+  content: '✓ ';
+  animation: ctwpml-check-appear 0.3s ease-out;
+}
+
+@keyframes ctwpml-check-appear {
+  from { opacity: 0; transform: scale(0); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.ctwpml-coupon-input.is-error {
+  border-color: #dc2626 !important;
+  animation: ctwpml-shake 0.5s ease-in-out;
+}
+
+@keyframes ctwpml-shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-8px); }
+  40% { transform: translateX(8px); }
+  60% { transform: translateX(-4px); }
+  80% { transform: translateX(4px); }
 }
 
 

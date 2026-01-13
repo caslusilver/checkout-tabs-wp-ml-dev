@@ -315,6 +315,15 @@
     var debugMode = !!(window.cc_params && window.cc_params.debug);
     var totalText = options.totalText || 'R$ 0,00';
     var subtotalText = options.subtotalText || '';
+    var hasDiscount =
+      options.originalTotal &&
+      options.discountedTotal &&
+      String(options.originalTotal) !== String(options.discountedTotal);
+    var couponName = options.couponName ? String(options.couponName) : '';
+    var hasSubtotalDiscount =
+      options.originalSubtotal &&
+      options.discountedSubtotal &&
+      String(options.originalSubtotal) !== String(options.discountedSubtotal);
     var pluginUrl = (window.cc_params && window.cc_params.plugin_url) ? window.cc_params.plugin_url : '';
 
     if (debugMode) {
@@ -324,6 +333,43 @@
     // URLs dos ícones
     var pixIconUrl = 'https://cubensisstore.com.br/wp-content/uploads/2026/01/artpoin-logo-pix-1-scaled.png';
     var cardIconUrl = 'https://cubensisstore.com.br/wp-content/uploads/2026/01/bank-card.png';
+
+    var totalRowHtml = '';
+    if (hasDiscount) {
+      totalRowHtml =
+        '    <div class="ctwpml-payment-total-row has-discount">' +
+        '      <span class="ctwpml-payment-total-label">Você pagará</span>' +
+        '      <div class="ctwpml-payment-price-wrapper">' +
+        '        <span class="ctwpml-payment-original-price" id="ctwpml-payment-original-price">' + escapeHtml(options.originalTotal) + '</span>' +
+        '        <span class="ctwpml-payment-discounted-price" id="ctwpml-payment-total-value">' + escapeHtml(options.discountedTotal) + '</span>' +
+        (couponName ? '        <span class="ctwpml-discount-tag" id="ctwpml-discount-tag">' + escapeHtml(couponName) + '</span>' : '') +
+        '      </div>' +
+        '    </div>';
+    } else {
+      totalRowHtml =
+        '    <div class="ctwpml-payment-total-row">' +
+        '      <span class="ctwpml-payment-total-label">Você pagará</span>' +
+        '      <span class="ctwpml-payment-total-value" id="ctwpml-payment-total-value">' + escapeHtml(totalText) + '</span>' +
+        '    </div>';
+    }
+
+    var subtotalRowHtml = '';
+    if (hasSubtotalDiscount) {
+      subtotalRowHtml =
+        '    <div class="ctwpml-payment-subtotal-row has-discount">' +
+        '      <span class="ctwpml-payment-subtotal-label">Subtotal</span>' +
+        '      <span class="ctwpml-payment-subtotal-value" id="ctwpml-payment-subtotal-value">' +
+        '        <span class="ctwpml-payment-subtotal-original">' + escapeHtml(options.originalSubtotal) + '</span>' +
+        '        <span class="ctwpml-payment-subtotal-discounted" id="ctwpml-payment-subtotal-discounted">' + escapeHtml(options.discountedSubtotal) + '</span>' +
+        '      </span>' +
+        '    </div>';
+    } else {
+      subtotalRowHtml =
+        '    <div class="ctwpml-payment-subtotal-row">' +
+        '      <span class="ctwpml-payment-subtotal-label">Subtotal</span>' +
+        '      <span class="ctwpml-payment-subtotal-value" id="ctwpml-payment-subtotal-value">' + escapeHtml(subtotalText) + '</span>' +
+        '    </div>';
+    }
 
     var html =
       '' +
@@ -381,14 +427,8 @@
       // Summary/rodapé (vira coluna direita no desktop e footer no mobile)
       '  <div class="ctwpml-payment-footer">' +
       '    <span class="ctwpml-payment-coupon-link" id="ctwpml-payment-coupon">Inserir código do cupom</span>' +
-      '    <div class="ctwpml-payment-subtotal-row">' +
-      '      <span class="ctwpml-payment-subtotal-label">Subtotal</span>' +
-      '      <span class="ctwpml-payment-subtotal-value" id="ctwpml-payment-subtotal-value">' + escapeHtml(subtotalText) + '</span>' +
-      '    </div>' +
-      '    <div class="ctwpml-payment-total-row">' +
-      '      <span class="ctwpml-payment-total-label">Você pagará</span>' +
-      '      <span class="ctwpml-payment-total-value" id="ctwpml-payment-total-value">' + escapeHtml(totalText) + '</span>' +
-      '    </div>' +
+      subtotalRowHtml +
+      totalRowHtml +
       '  </div>' +
       '  </div>' + // right
       '</div>' +
