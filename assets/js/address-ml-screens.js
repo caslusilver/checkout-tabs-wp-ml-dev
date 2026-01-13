@@ -448,7 +448,7 @@
       '    <div class="ctwpml-coupon-input-wrapper">' +
       '      <input type="text" id="ctwpml-coupon-input" class="ctwpml-coupon-input" placeholder="Digite seu cupom" />' +
       '    </div>' +
-      '    <button id="ctwpml-add-coupon-btn" class="ctwpml-add-coupon-btn" disabled>Adicionar cupom</button>' +
+      '    <button type="button" id="ctwpml-add-coupon-btn" class="ctwpml-add-coupon-btn" disabled>Adicionar cupom</button>' +
       '  </div>' +
       '</div>';
 

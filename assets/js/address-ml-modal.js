@@ -4179,6 +4179,7 @@
     // Tela 3 (Pagamento): click no botão adicionar cupom
     $(document).on('click', '#ctwpml-add-coupon-btn', function (e) {
       e.preventDefault();
+      try { e.stopPropagation(); } catch (e0) {}
       
       var $btn = $(this);
       if ($btn.prop('disabled')) return;
@@ -4256,35 +4257,70 @@
           state.checkpoint('CHK_COUPON_FORM_FOUND', (counts.checkout_coupon + counts.woocommerce_checkout_form_coupon) > 0 || counts.elementor_apply_btn > 0, counts);
         }
 
-        // Preferir form padrão do Woo (tema ou injetado).
-        var $form = $('form.checkout_coupon').first();
-        if (!$form.length) $form = $('#woocommerce-checkout-form-coupon').first();
-        if ($form.length) {
-          var $code = $form.find('#coupon_code');
-          if (!$code.length) $code = $form.find('input[name="coupon_code"]');
-          if ($code.length) {
-            $code.val(couponCode).trigger('input').trigger('change');
+        // Aplicar cupom como no template oficial do Woo:
+        // - preencher #coupon_code
+        // - clicar no botão name="apply_coupon"
+        // Importante: NÃO usar submit genérico (pode cair no form.checkout em alguns temas/Elementor).
+        var applied = false;
+        try {
+          // Prioridade máxima: id oficial do template
+          var $couponForm = $('#woocommerce-checkout-form-coupon').first();
+          if (!$couponForm.length) {
+            // Fallback: form oficial por classe
+            $couponForm = $('form.checkout_coupon.woocommerce-form-coupon, form.checkout_coupon').first();
           }
-          // O template padrão do Woo deixa o form como display:none; garantimos submit “de verdade”.
-          try { $form.css('display', 'block'); } catch (e2) {}
-          $form.trigger('submit');
-        } else {
-          // Fallback Elementor: usa UI do Elementor (input #coupon_code + botão .e-apply-coupon)
-          try {
-            var $show = $('.e-show-coupon-form').first();
-            if ($show.length) $show.trigger('click');
-          } catch (e3) {}
 
-          var $elCode = $('.e-coupon-box #coupon_code, .e-coupon-anchor #coupon_code, #coupon_code').first();
-          var $elApply = $('.e-apply-coupon').first();
-          if ($elCode.length && $elApply.length) {
-            $elCode.val(couponCode).trigger('input').trigger('change');
-            // click real para permitir handlers do Elementor
-            try { $elApply[0].click(); } catch (e4) { $elApply.trigger('click'); }
-          } else {
-            showNotification('Form de cupom não encontrado.', 'error', 3500);
-            return;
+          // Se o seletor pegou algo, validar que é realmente um form de cupom (e não o checkout)
+          if ($couponForm.length) {
+            var isCheckoutForm = $couponForm.is('form.checkout, form.woocommerce-checkout') || $couponForm.find('#place_order').length > 0;
+            var hasCouponCode = $couponForm.find('#coupon_code, input[name="coupon_code"]').length > 0;
+            var $applyBtn = $couponForm.find('button[name="apply_coupon"], button.woocommerce-form-coupon__submit, input[name="apply_coupon"]').first();
+
+            if (!isCheckoutForm && hasCouponCode && $applyBtn.length) {
+              var $code = $couponForm.find('#coupon_code');
+              if (!$code.length) $code = $couponForm.find('input[name="coupon_code"]').first();
+              $code.val(couponCode).trigger('input').trigger('change');
+
+              // O template padrão do Woo deixa o form como display:none
+              try { $couponForm.css('display', 'block'); } catch (e2) {}
+              // Clique real no botão apply_coupon (mais seguro que submit)
+              try { $applyBtn[0].click(); } catch (e3) { $applyBtn.trigger('click'); }
+              applied = true;
+            }
           }
+
+          // Fallback Elementor: usa UI do Elementor (input #coupon_code + botão .e-apply-coupon)
+          if (!applied) {
+            try {
+              var $show = $('.showcoupon, .e-show-coupon-form').first();
+              if ($show.length) $show.trigger('click');
+            } catch (e4) {}
+
+            var $elCode = $('.e-coupon-box #coupon_code, .e-coupon-anchor #coupon_code, #coupon_code').first();
+            var $elApply = $('.e-apply-coupon, button[name="apply_coupon"], input[name="apply_coupon"]').first();
+            if ($elCode.length && $elApply.length) {
+              $elCode.val(couponCode).trigger('input').trigger('change');
+              try { $elApply[0].click(); } catch (e5) { $elApply.trigger('click'); }
+              applied = true;
+            }
+          }
+        } catch (e6) {}
+
+        if (!applied) {
+          showNotification('Não foi possível localizar o formulário de cupom do WooCommerce.', 'error', 4500);
+          if (typeof state.checkpoint === 'function') {
+            try {
+              state.checkpoint('CHK_COUPON_APPLY_TARGET_NOT_FOUND', false, {
+                hasWooCouponForm: document.querySelectorAll('#woocommerce-checkout-form-coupon, form.checkout_coupon').length,
+                hasElementorApply: document.querySelectorAll('.e-apply-coupon').length,
+              });
+            } catch (e7) {}
+          }
+          return;
+        } else if (typeof state.checkpoint === 'function') {
+          try {
+            state.checkpoint('CHK_COUPON_APPLY_CLICKED', true, { code: String(couponCode || '') });
+          } catch (e8) {}
         }
         try {
           if (typeof state.checkpoint === 'function') {
