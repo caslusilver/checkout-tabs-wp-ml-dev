@@ -254,6 +254,56 @@
     };
   }
 
+  function readCoupons() {
+    var root = getReviewRoot() || document;
+    var rows = root.querySelectorAll('tr.cart-discount');
+    var out = [];
+
+    rows.forEach(function (row) {
+      try {
+        var code = '';
+        var removeLink = row.querySelector('a.woocommerce-remove-coupon');
+        if (removeLink && removeLink.getAttribute('data-coupon')) {
+          code = String(removeLink.getAttribute('data-coupon') || '').trim();
+        }
+
+        if (!code) {
+          // Woo geralmente usa classe cart-discount-<coupon>
+          var cls = String(row.className || '');
+          var m = cls.match(/\bcart-discount-([^\s]+)/);
+          if (m && m[1]) code = String(m[1] || '').trim();
+        }
+
+        if (!code) {
+          var th = row.querySelector('th');
+          code = th ? String(th.textContent || '').trim() : '';
+          code = code.replace(/cupom/i, '').replace(/:/g, '').trim();
+        }
+
+        var td = row.querySelector('td');
+        var amountText = '';
+        if (td) {
+          // Preferir o valor monetário “limpo” (sem texto do link remover)
+          var amounts = td.querySelectorAll('.woocommerce-Price-amount');
+          if (amounts && amounts.length) {
+            amountText = String(amounts[amounts.length - 1].textContent || '').trim();
+          } else {
+            amountText = String(td.textContent || '').trim();
+          }
+        }
+
+        out.push({
+          code: code,
+          amountText: amountText,
+          hasRemoveLink: !!removeLink,
+        });
+      } catch (e0) {}
+    });
+
+    log('readCoupons()', { count: out.length, coupons: out });
+    return out;
+  }
+
   async function getCartThumbs() {
     var nonce = getCartThumbsNonce();
     if (!getAjaxUrl() || !nonce) return { thumb_urls: [], count: 0 };
@@ -274,6 +324,7 @@
     getSelectedGatewayId: getSelectedGatewayId,
     getSelectedGatewayLabel: getSelectedGatewayLabel,
     readTotals: readTotals,
+    readCoupons: readCoupons,
     getCartThumbs: getCartThumbs,
     hasCheckoutForm: function () { return !!getCheckoutFormEl(); },
   };

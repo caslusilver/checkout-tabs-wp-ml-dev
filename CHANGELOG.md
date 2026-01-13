@@ -9,19 +9,26 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 - Criar o repositório: `caslusilver/checkout-tabs-wp-ml-dev`
 - Branch principal do fluxo: `develop`
 
+## [v3.2.54] - 2026-01-13
+
+### Changed
+- Cupom: exibe cupons aplicados (lista, um por linha) com valor negativo em verde e botão “x remover cupom” na tela “Escolha como pagar” (abaixo do subtotal) e na tela “Revise e confirme” (abaixo do frete); leitura dos cupons é feita do DOM do Woo (`tr.cart-discount` + `woocommerce-remove-coupon`) e remoção dispara o link nativo do Woo; debug reforçado com checkpoints de render/remoção e captura de cupons antes/depois ao aplicar.
+
+#### Protocol: a30797f
+
+## [Unreleased]
+
+### Changed
+- **Versão atual**: v3.2.54  
+  **Versão sugerida após a mudança**: vX.Y.Z  
+  **Descrição**: texto objetivo do que mudou e impacto (pode listar itens separados por ponto e vírgula).
+
 ## [v3.2.53] - 2026-01-13
 
 ### Changed
 - Cupom: corrigido fluxo de aplicação para não disparar submit do checkout (evita `wc-ajax=checkout` ao aplicar cupom); botão “Adicionar cupom” passa a ser `type="button"` e aplicação usa clique no `apply_coupon` do form oficial do Woo, com checkpoints de diagnóstico quando o alvo não é encontrado.
 
 #### Protocol: f287b56
-
-## [Unreleased]
-
-### Changed
-- **Versão atual**: v3.2.53  
-  **Versão sugerida após a mudança**: vX.Y.Z  
-  **Descrição**: texto objetivo do que mudou e impacto (pode listar itens separados por ponto e vírgula).
 
 ## [v3.2.52] - 2026-01-13
 

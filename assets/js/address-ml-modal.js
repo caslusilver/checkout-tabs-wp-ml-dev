@@ -1094,6 +1094,84 @@
       }
     }
 
+    // =========================================================
+    // CUPONS (lista + remover) - helpers
+    // =========================================================
+    function ctwpmlNormalizeCouponAmount(amountText) {
+      var s = String(amountText || '').trim();
+      if (!s) return '';
+      if (s.indexOf('-') === 0 || s.indexOf('−') === 0) return s;
+      return '- ' + s;
+    }
+
+    function ctwpmlBuildCouponsHtml(coupons, context) {
+      coupons = Array.isArray(coupons) ? coupons : [];
+      if (!coupons.length) return '';
+      var title = coupons.length > 1 ? 'Cupons aplicados' : 'Cupom aplicado';
+      var html = '<div class="ctwpml-coupons-title">' + escapeHtml(title) + '</div>';
+      for (var i = 0; i < coupons.length; i++) {
+        var it = coupons[i] || {};
+        var code = String(it.code || '').trim();
+        var amount = ctwpmlNormalizeCouponAmount(it.amountText || '');
+        if (!code && !amount) continue;
+        html += '' +
+          '<div class="ctwpml-coupon-row" data-coupon-code="' + escapeHtml(code) + '">' +
+          '  <div class="ctwpml-coupon-left">' +
+          '    <div class="ctwpml-coupon-code">' + escapeHtml(code ? code.toUpperCase() : 'CUPOM') + '</div>' +
+          '  </div>' +
+          '  <div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">' +
+          '    <div class="ctwpml-coupon-amount">' + escapeHtml(amount) + '</div>' +
+          '    <button type="button" class="ctwpml-coupon-remove" data-coupon-code="' + escapeHtml(code) + '" data-ctwpml-context="' + escapeHtml(context || '') + '">x remover cupom</button>' +
+          '  </div>' +
+          '</div>';
+      }
+      return html;
+    }
+
+    function ctwpmlRenderCouponsBlock(targetId, coupons, context) {
+      try {
+        var el = document.getElementById(String(targetId || ''));
+        if (!el) return;
+        var html = ctwpmlBuildCouponsHtml(coupons, context);
+        if (!html) {
+          el.innerHTML = '';
+          el.style.display = 'none';
+        } else {
+          el.innerHTML = html;
+          el.style.display = '';
+        }
+        if (typeof state.checkpoint === 'function') {
+          state.checkpoint('CHK_COUPONS_RENDERED', true, {
+            context: String(context || ''),
+            targetId: String(targetId || ''),
+            count: Array.isArray(coupons) ? coupons.length : 0,
+            codes: Array.isArray(coupons) ? coupons.map(function (c) { return String((c && c.code) || ''); }) : [],
+          });
+        }
+      } catch (e0) {}
+    }
+
+    function ctwpmlTryClickRemoveCoupon(code, context) {
+      code = String(code || '').trim();
+      if (!code) return { ok: false, reason: 'empty_code' };
+      var selectors = [];
+      try { selectors.push('a.woocommerce-remove-coupon[data-coupon="' + CSS.escape(code) + '"]'); } catch (e0) {}
+      selectors.push('a.woocommerce-remove-coupon[data-coupon="' + code.replace(/"/g, '\\"') + '"]');
+      selectors.push('a.woocommerce-remove-coupon[data-coupon="' + code.toLowerCase() + '"]');
+      selectors.push('a.woocommerce-remove-coupon[data-coupon="' + code.toUpperCase() + '"]');
+
+      var link = null;
+      for (var i = 0; i < selectors.length; i++) {
+        try {
+          link = document.querySelector(selectors[i]);
+          if (link) break;
+        } catch (e1) {}
+      }
+      if (!link) return { ok: false, reason: 'remove_link_not_found', code: code };
+      try { link.click(); } catch (e2) { try { window.jQuery(link).trigger('click'); } catch (e3) {} }
+      return { ok: true, code: code };
+    }
+
     function applyPaymentAvailabilityAndSync(eventType) {
       var woo = window.CCCheckoutTabs && window.CCCheckoutTabs.WooHost ? window.CCCheckoutTabs.WooHost : null;
       if (!woo) return;
@@ -1115,6 +1193,14 @@
 
       // Atualizar valores do footer (subtotal/total)
       var totals = woo.readTotals();
+      var coupons = [];
+      try {
+        coupons = woo.readCoupons ? (woo.readCoupons() || []) : [];
+      } catch (e0) {
+        coupons = [];
+      }
+      // Sempre refletir cupons no Payment (lista abaixo do subtotal)
+      ctwpmlRenderCouponsBlock('ctwpml-payment-coupons', coupons, 'payment');
 
       // v4.0: UI de desconto/cupom (preço riscado + valor final)
       // Guardamos tentativa/estado em state para sobreviver a updated_checkout.
@@ -1204,6 +1290,7 @@
         state.__ctwpmlCouponAttempt = null;
         resetCouponUi();
         renderTotalsNoDiscount();
+        // lista já foi renderizada acima; manter consistente
       } else {
         // Se houver tentativa recente, tenta derivar “antes/depois”
         var attempt = state.__ctwpmlCouponAttempt;
@@ -1233,6 +1320,9 @@
                   code: String(attempt.code || ''),
                   originalTotal: String(attempt.originalTotal || ''),
                   afterTotal: String(totals.totalText || ''),
+                  beforeCouponCodes: Array.isArray(attempt.beforeCouponCodes) ? attempt.beforeCouponCodes : [],
+                  couponCount: Array.isArray(coupons) ? coupons.length : 0,
+                  couponCodes: Array.isArray(coupons) ? coupons.map(function (c) { return String((c && c.code) || ''); }) : [],
                 });
               }
             } catch (e10) {}
@@ -1254,6 +1344,12 @@
       var woo = window.CCCheckoutTabs && window.CCCheckoutTabs.WooHost ? window.CCCheckoutTabs.WooHost : null;
       if (!woo) return;
       var totals = woo.readTotals();
+      var coupons = [];
+      try {
+        coupons = woo.readCoupons ? (woo.readCoupons() || []) : [];
+      } catch (e0) {
+        coupons = [];
+      }
       if (totals.subtotalText) $('#ctwpml-review-products-subtotal').text(totals.subtotalText);
       if (totals.shippingText) {
         try {
@@ -1281,6 +1377,8 @@
         $('#ctwpml-review-payment-amount').text(totals.totalText);
         $('#ctwpml-review-sticky-total').text(totals.totalText);
       }
+      // Cupons aplicados (logo abaixo do frete)
+      ctwpmlRenderCouponsBlock('ctwpml-review-coupons', coupons, 'review');
       var pay = woo.getSelectedGatewayLabel();
       if (pay) {
         $('#ctwpml-review-pay-tag').text(pay);
@@ -1480,6 +1578,14 @@
           fillReviewShippingDetails();
           bindReviewStickyFooter();
           ctwpmlInitReviewTermsState();
+          // Cupons aplicados: render imediato (sem depender de updated_checkout)
+          try {
+            var cps0 = woo && woo.readCoupons ? (woo.readCoupons() || []) : [];
+            ctwpmlRenderCouponsBlock('ctwpml-review-coupons', cps0, 'review');
+            if (typeof state.checkpoint === 'function') {
+              state.checkpoint('CHK_COUPONS_RENDERED', true, { context: 'review_after_render', count: Array.isArray(cps0) ? cps0.length : 0 });
+            }
+          } catch (eC0) {}
 
           // Checkpoint: tela de review renderizada
           if (typeof state.checkpoint === 'function') {
@@ -4205,11 +4311,14 @@
       // v4.0: capturar total/subtotal antes do cupom para exibir preço riscado após updated_checkout.
       try {
         var before = woo.readTotals ? woo.readTotals() : {};
+        var beforeCoupons = [];
+        try { beforeCoupons = woo.readCoupons ? (woo.readCoupons() || []) : []; } catch (e0) { beforeCoupons = []; }
         state.__ctwpmlCouponAttempt = {
           code: String(couponCode || ''),
           couponName: String(couponCode || '').toUpperCase(),
           originalTotal: String(before && before.totalText ? before.totalText : ''),
           originalSubtotal: String(before && before.subtotalText ? before.subtotalText : ''),
+          beforeCouponCodes: Array.isArray(beforeCoupons) ? beforeCoupons.map(function (c) { return String((c && c.code) || ''); }) : [],
           ts: Date.now(),
         };
         // Reset visual de erro/sucesso antes de tentar novamente.
@@ -4375,6 +4484,40 @@
         $('body').css('overflow', ''); // Restaura scroll
       }
     }
+
+    // Remover cupom (lista em Payment/Review) - usa link nativo do Woo para evitar endpoints/nonce custom.
+    $(document).on('click', '.ctwpml-coupon-remove', function (e) {
+      e.preventDefault();
+      try { e.stopPropagation(); } catch (e0) {}
+
+      var code = String($(this).data('coupon-code') || '').trim();
+      var context = String($(this).data('ctwpml-context') || '').trim();
+      var $btn = $(this);
+      if (!code) return;
+
+      try {
+        $btn.prop('disabled', true);
+      } catch (e1) {}
+
+      if (typeof state.checkpoint === 'function') {
+        try { state.checkpoint('CHK_COUPON_REMOVE_CLICK', true, { code: code, context: context }); } catch (e2) {}
+      }
+      if (typeof state.log === 'function') {
+        try { state.log('PAYMENT    Remover cupom clicado', { code: code, context: context }, 'PAYMENT'); } catch (e3) {}
+      }
+
+      var res = ctwpmlTryClickRemoveCoupon(code, context);
+      if (!res || !res.ok) {
+        if (typeof state.checkpoint === 'function') {
+          try { state.checkpoint('CHK_COUPON_REMOVE_FAILED', false, { code: code, context: context, reason: res && res.reason ? res.reason : 'unknown' }); } catch (e4) {}
+        }
+        showNotification('Não foi possível remover o cupom. Tente novamente.', 'error', 3500);
+        try { $btn.prop('disabled', false); } catch (e5) {}
+        return;
+      }
+
+      // A UI será atualizada via removed_coupon/updated_checkout.
+    });
 
     // Tela 4 (Revise e confirme): links de alteração
     $(document).on('click', '#ctwpml-review-change-payment', function (e) {

@@ -1157,6 +1157,73 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
 }
 
 /* =====================================================
+   CUPONS APLICADOS (lista + remover) - Payment/Review
+   ===================================================== */
+
+.ctwpml-coupons-block {
+  margin: 8px 0 8px;
+}
+
+.ctwpml-coupons-title {
+  font-size: 12px;
+  color: #666;
+  margin: 2px 0 6px;
+  font-weight: 600;
+}
+
+.ctwpml-coupon-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 0;
+}
+
+.ctwpml-coupon-left {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ctwpml-coupon-code {
+  font-size: 12px;
+  font-weight: 700;
+  color: #333;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 220px;
+}
+
+.ctwpml-coupon-amount {
+  font-size: 12px;
+  font-weight: 700;
+  color: #16a34a; /* verde suave */
+  white-space: nowrap;
+}
+
+.ctwpml-coupon-remove {
+  border: 1px solid #d1d5db;
+  background: #fff;
+  color: #111;
+  padding: 6px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.ctwpml-coupon-remove[disabled] {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.ctwpml-coupons-block--review {
+  margin: 4px 0 10px;
+}
+
+/* =====================================================
    TELA "REVISE E CONFIRME" (Review / Confirm)
    ===================================================== */
 

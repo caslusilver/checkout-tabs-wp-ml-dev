@@ -428,6 +428,7 @@
       '  <div class="ctwpml-payment-footer">' +
       '    <span class="ctwpml-payment-coupon-link" id="ctwpml-payment-coupon">Inserir código do cupom</span>' +
       subtotalRowHtml +
+      '    <div class="ctwpml-coupons-block" id="ctwpml-payment-coupons" style="display:none;"></div>' +
       totalRowHtml +
       '  </div>' +
       '  </div>' + // right
@@ -508,6 +509,7 @@
       '      <span>Frete</span>' +
       '      <span id="ctwpml-review-shipping">' + escapeHtml(shippingText) + '</span>' +
       '    </div>' +
+      '    <div class="ctwpml-coupons-block ctwpml-coupons-block--review" id="ctwpml-review-coupons" style="display:none;"></div>' +
       '    <div class="ctwpml-review-total-row">' +
       '      <span>Você pagará</span>' +
       '      <span id="ctwpml-review-total">' + escapeHtml(totalText) + '</span>' +
