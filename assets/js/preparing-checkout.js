@@ -333,18 +333,74 @@
       return;
     }
 
-    // Usuário está logado: mostra overlay, prepara o primeiro endereço, depois abre modal.
+    // Usuário está logado: mostra overlay, prepara o endereço selecionado, depois abre modal.
     log('Usuário logado - iniciando preparação do checkout');
     showOverlay();
 
     ajaxPost({ action: 'ctwpml_get_addresses', _ajax_nonce: window.cc_params.addresses_nonce })
       .then(function (resp) {
         var items = resp && resp.success && resp.data && Array.isArray(resp.data.items) ? resp.data.items : [];
-        var first = items[0] || null;
-        if (!first) throw new Error('Nenhum endereço cadastrado para preparar');
-        log('Primeiro endereço encontrado: ' + first.id, first);
-        setLastPreparedAddressId(first.id);
-        return prepareForAddress(first);
+        var selectedId = (resp && resp.data && resp.data.selected_address_id) ? String(resp.data.selected_address_id || '') : '';
+        var lastId = getLastPreparedAddressId();
+
+        function findById(id) {
+          if (!id) return null;
+          for (var i = 0; i < items.length; i++) {
+            var it = items[i] || {};
+            if (String(it.id || '') === String(id)) return it;
+          }
+          return null;
+        }
+
+        var chosen = null;
+        var origin = '';
+
+        if (selectedId) {
+          chosen = findById(selectedId);
+          origin = chosen ? 'selected_address_id' : 'selected_address_id_not_found';
+        }
+        if (!chosen && lastId) {
+          chosen = findById(lastId);
+          origin = chosen ? 'last_prepared' : origin;
+        }
+        if (!chosen) {
+          chosen = items[0] || null;
+          origin = chosen ? 'first_fallback' : origin;
+        }
+
+        if (!chosen) throw new Error('Nenhum endereço cadastrado para preparar');
+
+        log('CHK_PREPARE_ENTRY_SELECTED_ADDRESS', {
+          selectedId: selectedId,
+          lastId: lastId,
+          chosenId: String(chosen.id || ''),
+          origin: origin,
+          itemsLength: items.length,
+        });
+
+        setLastPreparedAddressId(chosen.id);
+
+        // Política ALWAYS-REFRESH: sempre chama webhook e salva payload antes de prefetch do frete.
+        return forceRefreshPayloadForAddress(chosen)
+          .then(function (refreshRes) {
+            log('CHK_PREPARE_ENTRY_REFRESH_DONE', refreshRes || {});
+
+            // Prefetch de frete (sem bloquear o fluxo)
+            if (!window.cc_params || !window.cc_params.shipping_options_nonce) {
+              log('CHK_PREPARE_ENTRY_SHIPPING_PREFETCH_DONE', { ok: false, reason: 'no_shipping_options_nonce' });
+              return { ok: true, refresh: refreshRes, shippingPrefetch: { ok: false, reason: 'no_nonce' } };
+            }
+
+            return ajaxPost({
+              action: 'ctwpml_get_shipping_options',
+              _ajax_nonce: window.cc_params.shipping_options_nonce,
+              address_id: String(chosen.id || ''),
+            }).then(function (shipResp) {
+              var count = extractShippingOptionsCount(shipResp);
+              log('CHK_PREPARE_ENTRY_SHIPPING_PREFETCH_DONE', { ok: true, addressId: String(chosen.id || ''), count: count });
+              return { ok: true, refresh: refreshRes, shippingPrefetch: { ok: true, count: count } };
+            });
+          });
       })
       .then(function (result) {
         log('Preparação inicial concluída', result);
@@ -372,6 +428,13 @@
     // Product: se o tema redireciona ao checkout via botão custom, tentamos capturar links que apontem para checkout
     window.jQuery(document).on('click', 'a[href*="/checkout"], a[href*="checkout"]', function () {
       setPrepareFlag();
+    });
+
+    // Elementor: botão custom para checkout (/finalizar-compra/)
+    // - Capturar por classe e por slug, porque o botão pode existir em múltiplas páginas.
+    window.jQuery(document).on('click', 'a.elementor-button--checkout, a[href*="finalizar-compra"]', function () {
+      setPrepareFlag();
+      log('CHK_PREPARE_INTENT_ELEMENTOR_CLICK', { href: String(this && this.getAttribute ? this.getAttribute('href') : '') });
     });
   }
 

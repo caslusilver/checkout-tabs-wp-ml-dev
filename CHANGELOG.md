@@ -9,17 +9,17 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 - Criar o repositório: `caslusilver/checkout-tabs-wp-ml-dev`
 - Branch principal do fluxo: `develop`
 
-## [v3.2.49] - 2026-01-13
+## [v3.2.50] - 2026-01-13
 
 ### Changed
-- Implementa melhorias v2.0 no modal ML: corrige sobreposição do footer e auto-scroll em campos; expõe API pública do overlay “Preparando tudo…” e integra no CTA de confirmar compra; substitui telefone internacional para novo formato (TomSelect + IMask + hidden phone_full) com logs/checkpoints e persistência no perfil.
+- Overlay “Preparando tudo…” agora dispara também via botão do Elementor (finalizar-compra) e, no checkout, usa endereço selecionado para ALWAYS-REFRESH do payload + prefetch de opções de frete; UX do formulário: campo WhatsApp padronizado em tamanho, scroll robusto no foco (mobile/teclado), scroll automático para o 1º erro na validação e confirmação nativa ao voltar com alterações não salvas.
 
-#### Protocol: fea79ee
+#### Protocol: 3eb9b09
 
 ## [Unreleased]
 
 ### Changed
-- **Versão atual**: v3.2.49  
+- **Versão atual**: v3.2.50  
   **Versão sugerida após a mudança**: vX.Y.Z  
   **Descrição**: texto objetivo do que mudou e impacto (pode listar itens separados por ponto e vírgula).
 

@@ -766,10 +766,10 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
   width: 100%;
   position: relative;
   background: #fff;
-  border: 1px solid #dcdcdc;
-  border-radius: 6px;
+  border: 1px solid var(--ctwpml-input-border);
+  border-radius: 3px;
   align-items: center;
-  height: 65px;
+  min-height: 46px;
   box-sizing: border-box;
   overflow: hidden;
 }
@@ -781,8 +781,8 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
 
 /* TomSelect: largura fixa para bandeira + +DDI */
 .ctwpml-phone-wrap .ts-wrapper.single {
-  width: 130px !important;
-  min-width: 130px !important;
+  width: 120px !important;
+  min-width: 120px !important;
   height: 100%;
 }
 
@@ -790,7 +790,7 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
   border: none !important;
   background: transparent !important;
   box-shadow: none !important;
-  padding: 0 0 0 15px !important;
+  padding: 0 0 0 12px !important;
   height: 100% !important;
   display: flex !important;
   align-items: center !important;
@@ -826,8 +826,8 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
   min-width: 0;
   border: none !important;
   background: transparent !important;
-  padding: 0 15px !important;
-  font-size: 20px !important;
+  padding: 0 12px !important;
+  font-size: 15px !important;
   outline: none !important;
   color: #000 !important;
   height: 100%;
@@ -837,7 +837,7 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
 
 #ctwpml-input-fone::placeholder {
   color: #999;
-  font-size: 18px;
+  font-size: 15px;
   opacity: 1;
 }
 

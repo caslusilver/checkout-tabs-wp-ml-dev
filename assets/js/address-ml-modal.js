@@ -26,6 +26,7 @@
     var addressesCacheTimestamp = null;
     var CACHE_DURATION = 60000; // 1 minuto
     var isSavingAddress = false;
+    var formDirty = false;
 
     // =========================================================
     // PERSISTÊNCIA DO ESTADO DO MODAL (sessionStorage)
@@ -2114,6 +2115,7 @@
 
     function showList() {
       currentView = 'list';
+      formDirty = false;
       $('#ctwpml-modal-title').text('Meus endereços');
       $('#ctwpml-view-initial').hide();
       $('#ctwpml-view-shipping').hide();
@@ -2129,6 +2131,7 @@
 
     function showForm() {
       currentView = 'form';
+      formDirty = false;
       $('#ctwpml-modal-title').text('Adicione um endereço');
       $('#ctwpml-view-initial').hide();
       $('#ctwpml-view-shipping').hide();
@@ -2150,6 +2153,7 @@
 
     function showFormForNewAddress() {
       currentView = 'form';
+      formDirty = false;
       $('#ctwpml-modal-title').text('Adicionar endereço');
       $('#ctwpml-view-initial').hide();
       $('#ctwpml-view-shipping').hide();
@@ -2194,6 +2198,7 @@
         return;
       }
       currentView = 'form';
+      formDirty = false;
       selectedAddressId = item.id;
       $('#ctwpml-modal-title').text('Editar endereço');
       $('#ctwpml-view-initial').hide();
@@ -2396,6 +2401,83 @@
 
       if (errors.length > 0) {
         state.log('ERROR     validateForm falhou', { errors: errors, city: city, st: st, hasLastCepLookup: !!lastCepLookup }, 'ERROR');
+
+        // UX: rolar automaticamente para o primeiro erro e focar o campo.
+        try {
+          var $body = $('.ctwpml-modal-body').first();
+          var bodyEl = $body.length ? $body[0] : null;
+
+          var $firstErr = $('#ctwpml-view-form .ctwpml-form-group.is-error:visible, #ctwpml-view-form input.is-error:visible, #ctwpml-view-form textarea.is-error:visible, #ctwpml-view-form .ctwpml-type-option.is-error:visible').first();
+          var $focus = null;
+
+          if ($firstErr.length) {
+            if ($firstErr.is('input,textarea')) {
+              $focus = $firstErr;
+            } else {
+              $focus = $firstErr.find('input,textarea').filter(':visible').first();
+              if (!$focus.length && $firstErr.is('.ctwpml-type-option')) {
+                $focus = $firstErr; // opção casa/trabalho
+              }
+            }
+
+            var targetEl = ($focus && $focus.length) ? $focus[0] : $firstErr[0];
+
+            if (bodyEl && targetEl && targetEl.getBoundingClientRect) {
+              var footerH = 0;
+              try {
+                var $footer = $('.ctwpml-footer:visible').first();
+                footerH = $footer.length ? ($footer.outerHeight() || 0) : 0;
+              } catch (e0) {}
+              if (!footerH) footerH = 180;
+
+              var bodyRect = bodyEl.getBoundingClientRect();
+              var targetRect = targetEl.getBoundingClientRect();
+
+              var vv = window.visualViewport;
+              var viewportTop = vv ? (vv.offsetTop || 0) : 0;
+              var viewportBottom = vv ? ((vv.offsetTop || 0) + (vv.height || window.innerHeight)) : window.innerHeight;
+
+              var padding = 16;
+              var targetTopOffset = 40;
+              var visibleTop = Math.max(bodyRect.top, viewportTop) + targetTopOffset;
+              var visibleBottom = Math.min(bodyRect.bottom, viewportBottom) - footerH - padding;
+              if (visibleBottom < visibleTop) visibleBottom = visibleTop + 10;
+
+              var nextTop = bodyEl.scrollTop;
+              var delta = 0;
+              if (targetRect.top < visibleTop) {
+                delta = (targetRect.top - visibleTop) - 12;
+                nextTop = Math.max(0, bodyEl.scrollTop + delta);
+              } else if (targetRect.bottom > visibleBottom) {
+                delta = (targetRect.bottom - visibleBottom) + 12;
+                nextTop = Math.max(0, bodyEl.scrollTop + delta);
+              }
+
+              try {
+                $body.stop(true).animate({ scrollTop: nextTop }, 250);
+              } catch (e1) {
+                bodyEl.scrollTop = nextTop;
+              }
+
+              try {
+                if (state && typeof state.checkpoint === 'function') {
+                  state.checkpoint('CHK_SCROLL_TO_FIRST_ERROR', true, {
+                    fieldId: String(($focus && $focus.length && $focus[0] && $focus[0].id) ? $focus[0].id : ''),
+                    delta: delta,
+                    nextTop: nextTop,
+                  });
+                }
+              } catch (e2) {}
+            }
+
+            // Foco após iniciar scroll (ajuda mobile/teclado).
+            if ($focus && $focus.length) {
+              setTimeout(function () {
+                try { $focus.focus(); } catch (e3) {}
+              }, 80);
+            }
+          }
+        } catch (e4) {}
       }
 
       return ok;
@@ -3356,6 +3438,17 @@
       }
       if (currentView === 'form') {
         console.log('[CTWPML][DEBUG] - voltando de form para list');
+        if (formDirty) {
+          try {
+            if (state && typeof state.checkpoint === 'function') {
+              state.checkpoint('CHK_FORM_DIRTY_BLOCK_BACK', true, { via: 'modal_back' });
+            }
+          } catch (e0) {}
+          // Produto decidiu: OK = voltar sem salvar / Cancelar = continuar editando
+          if (!window.confirm('Você tem alterações não salvas. Deseja voltar sem salvar?')) {
+            return;
+          }
+        }
         showList();
         renderAddressList();
         return;
@@ -3481,6 +3574,16 @@
     });
     $(document).on('click', '#ctwpml-btn-secondary', function () {
       if ($('#ctwpml-view-form').is(':visible')) {
+        if (formDirty) {
+          try {
+            if (state && typeof state.checkpoint === 'function') {
+              state.checkpoint('CHK_FORM_DIRTY_BLOCK_BACK', true, { via: 'footer_secondary' });
+            }
+          } catch (e0) {}
+          if (!window.confirm('Você tem alterações não salvas. Deseja voltar sem salvar?')) {
+            return;
+          }
+        }
         showList();
         renderAddressList();
       } else {
@@ -4184,58 +4287,110 @@
     });
 
     // Ao editar qualquer campo, remove estado de erro para feedback imediato.
-    $(document).on('input change', '#ctwpml-view-form input, #ctwpml-view-form textarea', function () {
+    $(document).on('input change', '#ctwpml-view-form input, #ctwpml-view-form textarea', function (e) {
       $(this).closest('.ctwpml-form-group').removeClass('is-error');
       if ($(this).is('#ctwpml-input-rua')) setRuaHint('', false);
+
+      // Dirty state (somente em interações do usuário; eventos programáticos não contam).
+      try {
+        if (currentView === 'form' && !formDirty && e && e.originalEvent) {
+          formDirty = true;
+          if (state && typeof state.checkpoint === 'function') {
+            state.checkpoint('CHK_FORM_DIRTY_ON', true, { fieldId: String(this && this.id ? this.id : '') });
+          }
+        }
+      } catch (e0) {}
     });
 
     // v2.0 [2.1]: Auto-scroll ao focar campos perto do footer fixo (evita sobreposição/teclado).
     // Delegado para funcionar após re-render de views.
     $(document).on('focus', '#ctwpml-view-form input, #ctwpml-view-form textarea', function () {
-      try {
-        var $body = $('.ctwpml-modal-body').first();
-        if (!$body.length) return;
-
-        var bodyEl = $body[0];
-        var inputEl = this;
-        if (!bodyEl || !inputEl || !inputEl.getBoundingClientRect) return;
-
-        var footerH = 0;
+      function autoScroll(reason) {
         try {
-          var $footer = $('.ctwpml-footer:visible').first();
-          footerH = $footer.length ? ($footer.outerHeight() || 0) : 0;
-        } catch (e0) {}
-        if (!footerH) footerH = 180;
+          var $body = $('.ctwpml-modal-body').first();
+          if (!$body.length) return;
 
-        var bodyRect = bodyEl.getBoundingClientRect();
-        var inputRect = inputEl.getBoundingClientRect();
+          var bodyEl = $body[0];
+          var inputEl = this;
+          if (!bodyEl || !inputEl || !inputEl.getBoundingClientRect) return;
 
-        // “Área visível” no body levando em conta o footer fixo e uma folga.
-        var padding = 16;
-        var visibleBottom = bodyRect.bottom - footerH - padding;
+          var footerH = 0;
+          try {
+            var $footer = $('.ctwpml-footer:visible').first();
+            footerH = $footer.length ? ($footer.outerHeight() || 0) : 0;
+          } catch (e0) {}
+          if (!footerH) footerH = 180;
 
-        if (inputRect.bottom > visibleBottom) {
-          var delta = (inputRect.bottom - visibleBottom) + 12;
-          var nextTop = Math.max(0, bodyEl.scrollTop + delta);
+          var bodyRect = bodyEl.getBoundingClientRect();
+          var inputRect = inputEl.getBoundingClientRect();
 
-          // Scroll suave dentro do modal
+          // Viewport real (mobile/teclado): visualViewport quando disponível.
+          var vv = window.visualViewport;
+          var viewportTop = vv ? (vv.offsetTop || 0) : 0;
+          var viewportBottom = vv ? ((vv.offsetTop || 0) + (vv.height || window.innerHeight)) : window.innerHeight;
+
+          // Área visível dentro do modal-body, respeitando viewport e footer.
+          var padding = 16;
+          var targetTopOffset = 40; // requisito: manter ~40px acima
+          var visibleTop = Math.max(bodyRect.top, viewportTop) + targetTopOffset;
+          var visibleBottom = Math.min(bodyRect.bottom, viewportBottom) - footerH - padding;
+          if (visibleBottom < visibleTop) visibleBottom = visibleTop + 10;
+
+          var shouldScroll = false;
+          var nextTop = bodyEl.scrollTop;
+          var delta = 0;
+
+          if (inputRect.top < visibleTop) {
+            delta = (inputRect.top - visibleTop) - 12;
+            nextTop = Math.max(0, bodyEl.scrollTop + delta);
+            shouldScroll = true;
+          } else if (inputRect.bottom > visibleBottom) {
+            delta = (inputRect.bottom - visibleBottom) + 12;
+            nextTop = Math.max(0, bodyEl.scrollTop + delta);
+            shouldScroll = true;
+          }
+
+          if (!shouldScroll) return;
+
           try {
             $body.stop(true).animate({ scrollTop: nextTop }, 220);
           } catch (e1) {
             bodyEl.scrollTop = nextTop;
           }
 
+          if (state && typeof state.checkpoint === 'function') {
+            state.checkpoint('CHK_SCROLL_FOCUS_MOBILE', true, {
+              reason: String(reason || ''),
+              fieldId: String(inputEl.id || ''),
+              footerH: footerH,
+              delta: delta,
+              nextTop: nextTop,
+              vvHeight: vv ? vv.height : null,
+            });
+          }
           if (typeof state.log === 'function') {
-            state.log('UI        v2.0 [2.1] Auto-scroll no foco (campo perto do footer)', {
+            state.log('UI        v2.0 [2.1] Auto-scroll no foco (mobile)', {
+              reason: String(reason || ''),
               fieldId: String(inputEl.id || ''),
               footerH: footerH,
               delta: delta,
               scrollTop: bodyEl.scrollTop,
               nextTop: nextTop,
+              vvHeight: vv ? vv.height : null,
             }, 'UI');
           }
-        }
-      } catch (e2) {}
+        } catch (e2) {}
+      }
+
+      // 1ª passada: imediata (antes do teclado terminar animação)
+      autoScroll.call(this, 'focus_immediate');
+      // 2ª passada: após o teclado abrir (principalmente mobile)
+      try {
+        var el = this;
+        setTimeout(function () {
+          autoScroll.call(el, 'focus_delayed');
+        }, 260);
+      } catch (e3) {}
     });
 
     // Se o usuário alterar o CEP direto no checkout (fora do modal), limpamos os campos também.
