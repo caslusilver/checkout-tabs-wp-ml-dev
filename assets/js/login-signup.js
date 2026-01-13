@@ -1,8 +1,14 @@
 (function (window) {
   'use strict';
 
-  function setMsg($el, text, isError) {
-    $el.text(String(text || ''));
+  function setMsg($el, text, isError, allowHtml) {
+    // Se allowHtml=true, usa .html() para permitir links clicáveis
+    // Caso contrário, usa .text() para segurança (escapa HTML)
+    if (allowHtml) {
+      $el.html(String(text || ''));
+    } else {
+      $el.text(String(text || ''));
+    }
     $el.css('display', text ? 'block' : 'none');
     $el.css('color', isError ? '#b42318' : '#067647');
   }
@@ -131,7 +137,7 @@
         }
         
         var linkHtml = '<a href="#" id="ctwpml-goto-recaptcha" style="color:#3483fa;font-weight:bold;">Clique aqui para completar o reCAPTCHA</a>';
-        setMsg($msg, 'Por favor, complete o reCAPTCHA. ' + linkHtml, true);
+        setMsg($msg, 'Por favor, complete o reCAPTCHA. ' + linkHtml, true, true); // allowHtml=true para o link funcionar
 
         // Handler para voltar à aba de login e destacar reCAPTCHA (remove anterior para não acumular)
         $(document).off('click', '#ctwpml-goto-recaptcha').on('click', '#ctwpml-goto-recaptcha', function (e) {

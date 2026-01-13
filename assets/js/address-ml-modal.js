@@ -3258,6 +3258,9 @@
     });
 
     // Tela prazo: botão Continuar (confirma seleção e avança)
+    // Flag para evitar múltiplas esperas simultâneas
+    var __shippingContinueWaiting = false;
+    
     $(document).on('click', '#ctwpml-shipping-continue', function () {
       var log = function (msg, data) {
         if (typeof state.log === 'function') {
@@ -3266,7 +3269,8 @@
           console.log('[CTWPML][SHIPPING] ' + msg, data || '');
         }
       };
-
+      
+      var $btn = $(this);
       var $selected = $('#ctwpml-view-shipping .ctwpml-shipping-option.is-selected');
       var selectedMethod = $selected.data('method-id');
       var selectedType = $selected.data('type');
@@ -3279,6 +3283,37 @@
         log('ERRO: Nenhum método selecionado');
         showNotification('Selecione uma opção de entrega.', 'error');
         return;
+      }
+      
+      // Função auxiliar para avançar para pagamento
+      function proceedToPayment() {
+        log('Método de frete confirmado, avançando para tela de pagamento');
+
+        // Garantir persistência (caso tenha vindo via pré-seleção automática)
+        state.selectedShipping = {
+          methodId: selectedMethod || '',
+          type: selectedType || '',
+          priceText: selectedPriceText || '',
+          label: selectedLabelText || '',
+        };
+        persistModalState({ selectedShipping: state.selectedShipping, view: 'shipping' });
+
+        // Dispara evento customizado para que outros módulos possam reagir
+        $(document.body).trigger('ctwpml_shipping_selected', {
+          method_id: selectedMethod,
+          type: selectedType,
+        });
+
+        log('Evento ctwpml_shipping_selected disparado');
+
+        // Avançar para a tela de pagamento (não fecha o modal)
+        showPaymentScreen();
+      }
+      
+      // Função para restaurar botão ao estado normal
+      function restoreButton() {
+        __shippingContinueWaiting = false;
+        $btn.prop('disabled', false).text('Continuar');
       }
 
       // Bloquear avanço se o Woo NÃO aplicou de fato o método selecionado (evita finalizar com PAC por fallback).
@@ -3295,38 +3330,93 @@
           return;
         }
 
-        // Se o Woo está com outro método checked, não avança (mesmo que UI esteja em outro).
+        // Se o Woo está com outro método checked, aguardar aplicação ao invés de pedir "tente novamente"
         if (wooChecked && String(wooChecked) !== String(selectedMethod)) {
-          log('Bloqueando avanço: Woo checked != UI selected', { selectedMethod: String(selectedMethod), wooChecked: wooChecked, last: last });
-          if (typeof state.checkpoint === 'function') state.checkpoint('CHK_SHIPPING_CONTINUE_BLOCKED', true, { reason: 'woo_mismatch', selectedMethod: String(selectedMethod), wooChecked: wooChecked, last: last });
-          showNotification('O checkout ainda não aplicou o frete selecionado. Aguarde 2 segundos e tente novamente.', 'error', 4500);
+          log('Aguardando aplicação: Woo checked != UI selected', { selectedMethod: String(selectedMethod), wooChecked: wooChecked, last: last });
+          if (typeof state.checkpoint === 'function') state.checkpoint('CHK_SHIPPING_CONTINUE_BLOCKED', true, { reason: 'woo_mismatch_waiting', selectedMethod: String(selectedMethod), wooChecked: wooChecked, last: last });
+          
+          // Se já está aguardando, não faz nada
+          if (__shippingContinueWaiting) {
+            log('Já aguardando aplicação do frete...');
+            return;
+          }
+          
+          // Mostrar estado de "aguardando" no botão
+          __shippingContinueWaiting = true;
+          $btn.prop('disabled', true).text('Aplicando frete...');
+          
+          // Re-disparar setShippingMethodInWC para garantir que está em andamento
+          setShippingMethodInWC(selectedMethod);
+          
+          // Aguardar updated_checkout e verificar novamente
+          var waitStart = Date.now();
+          var maxWait = 8000; // máximo 8 segundos
+          
+          var checkAndProceed = function() {
+            var newSnap = ctwpmlReadWooShippingDomSnapshot();
+            var newChecked = newSnap && newSnap.checked ? String(newSnap.checked) : '';
+            
+            log('Verificando após updated_checkout:', { newChecked: newChecked, selectedMethod: String(selectedMethod), elapsed: Date.now() - waitStart });
+            
+            if (newChecked === String(selectedMethod)) {
+              // Sucesso! Avançar automaticamente
+              log('Frete aplicado com sucesso, auto-avançando');
+              if (typeof state.checkpoint === 'function') state.checkpoint('CHK_SHIPPING_CONTINUE_ALLOWED', true, { selectedMethod: String(selectedMethod), wooChecked: newChecked, autoAdvance: true });
+              restoreButton();
+              proceedToPayment();
+            } else if (Date.now() - waitStart > maxWait) {
+              // Timeout - restaurar e mostrar erro
+              log('Timeout aguardando aplicação do frete');
+              restoreButton();
+              showNotification('O frete está demorando para aplicar. Tente novamente.', 'error', 4500);
+            }
+            // Se ainda não aplicou e não deu timeout, o próximo updated_checkout vai chamar novamente
+          };
+          
+          // Escutar updated_checkout até aplicar ou timeout
+          var onUpdatedCheckout = function() {
+            if (!__shippingContinueWaiting) return; // já resolvido
+            checkAndProceed();
+          };
+          
+          $(document.body).on('updated_checkout.ctwpml_shipping_wait', onUpdatedCheckout);
+          
+          // Também verificar com polling como fallback (caso updated_checkout não dispare)
+          var pollInterval = setInterval(function() {
+            if (!__shippingContinueWaiting) {
+              clearInterval(pollInterval);
+              $(document.body).off('updated_checkout.ctwpml_shipping_wait');
+              return;
+            }
+            if (Date.now() - waitStart > maxWait) {
+              clearInterval(pollInterval);
+              $(document.body).off('updated_checkout.ctwpml_shipping_wait');
+              restoreButton();
+              showNotification('O frete está demorando para aplicar. Tente novamente.', 'error', 4500);
+              return;
+            }
+            // Verificar DOM periodicamente
+            var pollSnap = ctwpmlReadWooShippingDomSnapshot();
+            var pollChecked = pollSnap && pollSnap.checked ? String(pollSnap.checked) : '';
+            if (pollChecked === String(selectedMethod)) {
+              clearInterval(pollInterval);
+              $(document.body).off('updated_checkout.ctwpml_shipping_wait');
+              log('Frete aplicado (detectado via polling)');
+              if (typeof state.checkpoint === 'function') state.checkpoint('CHK_SHIPPING_CONTINUE_ALLOWED', true, { selectedMethod: String(selectedMethod), wooChecked: pollChecked, autoAdvance: true, viaPolling: true });
+              restoreButton();
+              proceedToPayment();
+            }
+          }, 500);
+          
           return;
         }
 
         if (typeof state.checkpoint === 'function') state.checkpoint('CHK_SHIPPING_CONTINUE_ALLOWED', true, { selectedMethod: String(selectedMethod), wooChecked: wooChecked, last: last });
-      } catch (e0) {}
+      } catch (e0) {
+        log('Erro ao verificar estado do frete:', e0);
+      }
 
-      log('Método de frete confirmado, avançando para tela de pagamento');
-
-      // Garantir persistência (caso tenha vindo via pré-seleção automática)
-      state.selectedShipping = {
-        methodId: selectedMethod || '',
-        type: selectedType || '',
-        priceText: selectedPriceText || '',
-        label: selectedLabelText || '',
-      };
-      persistModalState({ selectedShipping: state.selectedShipping, view: 'shipping' });
-
-      // Dispara evento customizado para que outros módulos possam reagir
-      $(document.body).trigger('ctwpml_shipping_selected', {
-        method_id: selectedMethod,
-        type: selectedType,
-      });
-
-      log('Evento ctwpml_shipping_selected disparado');
-
-      // Avançar para a tela de pagamento (não fecha o modal)
-      showPaymentScreen();
+      proceedToPayment();
     });
 
     // Tela 3 (Pagamento): clique em opção de pagamento (Pix, Boleto, Cartão)

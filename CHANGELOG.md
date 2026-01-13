@@ -9,6 +9,13 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 - Criar o repositório: `caslusilver/checkout-tabs-wp-ml-dev`
 - Branch principal do fluxo: `develop`
 
+## [v3.2.48] - 2026-01-13
+
+### Changed
+- Correção do link clicável do reCAPTCHA (setMsg agora aceita HTML quando necessário); melhoria no fluxo de frete para aguardar aplicação automática ao invés de exibir "tente novamente" (UX significativamente melhorada); correção no cálculo de métricas da telemetria (successRate agora usa apenas operações concluídas no denominador, durations agora são registradas corretamente).
+
+#### Protocol: 7659edf
+
 ## [v3.2.47] - 2026-01-12
 
 ### Changed

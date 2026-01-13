@@ -108,7 +108,9 @@
       if (event === 'start' && data && data.startTime) {
         metrics.startTimes.push(data.startTime);
       }
-      if (event === 'end' && data && data.duration) {
+      // Salvar durations para eventos 'success' ou 'error' que têm duration
+      // (end() emite 'success'/'error' com duration, não 'end')
+      if ((event === 'success' || event === 'error') && data && typeof data.duration === 'number' && data.duration > 0) {
         metrics.durations.push(data.duration);
       }
 
@@ -190,16 +192,20 @@
         ? metrics.durations.reduce(function(a, b) { return a + b; }, 0) / metrics.durations.length
         : null;
       
-      var successRate = metrics.totalEvents > 0
-        ? (metrics.successCount / metrics.totalEvents) * 100
-        : 0;
+      // Taxa de sucesso: successCount / (successCount + errorCount)
+      // Ignora eventos informativos (start, click, etc) no denominador
+      var completedOperations = metrics.successCount + metrics.errorCount;
+      var successRate = completedOperations > 0
+        ? (metrics.successCount / completedOperations) * 100
+        : null; // null = sem operações concluídas ainda
 
       report.features[feature] = {
         totalEvents: metrics.totalEvents,
         successCount: metrics.successCount,
         errorCount: metrics.errorCount,
         clickCount: metrics.clickCount,
-        successRate: successRate.toFixed(2) + '%',
+        completedOperations: completedOperations,
+        successRate: successRate !== null ? successRate.toFixed(2) + '%' : 'N/A',
         avgDuration: avgDuration ? avgDuration.toFixed(2) + 'ms' : 'N/A',
         minDuration: metrics.durations.length > 0 ? Math.min.apply(null, metrics.durations).toFixed(2) + 'ms' : 'N/A',
         maxDuration: metrics.durations.length > 0 ? Math.max.apply(null, metrics.durations).toFixed(2) + 'ms' : 'N/A',
