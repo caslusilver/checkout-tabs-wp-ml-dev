@@ -12,9 +12,16 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 ## [Unreleased]
 
 ### Changed
-- **Versão atual**: v3.2.63  
+- **Versão atual**: v3.2.64  
   **Versão sugerida após a mudança**: vX.Y.Z  
   **Descrição**: texto objetivo do que mudou e impacto (pode listar itens separados por ponto e vírgula).
+
+## [v3.2.64] - 2026-01-13
+
+### Changed
+- Review: resumo passa a consumir dados do carrinho (quantidade real, subtotal/total e itens); exibição de lista de produtos com fotos/quantidade/preço no Review; correção do frete quebrado após remover cupom com leitura monetária do Woo; limpa estado do modal após checkout concluído para evitar retorno indevido à tela de review.
+
+#### Protocol: 4a6f461
 
 ## [v3.2.63] - 2026-01-15
 

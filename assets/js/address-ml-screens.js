@@ -511,6 +511,7 @@
     var addressTitle = options.addressTitle || '';
     var addressSubtitle = options.addressSubtitle || '';
     var thumbUrls = Array.isArray(options.thumbUrls) ? options.thumbUrls : [];
+    var items = Array.isArray(options.items) ? options.items : [];
 
     var thumbsHtml = '';
     if (thumbUrls.length) {
@@ -522,6 +523,30 @@
       thumbsHtml += '</div>';
     } else {
       thumbsHtml = '<div class="ctwpml-review-thumb" aria-hidden="true"></div>';
+    }
+
+    var itemsHtml = '';
+    if (items.length) {
+      itemsHtml = '<div class="ctwpml-review-products-list" id="ctwpml-review-products-list">';
+      items.forEach(function (item) {
+        if (!item) return;
+        var name = item.name ? String(item.name) : '';
+        var price = item.price ? String(item.price) : '';
+        var qty = (typeof item.quantity === 'number' ? item.quantity : parseInt(item.quantity, 10)) || 0;
+        var thumb = item.thumbnail ? String(item.thumbnail) : '';
+        itemsHtml +=
+          '<div class="ctwpml-review-product-item">' +
+          '  <div class="ctwpml-review-product-thumb">' +
+          (thumb ? ('    <img src="' + escapeHtml(thumb) + '" alt="Produto" />') : '') +
+          '  </div>' +
+          '  <div class="ctwpml-review-product-meta">' +
+          '    <div class="ctwpml-review-product-name">' + escapeHtml(name) + '</div>' +
+          '    <div class="ctwpml-review-product-qty">Qtd: ' + escapeHtml(String(qty)) + '</div>' +
+          '  </div>' +
+          '  <div class="ctwpml-review-product-price">' + escapeHtml(price) + '</div>' +
+          '</div>';
+      });
+      itemsHtml += '</div>';
     }
 
     var html =
@@ -589,6 +614,7 @@
       '        <div class="ctwpml-review-shipment-qty" id="ctwpml-review-product-qty"></div>' +
       '      </div>' +
       '    </div>' +
+      itemsHtml +
       '    <a href="#" class="ctwpml-review-change-link" id="ctwpml-review-change-address">Alterar ou escolher outro prazo de entrega</a>' +
       '  </div>' +
       '' +

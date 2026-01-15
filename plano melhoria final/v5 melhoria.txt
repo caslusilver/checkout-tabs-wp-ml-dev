@@ -14,8 +14,9 @@ Escopo: Tela de revisão, exibição de produtos, desconto, lógica de redirecio
 
 [5.1] Exibir quantidade dinâmica dos produtos no resumo
 [5.2] Exibir produtos do carrinho em lista com fotos individuais
-[5.3] Exibir desconto no total final com antes/depois e nome do cupom
-[5.4] Corrigir redirecionamento após finalização (evitar "Revise e confirme")
+[5.3] Exibir desconto no total final com antes/depois e nome do cupom [ok] ja foi implementado!
+[5.4] Corrigir redirecionamento após finalização (evitar "Revise e confirme") [reforçar o debug para mapear o que está causando isso além de se o usuário concluiu a etapa do checkout CHK_CTA_WC_CHECKOUT_AJAX_COMPLETE ele volta no moldal sempre na etapa 01 ]
+[5.5] Corrigir frete quebrado ao remover cupom na etapa "Revise e confirme"
 
 ================================================================================
                         DETALHAMENTO DAS MELHORIAS
@@ -838,6 +839,37 @@ TESTES REQUERIDOS:
     [ ] Limpar estado após checkout bem-sucedido
     [ ] Limpar estado na página de sucesso
     [ ] Testar fluxo completo
+
+--------------------------------------------------------------------------------
+[5.5] CORRIGIR FRETE QUEBRADO AO REMOVER CUPOM (REVIEW)
+--------------------------------------------------------------------------------
+
+PROBLEMA IDENTIFICADO:
+Ao remover cupom na etapa "Revise e confirme", o frete pode aparecer com texto
+concatenado/ilegível e o layout fica desalinhado até o reload.
+
+CAUSA PROVÁVEL:
+`readTotals().shippingText` usa textContent amplo do Woo, capturando textos
+adjacentes e fragments concatenados.
+
+ARQUIVOS A MODIFICAR:
+1. assets/js/address-ml-woo-host.js
+   - Ajustar `readTotals()` para preferir `.woocommerce-Price-amount` dentro
+     do bloco de frete, usando o último valor monetário encontrado.
+
+2. assets/js/address-ml-modal.js
+   - `syncReviewTotalsFromWoo()` deve priorizar `selectedShipping.priceText`.
+   - Validar `totals.shippingText` antes de aplicar (parseável BRL e curto).
+   - Se inválido, não sobrescrever o frete atual.
+
+LOGS RECOMENDADOS:
+- CHK_REVIEW_SHIPPING_RAW_WOO (raw, length, parsed, isValid)
+- CHK_REVIEW_SHIPPING_APPLIED_SOURCE (selectedShipping / wooTotals / skipped_invalid)
+
+TESTES REQUERIDOS:
+- [ ] Aplicar cupom e navegar para Review
+- [ ] Remover cupom na Review e validar frete limpo
+- [ ] Repetir com diferentes métodos de frete
 
 ================================================================================
                            NOTAS DE DESENVOLVIMENTO

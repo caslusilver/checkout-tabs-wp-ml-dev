@@ -152,6 +152,8 @@
     // PERSISTÊNCIA DO ESTADO DO MODAL (sessionStorage)
     // =========================================================
     var CTWPML_MODAL_STATE_KEY = 'ctwpml_ml_modal_state_v1';
+    var CTWPML_ORDER_COMPLETED_KEY = 'ctwpml_ml_order_completed_v1';
+    var CTWPML_ORDER_COMPLETED_TTL_MS = 5 * 60 * 1000;
     var restoreStateOnOpen = null;
 
     function safeReadModalState() {
@@ -181,6 +183,42 @@
       } catch (e) {}
     }
 
+    function markOrderCompleted(meta) {
+      try {
+        if (!window.sessionStorage) return;
+        var payload = {
+          ts: Date.now(),
+          meta: meta || {},
+        };
+        window.sessionStorage.setItem(CTWPML_ORDER_COMPLETED_KEY, JSON.stringify(payload));
+        clearModalState();
+        if (typeof state.checkpoint === 'function') {
+          state.checkpoint('CHK_CTA_WC_CHECKOUT_AJAX_COMPLETE', true, {
+            source: (meta && meta.source) || 'unknown',
+            payload: meta || {},
+          });
+        }
+      } catch (e) {}
+    }
+
+    function wasOrderCompletedRecently() {
+      try {
+        if (!window.sessionStorage) return false;
+        var raw = window.sessionStorage.getItem(CTWPML_ORDER_COMPLETED_KEY);
+        if (!raw) return false;
+        var obj = JSON.parse(raw);
+        if (!obj || !obj.ts) return false;
+        var age = Date.now() - Number(obj.ts || 0);
+        if (age < 0 || age > CTWPML_ORDER_COMPLETED_TTL_MS) {
+          window.sessionStorage.removeItem(CTWPML_ORDER_COMPLETED_KEY);
+          return false;
+        }
+        return true;
+      } catch (e) {
+        return false;
+      }
+    }
+
     function persistModalState(patch) {
       patch = patch || {};
       var prev = safeReadModalState() || {};
@@ -196,6 +234,13 @@
     }
 
     function tryRestoreModalOnBoot() {
+      if (wasOrderCompletedRecently()) {
+        clearModalState();
+        if (typeof state.checkpoint === 'function') {
+          state.checkpoint('CHK_VIEW_RESTORE', false, { restored: false, reason: 'order_completed_recently' });
+        }
+        return;
+      }
       var s = safeReadModalState();
       if (!s || !s.open) {
         if (typeof state.checkpoint === 'function') state.checkpoint('CHK_VIEW_RESTORE', true, { restored: false, reason: 'no_state' });
@@ -1743,20 +1788,64 @@
       if (totals.shippingText) {
         try {
           var prev = ($('#ctwpml-review-shipping').text() || '').trim();
-          $('#ctwpml-review-shipping').text(totals.shippingText);
           var sel = state.selectedShipping || {};
           var selectedPrice = String(sel.priceText || '');
+          var rawShipping = String(totals.shippingText || '').trim();
+          var parsed = ctwpmlParseBRLToNumber(rawShipping);
+          var isValidShipping = parsed !== null && rawShipping.length < 25;
+
+          if (typeof state.checkpoint === 'function') {
+            state.checkpoint('CHK_REVIEW_SHIPPING_RAW_WOO', true, {
+              context: 'syncReviewTotalsFromWoo',
+              raw: rawShipping,
+              length: rawShipping.length,
+              parsed: parsed,
+              isValid: isValidShipping,
+            });
+          }
+
+          if (selectedPrice) {
+            $('#ctwpml-review-shipping').text(selectedPrice);
+            if (typeof state.checkpoint === 'function') {
+              state.checkpoint('CHK_REVIEW_SHIPPING_APPLIED_SOURCE', true, {
+                context: 'syncReviewTotalsFromWoo',
+                source: 'selectedShipping',
+                value: selectedPrice,
+                domPrev: prev,
+              });
+            }
+          } else if (isValidShipping) {
+            $('#ctwpml-review-shipping').text(rawShipping);
+            if (typeof state.checkpoint === 'function') {
+              state.checkpoint('CHK_REVIEW_SHIPPING_APPLIED_SOURCE', true, {
+                context: 'syncReviewTotalsFromWoo',
+                source: 'wooTotals',
+                value: rawShipping,
+                domPrev: prev,
+              });
+            }
+          } else {
+            // Evita substituir por texto concatenado/ilegível
+            if (typeof state.checkpoint === 'function') {
+              state.checkpoint('CHK_REVIEW_SHIPPING_APPLIED_SOURCE', false, {
+                context: 'syncReviewTotalsFromWoo',
+                source: 'skipped_invalid',
+                value: rawShipping,
+                domPrev: prev,
+              });
+            }
+          }
           if (typeof state.checkpoint === 'function') {
             state.checkpoint('CHK_REVIEW_SHIPPING_VALUE_SOURCE', true, {
               context: 'syncReviewTotalsFromWoo',
-              source: 'wooTotals',
+              source: selectedPrice ? 'selectedShipping' : (isValidShipping ? 'wooTotals' : 'skipped_invalid'),
               domPrev: prev,
-              domAfter: (totals.shippingText || '').trim(),
+              domAfter: ($('#ctwpml-review-shipping').text() || '').trim(),
               selectedShippingPrice: selectedPrice,
               differsFromSelected: !!(selectedPrice && prev && selectedPrice !== prev),
             });
           }
-          if (typeof state.log === 'function') state.log('Review frete atualizado via Woo totals', { prev: prev, next: totals.shippingText, selectedShippingPrice: selectedPrice }, 'REVIEW');
+          if (typeof state.log === 'function') state.log('Review frete atualizado via Woo totals', { prev: prev, next: $('#ctwpml-review-shipping').text(), selectedShippingPrice: selectedPrice }, 'REVIEW');
         } catch (e0) {
           $('#ctwpml-review-shipping').text(totals.shippingText);
         }
@@ -1973,12 +2062,21 @@
         var billingCpf = ($('#billing_cpf').val() || $('#ctwpml-input-cpf').val() || '').trim();
         if (billingCpf && billingCpf.indexOf('CPF') !== 0) billingCpf = 'CPF ' + billingCpf;
 
-        var setHtml = function (thumbs) {
+        var setHtml = function (summary) {
+          summary = summary || {};
+          var itemCount = typeof summary.item_count === 'number'
+            ? summary.item_count
+            : (typeof summary.count === 'number' ? summary.count : 0);
+          var items = Array.isArray(summary.items) ? summary.items : [];
+          var thumbUrls = Array.isArray(summary.thumb_urls) ? summary.thumb_urls : [];
+          var subtotalText = summary.subtotal ? String(summary.subtotal) : (totals.subtotalText || '');
+          var totalText = summary.total ? String(summary.total) : (totals.totalText || '');
+
           var html = window.CCCheckoutTabs.AddressMlScreens.renderReviewConfirmScreen({
-            productCount: thumbs && typeof thumbs.count === 'number' ? thumbs.count : 0,
-            subtotalText: totals.subtotalText || '',
+            productCount: itemCount,
+            subtotalText: subtotalText,
             shippingText: totals.shippingText || '',
-            totalText: totals.totalText || '',
+            totalText: totalText,
             paymentLabel: paymentLabel || '',
             billingName: billingName || '',
             billingCpf: billingCpf || '',
@@ -1987,7 +2085,8 @@
             billingIconUrl: billingIconUrl,
             shippingIconUrl: shippingIconUrl,
             paymentIconUrl: paymentIconUrl,
-            thumbUrls: thumbs && Array.isArray(thumbs.thumb_urls) ? thumbs.thumb_urls : [],
+            thumbUrls: thumbUrls,
+            items: items,
           });
           $('#ctwpml-view-review').html(html);
           $('#ctwpml-review-errors').hide().text('');
@@ -2052,9 +2151,11 @@
         };
 
         if (woo && typeof woo.getCartThumbs === 'function') {
-          woo.getCartThumbs().then(setHtml).catch(function () { setHtml({ thumb_urls: [], count: 0 }); });
+          woo.getCartThumbs().then(setHtml).catch(function () {
+            setHtml({ thumb_urls: [], count: 0, item_count: 0, items: [], subtotal: '', total: '' });
+          });
         } else {
-          setHtml({ thumb_urls: [], count: 0 });
+          setHtml({ thumb_urls: [], count: 0, item_count: 0, items: [], subtotal: '', total: '' });
         }
       };
 
@@ -5388,6 +5489,19 @@
       // Fallback: jQuery submit
       $('form.checkout, form.woocommerce-checkout').first().trigger('submit');
       log('CTA submit via jQuery trigger(submit)');
+    });
+
+    // Checkout Woo: sucesso (AJAX) -> limpar estado do modal e evitar restore em nova compra
+    $(document.body).on('checkout_place_order_success', function (e, data) {
+      try {
+        var payload = data || {};
+        var result = payload && payload.result ? String(payload.result) : '';
+        markOrderCompleted({
+          source: 'checkout_place_order_success',
+          result: result,
+          redirect: payload && payload.redirect ? String(payload.redirect) : '',
+        });
+      } catch (e0) {}
     });
 
     // Tela 2: ao preencher o CEP, consulta webhook e preenche campos automaticamente.
