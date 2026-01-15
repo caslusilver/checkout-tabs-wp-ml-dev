@@ -1,0 +1,529 @@
+================================================================================
+                   CHECKOUT TABS WP ML - VERSÃO 2.0
+                   ADICIONAR/EDITAR ENDEREÇO (MODAL)
+================================================================================
+
+Data de Criação: 12/01/2026
+Status: Pendente
+Prioridade: Alta
+Escopo: Formulário de endereços, UI do modal, campo de telefone internacional
+
+================================================================================
+                           ÍNDICE DE MELHORIAS
+================================================================================
+
+[2.1] Corrigir sobreposição de botões nos campos do formulário
+[2.2] Implementar loading overlay "Preparando tudo para sua compra"
+[2.3] Adicionar campo DDI com biblioteca intl-tel-input
+
+================================================================================
+                        DETALHAMENTO DAS MELHORIAS
+================================================================================
+
+--------------------------------------------------------------------------------
+[2.1] CORRIGIR SOBREPOSIÇÃO DE BOTÕES NOS CAMPOS DO FORMULÁRIO
+--------------------------------------------------------------------------------
+
+PROBLEMA IDENTIFICADO:
+Na página de editar/adicionar endereço, os botões fixos no rodapé sobrepõem
+os últimos campos do formulário, impedindo visualização e interação.
+
+ARQUIVOS A MODIFICAR:
+
+1. assets/css/address-ml-modal.css
+   
+   SITUAÇÃO ATUAL (linhas 148-156):
+   ```css
+   .ctwpml-modal-body {
+     padding: 16px;
+     padding-bottom: 120px; /* espaço para footer quando visível */
+     ...
+   }
+   ```
+   
+   PROBLEMA: O padding-bottom de 120px pode não ser suficiente quando há
+   muitos campos ou em telas menores.
+
+   CORREÇÃO PROPOSTA:
+   ```css
+   .ctwpml-modal-body {
+     padding: 16px;
+     padding-bottom: 180px; /* Aumentar espaço para footer + margem de segurança */
+     overflow: auto !important;
+     -webkit-overflow-scrolling: touch;
+     flex: 1;
+     min-height: calc(100vh - 77px);
+     max-height: calc(100vh - 77px);
+   }
+   
+   /* Espaço extra específico para tela de formulário */
+   #ctwpml-view-form .ctwpml-modal-body,
+   .ctwpml-view-form {
+     padding-bottom: 200px !important;
+   }
+   
+   /* Footer fixo com fundo sólido e sombra mais pronunciada */
+   .ctwpml-footer {
+     padding: 14px 16px;
+     background: var(--ctwpml-ml-white);
+     display: flex;
+     flex-direction: column;
+     gap: 10px;
+     position: fixed;
+     bottom: 0;
+     left: 0;
+     right: 0;
+     z-index: 99;
+     box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.12);
+     /* Garantir que o fundo não seja transparente */
+     backdrop-filter: none;
+   }
+   
+   /* Separador visual entre conteúdo e botões */
+   .ctwpml-footer::before {
+     content: '';
+     position: absolute;
+     top: -20px;
+     left: 0;
+     right: 0;
+     height: 20px;
+     background: linear-gradient(to top, rgba(255,255,255,1) 0%, rgba(255,255,255,0) 100%);
+     pointer-events: none;
+   }
+   ```
+
+2. assets/js/address-ml-modal.js
+   
+   AÇÃO: Garantir scroll automático quando campo recebe foco
+   
+   CÓDIGO A ADICIONAR (na lógica de renderização do formulário):
+   ```javascript
+   // Após renderizar formulário, adicionar handler de foco
+   setTimeout(function() {
+     $('#ctwpml-view-form input, #ctwpml-view-form textarea').on('focus', function() {
+       var $this = $(this);
+       var $body = $('.ctwpml-modal-body');
+       
+       // Calcular posição do campo
+       var fieldTop = $this.offset().top;
+       var bodyTop = $body.offset().top;
+       var bodyHeight = $body.height();
+       var footerHeight = 180; // Altura do footer
+       
+       // Se o campo está perto do footer, fazer scroll
+       var visibleBottom = bodyTop + bodyHeight - footerHeight;
+       if (fieldTop > visibleBottom - 50) {
+         var scrollTo = $body.scrollTop() + (fieldTop - visibleBottom) + 100;
+         $body.animate({ scrollTop: scrollTo }, 200);
+       }
+     });
+   }, 300);
+   ```
+
+3. Verificar se há conflito com telas específicas:
+   
+   VERIFICAR em address-ml-screens.js ou address-ml-modal.js:
+   - Tela de formulário de endereço (view-form)
+   - Tela de edição de endereço
+
+TESTES REQUERIDOS:
+- [ ] Abrir modal de endereços
+- [ ] Ir para "Adicionar novo endereço"
+- [ ] Navegar até os últimos campos (telefone, complemento)
+- [ ] Verificar se campos estão totalmente visíveis
+- [ ] Verificar se botões não sobrepõem campos
+- [ ] Testar em diferentes tamanhos de tela (mobile/tablet/desktop)
+- [ ] Verificar scroll automático ao focar em campos inferiores
+
+--------------------------------------------------------------------------------
+[2.2] IMPLEMENTAR LOADING OVERLAY "PREPARANDO TUDO PARA SUA COMPRA"
+--------------------------------------------------------------------------------
+
+PROBLEMA IDENTIFICADO:
+Atualmente o loading overlay aparece apenas quando o usuário troca de endereço.
+Precisa aparecer também ao clicar em "Finalizar Compra" (antes do popup de login
+se não estiver logado, ou imediatamente se estiver logado com endereço cadastrado).
+
+ARQUIVOS A MODIFICAR:
+
+1. assets/js/preparing-checkout.js
+   
+   SITUAÇÃO ATUAL:
+   - Já existe lógica de overlay em showOverlay()/hideOverlay()
+   - Já prepara endereço automaticamente se usuário está logado
+   - Precisa expandir para cobrir cenário de "intenção de compra"
+
+   CÓDIGO A ADICIONAR/MODIFICAR:
+
+   Após linha 276, adicionar nova função:
+   ```javascript
+   // Função pública para mostrar overlay de preparação
+   window.CTWPMLPrepare = window.CTWPMLPrepare || {};
+   
+   window.CTWPMLPrepare.showPreparingOverlay = function(message) {
+     ensureOverlay();
+     var titleEl = document.querySelector('.ctwpml-preparing-title');
+     if (titleEl && message) {
+       titleEl.textContent = message;
+     }
+     showOverlay();
+   };
+   
+   window.CTWPMLPrepare.hidePreparingOverlay = function() {
+     hideOverlay();
+   };
+   
+   // Preparar checkout quando usuário tenta finalizar compra
+   window.CTWPMLPrepare.prepareForPurchaseIntent = function() {
+     return new Promise(function(resolve, reject) {
+       if (!isLoggedIn()) {
+         log('Usuário não logado - preparação adiada para após login');
+         resolve({ needsLogin: true });
+         return;
+       }
+       
+       showOverlay();
+       
+       // Buscar endereços e preparar o primeiro
+       ajaxPost({ 
+         action: 'ctwpml_get_addresses', 
+         _ajax_nonce: window.cc_params.addresses_nonce 
+       })
+       .then(function(resp) {
+         var items = resp && resp.success && resp.data && Array.isArray(resp.data.items) 
+           ? resp.data.items : [];
+         var first = items[0] || null;
+         
+         if (!first) {
+           log('Nenhum endereço cadastrado');
+           resolve({ noAddress: true });
+           return;
+         }
+         
+         log('Preparando endereço: ' + first.id, first);
+         return prepareForAddress(first);
+       })
+       .then(function(result) {
+         log('Preparação para compra concluída', result);
+         resolve({ ok: true, result: result });
+       })
+       .catch(function(err) {
+         log('Preparação para compra falhou', err);
+         reject(err);
+       })
+       .finally(function() {
+         hideOverlay();
+       });
+     });
+   };
+   ```
+
+2. assets/js/address-ml-modal.js
+   
+   AÇÃO: Integrar com o botão "Finalizar Compra" no modal
+   
+   LOCALIZAR: Handler do botão de finalizar compra (provavelmente vinculado
+   a #ctwpml-review-confirm ou similar)
+   
+   CÓDIGO A ADICIONAR (antes de processar a compra):
+   ```javascript
+   // Antes de iniciar checkout
+   function handleFinalizarCompra() {
+     // Mostrar overlay imediatamente
+     if (window.CTWPMLPrepare && window.CTWPMLPrepare.showPreparingOverlay) {
+       window.CTWPMLPrepare.showPreparingOverlay('Preparando tudo para sua compra');
+     }
+     
+     // Se não está logado, mostrar popup de login
+     if (!window.cc_params || !window.cc_params.is_logged_in) {
+       // Ocultar overlay antes de mostrar popup de login
+       if (window.CTWPMLPrepare && window.CTWPMLPrepare.hidePreparingOverlay) {
+         window.CTWPMLPrepare.hidePreparingOverlay();
+       }
+       // Mostrar popup de login
+       // ... código existente
+       return;
+     }
+     
+     // Usuário logado: preparar e prosseguir
+     if (window.CTWPMLPrepare && window.CTWPMLPrepare.prepareForPurchaseIntent) {
+       window.CTWPMLPrepare.prepareForPurchaseIntent()
+         .then(function(result) {
+           if (result.noAddress) {
+             // Mostrar mensagem para cadastrar endereço
+             alert('Por favor, cadastre um endereço de entrega.');
+             return;
+           }
+           // Prosseguir com checkout
+           processarCheckout();
+         })
+         .catch(function(err) {
+           console.error('Erro na preparação:', err);
+           // Mesmo com erro, tentar prosseguir
+           processarCheckout();
+         });
+     } else {
+       processarCheckout();
+     }
+   }
+   ```
+
+3. assets/css/preparing-checkout.css
+   
+   VERIFICAR/AJUSTAR estilos para garantir boa apresentação:
+   ```css
+   .ctwpml-preparing-overlay {
+     position: fixed;
+     inset: 0;
+     background: #ffffff;
+     z-index: 9999999; /* Garantir que fica acima de tudo */
+     display: none;
+   }
+   
+   .ctwpml-preparing-overlay.is-visible {
+     display: flex;
+     align-items: center;
+     justify-content: center;
+   }
+   
+   .ctwpml-preparing-center {
+     display: flex;
+     flex-direction: column;
+     align-items: center;
+     text-align: center;
+     padding: 24px;
+   }
+   
+   .ctwpml-preparing-title {
+     font-size: 18px;
+     font-weight: 600;
+     color: #000000;
+     margin-bottom: 16px;
+   }
+   
+   .ctwpml-preparing-spinner {
+     width: 44px;
+     height: 44px;
+     border-radius: 50%;
+     border: 4px solid rgba(52, 131, 250, 0.18);
+     border-top-color: #3483fa;
+     animation: ctwpmlPreparingSpin 0.8s linear infinite;
+   }
+   ```
+
+TESTES REQUERIDOS:
+- [ ] Usuário logado com endereço: clicar em "Comprar"
+- [ ] Verificar se overlay "Preparando tudo..." aparece
+- [ ] Verificar se payload é salvo no endereço selecionado
+- [ ] Verificar se modal abre na tela correta após preparação
+- [ ] Usuário não logado: clicar em "Comprar"
+- [ ] Verificar se popup de login aparece (sem overlay de preparação)
+- [ ] Após login, verificar se preparação é executada
+- [ ] Testar troca de endereço e verificar se overlay aparece
+
+--------------------------------------------------------------------------------
+[2.3] ADICIONAR CAMPO DDI + MÁSCARA DINÂMICA (NOVO FORMATO: TOMSELECT + IMASK)
+--------------------------------------------------------------------------------
+
+PROBLEMA IDENTIFICADO:
+O formulário de endereço não possui campo para código de país (DDI),
+limitando a internacionalização do plugin.
+
+NOVO PADRÃO (REFERÊNCIA):
+- Seguir o modelo: MODELO FORMULARIO INTERNACIONAL PARA NUMEROS.PHP
+- NÃO usar intl-tel-input nesta versão (substituído pelo padrão TomSelect + IMask).
+- A fonte da verdade do valor deve ser um campo hidden com o número completo em:
+  +<DDI><NUMERO> (somente dígitos, com + inicial)
+- UI/UX: componente em uma única linha (sem quebrar), com:
+  - Select de país com bandeira + +DDI (TomSelect)
+  - Input visível com máscara por país (IMask)
+  - Dropdown com z-index alto e busca com teclado numérico (inputmode="numeric")
+  - Debug reforçado em cada ação (init, troca de país, accept da máscara)
+
+ARQUIVOS A MODIFICAR:
+
+1. inc/enqueue.php
+   
+   AÇÃO: Enfileirar bibliotecas do NOVO FORMATO (TomSelect + IMask)
+   
+   CÓDIGO A ADICIONAR (após linha 100, dentro do hook wp_enqueue_scripts):
+   ```php
+   // NOVO FORMATO: IMask + TomSelect
+   if (!wp_script_is('ctwpml-imask', 'enqueued')) {
+     wp_enqueue_script('ctwpml-imask', 'https://unpkg.com/imask', [], '7.0.1', true);
+   }
+
+   if (!wp_style_is('ctwpml-tomselect-css', 'enqueued')) {
+     wp_enqueue_style('ctwpml-tomselect-css', 'https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/css/tom-select.default.min.css', [], '2.2.2');
+   }
+
+   if (!wp_script_is('ctwpml-tomselect-js', 'enqueued')) {
+     wp_enqueue_script('ctwpml-tomselect-js', 'https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/js/tom-select.complete.min.js', [], '2.2.2', true);
+   }
+   ```
+
+2. assets/js/address-ml-modal.js (ou onde o formulário é renderizado)
+   
+   AÇÃO: Substituir input simples pelo componente do NOVO FORMATO
+   
+   HTML (estrutura do componente):
+   ```html
+   <div class="ctwpml-form-group" id="ctwpml-group-phone">
+     <label for="ctwpml-phone-input">Telefone / WhatsApp</label>
+     <div class="ctwpml-phone-wrap" id="ctwpml-phone-wrap">
+       <select id="ctwpml-phone-country" autocomplete="off" placeholder="DDI"></select>
+       <input type="tel" inputmode="numeric" id="ctwpml-phone-input" placeholder="Digite o número" autocomplete="tel" />
+       <input type="hidden" id="ctwpml-phone-full" name="phone_full" />
+     </div>
+   </div>
+   ```
+
+   JS (lógica baseada no MODELO):
+   ```javascript
+   // 1) countryData: mapa ISO2 -> [Nome, DDI, Máscara]
+   // 2) TomSelect: opções com bandeira + +DDI, busca por nome e ddi
+   // 3) IMask: muda máscara ao trocar país e, no accept, grava #ctwpml-phone-full = +DDI + unmaskedValue
+   // 4) Para o backend/webhook legado: manter também um valor "whatsapp_digits" (somente dígitos)
+
+   // Debug reforçado (obrigatório):
+   // - checkpoint: CHK_PHONE_WIDGET_INIT (deps ok e componente renderizado)
+   // - checkpoint: CHK_PHONE_COUNTRY_CHANGED (country + ddi)
+   // - log: a cada accept (len digits, hidden value parcial)
+   ```
+
+3. assets/css/address-ml-modal.css
+   
+   AÇÃO: Estilizar componente (linha única) e dropdown
+   
+   CÓDIGO A ADICIONAR:
+   ```css
+   /* Container principal (select + input) */
+   .ctwpml-phone-wrap {
+     display: flex;
+     flex-wrap: nowrap !important;
+     width: 100%;
+     position: relative;
+     background: #fff;
+     border: 1px solid #dcdcdc;
+     border-radius: 6px;
+     align-items: center;
+     height: 65px;
+     box-sizing: border-box;
+     overflow: hidden;
+   }
+
+   .ctwpml-phone-wrap:focus-within {
+     border-color: #000;
+     box-shadow: 0 0 0 1px #000;
+   }
+
+   /* TomSelect: largura fixa para bandeira + DDI */
+   .ctwpml-phone-wrap .ts-wrapper.single {
+     width: 130px !important;
+     min-width: 130px !important;
+     height: 100%;
+   }
+
+   .ctwpml-phone-wrap .ts-wrapper.single .ts-control {
+     border: none !important;
+     background: transparent !important;
+     box-shadow: none !important;
+     padding: 0 0 0 15px !important;
+     height: 100% !important;
+     display: flex !important;
+     align-items: center !important;
+   }
+
+   .ts-dropdown {
+     z-index: 9999999 !important;
+     min-width: 250px;
+   }
+
+   /* Input visível */
+   #ctwpml-phone-input {
+     flex: 1;
+     min-width: 0;
+     border: none !important;
+     background: transparent !important;
+     padding: 0 15px !important;
+     font-size: 20px !important;
+     outline: none !important;
+     color: #000 !important;
+     height: 100%;
+     border-left: 1px solid #eee !important;
+     margin: 0 !important;
+   }
+   ```
+
+4. inc/frontend/addresses-api.php
+   
+   AÇÃO: Persistir o número completo do hidden (phone_full) e manter compatibilidade com whatsapp
+   
+   REGRAS DE DADOS:
+   - phone_full: "+<ddi><numero>" (somente dígitos, com + inicial)
+   - whatsapp: manter apenas dígitos (pode ser BR nacional ou internacional com DDI)
+   - country_code/dial_code: opcionais (podem ser inferidos do countryData do frontend)
+
+   DEBUG reforçado no PHP:
+   - logar phone_full/country_code/dial_code recebidos e normalizados
+   - validar tamanho 8..15 dígitos (padrão E.164)
+
+TESTES REQUERIDOS:
+- [ ] Abrir formulário de adicionar endereço
+- [ ] Verificar se campo de telefone tem seletor de país
+- [ ] Selecionar Brasil (+55) e inserir número
+- [ ] Verificar formatação automática
+- [ ] Selecionar outro país (EUA, Portugal)
+- [ ] Verificar se DDI muda corretamente
+- [ ] Verificar se hidden phone_full recebe +DDI+digits em tempo real
+- [ ] Salvar e verificar persistência de phone_full + whatsapp
+- [ ] Editar e verificar restauração de país e máscara
+
+================================================================================
+                        CHECKLIST DE IMPLEMENTAÇÃO
+================================================================================
+
+[ ] 2.1 - Corrigir sobreposição de botões
+    [ ] Aumentar padding-bottom do body do modal
+    [ ] Adicionar gradiente de separação no footer
+    [ ] Implementar scroll automático ao focar em campos
+    [ ] Testar em diferentes tamanhos de tela
+
+[ ] 2.2 - Loading overlay "Preparando tudo"
+    [ ] Criar funções públicas para controle do overlay
+    [ ] Integrar com botão de finalizar compra
+    [ ] Implementar lógica de preparação antes do checkout
+    [ ] Testar fluxo completo (logado e não logado)
+
+[ ] 2.3 - Campo DDI (NOVO FORMATO: TomSelect + IMask)
+    [ ] Enfileirar TomSelect + IMask
+    [ ] Renderizar HTML (select + input + hidden)
+    [ ] Implementar countryData + máscaras por país
+    [ ] Garantir hidden phone_full (+DDI+digits) como fonte da verdade
+    [ ] Persistir phone_full e manter compatibilidade com whatsapp
+    [ ] Testar restauração em "Editar endereço"
+
+================================================================================
+                           NOTAS DE DESENVOLVIMENTO
+================================================================================
+
+DEPENDÊNCIAS ADICIONAIS:
+- imask 7.0.1 (CDN)
+- tom-select 2.2.2 (CDN)
+
+IMPACTO NO BANCO DE DADOS:
+- Novos campos no user_meta: country_code, dial_code, phone_full
+- Retrocompatibilidade mantida (campos opcionais)
+
+CONSIDERAÇÕES DE PERFORMANCE:
+- TomSelect + IMask adicionam payload extra no checkout
+- Considerar lazy init: inicializar apenas quando abrir a tela do formulário
+
+INTERNACIONALIZAÇÃO:
+- Plugin preparado para receber pedidos internacionais
+- Validação de telefone por país
+- Formatação automática baseada no DDI
+
+================================================================================
+                              FIM DO DOCUMENTO
+================================================================================

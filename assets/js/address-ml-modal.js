@@ -329,7 +329,7 @@
           '<div id="ctwpml-address-modal-overlay" class="ctwpml-modal-overlay">' +
           '  <div class="ctwpml-modal" role="dialog" aria-modal="true" aria-label="Meus endereços">' +
           '    <div class="ctwpml-modal-header">' +
-          '      <button type="button" class="ctwpml-modal-back" id="ctwpml-modal-back"><img src="' + (window.cc_params && window.cc_params.plugin_url ? window.cc_params.plugin_url : '') + 'assets/img/arrow-back.png" alt="Voltar" /></button>' +
+          '      <button type="button" class="ctwpml-modal-back" id="ctwpml-modal-back"><img src="' + (window.cc_params && window.cc_params.plugin_url ? window.cc_params.plugin_url : '') + 'assets/img/arrow-back.svg" alt="Voltar" /></button>' +
           '      <div class="ctwpml-modal-title" id="ctwpml-modal-title">Meus endereços</div>' +
           '    </div>' +
           '    <div class="ctwpml-modal-body">' +
@@ -367,11 +367,11 @@
           '        <div class="ctwpml-type-label">Este é o seu trabalho ou sua casa?</div>' +
           '        <div class="ctwpml-type-option" id="ctwpml-type-home" role="button" tabindex="0">' +
           '          <div class="ctwpml-type-radio"></div>' +
-          '          <span>🏠 Casa</span>' +
+          '          <span><img src="' + (window.cc_params && window.cc_params.plugin_url ? window.cc_params.plugin_url : '') + 'assets/img/icones/home.svg" alt="" width="20" height="20" style="vertical-align:middle;margin-right:6px;"> Casa</span>' +
           '        </div>' +
           '        <div class="ctwpml-type-option" id="ctwpml-type-work" role="button" tabindex="0">' +
           '          <div class="ctwpml-type-radio"></div>' +
-          '          <span>💼 Trabalho</span>' +
+          '          <span><img src="' + (window.cc_params && window.cc_params.plugin_url ? window.cc_params.plugin_url : '') + 'assets/img/icones/work.svg" alt="" width="20" height="20" style="vertical-align:middle;margin-right:6px;"> Trabalho</span>' +
           '        </div>' +
           '        <div class="ctwpml-contact-section">' +
           '          <div class="ctwpml-contact-title">Dados de contato</div>' +
@@ -1108,6 +1108,8 @@
       coupons = Array.isArray(coupons) ? coupons : [];
       if (!coupons.length) return '';
       var title = coupons.length > 1 ? 'Cupons aplicados' : 'Cupom aplicado';
+      // Ícone SVG de remover cupom (apenas ícone, sem texto)
+      var removeIconUrl = (window.cc_params && window.cc_params.plugin_url ? window.cc_params.plugin_url : '') + 'assets/img/icones/remover-cupom.svg';
       var html = '<div class="ctwpml-coupons-title">' + escapeHtml(title) + '</div>';
       for (var i = 0; i < coupons.length; i++) {
         var it = coupons[i] || {};
@@ -1121,7 +1123,7 @@
           '  </div>' +
           '  <div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">' +
           '    <div class="ctwpml-coupon-amount">' + escapeHtml(amount) + '</div>' +
-          '    <button type="button" class="ctwpml-coupon-remove" data-coupon-code="' + escapeHtml(code) + '" data-ctwpml-context="' + escapeHtml(context || '') + '">x remover cupom</button>' +
+          '    <button type="button" class="ctwpml-coupon-remove" data-coupon-code="' + escapeHtml(code) + '" data-ctwpml-context="' + escapeHtml(context || '') + '" title="Remover cupom"><img src="' + escapeHtml(removeIconUrl) + '" alt="Remover" width="20" height="20"></button>' +
           '  </div>' +
           '</div>';
       }
@@ -1209,8 +1211,31 @@
 
       function resetCouponUi() {
         try {
-          $('#ctwpml-add-coupon-btn').removeClass('is-success');
+          var $btn = $('#ctwpml-add-coupon-btn');
+          // Remover spinner/loading state
+          $btn.removeClass('is-success is-loading').prop('disabled', false);
+          var origText = $btn.data('original-text');
+          if (origText) $btn.text(origText);
+          // Remover ícone de sucesso se existir
+          $btn.find('.ctwpml-coupon-success-icon').remove();
           $('#ctwpml-coupon-input').removeClass('is-error');
+        } catch (e0) {}
+      }
+
+      // v4.1: Mostrar ícone de sucesso (confirm-cupom.svg) após aplicar cupom
+      function showCouponSuccessIcon() {
+        try {
+          var $btn = $('#ctwpml-add-coupon-btn');
+          var confirmIconUrl = (window.cc_params && window.cc_params.plugin_url ? window.cc_params.plugin_url : '') + 'assets/img/icones/confirm-cupom.svg';
+          $btn.removeClass('is-loading').addClass('is-success');
+          // Inserir ícone de sucesso antes do texto
+          if (!$btn.find('.ctwpml-coupon-success-icon').length) {
+            $btn.prepend('<span class="ctwpml-coupon-success-icon"><img src="' + confirmIconUrl + '" alt="Sucesso" width="22" height="22"></span> ');
+          }
+          // Fechar drawer após 1.5s
+          setTimeout(function () {
+            toggleCouponDrawer(false);
+          }, 1500);
         } catch (e0) {}
       }
 
@@ -1304,15 +1329,22 @@
               discountedSubtotal: String(totals.subtotalText || ''),
               couponName: String(attempt.couponName || attempt.code || ''),
             };
-            try { $('#ctwpml-add-coupon-btn').addClass('is-success'); } catch (e4) {}
+            // v4.1: Mostrar ícone de sucesso com animação
+            try { showCouponSuccessIcon(); } catch (e4) {}
             try { $('#ctwpml-coupon-input').removeClass('is-error'); } catch (e5) {}
           } else if (String(eventType || '') === 'applied_coupon') {
             // Cupom aplicado sem mudar total (ex.: efeito só no frete, etc.) – mantém UI normal.
-            try { $('#ctwpml-add-coupon-btn').addClass('is-success'); } catch (e6) {}
+            // v4.1: Mostrar ícone de sucesso com animação
+            try { showCouponSuccessIcon(); } catch (e6) {}
             try { $('#ctwpml-coupon-input').removeClass('is-error'); } catch (e7) {}
           } else if (String(eventType || '') === 'apply_coupon') {
             // Tentativa concluída sem efeito aparente no total: marcar visualmente como erro (sem travar o usuário).
-            try { $('#ctwpml-add-coupon-btn').removeClass('is-success'); } catch (e8) {}
+            try { 
+              var $btn = $('#ctwpml-add-coupon-btn');
+              $btn.removeClass('is-success is-loading').prop('disabled', false);
+              var origText = $btn.data('original-text');
+              if (origText) $btn.text(origText);
+            } catch (e8) {}
             try { $('#ctwpml-coupon-input').addClass('is-error'); } catch (e9) {}
             try {
               if (typeof state.checkpoint === 'function') {
@@ -1533,14 +1565,14 @@
 
         // Ícones do Review (preferência: assets locais do plugin)
         var pluginUrl = (window.cc_params && window.cc_params.plugin_url) ? String(window.cc_params.plugin_url) : '';
-        var billingIconUrl = pluginUrl ? (pluginUrl + 'assets/img/icones/recipt.png') : 'https://cubensisstore.com.br/wp-content/uploads/2026/01/bill.png';
-        var shippingIconUrl = pluginUrl ? (pluginUrl + 'assets/img/icones/gps-1.png') : 'https://cubensisstore.com.br/wp-content/uploads/2026/01/gps-1.png';
+        var billingIconUrl = pluginUrl ? (pluginUrl + 'assets/img/icones/recipt.svg') : 'https://cubensisstore.com.br/wp-content/uploads/2026/01/bill.png';
+        var shippingIconUrl = pluginUrl ? (pluginUrl + 'assets/img/icones/gps-1.svg') : 'https://cubensisstore.com.br/wp-content/uploads/2026/01/gps-1.png';
         var paymentIconUrl = '';
         try {
           if ((state.selectedPaymentMethod || '').toString() === 'pix') {
-            paymentIconUrl = 'https://cubensisstore.com.br/wp-content/uploads/2026/01/artpoin-logo-pix-1-scaled.png';
+            paymentIconUrl = pluginUrl ? (pluginUrl + 'assets/img/icones/pix.svg') : 'https://cubensisstore.com.br/wp-content/uploads/2026/01/artpoin-logo-pix-1-scaled.png';
           } else {
-            paymentIconUrl = pluginUrl ? (pluginUrl + 'assets/img/icones/bank-card.png') : 'https://cubensisstore.com.br/wp-content/uploads/2026/01/bank-card.png';
+            paymentIconUrl = pluginUrl ? (pluginUrl + 'assets/img/icones/bank-card.svg') : 'https://cubensisstore.com.br/wp-content/uploads/2026/01/bank-card.png';
           }
         } catch (e0) {}
 
@@ -4288,7 +4320,7 @@
       try { e.stopPropagation(); } catch (e0) {}
       
       var $btn = $(this);
-      if ($btn.prop('disabled')) return;
+      if ($btn.prop('disabled') || $btn.hasClass('is-loading')) return;
       
       var log = function (msg, data) {
         if (typeof state.log === 'function') {
@@ -4307,6 +4339,10 @@
         return;
       }
       if (!couponCode) return;
+
+      // v4.1: Mostrar spinner cinza no botão enquanto processa
+      var originalBtnText = $btn.text();
+      $btn.addClass('is-loading').prop('disabled', true).data('original-text', originalBtnText);
 
       // v4.0: capturar total/subtotal antes do cupom para exibir preço riscado após updated_checkout.
       try {
@@ -4495,8 +4531,12 @@
       var $btn = $(this);
       if (!code) return;
 
+      // Mostrar spinner no botão enquanto processa
       try {
         $btn.prop('disabled', true);
+        var originalContent = $btn.html();
+        $btn.data('original-content', originalContent);
+        $btn.html('<span class="ctwpml-coupon-spinner"></span>');
       } catch (e1) {}
 
       if (typeof state.checkpoint === 'function') {
@@ -4512,11 +4552,16 @@
           try { state.checkpoint('CHK_COUPON_REMOVE_FAILED', false, { code: code, context: context, reason: res && res.reason ? res.reason : 'unknown' }); } catch (e4) {}
         }
         showNotification('Não foi possível remover o cupom. Tente novamente.', 'error', 3500);
-        try { $btn.prop('disabled', false); } catch (e5) {}
+        // Restaurar conteúdo original do botão
+        try {
+          var orig = $btn.data('original-content');
+          if (orig) $btn.html(orig);
+          $btn.prop('disabled', false);
+        } catch (e5) {}
         return;
       }
 
-      // A UI será atualizada via removed_coupon/updated_checkout.
+      // A UI será atualizada via removed_coupon/updated_checkout (linha some automaticamente).
     });
 
     // Tela 4 (Revise e confirme): links de alteração
@@ -4596,14 +4641,16 @@
       // v2.0 [2.2]: overlay de preparação ao tentar finalizar compra (intenção de compra).
       // Importante: só mostra após validar termos + gateway para não “piscar” com erro imediato.
       var prep = window.CTWPMLPrepare || null;
-      var overlayShown = false;
+      // Garantir que o overlay NÃO apareça ao confirmar compra (cinto de segurança).
       try {
-        if (prep && typeof prep.showPreparingOverlay === 'function') {
-          prep.showPreparingOverlay('Preparando tudo para sua compra');
-          overlayShown = true;
+        if (prep && typeof prep.hidePreparingOverlay === 'function') {
+          prep.hidePreparingOverlay();
         }
       } catch (eP0) {}
-      log('CTA click: iniciando finalização', { overlayShown: overlayShown, gateway: woo.getSelectedGatewayId ? woo.getSelectedGatewayId() : '' });
+      if (typeof state.checkpoint === 'function') {
+        try { state.checkpoint('CHK_PREPARE_OVERLAY_FORCE_HIDE_ON_CONFIRM', true, {}); } catch (eC) {}
+      }
+      log('CTA click: iniciando finalização', { overlayShown: false, gateway: woo.getSelectedGatewayId ? woo.getSelectedGatewayId() : '' });
 
       // Evita duplo clique.
       $('#ctwpml-review-confirm, #ctwpml-review-confirm-sticky').prop('disabled', true).css('opacity', '0.7');

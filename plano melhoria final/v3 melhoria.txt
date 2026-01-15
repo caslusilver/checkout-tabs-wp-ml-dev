@@ -1,0 +1,421 @@
+================================================================================
+                   CHECKOUT TABS WP ML - VERSÃO 3.0
+                   ESCOLHA QUANDO SEU PEDIDO CHEGARÁ (FRETE)
+================================================================================
+
+Data de Criação: 12/01/2026
+Status: Pendente
+Prioridade: Média
+Escopo: Tela de seleção de frete, exibição de endereço, layout dos preços
+
+================================================================================
+                           ÍNDICE DE MELHORIAS
+================================================================================
+
+[3.1] Incluir campo "complemento" na exibição do endereço
+[3.2] Garantir que preços não quebrem linha (layout responsivo)
+
+================================================================================
+                        DETALHAMENTO DAS MELHORIAS
+================================================================================
+
+--------------------------------------------------------------------------------
+[3.1] INCLUIR CAMPO "COMPLEMENTO" NA EXIBIÇÃO DO ENDEREÇO
+--------------------------------------------------------------------------------
+
+PROBLEMA IDENTIFICADO:
+O campo "complemento" cadastrado no endereço não está sendo exibido na tela
+"Escolha quando seu pedido chegará", fazendo com que o usuário pense que o
+endereço selecionado está incompleto ou errado.
+
+ARQUIVOS A MODIFICAR:
+
+1. assets/js/address-ml-screens.js
+   
+   SITUAÇÃO ATUAL (linhas 20-36, função formatAddressSummary):
+   ```javascript
+   function formatAddressSummary(address) {
+     if (!address) return '';
+     var a1 = (address.address_1 || '').trim();
+     var num = (address.number || '').trim();
+     var bairro = (address.neighborhood || '').trim();
+     var cidade = (address.city || '').trim();
+     var uf = (address.state || '').trim();
+     var cep = (address.cep || '').trim();
+
+     var line1 = (a1 ? a1 : 'Endereço') + (num ? ' ' + num : '');
+     var parts = [];
+     if (bairro) parts.push(bairro);
+     if (cidade) parts.push(cidade);
+     if (uf) parts.push(uf);
+     if (cep) parts.push('CEP ' + cep);
+     return line1 + (parts.length ? ' - ' + parts.join(', ') : '');
+   }
+   ```
+   
+   CORREÇÃO - Adicionar campo "complement":
+   ```javascript
+   function formatAddressSummary(address) {
+     if (!address) return '';
+     var a1 = (address.address_1 || '').trim();
+     var num = (address.number || '').trim();
+     var complement = (address.complement || '').trim(); // NOVO
+     var bairro = (address.neighborhood || '').trim();
+     var cidade = (address.city || '').trim();
+     var uf = (address.state || '').trim();
+     var cep = (address.cep || '').trim();
+
+     // Linha 1: Rua + Número + Complemento
+     var line1 = (a1 ? a1 : 'Endereço') + (num ? ', ' + num : '');
+     if (complement) {
+       line1 += ' - ' + complement;
+     }
+     
+     var parts = [];
+     if (bairro) parts.push(bairro);
+     if (cidade) parts.push(cidade);
+     if (uf) parts.push(uf);
+     if (cep) parts.push('CEP ' + cep);
+     return line1 + (parts.length ? ' - ' + parts.join(', ') : '');
+   }
+   ```
+
+2. assets/js/address-ml-screens.js
+   Localização: função renderShippingOptions (linhas 161-294)
+   
+   VERIFICAR: A função usa formatAddressSummary internamente
+   
+   LINHA 172-173:
+   ```javascript
+   var addrLine = formatAddressSummary(address);
+   ```
+   
+   AÇÃO: Com a modificação acima, o complemento será incluído automaticamente.
+
+3. assets/js/address-ml-screens.js
+   Localização: função renderInitial (linhas 43-70)
+   
+   VERIFICAR: Também usa formatAddressSummary
+   
+   AÇÃO: Com a modificação acima, o complemento será incluído automaticamente.
+
+4. VERIFICAR OUTROS LOCAIS que exibem endereço:
+   
+   BUSCAR NO CÓDIGO por:
+   - "address.address_1"
+   - "Envio para"
+   - "ctwpml-shipping-address-text"
+   - "ctwpml-initial-detail"
+   
+   ARQUIVOS A VERIFICAR:
+   - assets/js/address-ml-modal.js
+   - assets/js/address-ml-woo-host.js
+
+5. assets/js/address-ml-screens.js
+   Localização: função renderReviewConfirmScreen (linhas 421-553)
+   
+   VERIFICAR linhas de exibição de endereço:
+   ```javascript
+   var addressTitle = options.addressTitle || '';
+   var addressSubtitle = options.addressSubtitle || '';
+   ```
+   
+   AÇÃO: Garantir que quem chama essa função passe o complemento em addressSubtitle
+
+6. Criar função helper unificada para formatação de endereço completo:
+   
+   CÓDIGO A ADICIONAR (no início de address-ml-screens.js):
+   ```javascript
+   /**
+    * Formata endereço completo para exibição
+    * @param {Object} address - Objeto de endereço
+    * @param {Object} options - Opções de formatação
+    * @param {boolean} options.includeLabel - Incluir label (Casa, Trabalho, etc)
+    * @param {boolean} options.shortFormat - Formato curto (sem CEP)
+    * @param {boolean} options.singleLine - Tudo em uma linha
+    * @returns {string|Object} Endereço formatado
+    */
+   function formatAddressComplete(address, options) {
+     options = options || {};
+     if (!address) return options.singleLine ? '' : { line1: '', line2: '', line3: '' };
+     
+     var a1 = (address.address_1 || '').trim();
+     var num = (address.number || '').trim();
+     var complement = (address.complement || '').trim();
+     var bairro = (address.neighborhood || '').trim();
+     var cidade = (address.city || '').trim();
+     var uf = (address.state || '').trim();
+     var cep = (address.cep || '').trim();
+     var label = (address.label || '').trim();
+     
+     // Linha 1: Rua, Número - Complemento
+     var line1 = a1 || 'Endereço não informado';
+     if (num) line1 += ', ' + num;
+     if (complement) line1 += ' - ' + complement;
+     
+     // Linha 2: Bairro, Cidade - UF
+     var line2Parts = [];
+     if (bairro) line2Parts.push(bairro);
+     if (cidade) line2Parts.push(cidade);
+     if (uf) line2Parts.push(uf);
+     var line2 = line2Parts.join(', ');
+     
+     // Linha 3: CEP
+     var line3 = cep ? 'CEP ' + cep : '';
+     
+     if (options.shortFormat) {
+       line3 = '';
+     }
+     
+     if (options.singleLine) {
+       var parts = [line1, line2];
+       if (line3 && !options.shortFormat) parts.push(line3);
+       if (options.includeLabel && label) parts.unshift('[' + label + ']');
+       return parts.filter(Boolean).join(' - ');
+     }
+     
+     return {
+       line1: line1,
+       line2: line2,
+       line3: line3,
+       label: label,
+       full: [line1, line2, line3].filter(Boolean).join(' - ')
+     };
+   }
+   
+   // Exportar para uso global
+   window.CCCheckoutTabs.AddressMlScreens.formatAddressComplete = formatAddressComplete;
+   ```
+
+TESTES REQUERIDOS:
+- [ ] Cadastrar endereço com complemento (ex: "Apto 123")
+- [ ] Navegar para tela "Escolha quando seu pedido chegará"
+- [ ] Verificar se complemento aparece no texto do endereço
+- [ ] Verificar na tela "Revise e confirme" se complemento aparece
+- [ ] Verificar em todas as telas onde o endereço é exibido
+- [ ] Testar com endereço SEM complemento (não deve quebrar)
+
+--------------------------------------------------------------------------------
+[3.2] GARANTIR QUE PREÇOS NÃO QUEBREM LINHA (LAYOUT RESPONSIVO)
+--------------------------------------------------------------------------------
+
+PROBLEMA IDENTIFICADO:
+Na tela de seleção de frete, os preços às vezes quebram linha, especialmente
+em telas menores, prejudicando a legibilidade e organização visual.
+
+ARQUIVOS A MODIFICAR:
+
+1. assets/css/address-ml-modal.css
+   
+   SITUAÇÃO ATUAL (linhas 611-618):
+   ```css
+   .ctwpml-shipping-option {
+     padding: 16px;
+     display: flex;
+     align-items: center;
+     justify-content: space-between;
+     cursor: pointer;
+     border-bottom: 1px solid #f6f6f6;
+   }
+   ```
+   
+   PROBLEMA: O preço pode quebrar linha se o texto da opção for muito longo.
+
+   CORREÇÃO PROPOSTA:
+   ```css
+   .ctwpml-shipping-option {
+     padding: 16px;
+     display: flex;
+     align-items: center;
+     justify-content: space-between;
+     cursor: pointer;
+     border-bottom: 1px solid #f6f6f6;
+     gap: 12px; /* Espaço mínimo entre texto e preço */
+   }
+   
+   .ctwpml-shipping-option-left {
+     display: flex;
+     align-items: center;
+     gap: 10px;
+     flex: 1;
+     min-width: 0; /* Permite que flexbox encolha o conteúdo */
+     overflow: hidden;
+   }
+   
+   .ctwpml-shipping-option-text {
+     font-size: 14px;
+     color: #333 !important;
+     flex: 1;
+     min-width: 0;
+     overflow: hidden;
+     text-overflow: ellipsis;
+     /* Permitir quebra de linha no texto, mas não no preço */
+     word-wrap: break-word;
+     line-height: 1.3;
+   }
+   
+   .ctwpml-shipping-price {
+     font-size: 14px;
+     color: var(--ctwpml-ml-text-gray) !important;
+     font-weight: 800;
+     white-space: nowrap; /* NUNCA quebrar linha no preço */
+     flex-shrink: 0; /* Não encolher o preço */
+     text-align: right;
+     min-width: 70px; /* Largura mínima para preços */
+   }
+   
+   /* Resumo do frete no footer */
+   .ctwpml-shipping-summary-row {
+     display: flex;
+     justify-content: space-between;
+     align-items: center;
+     margin-bottom: 12px;
+     font-size: 14px;
+     color: #333 !important;
+     gap: 12px;
+   }
+   
+   .ctwpml-shipping-summary-price {
+     font-size: 14px;
+     color: var(--ctwpml-ml-text-gray) !important;
+     font-weight: 800;
+     white-space: nowrap; /* NUNCA quebrar linha */
+     flex-shrink: 0;
+   }
+   ```
+
+2. assets/css/address-ml-modal.css
+   
+   AÇÃO: Adicionar media queries para telas pequenas
+   
+   CÓDIGO A ADICIONAR:
+   ```css
+   /* Ajustes para telas pequenas */
+   @media (max-width: 360px) {
+     .ctwpml-shipping-option {
+       padding: 12px;
+       flex-wrap: nowrap; /* Forçar linha única */
+     }
+     
+     .ctwpml-shipping-option-text {
+       font-size: 13px;
+       /* Limitar a 2 linhas máximo */
+       display: -webkit-box;
+       -webkit-line-clamp: 2;
+       -webkit-box-orient: vertical;
+       overflow: hidden;
+     }
+     
+     .ctwpml-shipping-price {
+       font-size: 13px;
+       min-width: 60px;
+     }
+   }
+   
+   /* Telas médias */
+   @media (min-width: 361px) and (max-width: 480px) {
+     .ctwpml-shipping-option-text {
+       font-size: 14px;
+     }
+     
+     .ctwpml-shipping-price {
+       font-size: 14px;
+       min-width: 70px;
+     }
+   }
+   
+   /* Telas grandes */
+   @media (min-width: 481px) {
+     .ctwpml-shipping-option {
+       padding: 16px 20px;
+     }
+     
+     .ctwpml-shipping-price {
+       min-width: 90px;
+     }
+   }
+   ```
+
+3. assets/js/address-ml-screens.js
+   Localização: função renderShippingOptions (linhas 220-240)
+   
+   VERIFICAR: O HTML gerado para as opções de frete
+   
+   SITUAÇÃO ATUAL:
+   ```javascript
+   optionsHtml +=
+     '' +
+     '<div class="ctwpml-shipping-option' + (isFirst ? ' is-selected' : '') + '" ' +
+     ...
+     '    <span class="ctwpml-shipping-option-text">' + escapeHtml(opt.label) + '</span>' +
+     '  </div>' +
+     '  <span class="ctwpml-shipping-price">' + escapeHtml(priceText) + '</span>' +
+     '</div>';
+   ```
+   
+   AÇÃO: O HTML está correto. As classes CSS que adicionamos resolverão o problema.
+
+4. OPCIONAL - Truncar textos muito longos:
+   
+   CÓDIGO A ADICIONAR em address-ml-screens.js:
+   ```javascript
+   // Função helper para truncar texto
+   function truncateText(text, maxLength) {
+     text = String(text || '').trim();
+     if (text.length <= maxLength) return text;
+     return text.substring(0, maxLength - 3) + '...';
+   }
+   
+   // Usar na renderização:
+   '<span class="ctwpml-shipping-option-text">' + escapeHtml(truncateText(opt.label, 50)) + '</span>'
+   ```
+
+TESTES REQUERIDOS:
+- [ ] Testar em iPhone SE (320px de largura)
+- [ ] Testar em iPhone 12 (390px)
+- [ ] Testar em Android padrão (360px)
+- [ ] Testar em tablet (768px)
+- [ ] Testar em desktop (1024px+)
+- [ ] Verificar se preços NUNCA quebram linha
+- [ ] Verificar se textos longos são truncados ou quebram adequadamente
+- [ ] Verificar legibilidade em todas as resoluções
+
+================================================================================
+                        CHECKLIST DE IMPLEMENTAÇÃO
+================================================================================
+
+[ ] 3.1 - Incluir complemento na exibição do endereço
+    [ ] Modificar função formatAddressSummary
+    [ ] Criar função formatAddressComplete unificada
+    [ ] Verificar todas as telas que exibem endereço
+    [ ] Testar com endereços com e sem complemento
+
+[ ] 3.2 - Layout responsivo dos preços
+    [ ] Adicionar white-space: nowrap nos preços
+    [ ] Configurar flex-shrink: 0 para preços
+    [ ] Adicionar min-width para preços
+    [ ] Adicionar media queries para telas pequenas
+    [ ] Testar em múltiplas resoluções
+
+================================================================================
+                           NOTAS DE DESENVOLVIMENTO
+================================================================================
+
+COMPATIBILIDADE:
+- Flexbox: suportado em todos os navegadores modernos
+- text-overflow: ellipsis: suportado em todos os navegadores modernos
+- -webkit-line-clamp: suportado na maioria dos navegadores (prefixo -webkit)
+
+CONSIDERAÇÕES DE UX:
+- Preços devem sempre estar visíveis e legíveis
+- Truncar descrições longas é preferível a quebrar layout
+- Manter consistência visual em todas as resoluções
+
+TESTES RECOMENDADOS:
+- Chrome DevTools (Device Mode)
+- BrowserStack para testes reais em dispositivos
+- Lighthouse para acessibilidade
+
+================================================================================
+                              FIM DO DOCUMENTO
+================================================================================

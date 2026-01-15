@@ -91,7 +91,7 @@
     console.log('[CTWPML][DEBUG] renderShippingPlaceholder - addrLine:', addrLine);
 
     var pluginUrl = (window.cc_params && window.cc_params.plugin_url) ? String(window.cc_params.plugin_url) : '';
-    var gpsIconUrl = pluginUrl ? (pluginUrl + 'assets/img/icones/gps-1.png') : '';
+    var gpsIconUrl = pluginUrl ? (pluginUrl + 'assets/img/icones/gps-1.svg') : '';
     var pinHtml = gpsIconUrl
       ? '<img class="ctwpml-shipping-pin-icon" src="' + escapeHtml(gpsIconUrl) + '" alt="" aria-hidden="true" />'
       : '📍';
@@ -221,10 +221,30 @@
       console.log('[CTWPML][DEBUG] renderShippingOptions - initialSummaryPrice:', initialSummaryPrice);
     }
 
+    // URLs dos ícones de frete
+    var correioIconUrl = pluginUrl ? (pluginUrl + 'assets/img/icones/correio.svg') : '';
+    var motoboyIconUrl = pluginUrl ? (pluginUrl + 'assets/img/icones/motoboy.svg') : '';
+
+    // Função para determinar o ícone de frete baseado no label
+    function getShippingIcon(label) {
+      var labelLower = String(label || '').toLowerCase();
+      // Motoboy/Expresso
+      if (labelLower.indexOf('motoboy') !== -1 || labelLower.indexOf('expresso') !== -1 || labelLower.indexOf('express') !== -1) {
+        return motoboyIconUrl ? '<img src="' + escapeHtml(motoboyIconUrl) + '" alt="" width="20" height="20" style="vertical-align:middle;margin-right:5px;">' : '';
+      }
+      // Correios (Sedex, PAC, Mini, etc)
+      if (labelLower.indexOf('sedex') !== -1 || labelLower.indexOf('pac') !== -1 || labelLower.indexOf('mini') !== -1 || labelLower.indexOf('correio') !== -1) {
+        return correioIconUrl ? '<img src="' + escapeHtml(correioIconUrl) + '" alt="" width="20" height="20" style="vertical-align:middle;margin-right:5px;">' : '';
+      }
+      // Fallback: sem ícone
+      return '';
+    }
+
     var optionsHtml = '';
     shippingOptions.forEach(function (opt, idx) {
       var isFirst = idx === 0;
       var priceText = opt.price_text || '';
+      var shippingIconHtml = getShippingIcon(opt.label);
 
       if (debugMode) {
         console.log('[CTWPML][DEBUG] renderShippingOptions - Opção ' + idx + ':', opt);
@@ -239,7 +259,7 @@
         'data-option="opt' + idx + '">' +
         '  <div class="ctwpml-shipping-option-left">' +
         '    <div class="ctwpml-shipping-radio"></div>' +
-        '    <span class="ctwpml-shipping-option-text">' + escapeHtml(opt.label) + '</span>' +
+        '    <span class="ctwpml-shipping-option-text">' + shippingIconHtml + escapeHtml(opt.label) + '</span>' +
         '  </div>' +
         '  <span class="ctwpml-shipping-price">' + escapeHtml(priceText) + '</span>' +
         '</div>';
@@ -259,7 +279,7 @@
     }
 
     var pluginUrl = (window.cc_params && window.cc_params.plugin_url) ? String(window.cc_params.plugin_url) : '';
-    var gpsIconUrl = pluginUrl ? (pluginUrl + 'assets/img/icones/gps-1.png') : '';
+    var gpsIconUrl = pluginUrl ? (pluginUrl + 'assets/img/icones/gps-1.svg') : '';
 
     var pinHtml = gpsIconUrl
       ? '<img class="ctwpml-shipping-pin-icon" src="' + escapeHtml(gpsIconUrl) + '" alt="" aria-hidden="true" />'
@@ -330,9 +350,10 @@
       console.log('[CTWPML][DEBUG] renderPaymentScreen - options:', options);
     }
 
-    // URLs dos ícones
-    var pixIconUrl = 'https://cubensisstore.com.br/wp-content/uploads/2026/01/artpoin-logo-pix-1-scaled.png';
-    var cardIconUrl = 'https://cubensisstore.com.br/wp-content/uploads/2026/01/bank-card.png';
+    // URLs dos ícones (agora SVGs locais do plugin)
+    var pixIconUrl = pluginUrl ? (pluginUrl + 'assets/img/icones/pix.svg') : 'https://cubensisstore.com.br/wp-content/uploads/2026/01/artpoin-logo-pix-1-scaled.png';
+    var cardIconUrl = pluginUrl ? (pluginUrl + 'assets/img/icones/bank-card.svg') : 'https://cubensisstore.com.br/wp-content/uploads/2026/01/bank-card.png';
+    var boletoIconUrl = pluginUrl ? (pluginUrl + 'assets/img/icones/bar-code.svg') : '';
 
     var totalRowHtml = '';
     if (hasDiscount) {
@@ -397,7 +418,9 @@
       // Boleto
       '    <a href="#" class="ctwpml-payment-option" data-method="boleto">' +
       '      <div class="ctwpml-payment-option-content">' +
-      '        <div class="ctwpml-payment-icon ctwpml-payment-icon-barcode">║▌║</div>' +
+      '        <div class="ctwpml-payment-icon">' +
+      '          <img src="' + escapeHtml(boletoIconUrl) + '" alt="Boleto" />' +
+      '        </div>' +
       '        <div class="ctwpml-payment-details">' +
       '          <h3 class="ctwpml-payment-method-title">Boleto</h3>' +
       '          <p class="ctwpml-payment-method-subtitle">Aprovação em 1 a 2 dias úteis</p>' +
@@ -468,9 +491,9 @@
     options = options || {};
     var debugMode = !!(window.cc_params && window.cc_params.debug);
     var pluginUrl = (window.cc_params && window.cc_params.plugin_url) ? String(window.cc_params.plugin_url) : '';
-    var billingIconUrl = options.billingIconUrl || (pluginUrl ? (pluginUrl + 'assets/img/icones/recipt.png') : 'https://cubensisstore.com.br/wp-content/uploads/2026/01/bill.png');
-    var shippingIconUrl = options.shippingIconUrl || (pluginUrl ? (pluginUrl + 'assets/img/icones/gps-1.png') : 'https://cubensisstore.com.br/wp-content/uploads/2026/01/gps-1.png');
-    var paymentIconUrl = options.paymentIconUrl || (pluginUrl ? (pluginUrl + 'assets/img/icones/bank-card.png') : 'https://cubensisstore.com.br/wp-content/uploads/2026/01/bank-card.png');
+    var billingIconUrl = options.billingIconUrl || (pluginUrl ? (pluginUrl + 'assets/img/icones/recipt.svg') : 'https://cubensisstore.com.br/wp-content/uploads/2026/01/bill.png');
+    var shippingIconUrl = options.shippingIconUrl || (pluginUrl ? (pluginUrl + 'assets/img/icones/gps-1.svg') : 'https://cubensisstore.com.br/wp-content/uploads/2026/01/gps-1.png');
+    var paymentIconUrl = options.paymentIconUrl || (pluginUrl ? (pluginUrl + 'assets/img/icones/bank-card.svg') : 'https://cubensisstore.com.br/wp-content/uploads/2026/01/bank-card.png');
     var checkIconUrl = options.checkIconUrl || (pluginUrl ? (pluginUrl + 'assets/img/icones/check.svg') : '');
 
     var productCount = typeof options.productCount === 'number' ? options.productCount : 0;

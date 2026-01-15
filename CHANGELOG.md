@@ -9,19 +9,26 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 - Criar o repositório: `caslusilver/checkout-tabs-wp-ml-dev`
 - Branch principal do fluxo: `develop`
 
+## [Unreleased]
+
+### Changed
+- **Versão atual**: v3.2.55  
+  **Versão sugerida após a mudança**: vX.Y.Z  
+  **Descrição**: texto objetivo do que mudou e impacto (pode listar itens separados por ponto e vírgula).
+
+## [v3.2.55] - 2026-01-13
+
+### Changed
+- Migração completa de ícones PNG para SVG (melhor performance e escalabilidade); novos ícones SVG locais para Pix, Cartão, Boleto (bar-code), Correios, Motoboy, Casa, Trabalho, confirm-cupom e remover-cupom; ícones de tipo de endereço (casa/trabalho) substituindo emojis; ícones de frete (correio.svg/motoboy.svg) exibidos nas opções de frete baseado no label (Sedex/PAC/Mini → Correios, Motoboy/Expresso → Motoboy); UI de cupom com animação de sucesso e botão de remover com ícone SVG; remoção dos PNGs antigos.
+
+#### Protocol: c593f4b
+
 ## [v3.2.54] - 2026-01-13
 
 ### Changed
 - Cupom: exibe cupons aplicados (lista, um por linha) com valor negativo em verde e botão “x remover cupom” na tela “Escolha como pagar” (abaixo do subtotal) e na tela “Revise e confirme” (abaixo do frete); leitura dos cupons é feita do DOM do Woo (`tr.cart-discount` + `woocommerce-remove-coupon`) e remoção dispara o link nativo do Woo; debug reforçado com checkpoints de render/remoção e captura de cupons antes/depois ao aplicar.
 
 #### Protocol: a30797f
-
-## [Unreleased]
-
-### Changed
-- **Versão atual**: v3.2.54  
-  **Versão sugerida após a mudança**: vX.Y.Z  
-  **Descrição**: texto objetivo do que mudou e impacto (pode listar itens separados por ponto e vírgula).
 
 ## [v3.2.53] - 2026-01-13
 
