@@ -12,9 +12,16 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 ## [Unreleased]
 
 ### Changed
-- **Versão atual**: v3.2.58  
+- **Versão atual**: v3.2.60  
   **Versão sugerida após a mudança**: vX.Y.Z  
   **Descrição**: texto objetivo do que mudou e impacto (pode listar itens separados por ponto e vírgula).
+
+## [v3.2.60] - 2026-01-15
+
+### Changed
+- Cupom v4.4: backend AJAX passa a retornar valores formatados como texto puro (evita HTML aparecer na UI); desconto (valor riscado + valor final em verde) passa a persistir após reload derivando total original a partir dos cupons do Woo; drawer de cupom só fecha após `updated_checkout`/totais estabilizarem; Review topo e sticky total passam a refletir desconto; ajuste de alinhamento do botão remover cupom.
+
+#### Protocol: 58be68d
 
 ## [v3.2.58] - 2026-01-13
 
