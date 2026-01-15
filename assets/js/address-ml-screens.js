@@ -21,12 +21,17 @@
     if (!address) return '';
     var a1 = (address.address_1 || '').trim();
     var num = (address.number || '').trim();
+    var complement = (address.complement || '').trim();
     var bairro = (address.neighborhood || '').trim();
     var cidade = (address.city || '').trim();
     var uf = (address.state || '').trim();
     var cep = (address.cep || '').trim();
 
-    var line1 = (a1 ? a1 : 'Endereço') + (num ? ' ' + num : '');
+    // Linha 1: Rua + Número + Complemento
+    var line1 = (a1 ? a1 : 'Endereço') + (num ? ', ' + num : '');
+    if (complement) {
+      line1 += ' - ' + complement;
+    }
     var parts = [];
     if (bairro) parts.push(bairro);
     if (cidade) parts.push(cidade);
@@ -86,7 +91,7 @@
     console.log('[CTWPML][DEBUG] renderShippingPlaceholder - addrLine:', addrLine);
 
     var pluginUrl = (window.cc_params && window.cc_params.plugin_url) ? String(window.cc_params.plugin_url) : '';
-    var gpsIconUrl = pluginUrl ? (pluginUrl + 'assets/img/icones/gps-1.png') : '';
+    var gpsIconUrl = pluginUrl ? (pluginUrl + 'assets/img/icones/gps-1.svg') : '';
     var pinHtml = gpsIconUrl
       ? '<img class="ctwpml-shipping-pin-icon" src="' + escapeHtml(gpsIconUrl) + '" alt="" aria-hidden="true" />'
       : '📍';
@@ -216,13 +221,37 @@
       console.log('[CTWPML][DEBUG] renderShippingOptions - initialSummaryPrice:', initialSummaryPrice);
     }
 
+    // URLs dos ícones de frete
+    var correioIconUrl = pluginUrl ? (pluginUrl + 'assets/img/icones/correio.svg') : '';
+    var motoboyIconUrl = pluginUrl ? (pluginUrl + 'assets/img/icones/motoboy.svg') : '';
+
+    // Função para determinar o ícone de frete baseado no label (retorna HTML do wrapper com img)
+    function getShippingIconHtml(label) {
+      var labelLower = String(label || '').toLowerCase();
+      var iconUrl = '';
+      // Motoboy/Expresso
+      if (labelLower.indexOf('motoboy') !== -1 || labelLower.indexOf('expresso') !== -1 || labelLower.indexOf('express') !== -1) {
+        iconUrl = motoboyIconUrl;
+      }
+      // Correios (Sedex, PAC, Mini, etc)
+      else if (labelLower.indexOf('sedex') !== -1 || labelLower.indexOf('pac') !== -1 || labelLower.indexOf('mini') !== -1 || labelLower.indexOf('correio') !== -1) {
+        iconUrl = correioIconUrl;
+      }
+      // Retorna wrapper com ícone ou vazio
+      if (iconUrl) {
+        return '<span class="ctwpml-shipping-option-icon"><img src="' + escapeHtml(iconUrl) + '" alt="" width="20" height="20" /></span>';
+      }
+      return '';
+    }
+
     var optionsHtml = '';
     shippingOptions.forEach(function (opt, idx) {
       var isFirst = idx === 0;
       var priceText = opt.price_text || '';
+      var shippingIconHtml = getShippingIconHtml(opt.label);
 
       if (debugMode) {
-        console.log('[CTWPML][DEBUG] renderShippingOptions - Opção ' + idx + ':', opt);
+        console.log('[CTWPML][DEBUG] renderShippingOptions - Opção ' + idx + ':', opt, 'iconHtml:', shippingIconHtml ? 'sim' : 'nao');
       }
 
       optionsHtml +=
@@ -234,7 +263,8 @@
         'data-option="opt' + idx + '">' +
         '  <div class="ctwpml-shipping-option-left">' +
         '    <div class="ctwpml-shipping-radio"></div>' +
-        '    <span class="ctwpml-shipping-option-text">' + escapeHtml(opt.label) + '</span>' +
+        shippingIconHtml +
+        '    <span class="ctwpml-shipping-option-label">' + escapeHtml(opt.label) + '</span>' +
         '  </div>' +
         '  <span class="ctwpml-shipping-price">' + escapeHtml(priceText) + '</span>' +
         '</div>';
@@ -254,7 +284,7 @@
     }
 
     var pluginUrl = (window.cc_params && window.cc_params.plugin_url) ? String(window.cc_params.plugin_url) : '';
-    var gpsIconUrl = pluginUrl ? (pluginUrl + 'assets/img/icones/gps-1.png') : '';
+    var gpsIconUrl = pluginUrl ? (pluginUrl + 'assets/img/icones/gps-1.svg') : '';
 
     var pinHtml = gpsIconUrl
       ? '<img class="ctwpml-shipping-pin-icon" src="' + escapeHtml(gpsIconUrl) + '" alt="" aria-hidden="true" />'
@@ -310,15 +340,62 @@
     var debugMode = !!(window.cc_params && window.cc_params.debug);
     var totalText = options.totalText || 'R$ 0,00';
     var subtotalText = options.subtotalText || '';
+    var hasDiscount =
+      options.originalTotal &&
+      options.discountedTotal &&
+      String(options.originalTotal) !== String(options.discountedTotal);
+    var couponName = options.couponName ? String(options.couponName) : '';
+    var hasSubtotalDiscount =
+      options.originalSubtotal &&
+      options.discountedSubtotal &&
+      String(options.originalSubtotal) !== String(options.discountedSubtotal);
     var pluginUrl = (window.cc_params && window.cc_params.plugin_url) ? window.cc_params.plugin_url : '';
 
     if (debugMode) {
       console.log('[CTWPML][DEBUG] renderPaymentScreen - options:', options);
     }
 
-    // URLs dos ícones
-    var pixIconUrl = 'https://cubensisstore.com.br/wp-content/uploads/2026/01/artpoin-logo-pix-1-scaled.png';
-    var cardIconUrl = 'https://cubensisstore.com.br/wp-content/uploads/2026/01/bank-card.png';
+    // URLs dos ícones (agora SVGs locais do plugin)
+    var pixIconUrl = pluginUrl ? (pluginUrl + 'assets/img/icones/pix.svg') : 'https://cubensisstore.com.br/wp-content/uploads/2026/01/artpoin-logo-pix-1-scaled.png';
+    var cardIconUrl = pluginUrl ? (pluginUrl + 'assets/img/icones/bank-card.svg') : 'https://cubensisstore.com.br/wp-content/uploads/2026/01/bank-card.png';
+    var boletoIconUrl = pluginUrl ? (pluginUrl + 'assets/img/icones/bar-code.svg') : '';
+
+    var totalRowHtml = '';
+    if (hasDiscount) {
+      totalRowHtml =
+        '    <div class="ctwpml-payment-total-row has-discount">' +
+        '      <span class="ctwpml-payment-total-label">Você pagará</span>' +
+        '      <div class="ctwpml-payment-price-wrapper">' +
+        '        <span class="ctwpml-payment-original-price" id="ctwpml-payment-original-price">' + escapeHtml(options.originalTotal) + '</span>' +
+        '        <span class="ctwpml-payment-discounted-price" id="ctwpml-payment-total-value">' + escapeHtml(options.discountedTotal) + '</span>' +
+        (couponName ? '        <span class="ctwpml-discount-tag" id="ctwpml-discount-tag">' + escapeHtml(couponName) + '</span>' : '') +
+        '      </div>' +
+        '    </div>';
+    } else {
+      totalRowHtml =
+        '    <div class="ctwpml-payment-total-row">' +
+        '      <span class="ctwpml-payment-total-label">Você pagará</span>' +
+        '      <span class="ctwpml-payment-total-value" id="ctwpml-payment-total-value">' + escapeHtml(totalText) + '</span>' +
+        '    </div>';
+    }
+
+    var subtotalRowHtml = '';
+    if (hasSubtotalDiscount) {
+      subtotalRowHtml =
+        '    <div class="ctwpml-payment-subtotal-row has-discount">' +
+        '      <span class="ctwpml-payment-subtotal-label">Subtotal</span>' +
+        '      <span class="ctwpml-payment-subtotal-value" id="ctwpml-payment-subtotal-value">' +
+        '        <span class="ctwpml-payment-subtotal-original">' + escapeHtml(options.originalSubtotal) + '</span>' +
+        '        <span class="ctwpml-payment-subtotal-discounted" id="ctwpml-payment-subtotal-discounted">' + escapeHtml(options.discountedSubtotal) + '</span>' +
+        '      </span>' +
+        '    </div>';
+    } else {
+      subtotalRowHtml =
+        '    <div class="ctwpml-payment-subtotal-row">' +
+        '      <span class="ctwpml-payment-subtotal-label">Subtotal</span>' +
+        '      <span class="ctwpml-payment-subtotal-value" id="ctwpml-payment-subtotal-value">' + escapeHtml(subtotalText) + '</span>' +
+        '    </div>';
+    }
 
     var html =
       '' +
@@ -346,7 +423,9 @@
       // Boleto
       '    <a href="#" class="ctwpml-payment-option" data-method="boleto">' +
       '      <div class="ctwpml-payment-option-content">' +
-      '        <div class="ctwpml-payment-icon ctwpml-payment-icon-barcode">║▌║</div>' +
+      '        <div class="ctwpml-payment-icon">' +
+      '          <img src="' + escapeHtml(boletoIconUrl) + '" alt="Boleto" />' +
+      '        </div>' +
       '        <div class="ctwpml-payment-details">' +
       '          <h3 class="ctwpml-payment-method-title">Boleto</h3>' +
       '          <p class="ctwpml-payment-method-subtitle">Aprovação em 1 a 2 dias úteis</p>' +
@@ -376,14 +455,9 @@
       // Summary/rodapé (vira coluna direita no desktop e footer no mobile)
       '  <div class="ctwpml-payment-footer">' +
       '    <span class="ctwpml-payment-coupon-link" id="ctwpml-payment-coupon">Inserir código do cupom</span>' +
-      '    <div class="ctwpml-payment-subtotal-row">' +
-      '      <span class="ctwpml-payment-subtotal-label">Subtotal</span>' +
-      '      <span class="ctwpml-payment-subtotal-value" id="ctwpml-payment-subtotal-value">' + escapeHtml(subtotalText) + '</span>' +
-      '    </div>' +
-      '    <div class="ctwpml-payment-total-row">' +
-      '      <span class="ctwpml-payment-total-label">Você pagará</span>' +
-      '      <span class="ctwpml-payment-total-value" id="ctwpml-payment-total-value">' + escapeHtml(totalText) + '</span>' +
-      '    </div>' +
+      subtotalRowHtml +
+      '    <div class="ctwpml-coupons-block" id="ctwpml-payment-coupons" style="display:none;"></div>' +
+      totalRowHtml +
       '  </div>' +
       '  </div>' + // right
       '</div>' +
@@ -397,13 +471,13 @@
       '  </div>' +
       '  <div class="ctwpml-coupon-drawer-content">' +
       '    <div class="ctwpml-coupon-insert-label">' +
-      '      <span class="ctwpml-coupon-ticket-icon">🎫</span>' +
+      '      <span class="ctwpml-coupon-ticket-icon"><img src="' + escapeHtml(pluginUrl + 'assets/img/icones/coupom-icon.svg') + '" alt="" width="18" height="18" /></span>' +
       '      <span class="ctwpml-coupon-insert-text">Inserir código</span>' +
       '    </div>' +
       '    <div class="ctwpml-coupon-input-wrapper">' +
       '      <input type="text" id="ctwpml-coupon-input" class="ctwpml-coupon-input" placeholder="Digite seu cupom" />' +
       '    </div>' +
-      '    <button id="ctwpml-add-coupon-btn" class="ctwpml-add-coupon-btn" disabled>Adicionar cupom</button>' +
+      '    <button type="button" id="ctwpml-add-coupon-btn" class="ctwpml-add-coupon-btn" disabled>Adicionar cupom</button>' +
       '  </div>' +
       '</div>';
 
@@ -422,9 +496,10 @@
     options = options || {};
     var debugMode = !!(window.cc_params && window.cc_params.debug);
     var pluginUrl = (window.cc_params && window.cc_params.plugin_url) ? String(window.cc_params.plugin_url) : '';
-    var billingIconUrl = options.billingIconUrl || (pluginUrl ? (pluginUrl + 'assets/img/icones/recipt.png') : 'https://cubensisstore.com.br/wp-content/uploads/2026/01/bill.png');
-    var shippingIconUrl = options.shippingIconUrl || (pluginUrl ? (pluginUrl + 'assets/img/icones/gps-1.png') : 'https://cubensisstore.com.br/wp-content/uploads/2026/01/gps-1.png');
-    var paymentIconUrl = options.paymentIconUrl || (pluginUrl ? (pluginUrl + 'assets/img/icones/bank-card.png') : 'https://cubensisstore.com.br/wp-content/uploads/2026/01/bank-card.png');
+    var billingIconUrl = options.billingIconUrl || (pluginUrl ? (pluginUrl + 'assets/img/icones/recipt.svg') : 'https://cubensisstore.com.br/wp-content/uploads/2026/01/bill.png');
+    var shippingIconUrl = options.shippingIconUrl || (pluginUrl ? (pluginUrl + 'assets/img/icones/gps-1.svg') : 'https://cubensisstore.com.br/wp-content/uploads/2026/01/gps-1.png');
+    var paymentIconUrl = options.paymentIconUrl || (pluginUrl ? (pluginUrl + 'assets/img/icones/bank-card.svg') : 'https://cubensisstore.com.br/wp-content/uploads/2026/01/bank-card.png');
+    var checkIconUrl = options.checkIconUrl || (pluginUrl ? (pluginUrl + 'assets/img/icones/check.svg') : '');
 
     var productCount = typeof options.productCount === 'number' ? options.productCount : 0;
     var subtotalText = options.subtotalText || '';
@@ -436,17 +511,33 @@
     var addressTitle = options.addressTitle || '';
     var addressSubtitle = options.addressSubtitle || '';
     var thumbUrls = Array.isArray(options.thumbUrls) ? options.thumbUrls : [];
+    var items = Array.isArray(options.items) ? options.items : [];
 
-    var thumbsHtml = '';
-    if (thumbUrls.length) {
-      thumbsHtml = '<div class="ctwpml-review-thumbs" aria-hidden="true">';
-      thumbUrls.slice(0, 3).forEach(function (url) {
-        if (!url) return;
-        thumbsHtml += '<div class="ctwpml-review-thumb"><img src="' + escapeHtml(String(url)) + '" alt="Produto" /></div>';
+    // Bloco de entrega: removemos thumbs e usamos um ícone dinâmico (definido no JS do modal)
+    var shipmentIconHtml = '<div class="ctwpml-review-shipment-icon" id="ctwpml-review-shipment-icon" aria-hidden="true"></div>';
+
+    var itemsHtml = '';
+    if (items.length) {
+      itemsHtml = '<div class="ctwpml-review-products-list" id="ctwpml-review-products-list">';
+      items.forEach(function (item) {
+        if (!item) return;
+        var name = item.name ? String(item.name) : '';
+        var price = item.price ? String(item.price) : '';
+        var qty = (typeof item.quantity === 'number' ? item.quantity : parseInt(item.quantity, 10)) || 0;
+        var thumb = item.thumbnail ? String(item.thumbnail) : '';
+        itemsHtml +=
+          '<div class="ctwpml-review-product-item">' +
+          '  <div class="ctwpml-review-product-thumb">' +
+          (thumb ? ('    <img src="' + escapeHtml(thumb) + '" alt="Produto" />') : '') +
+          '  </div>' +
+          '  <div class="ctwpml-review-product-meta">' +
+          '    <div class="ctwpml-review-product-name">' + escapeHtml(name) + '</div>' +
+          '    <div class="ctwpml-review-product-qty">Qtd: ' + escapeHtml(String(qty)) + '</div>' +
+          '  </div>' +
+          '  <div class="ctwpml-review-product-price">' + escapeHtml(price) + '</div>' +
+          '</div>';
       });
-      thumbsHtml += '</div>';
-    } else {
-      thumbsHtml = '<div class="ctwpml-review-thumb" aria-hidden="true"></div>';
+      itemsHtml += '</div>';
     }
 
     var html =
@@ -462,9 +553,13 @@
       '      <span>Frete</span>' +
       '      <span id="ctwpml-review-shipping">' + escapeHtml(shippingText) + '</span>' +
       '    </div>' +
+      '    <div class="ctwpml-coupons-block ctwpml-coupons-block--review" id="ctwpml-review-coupons" style="display:none;"></div>' +
       '    <div class="ctwpml-review-total-row">' +
       '      <span>Você pagará</span>' +
-      '      <span id="ctwpml-review-total">' + escapeHtml(totalText) + '</span>' +
+      '      <span class="ctwpml-review-total-right" id="ctwpml-review-total-wrapper">' +
+      '        <span class="ctwpml-review-original-total" id="ctwpml-review-original-total" style="display:none;"></span>' +
+      '        <span id="ctwpml-review-total">' + escapeHtml(totalText) + '</span>' +
+      '      </span>' +
       '    </div>' +
       '    <span class="ctwpml-review-pay-tag" id="ctwpml-review-pay-tag">' + escapeHtml(paymentLabel) + '</span>' +
       '    <div class="ctwpml-review-terms">' +
@@ -473,7 +568,10 @@
       '        <span>Li e concordo com os termos e a política de privacidade.</span>' +
       '      </label>' +
       '    </div>' +
-      '    <button type="button" class="ctwpml-review-btn-confirm" id="ctwpml-review-confirm">Confirmar a compra</button>' +
+      '    <button type="button" class="ctwpml-review-btn-confirm" id="ctwpml-review-confirm">' +
+      '      <span>Confirmar a compra</span>' +
+      (checkIconUrl ? ('      <img src="' + escapeHtml(checkIconUrl) + '" class="ctwpml-success-icon" alt="Sucesso" aria-hidden="true" />') : '') +
+      '    </button>' +
       '  </div>' +
       '' +
       '  <div class="ctwpml-review-section-label">Faturamento</div>' +
@@ -499,7 +597,7 @@
       '      </div>' +
       '    </div>' +
       '    <div class="ctwpml-review-shipment-detail">' +
-      thumbsHtml +
+      shipmentIconHtml +
       '      <div class="ctwpml-review-shipment-info">' +
       '        <div class="ctwpml-review-shipment-eta" id="ctwpml-review-shipment-eta"></div>' +
       '        <div class="ctwpml-review-shipment-title" id="ctwpml-review-shipment-title"></div>' +
@@ -507,6 +605,7 @@
       '        <div class="ctwpml-review-shipment-qty" id="ctwpml-review-product-qty"></div>' +
       '      </div>' +
       '    </div>' +
+      itemsHtml +
       '    <a href="#" class="ctwpml-review-change-link" id="ctwpml-review-change-address">Alterar ou escolher outro prazo de entrega</a>' +
       '  </div>' +
       '' +
@@ -526,7 +625,10 @@
       '  <div class="ctwpml-review-sticky-footer" id="ctwpml-review-sticky-footer">' +
       '    <div class="ctwpml-review-sticky-total-row">' +
       '      <span>Total</span>' +
-      '      <span id="ctwpml-review-sticky-total">' + escapeHtml(totalText) + '</span>' +
+      '      <span class="ctwpml-review-total-right" id="ctwpml-review-sticky-total-wrapper">' +
+      '        <span class="ctwpml-review-original-total" id="ctwpml-review-sticky-original-total" style="display:none;"></span>' +
+      '        <span id="ctwpml-review-sticky-total">' + escapeHtml(totalText) + '</span>' +
+      '      </span>' +
       '    </div>' +
       '    <div class="ctwpml-review-terms ctwpml-review-terms--sticky">' +
       '      <label class="ctwpml-review-terms-label">' +
@@ -534,7 +636,10 @@
       '        <span>Li e concordo com os termos e a política de privacidade.</span>' +
       '      </label>' +
       '    </div>' +
-      '    <button type="button" class="ctwpml-review-btn-confirm" id="ctwpml-review-confirm-sticky">Confirmar a compra</button>' +
+      '    <button type="button" class="ctwpml-review-btn-confirm" id="ctwpml-review-confirm-sticky">' +
+      '      <span>Confirmar a compra</span>' +
+      (checkIconUrl ? ('      <img src="' + escapeHtml(checkIconUrl) + '" class="ctwpml-success-icon" alt="Sucesso" aria-hidden="true" />') : '') +
+      '    </button>' +
       '  </div>' +
       '</div>';
 

@@ -1,0 +1,78 @@
+================================================================================
+TEMA: Integrar Checkout Tabs WP ML (modal ML) ao Elementor Checkout Widget
+================================================================================
+
+OBJETIVO
+--------
+- Reduzir conflitos de sobreposição/duplicidade entre "modal ML" e checkout 
+  renderizado pelo Elementor.
+- Permitir ativação do fluxo ML com um único shortcode OU como extensão do 
+  próprio widget do Elementor, para que o checkout seja "oficialmente" o 
+  ML-mode no mesmo contexto.
+
+SITUAÇÃO ATUAL
+--------------
+- No modo ML-only, o Woo/Elementor checkout continua no DOM (offscreen/opacity 0) 
+  para não quebrar gateways/scripts.
+- O modal ML funciona como uma camada fullscreen por cima da página, causando 
+  sensação de "adaptação" e risco de conflitos de eventos/estilos.
+- A sobreposição atual é uma solução temporária, não uma integração oficial.
+
+HIPÓTESES DE ABORDAGEM (para discutir)
+--------------------------------------
+
+1) SHORTCODE ÚNICO
+   - Renderizar markup próprio e embutir o Woo checkout em uma área controlada
+   - Renderizar o checkout + ML UI no mesmo container (sem overlay)
+   - Controlar z-index/scroll/visibilidade sem mover para fora do layout
+   - Vantagem: funciona em qualquer tema/builder
+   - Desvantagem: mais trabalho de integração com Elementor
+
+2) INTEGRAÇÃO COMO WIDGET ELEMENTOR (ou extensão)
+   - Criar widget custom que encapsula o comportamento ML
+   - OU hookar no widget de checkout existente para inserir "ML layer" dentro dele
+   - Evitar body overlay, manter tudo no contexto do widget
+   - Vantagem: integração nativa com Elementor
+   - Desvantagem: dependência do Elementor Pro
+
+3) ESTRATÉGIA HÍBRIDA (progressiva)
+   - Inicialmente: reduzir overlay para ficar restrito ao container do widget 
+     (não fullscreen)
+   - Depois: evoluir para um widget/shortcode oficial
+   - Vantagem: migração gradual
+   - Desvantagem: pode ter estados intermediários bugados
+
+RISCOS / CUIDADOS
+-----------------
+- NÃO usar display:none no checkout real (quebra gateways e wc fragments)
+- Garantir que eventos de checkout (updated_checkout, wc-ajax=checkout, 
+  fragments) continuem funcionando
+- Compatibilidade com mobile/desktop e múltiplos temas
+- Testar com diferentes gateways de pagamento (Pix, Boleto, Cartão)
+- Verificar se o reCAPTCHA funciona corretamente no novo contexto
+
+SAÍDAS ESPERADAS DA DISCUSSÃO
+-----------------------------
+1. Definir qual abordagem (shortcode vs widget vs híbrida)
+2. Propor arquitetura: onde fica o "source of truth" de totals/coupons/shipping
+3. Definir plano de migração com marcos e critérios de aceite
+4. Listar dependências técnicas e limitações
+
+PRÓXIMOS PASSOS SUGERIDOS
+-------------------------
+[ ] Pesquisar como outros plugins (ex.: CartFlows, FunnelKit) integram com 
+    Elementor checkout
+[ ] Fazer POC de widget custom com área de rendering do ML
+[ ] Testar overlay restrito ao container vs fullscreen
+[ ] Documentar eventos/hooks que precisam funcionar no novo contexto
+
+NOTAS
+-----
+- Esta tarefa não é prioridade imediata
+- Deve ser revisitada após estabilização do fluxo atual de cupom/frete/pagamento
+- Criar branch separada para experimentação
+
+================================================================================
+Criado em: 2026-01-13
+Status: PARA DISCUSSÃO FUTURA
+================================================================================

@@ -26,11 +26,134 @@
     var addressesCacheTimestamp = null;
     var CACHE_DURATION = 60000; // 1 minuto
     var isSavingAddress = false;
+    var formDirty = false;
+
+    // =========================================================
+    // STATE MACHINE DE CUPOM (hardening v4.2)
+    // Evita conflitos entre AJAX do modal e eventos do Woo
+    // =========================================================
+    state.__ctwpmlCouponBusy = false;
+    state.__ctwpmlCouponBusyTs = 0;
+
+    /**
+     * Marca início de operação de cupom (apply/remove)
+     * Enquanto busy, listeners do Woo não devem re-renderizar UI de cupom
+     */
+    function setCouponBusy(busy) {
+      state.__ctwpmlCouponBusy = !!busy;
+      state.__ctwpmlCouponBusyTs = busy ? Date.now() : 0;
+      if (typeof state.checkpoint === 'function') {
+        state.checkpoint('CHK_COUPON_BUSY_STATE', true, { busy: !!busy, ts: state.__ctwpmlCouponBusyTs });
+      }
+    }
+
+    /**
+     * Verifica se está em operação de cupom (com timeout de segurança de 10s)
+     */
+    function isCouponBusy() {
+      if (!state.__ctwpmlCouponBusy) return false;
+      // Timeout de segurança: se demorar mais de 10s, libera
+      if (Date.now() - state.__ctwpmlCouponBusyTs > 10000) {
+        state.__ctwpmlCouponBusy = false;
+        state.__ctwpmlCouponBusyTs = 0;
+        return false;
+      }
+      return true;
+    }
+
+    // =========================================================
+    // FUNÇÕES DE UI DE CUPOM (escopo do módulo - hardening v4.2)
+    // Extraídas para serem acessíveis de qualquer handler
+    // =========================================================
+
+    /**
+     * Reseta a UI do botão de cupom (spinner, loading, etc.)
+     */
+    function ctwpmlResetCouponUi() {
+      try {
+        var $btn = $('#ctwpml-add-coupon-btn');
+        // Remover spinner/loading state
+        $btn.removeClass('is-success is-loading').prop('disabled', false);
+        var origText = $btn.data('original-text');
+        if (origText) $btn.text(origText);
+        // Remover ícone de sucesso se existir
+        $btn.find('.ctwpml-coupon-success-icon').remove();
+        $('#ctwpml-coupon-input').removeClass('is-error');
+        if (typeof state.checkpoint === 'function') {
+          state.checkpoint('CHK_COUPON_UI_RESET', true, {});
+        }
+      } catch (e0) {
+        if (typeof state.checkpoint === 'function') {
+          state.checkpoint('CHK_COUPON_UI_RESET', false, { error: String(e0.message || e0) });
+        }
+      }
+    }
+
+    /**
+     * Mostra ícone de sucesso (confirm-cupom.svg) após aplicar cupom
+     * v4.3: Não fecha automaticamente - o caller decide quando fechar
+     */
+    function ctwpmlShowCouponSuccessIcon() {
+      try {
+        var $btn = $('#ctwpml-add-coupon-btn');
+        var confirmIconUrl = (window.cc_params && window.cc_params.plugin_url ? window.cc_params.plugin_url : '') + 'assets/img/icones/confirm-cupom.svg';
+        $btn.removeClass('is-loading').addClass('is-success');
+        // Inserir ícone de sucesso antes do texto
+        if (!$btn.find('.ctwpml-coupon-success-icon').length) {
+          $btn.prepend('<span class="ctwpml-coupon-success-icon"><img src="' + confirmIconUrl + '" alt="Sucesso" width="22" height="22"></span> ');
+        }
+        if (typeof state.checkpoint === 'function') {
+          state.checkpoint('CHK_COUPON_SUCCESS_ICON_SHOWN', true, {});
+        }
+        // v4.3: Removido o setTimeout que fechava automaticamente
+        // O caller (handler AJAX) agora controla quando fechar para evitar "quebra visual"
+      } catch (e0) {
+        if (typeof state.checkpoint === 'function') {
+          state.checkpoint('CHK_COUPON_SUCCESS_ICON_SHOWN', false, { error: String(e0.message || e0) });
+        }
+      }
+    }
+
+    /**
+     * Toggle do drawer de cupom (escopo do módulo)
+     * @param {boolean} show - true para abrir, false para fechar
+     */
+    function ctwpmlToggleCouponDrawer(show) {
+      var $overlay = $('#ctwpml-coupon-overlay');
+      var $drawer = $('#ctwpml-coupon-drawer');
+      
+      var log = function (msg, data) {
+        if (typeof state.log === 'function') {
+          state.log(msg, data || {}, 'PAYMENT');
+        } else {
+          console.log('[CTWPML][PAYMENT] ' + msg, data || '');
+        }
+      };
+
+      if (show) {
+        log('Abrindo drawer de cupom');
+        $overlay.addClass('is-active');
+        $drawer.addClass('is-active');
+        $('body').css('overflow', 'hidden'); // Trava scroll do fundo
+        
+        // Focar no input após animação
+        setTimeout(function() {
+          $('#ctwpml-coupon-input').focus();
+        }, 350);
+      } else {
+        log('Fechando drawer de cupom');
+        $overlay.removeClass('is-active');
+        $drawer.removeClass('is-active');
+        $('body').css('overflow', ''); // Restaura scroll
+      }
+    }
 
     // =========================================================
     // PERSISTÊNCIA DO ESTADO DO MODAL (sessionStorage)
     // =========================================================
     var CTWPML_MODAL_STATE_KEY = 'ctwpml_ml_modal_state_v1';
+    var CTWPML_ORDER_COMPLETED_KEY = 'ctwpml_ml_order_completed_v1';
+    var CTWPML_ORDER_COMPLETED_TTL_MS = 5 * 60 * 1000;
     var restoreStateOnOpen = null;
 
     function safeReadModalState() {
@@ -60,6 +183,42 @@
       } catch (e) {}
     }
 
+    function markOrderCompleted(meta) {
+      try {
+        if (!window.sessionStorage) return;
+        var payload = {
+          ts: Date.now(),
+          meta: meta || {},
+        };
+        window.sessionStorage.setItem(CTWPML_ORDER_COMPLETED_KEY, JSON.stringify(payload));
+        clearModalState();
+        if (typeof state.checkpoint === 'function') {
+          state.checkpoint('CHK_CTA_WC_CHECKOUT_AJAX_COMPLETE', true, {
+            source: (meta && meta.source) || 'unknown',
+            payload: meta || {},
+          });
+        }
+      } catch (e) {}
+    }
+
+    function wasOrderCompletedRecently() {
+      try {
+        if (!window.sessionStorage) return false;
+        var raw = window.sessionStorage.getItem(CTWPML_ORDER_COMPLETED_KEY);
+        if (!raw) return false;
+        var obj = JSON.parse(raw);
+        if (!obj || !obj.ts) return false;
+        var age = Date.now() - Number(obj.ts || 0);
+        if (age < 0 || age > CTWPML_ORDER_COMPLETED_TTL_MS) {
+          window.sessionStorage.removeItem(CTWPML_ORDER_COMPLETED_KEY);
+          return false;
+        }
+        return true;
+      } catch (e) {
+        return false;
+      }
+    }
+
     function persistModalState(patch) {
       patch = patch || {};
       var prev = safeReadModalState() || {};
@@ -75,6 +234,13 @@
     }
 
     function tryRestoreModalOnBoot() {
+      if (wasOrderCompletedRecently()) {
+        clearModalState();
+        if (typeof state.checkpoint === 'function') {
+          state.checkpoint('CHK_VIEW_RESTORE', false, { restored: false, reason: 'order_completed_recently' });
+        }
+        return;
+      }
       var s = safeReadModalState();
       if (!s || !s.open) {
         if (typeof state.checkpoint === 'function') state.checkpoint('CHK_VIEW_RESTORE', true, { restored: false, reason: 'no_state' });
@@ -228,6 +394,29 @@
       $('#ctwpml-address-modal-overlay').css('pointer-events', '');
     }
 
+    // Spinner lock/refcount: evita “janela” sem spinner em fluxos encadeados (contato -> endereço).
+    var ctwpmlSpinnerLocks = 0;
+    function ctwpmlSpinnerAcquire(source) {
+      try {
+        ctwpmlSpinnerLocks = (ctwpmlSpinnerLocks || 0) + 1;
+        showModalSpinner();
+        if (typeof state.checkpoint === 'function') {
+          state.checkpoint('CHK_SPINNER_ACQUIRE', true, { source: String(source || ''), locks: ctwpmlSpinnerLocks });
+        }
+      } catch (e0) {}
+    }
+    function ctwpmlSpinnerRelease(source) {
+      try {
+        ctwpmlSpinnerLocks = Math.max(0, (ctwpmlSpinnerLocks || 0) - 1);
+        if (typeof state.checkpoint === 'function') {
+          state.checkpoint('CHK_SPINNER_RELEASE', true, { source: String(source || ''), locks: ctwpmlSpinnerLocks });
+        }
+        if (ctwpmlSpinnerLocks === 0) {
+          hideModalSpinner();
+        }
+      } catch (e0) {}
+    }
+
     /**
      * Exibe notificação toast para o usuário
      * @param {string} message - Mensagem a exibir
@@ -305,7 +494,7 @@
           '<div id="ctwpml-address-modal-overlay" class="ctwpml-modal-overlay">' +
           '  <div class="ctwpml-modal" role="dialog" aria-modal="true" aria-label="Meus endereços">' +
           '    <div class="ctwpml-modal-header">' +
-          '      <button type="button" class="ctwpml-modal-back" id="ctwpml-modal-back"><img src="' + (window.cc_params && window.cc_params.plugin_url ? window.cc_params.plugin_url : '') + 'assets/img/arrow-back.png" alt="Voltar" /></button>' +
+          '      <button type="button" class="ctwpml-modal-back" id="ctwpml-modal-back"><img src="' + (window.cc_params && window.cc_params.plugin_url ? window.cc_params.plugin_url : '') + 'assets/img/arrow-back.svg" alt="Voltar" /></button>' +
           '      <div class="ctwpml-modal-title" id="ctwpml-modal-title">Meus endereços</div>' +
           '    </div>' +
           '    <div class="ctwpml-modal-body">' +
@@ -325,7 +514,7 @@
           '          <input id="ctwpml-input-cep" type="text" placeholder="00000-000" inputmode="numeric" autocomplete="postal-code" />' +
           '          <a class="ctwpml-link-right" href="#" id="ctwpml-nao-sei-cep">Não sei meu CEP</a>' +
           '          <div id="ctwpml-cep-confirm" class="ctwpml-cep-confirm" aria-live="polite">' +
-          '            <div class="ctwpml-cep-icon">📍</div>' +
+          '            <div class="ctwpml-cep-icon"><img src="' + (window.cc_params && window.cc_params.plugin_url ? window.cc_params.plugin_url : '') + 'assets/img/icones/pin-drop.svg" alt="" width="20" height="20" /></div>' +
           '            <div>' +
           '              <div class="ctwpml-cep-text" id="ctwpml-cep-confirm-text"></div>' +
           '              <div class="ctwpml-cep-subtext" id="ctwpml-cep-confirm-subtext"></div>' +
@@ -343,17 +532,24 @@
           '        <div class="ctwpml-type-label">Este é o seu trabalho ou sua casa?</div>' +
           '        <div class="ctwpml-type-option" id="ctwpml-type-home" role="button" tabindex="0">' +
           '          <div class="ctwpml-type-radio"></div>' +
-          '          <span>🏠 Casa</span>' +
+          '          <span><img src="' + (window.cc_params && window.cc_params.plugin_url ? window.cc_params.plugin_url : '') + 'assets/img/icones/home.svg" alt="" width="20" height="20" style="vertical-align:middle;margin-right:6px;"> Casa</span>' +
           '        </div>' +
           '        <div class="ctwpml-type-option" id="ctwpml-type-work" role="button" tabindex="0">' +
           '          <div class="ctwpml-type-radio"></div>' +
-          '          <span>💼 Trabalho</span>' +
+          '          <span><img src="' + (window.cc_params && window.cc_params.plugin_url ? window.cc_params.plugin_url : '') + 'assets/img/icones/work.svg" alt="" width="20" height="20" style="vertical-align:middle;margin-right:6px;"> Trabalho</span>' +
           '        </div>' +
           '        <div class="ctwpml-contact-section">' +
           '          <div class="ctwpml-contact-title">Dados de contato</div>' +
           '          <div class="ctwpml-contact-subtitle">Se houver algum problema no envio, você receberá uma ligação neste número.</div>' +
           '          <div class="ctwpml-form-group"><label for="ctwpml-input-nome">Nome completo</label><input id="ctwpml-input-nome" type="text" /></div>' +
-          '          <div class="ctwpml-form-group"><label for="ctwpml-input-fone">Seu WhatsApp</label><input id="ctwpml-input-fone" type="tel" inputmode="tel" placeholder="11 9 1234-5678" /></div>' +
+          '          <div class="ctwpml-form-group" id="ctwpml-group-phone">' +
+          '            <label for="ctwpml-input-fone">Telefone / WhatsApp</label>' +
+          '            <div class="ctwpml-phone-wrap" id="ctwpml-phone-wrap">' +
+          '              <select id="ctwpml-phone-country" autocomplete="off" placeholder="DDI"></select>' +
+          '              <input id="ctwpml-input-fone" type="tel" inputmode="numeric" placeholder="Digite o número" autocomplete="tel" />' +
+          '              <input type="hidden" id="ctwpml-phone-full" name="phone_full" />' +
+          '            </div>' +
+          '          </div>' +
           '          <div class="ctwpml-form-group" id="ctwpml-group-cpf">' +
           '            <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">' +
           '              <label for="ctwpml-input-cpf" style="margin:0;">CPF</label>' +
@@ -1063,7 +1259,326 @@
       }
     }
 
-    function applyPaymentAvailabilityAndSync() {
+    // =========================================================
+    // CUPONS (lista + remover) - helpers
+    // =========================================================
+    function ctwpmlParseBRLToNumber(text) {
+      // Aceita: "R$ 79,00", "- R$ 30,00", "−R$30,00", "79,00"
+      var s = String(text || '').trim();
+      if (!s) return null;
+      // normalizar sinal “menos” unicode
+      s = s.replace(/\u2212/g, '-');
+      // manter apenas dígitos, separadores e sinal
+      var negative = s.indexOf('-') !== -1;
+      s = s.replace(/[^0-9.,]/g, '');
+      if (!s) return null;
+      // pt-BR: vírgula é decimal; ponto é milhar (pode existir)
+      // remover separadores de milhar
+      var parts = s.split(',');
+      if (parts.length > 2) {
+        // se tiver múltiplas vírgulas, mantém a última como decimal
+        var last = parts.pop();
+        s = parts.join('') + ',' + last;
+      }
+      s = s.replace(/\./g, '');
+      s = s.replace(',', '.');
+      var n = parseFloat(s);
+      if (!isFinite(n)) return null;
+      return negative ? -Math.abs(n) : n;
+    }
+
+    function ctwpmlFormatNumberToBRL(amount) {
+      var n = typeof amount === 'number' ? amount : null;
+      if (n === null || !isFinite(n)) return '';
+      try {
+        return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(n);
+      } catch (e) {
+        // fallback simples
+        var fixed = (Math.round(n * 100) / 100).toFixed(2);
+        return 'R$ ' + fixed.replace('.', ',');
+      }
+    }
+
+    function ctwpmlSumCouponDiscountFromWooCoupons(coupons) {
+      coupons = Array.isArray(coupons) ? coupons : [];
+      var sum = 0;
+      for (var i = 0; i < coupons.length; i++) {
+        var it = coupons[i] || {};
+        var v = ctwpmlParseBRLToNumber(it.amountText || '');
+        if (v === null) continue;
+        sum += Math.abs(v);
+      }
+      return sum;
+    }
+
+    function ctwpmlTotalsRoughlyMatch(aText, bText) {
+      var a = ctwpmlParseBRLToNumber(aText);
+      var b = ctwpmlParseBRLToNumber(bText);
+      if (a === null || b === null) return false;
+      return Math.abs(a - b) < 0.02; // tolerância 2 centavos
+    }
+
+    // =========================================================
+    // STATE ÚNICO DE TOTAIS/CUPOM + RENDER ÚNICO (v4.7)
+    // Objetivo: tudo que aparece "só após reload" deve ser renderizado imediatamente no mesmo ciclo.
+    // =========================================================
+    state.__ctwpmlTotalsState = state.__ctwpmlTotalsState || {
+      totals: { subtotalText: '', shippingText: '', totalText: '' },
+      coupons: [], // [{code, amountText}]
+      discount: { hasDiscount: false, originalTotalText: '', discountedTotalText: '' },
+      updatedAt: 0,
+      source: '',
+    };
+
+    function ctwpmlDeriveDiscountState(totals, coupons) {
+      totals = totals || {};
+      coupons = Array.isArray(coupons) ? coupons : [];
+      var totalNowNum = ctwpmlParseBRLToNumber(totals.totalText || '');
+      var discountSum = ctwpmlSumCouponDiscountFromWooCoupons(coupons);
+      if (totalNowNum === null || discountSum <= 0.001) {
+        return { hasDiscount: false, originalTotalText: '', discountedTotalText: String(totals.totalText || '') };
+      }
+      var original = totalNowNum + discountSum;
+      var originalText = ctwpmlFormatNumberToBRL(original);
+      return {
+        hasDiscount: true,
+        originalTotalText: originalText,
+        discountedTotalText: String(totals.totalText || ''),
+      };
+    }
+
+    function ctwpmlUpdateTotalsStateFromWoo(source) {
+      var woo = window.CCCheckoutTabs && window.CCCheckoutTabs.WooHost ? window.CCCheckoutTabs.WooHost : null;
+      if (!woo) return;
+      var totals = woo.readTotals ? (woo.readTotals() || {}) : {};
+      var coupons = [];
+      try { coupons = woo.readCoupons ? (woo.readCoupons() || []) : []; } catch (e0) { coupons = []; }
+      state.__ctwpmlTotalsState.totals = {
+        subtotalText: String(totals.subtotalText || ''),
+        shippingText: String(totals.shippingText || ''),
+        totalText: String(totals.totalText || ''),
+      };
+      // normalizar para {code, amountText}
+      state.__ctwpmlTotalsState.coupons = coupons.map(function (c) {
+        return { code: String((c && c.code) || ''), amountText: String((c && c.amountText) || '') };
+      });
+      state.__ctwpmlTotalsState.discount = ctwpmlDeriveDiscountState(state.__ctwpmlTotalsState.totals, state.__ctwpmlTotalsState.coupons);
+      state.__ctwpmlTotalsState.updatedAt = Date.now();
+      state.__ctwpmlTotalsState.source = String(source || 'woo');
+      if (typeof state.checkpoint === 'function') {
+        state.checkpoint('CHK_TOTALS_STATE_UPDATED_FROM_WOO', true, {
+          source: state.__ctwpmlTotalsState.source,
+          totalText: state.__ctwpmlTotalsState.totals.totalText,
+          couponCodes: state.__ctwpmlTotalsState.coupons.map(function (x) { return String(x.code || ''); }),
+          hasDiscount: !!state.__ctwpmlTotalsState.discount.hasDiscount,
+        });
+      }
+    }
+
+    function ctwpmlUpdateTotalsStateFromAjax(data, source) {
+      data = data || {};
+      var totals = {
+        subtotalText: String(data.subtotal_text || ''),
+        shippingText: String(data.shipping_text || ''),
+        totalText: String(data.total_text || ''),
+      };
+      var coupons = Array.isArray(data.coupons) ? data.coupons : [];
+      var normalizedCoupons = coupons.map(function (c) {
+        return { code: String((c && c.code) || ''), amountText: String((c && c.amount_text) || (c && c.amountText) || '') };
+      });
+      state.__ctwpmlTotalsState.totals = totals;
+      state.__ctwpmlTotalsState.coupons = normalizedCoupons;
+
+      // Preferir originalTotal do attempt (quando existe), mas derivar sempre como fallback.
+      var derived = ctwpmlDeriveDiscountState(totals, normalizedCoupons);
+      if (state.__ctwpmlCouponAttempt && state.__ctwpmlCouponAttempt.originalTotal) {
+        derived.originalTotalText = String(state.__ctwpmlCouponAttempt.originalTotal || derived.originalTotalText || '');
+        derived.discountedTotalText = String(totals.totalText || derived.discountedTotalText || '');
+        derived.hasDiscount = !!(derived.originalTotalText && derived.discountedTotalText && normalizedCoupons.length);
+      }
+      state.__ctwpmlTotalsState.discount = derived;
+      state.__ctwpmlTotalsState.updatedAt = Date.now();
+      state.__ctwpmlTotalsState.source = String(source || 'ajax');
+      if (typeof state.checkpoint === 'function') {
+        state.checkpoint('CHK_TOTALS_STATE_UPDATED_FROM_AJAX', true, {
+          source: state.__ctwpmlTotalsState.source,
+          totalText: state.__ctwpmlTotalsState.totals.totalText,
+          couponCodes: state.__ctwpmlTotalsState.coupons.map(function (x) { return String(x.code || ''); }),
+          hasDiscount: !!state.__ctwpmlTotalsState.discount.hasDiscount,
+        });
+      }
+    }
+
+    function ctwpmlResyncReviewShipping(source, data) {
+      try {
+        var sel = state.selectedShipping || {};
+        var priceText = String(sel.priceText || '');
+        if (priceText) {
+          $('#ctwpml-review-shipping').text(priceText);
+          if (typeof state.checkpoint === 'function') {
+            state.checkpoint('CHK_SHIPPING_UI_RESYNC_AFTER_COUPON', true, { source: String(source || ''), value: priceText, from: 'selectedShipping' });
+          }
+          return;
+        }
+        if (data && data.shipping_text) {
+          $('#ctwpml-review-shipping').text(String(data.shipping_text || ''));
+          if (typeof state.checkpoint === 'function') {
+            state.checkpoint('CHK_SHIPPING_UI_RESYNC_AFTER_COUPON', true, { source: String(source || ''), value: String(data.shipping_text || ''), from: 'ajax' });
+          }
+        }
+      } catch (e0) {}
+    }
+
+    function ctwpmlRenderTotalsUI(source) {
+      var totals = (state.__ctwpmlTotalsState && state.__ctwpmlTotalsState.totals) ? state.__ctwpmlTotalsState.totals : {};
+      var discount = (state.__ctwpmlTotalsState && state.__ctwpmlTotalsState.discount) ? state.__ctwpmlTotalsState.discount : { hasDiscount: false };
+
+      // Payment: subtotal/total
+      try {
+        if (totals.subtotalText) $('#ctwpml-payment-subtotal-value').text(totals.subtotalText);
+      } catch (e0) {}
+      try {
+        var $totalRow = $('.ctwpml-payment-total-row').first();
+        if ($totalRow.length) {
+          if (discount && discount.hasDiscount && discount.originalTotalText && discount.discountedTotalText) {
+            $totalRow.addClass('has-discount');
+            $totalRow.html(
+              '<span class="ctwpml-payment-total-label">Você pagará</span>' +
+              '<div class="ctwpml-payment-price-wrapper">' +
+              '  <span class="ctwpml-payment-original-price" id="ctwpml-payment-original-price">' + escapeHtml(discount.originalTotalText) + '</span>' +
+              '  <span class="ctwpml-payment-discounted-price" id="ctwpml-payment-total-value">' + escapeHtml(discount.discountedTotalText) + '</span>' +
+              '</div>'
+            );
+          } else {
+            $totalRow.removeClass('has-discount');
+            $totalRow.html(
+              '<span class="ctwpml-payment-total-label">Você pagará</span>' +
+              '<span class="ctwpml-payment-total-value" id="ctwpml-payment-total-value">' + escapeHtml(String(totals.totalText || '')) + '</span>'
+            );
+          }
+        } else if (totals.totalText) {
+          $('#ctwpml-payment-total-value').text(totals.totalText);
+        }
+      } catch (e1) {}
+
+      // Review topo + sticky: total + original riscado
+      try {
+        if (totals.subtotalText) $('#ctwpml-review-products-subtotal').text(totals.subtotalText);
+        if (totals.totalText) {
+          $('#ctwpml-review-total').text(totals.totalText);
+          $('#ctwpml-review-payment-amount').text(totals.totalText);
+          $('#ctwpml-review-sticky-total').text(totals.totalText);
+        }
+        var $reviewRow = $('.ctwpml-review-total-row').first();
+        var $reviewOrig = $('#ctwpml-review-original-total');
+        var $stickyRow = $('.ctwpml-review-sticky-total-row').first();
+        var $stickyOrig = $('#ctwpml-review-sticky-original-total');
+        if (discount && discount.hasDiscount && discount.originalTotalText) {
+          $reviewOrig.text(discount.originalTotalText).show();
+          $reviewRow.addClass('has-discount');
+          if ($stickyOrig.length) $stickyOrig.text(discount.originalTotalText).show();
+          if ($stickyRow.length) $stickyRow.addClass('has-discount');
+        } else {
+          $reviewOrig.text('').hide();
+          $reviewRow.removeClass('has-discount');
+          if ($stickyOrig.length) $stickyOrig.text('').hide();
+          if ($stickyRow.length) $stickyRow.removeClass('has-discount');
+        }
+      } catch (e2) {}
+
+      if (typeof state.checkpoint === 'function') {
+        state.checkpoint('CHK_TOTALS_UI_RENDERED', true, {
+          source: String(source || ''),
+          view: String(currentView || ''),
+          hasDiscount: !!(discount && discount.hasDiscount),
+          originalTotalText: discount ? String(discount.originalTotalText || '') : '',
+          totalText: String(totals.totalText || ''),
+        });
+      }
+    }
+
+    function ctwpmlNormalizeCouponAmount(amountText) {
+      var s = String(amountText || '').trim();
+      if (!s) return '';
+      if (s.indexOf('-') === 0 || s.indexOf('−') === 0) return s;
+      return '- ' + s;
+    }
+
+    function ctwpmlBuildCouponsHtml(coupons, context) {
+      coupons = Array.isArray(coupons) ? coupons : [];
+      if (!coupons.length) return '';
+      var title = coupons.length > 1 ? 'Cupons aplicados' : 'Cupom aplicado';
+      // Ícones SVG
+      var pluginUrl = (window.cc_params && window.cc_params.plugin_url ? window.cc_params.plugin_url : '');
+      var removeIconUrl = pluginUrl + 'assets/img/icones/remover-cupom.svg';
+      var couponIconUrl = pluginUrl + 'assets/img/icones/coupom-icon.svg';
+      var html = '<div class="ctwpml-coupons-title">' + escapeHtml(title) + '</div>';
+      for (var i = 0; i < coupons.length; i++) {
+        var it = coupons[i] || {};
+        var code = String(it.code || '').trim();
+        var amount = ctwpmlNormalizeCouponAmount(it.amountText || '');
+        if (!code && !amount) continue;
+        // v4.6: Ordem (DOM) exigida: ÍCONE → NOME → REMOVER (e valor à direita)
+        html += '' +
+          '<div class="ctwpml-coupon-row" data-coupon-code="' + escapeHtml(code) + '">' +
+          '  <div class="ctwpml-coupon-left">' +
+          '    <img src="' + escapeHtml(couponIconUrl) + '" alt="" class="ctwpml-coupon-icon" width="16" height="16" />' +
+          '    <span class="ctwpml-coupon-code">' + escapeHtml(code ? code.toUpperCase() : 'CUPOM') + '</span>' +
+          '    <button type="button" class="ctwpml-coupon-remove" data-coupon-code="' + escapeHtml(code) + '" data-ctwpml-context="' + escapeHtml(context || '') + '" title="Remover cupom"><img src="' + escapeHtml(removeIconUrl) + '" alt="Remover" width="18" height="18"></button>' +
+          '  </div>' +
+          '  <div class="ctwpml-coupon-right">' +
+          '    <span class="ctwpml-coupon-amount">' + escapeHtml(amount) + '</span>' +
+          '  </div>' +
+          '</div>';
+      }
+      return html;
+    }
+
+    function ctwpmlRenderCouponsBlock(targetId, coupons, context) {
+      try {
+        var el = document.getElementById(String(targetId || ''));
+        if (!el) return;
+        var html = ctwpmlBuildCouponsHtml(coupons, context);
+        if (!html) {
+          el.innerHTML = '';
+          el.style.display = 'none';
+        } else {
+          el.innerHTML = html;
+          el.style.display = '';
+        }
+        if (typeof state.checkpoint === 'function') {
+          state.checkpoint('CHK_COUPONS_RENDERED', true, {
+            context: String(context || ''),
+            targetId: String(targetId || ''),
+            count: Array.isArray(coupons) ? coupons.length : 0,
+            codes: Array.isArray(coupons) ? coupons.map(function (c) { return String((c && c.code) || ''); }) : [],
+          });
+        }
+      } catch (e0) {}
+    }
+
+    function ctwpmlTryClickRemoveCoupon(code, context) {
+      code = String(code || '').trim();
+      if (!code) return { ok: false, reason: 'empty_code' };
+      var selectors = [];
+      try { selectors.push('a.woocommerce-remove-coupon[data-coupon="' + CSS.escape(code) + '"]'); } catch (e0) {}
+      selectors.push('a.woocommerce-remove-coupon[data-coupon="' + code.replace(/"/g, '\\"') + '"]');
+      selectors.push('a.woocommerce-remove-coupon[data-coupon="' + code.toLowerCase() + '"]');
+      selectors.push('a.woocommerce-remove-coupon[data-coupon="' + code.toUpperCase() + '"]');
+
+      var link = null;
+      for (var i = 0; i < selectors.length; i++) {
+        try {
+          link = document.querySelector(selectors[i]);
+          if (link) break;
+        } catch (e1) {}
+      }
+      if (!link) return { ok: false, reason: 'remove_link_not_found', code: code };
+      try { link.click(); } catch (e2) { try { window.jQuery(link).trigger('click'); } catch (e3) {} }
+      return { ok: true, code: code };
+    }
+
+    function applyPaymentAvailabilityAndSync(eventType) {
       var woo = window.CCCheckoutTabs && window.CCCheckoutTabs.WooHost ? window.CCCheckoutTabs.WooHost : null;
       if (!woo) return;
 
@@ -1084,8 +1599,176 @@
 
       // Atualizar valores do footer (subtotal/total)
       var totals = woo.readTotals();
-      if (totals.subtotalText) $('#ctwpml-payment-subtotal-value').text(totals.subtotalText);
-      if (totals.totalText) $('#ctwpml-payment-total-value').text(totals.totalText);
+      var coupons = [];
+      try {
+        coupons = woo.readCoupons ? (woo.readCoupons() || []) : [];
+      } catch (e0) {
+        coupons = [];
+      }
+      // Sempre refletir cupons no Payment (lista abaixo do subtotal)
+      ctwpmlRenderCouponsBlock('ctwpml-payment-coupons', coupons, 'payment');
+
+      // v4.0: UI de desconto/cupom (preço riscado + valor final)
+      // Guardamos tentativa/estado em state para sobreviver a updated_checkout.
+      state.__ctwpmlPaymentDiscount = state.__ctwpmlPaymentDiscount || null;
+      state.__ctwpmlCouponAttempt = state.__ctwpmlCouponAttempt || null;
+
+      // v4.2: Usar funções extraídas do escopo do módulo (ctwpmlResetCouponUi, ctwpmlShowCouponSuccessIcon)
+      // Isso evita ReferenceError quando chamadas de fora deste escopo
+
+      function renderTotalsNoDiscount() {
+        try {
+          var $totalRow = $('.ctwpml-payment-total-row').first();
+          var $subtotalRow = $('.ctwpml-payment-subtotal-row').first();
+
+          if ($subtotalRow.length) {
+            $subtotalRow.removeClass('has-discount');
+            // garantir formato simples
+            $subtotalRow.html(
+              '<span class="ctwpml-payment-subtotal-label">Subtotal</span>' +
+              '<span class="ctwpml-payment-subtotal-value" id="ctwpml-payment-subtotal-value">' + escapeHtml(totals.subtotalText || '') + '</span>'
+            );
+          } else if (totals.subtotalText) {
+            $('#ctwpml-payment-subtotal-value').text(totals.subtotalText);
+          }
+
+          if ($totalRow.length) {
+            $totalRow.removeClass('has-discount');
+            $totalRow.html(
+              '<span class="ctwpml-payment-total-label">Você pagará</span>' +
+              '<span class="ctwpml-payment-total-value" id="ctwpml-payment-total-value">' + escapeHtml(totals.totalText || '') + '</span>'
+            );
+          } else if (totals.totalText) {
+            $('#ctwpml-payment-total-value').text(totals.totalText);
+          }
+        } catch (e1) {
+          if (totals.subtotalText) $('#ctwpml-payment-subtotal-value').text(totals.subtotalText);
+          if (totals.totalText) $('#ctwpml-payment-total-value').text(totals.totalText);
+        }
+      }
+
+      function renderTotalsWithDiscount(discount) {
+        try {
+          var $totalRow = $('.ctwpml-payment-total-row').first();
+          var $subtotalRow = $('.ctwpml-payment-subtotal-row').first();
+
+          // v4.3: Subtotal com desconto - valor original riscado ao lado do atual
+          if ($subtotalRow.length && discount.originalSubtotal && discount.discountedSubtotal && String(discount.originalSubtotal) !== String(discount.discountedSubtotal)) {
+            $subtotalRow.addClass('has-discount');
+            $subtotalRow.html(
+              '<span class="ctwpml-payment-subtotal-label">Subtotal</span>' +
+              '<span class="ctwpml-payment-subtotal-value" id="ctwpml-payment-subtotal-value">' +
+              '  <span class="ctwpml-payment-subtotal-original">' + escapeHtml(discount.originalSubtotal) + '</span>' +
+              '  <span class="ctwpml-payment-subtotal-discounted" id="ctwpml-payment-subtotal-discounted">' + escapeHtml(discount.discountedSubtotal) + '</span>' +
+              '</span>'
+            );
+          } else if ($subtotalRow.length) {
+            $subtotalRow.removeClass('has-discount');
+            $subtotalRow.html(
+              '<span class="ctwpml-payment-subtotal-label">Subtotal</span>' +
+              '<span class="ctwpml-payment-subtotal-value" id="ctwpml-payment-subtotal-value">' + escapeHtml(totals.subtotalText || '') + '</span>'
+            );
+          }
+
+          // v4.3: Total "Você pagará" - tudo em 1 linha: label esquerda, valor original riscado + valor atual direita
+          if ($totalRow.length) {
+            $totalRow.addClass('has-discount');
+            $totalRow.html(
+              '<span class="ctwpml-payment-total-label">Você pagará</span>' +
+              '<div class="ctwpml-payment-price-wrapper">' +
+              '  <span class="ctwpml-payment-original-price" id="ctwpml-payment-original-price">' + escapeHtml(discount.originalTotal || '') + '</span>' +
+              '  <span class="ctwpml-payment-discounted-price" id="ctwpml-payment-total-value">' + escapeHtml(discount.discountedTotal || (totals.totalText || '')) + '</span>' +
+              '</div>'
+            );
+          }
+        } catch (e2) {
+          renderTotalsNoDiscount();
+        }
+      }
+
+      // Evento de remoção do cupom: limpa estado e volta ao normal
+      if (String(eventType || '') === 'removed_coupon') {
+        state.__ctwpmlPaymentDiscount = null;
+        state.__ctwpmlCouponAttempt = null;
+        ctwpmlResetCouponUi();
+        renderTotalsNoDiscount();
+        // lista já foi renderizada acima; manter consistente
+      } else {
+        // v4.4: Persistência pós-reload
+        // Se houver cupons aplicados mas não temos attempt, derivar valor original pelo DOM do Woo:
+        // originalTotal = totalAtual + soma(descontos)
+        try {
+          var hasCoupons = Array.isArray(coupons) && coupons.length > 0;
+          if (hasCoupons && totals && totals.totalText) {
+            var discountSum = ctwpmlSumCouponDiscountFromWooCoupons(coupons);
+            var totalNow = ctwpmlParseBRLToNumber(totals.totalText);
+            if (totalNow !== null && discountSum > 0.001) {
+              state.__ctwpmlPaymentDiscount = {
+                originalTotal: ctwpmlFormatNumberToBRL(totalNow + discountSum),
+                discountedTotal: String(totals.totalText || ''),
+                // subtotal original é ambíguo (pode ser cupom em shipping), então não forçamos aqui
+                originalSubtotal: '',
+                discountedSubtotal: '',
+                couponName: '',
+              };
+            }
+          }
+        } catch (eDerive) {}
+
+        // Se houver tentativa recente, tenta derivar “antes/depois”
+        var attempt = state.__ctwpmlCouponAttempt;
+        if (attempt && attempt.originalTotal && totals.totalText) {
+          var changed = String(attempt.originalTotal) !== String(totals.totalText);
+          if (changed) {
+            state.__ctwpmlPaymentDiscount = {
+              originalTotal: String(attempt.originalTotal || ''),
+              discountedTotal: String(totals.totalText || ''),
+              originalSubtotal: String(attempt.originalSubtotal || ''),
+              discountedSubtotal: String(totals.subtotalText || ''),
+              couponName: String(attempt.couponName || attempt.code || ''),
+            };
+            // v4.1: Mostrar ícone de sucesso com animação
+            try { ctwpmlShowCouponSuccessIcon(); } catch (e4) {}
+            try { $('#ctwpml-coupon-input').removeClass('is-error'); } catch (e5) {}
+          } else if (String(eventType || '') === 'applied_coupon') {
+            // Cupom aplicado sem mudar total (ex.: efeito só no frete, etc.) – mantém UI normal.
+            // v4.1: Mostrar ícone de sucesso com animação
+            try { ctwpmlShowCouponSuccessIcon(); } catch (e6) {}
+            try { $('#ctwpml-coupon-input').removeClass('is-error'); } catch (e7) {}
+          } else if (String(eventType || '') === 'apply_coupon') {
+            // Tentativa concluída sem efeito aparente no total: marcar visualmente como erro (sem travar o usuário).
+            try { 
+              var $btn = $('#ctwpml-add-coupon-btn');
+              $btn.removeClass('is-success is-loading').prop('disabled', false);
+              var origText = $btn.data('original-text');
+              if (origText) $btn.text(origText);
+            } catch (e8) {}
+            try { $('#ctwpml-coupon-input').addClass('is-error'); } catch (e9) {}
+            try {
+              if (typeof state.checkpoint === 'function') {
+                state.checkpoint('CHK_COUPON_APPLY_NO_CHANGE', false, {
+                  code: String(attempt.code || ''),
+                  originalTotal: String(attempt.originalTotal || ''),
+                  afterTotal: String(totals.totalText || ''),
+                  beforeCouponCodes: Array.isArray(attempt.beforeCouponCodes) ? attempt.beforeCouponCodes : [],
+                  couponCount: Array.isArray(coupons) ? coupons.length : 0,
+                  couponCodes: Array.isArray(coupons) ? coupons.map(function (c) { return String((c && c.code) || ''); }) : [],
+                });
+              }
+            } catch (e10) {}
+          }
+        }
+
+        if (state.__ctwpmlPaymentDiscount && state.__ctwpmlPaymentDiscount.originalTotal && state.__ctwpmlPaymentDiscount.discountedTotal) {
+          renderTotalsWithDiscount(state.__ctwpmlPaymentDiscount);
+        } else {
+          renderTotalsNoDiscount();
+        }
+      }
+
+      // v4.7: Sincronizar state único e render único imediatamente
+      try { ctwpmlUpdateTotalsStateFromWoo('payment_sync'); } catch (eS0) {}
+      try { ctwpmlRenderTotalsUI('payment_sync'); } catch (eS1) {}
 
       // Guardar mapping para clique
       state.paymentGatewayMap = map;
@@ -1095,24 +1778,74 @@
       var woo = window.CCCheckoutTabs && window.CCCheckoutTabs.WooHost ? window.CCCheckoutTabs.WooHost : null;
       if (!woo) return;
       var totals = woo.readTotals();
+      var coupons = [];
+      try {
+        coupons = woo.readCoupons ? (woo.readCoupons() || []) : [];
+      } catch (e0) {
+        coupons = [];
+      }
       if (totals.subtotalText) $('#ctwpml-review-products-subtotal').text(totals.subtotalText);
       if (totals.shippingText) {
         try {
           var prev = ($('#ctwpml-review-shipping').text() || '').trim();
-          $('#ctwpml-review-shipping').text(totals.shippingText);
           var sel = state.selectedShipping || {};
           var selectedPrice = String(sel.priceText || '');
+          var rawShipping = String(totals.shippingText || '').trim();
+          var parsed = ctwpmlParseBRLToNumber(rawShipping);
+          var isValidShipping = parsed !== null && rawShipping.length < 25;
+
+          if (typeof state.checkpoint === 'function') {
+            state.checkpoint('CHK_REVIEW_SHIPPING_RAW_WOO', true, {
+              context: 'syncReviewTotalsFromWoo',
+              raw: rawShipping,
+              length: rawShipping.length,
+              parsed: parsed,
+              isValid: isValidShipping,
+            });
+          }
+
+          if (selectedPrice) {
+            $('#ctwpml-review-shipping').text(selectedPrice);
+            if (typeof state.checkpoint === 'function') {
+              state.checkpoint('CHK_REVIEW_SHIPPING_APPLIED_SOURCE', true, {
+                context: 'syncReviewTotalsFromWoo',
+                source: 'selectedShipping',
+                value: selectedPrice,
+                domPrev: prev,
+              });
+            }
+          } else if (isValidShipping) {
+            $('#ctwpml-review-shipping').text(rawShipping);
+            if (typeof state.checkpoint === 'function') {
+              state.checkpoint('CHK_REVIEW_SHIPPING_APPLIED_SOURCE', true, {
+                context: 'syncReviewTotalsFromWoo',
+                source: 'wooTotals',
+                value: rawShipping,
+                domPrev: prev,
+              });
+            }
+          } else {
+            // Evita substituir por texto concatenado/ilegível
+            if (typeof state.checkpoint === 'function') {
+              state.checkpoint('CHK_REVIEW_SHIPPING_APPLIED_SOURCE', false, {
+                context: 'syncReviewTotalsFromWoo',
+                source: 'skipped_invalid',
+                value: rawShipping,
+                domPrev: prev,
+              });
+            }
+          }
           if (typeof state.checkpoint === 'function') {
             state.checkpoint('CHK_REVIEW_SHIPPING_VALUE_SOURCE', true, {
               context: 'syncReviewTotalsFromWoo',
-              source: 'wooTotals',
+              source: selectedPrice ? 'selectedShipping' : (isValidShipping ? 'wooTotals' : 'skipped_invalid'),
               domPrev: prev,
-              domAfter: (totals.shippingText || '').trim(),
+              domAfter: ($('#ctwpml-review-shipping').text() || '').trim(),
               selectedShippingPrice: selectedPrice,
               differsFromSelected: !!(selectedPrice && prev && selectedPrice !== prev),
             });
           }
-          if (typeof state.log === 'function') state.log('Review frete atualizado via Woo totals', { prev: prev, next: totals.shippingText, selectedShippingPrice: selectedPrice }, 'REVIEW');
+          if (typeof state.log === 'function') state.log('Review frete atualizado via Woo totals', { prev: prev, next: $('#ctwpml-review-shipping').text(), selectedShippingPrice: selectedPrice }, 'REVIEW');
         } catch (e0) {
           $('#ctwpml-review-shipping').text(totals.shippingText);
         }
@@ -1122,6 +1855,35 @@
         $('#ctwpml-review-payment-amount').text(totals.totalText);
         $('#ctwpml-review-sticky-total').text(totals.totalText);
       }
+      // v4.4: Review (topo + sticky) com valor original riscado + verde quando houver cupom
+      try {
+        var hasCoupons = Array.isArray(coupons) && coupons.length > 0;
+        var $reviewTotalRow = $('.ctwpml-review-total-row').first();
+        var $reviewOriginal = $('#ctwpml-review-original-total');
+        var $stickyOriginal = $('#ctwpml-review-sticky-original-total');
+        var $stickyRow = $('.ctwpml-review-sticky-total-row').first();
+        if (hasCoupons && totals && totals.totalText) {
+          var discountSum = ctwpmlSumCouponDiscountFromWooCoupons(coupons);
+          var totalNow = ctwpmlParseBRLToNumber(totals.totalText);
+          if (totalNow !== null && discountSum > 0.001) {
+            var originalText = ctwpmlFormatNumberToBRL(totalNow + discountSum);
+            $reviewOriginal.text(originalText).show();
+            $reviewTotalRow.addClass('has-discount');
+            if ($stickyOriginal.length) {
+              $stickyOriginal.text(originalText).show();
+            }
+            if ($stickyRow.length) $stickyRow.addClass('has-discount');
+          }
+        } else {
+          // sem cupons: limpar
+          $reviewOriginal.text('').hide();
+          $reviewTotalRow.removeClass('has-discount');
+          if ($stickyOriginal.length) $stickyOriginal.text('').hide();
+          if ($stickyRow.length) $stickyRow.removeClass('has-discount');
+        }
+      } catch (e3) {}
+      // Cupons aplicados (logo abaixo do frete)
+      ctwpmlRenderCouponsBlock('ctwpml-review-coupons', coupons, 'review');
       var pay = woo.getSelectedGatewayLabel();
       if (pay) {
         $('#ctwpml-review-pay-tag').text(pay);
@@ -1142,6 +1904,7 @@
       var methodName = mapShippingName(methodId);
       var priceText = String(sel.priceText || '');
       var label = String(sel.label || '');
+      var pluginUrl = (state.params && state.params.plugin_url) ? String(state.params.plugin_url) : '';
 
       // linha "Frete" no topo: preferir o preço do método selecionado
       if (priceText) {
@@ -1172,23 +1935,48 @@
 
       // Detalhe da entrega: título = método + preço, eta = label
       var eta = label ? ('Chegará ' + label) : '';
-      if (eta) $('#ctwpml-review-shipment-eta').text(eta);
+      $('#ctwpml-review-shipment-eta').text(eta || '');
 
       var methodLine = methodName ? methodName : '';
       if (methodLine && priceText) methodLine += ' • ' + priceText;
       if (!methodLine && priceText) methodLine = priceText;
       if (methodLine) $('#ctwpml-review-shipment-title').text(methodLine);
 
-      // Produto/quantidade (pega do order_review real quando existir)
+      // Ícone dinâmico da modalidade: Motoboy vs Correios
       try {
-        var $firstItem = $('#order_review .cart_item').first();
-        if ($firstItem.length) {
-          var name = ($firstItem.find('.product-name').clone().children().remove().end().text() || '').trim();
-          var qty = ($firstItem.find('.product-quantity').text() || '').replace(/[^0-9]/g, '');
-          if (name) $('#ctwpml-review-product-name').text(name);
-          if (qty) $('#ctwpml-review-product-qty').text('Quantidade: ' + qty);
+        var iconUrl = '';
+        if (methodName && /motoboy/i.test(methodName)) {
+          iconUrl = pluginUrl ? (pluginUrl + 'assets/img/icones/motoboy.svg') : '';
+        } else if (methodName && /(sedex|pac|mini)/i.test(methodName)) {
+          iconUrl = pluginUrl ? (pluginUrl + 'assets/img/icones/correio.svg') : '';
         }
-      } catch (e) {}
+        if (iconUrl) {
+          $('#ctwpml-review-shipment-icon').html('<img src="' + iconUrl + '" alt="" />');
+          if (typeof state.checkpoint === 'function') {
+            state.checkpoint('CHK_REVIEW_SHIPMENT_ICON_SET', true, { methodId: methodId, methodName: methodName, icon: iconUrl });
+          }
+        } else {
+          $('#ctwpml-review-shipment-icon').empty();
+          if (typeof state.checkpoint === 'function') {
+            state.checkpoint('CHK_REVIEW_SHIPMENT_ICON_SET', false, { methodId: methodId, methodName: methodName, reason: 'no_match_or_no_pluginUrl' });
+          }
+        }
+      } catch (eI) {}
+
+      // Quantidade total de itens no carrinho (fonte: resumo do carrinho)
+      try {
+        // Evita conteúdo antigo nesse campo (a lista de produtos já é exibida abaixo)
+        $('#ctwpml-review-product-name').text('');
+
+        var qtyTotal = Number(state.reviewCartItemCount || 0);
+        if (qtyTotal > 0) {
+          $('#ctwpml-review-product-qty').text('Quantidade: ' + qtyTotal);
+          if (typeof state.checkpoint === 'function') state.checkpoint('CHK_REVIEW_SHIPMENT_QTY', true, { qty: qtyTotal });
+        } else {
+          $('#ctwpml-review-product-qty').text('');
+          if (typeof state.checkpoint === 'function') state.checkpoint('CHK_REVIEW_SHIPMENT_QTY', false, { qty: qtyTotal });
+        }
+      } catch (eQ) {}
     }
 
     function bindReviewStickyFooter() {
@@ -1276,14 +2064,14 @@
 
         // Ícones do Review (preferência: assets locais do plugin)
         var pluginUrl = (window.cc_params && window.cc_params.plugin_url) ? String(window.cc_params.plugin_url) : '';
-        var billingIconUrl = pluginUrl ? (pluginUrl + 'assets/img/icones/recipt.png') : 'https://cubensisstore.com.br/wp-content/uploads/2026/01/bill.png';
-        var shippingIconUrl = pluginUrl ? (pluginUrl + 'assets/img/icones/gps-1.png') : 'https://cubensisstore.com.br/wp-content/uploads/2026/01/gps-1.png';
+        var billingIconUrl = pluginUrl ? (pluginUrl + 'assets/img/icones/recipt.svg') : 'https://cubensisstore.com.br/wp-content/uploads/2026/01/bill.png';
+        var shippingIconUrl = pluginUrl ? (pluginUrl + 'assets/img/icones/gps-1.svg') : 'https://cubensisstore.com.br/wp-content/uploads/2026/01/gps-1.png';
         var paymentIconUrl = '';
         try {
           if ((state.selectedPaymentMethod || '').toString() === 'pix') {
-            paymentIconUrl = 'https://cubensisstore.com.br/wp-content/uploads/2026/01/artpoin-logo-pix-1-scaled.png';
+            paymentIconUrl = pluginUrl ? (pluginUrl + 'assets/img/icones/pix.svg') : 'https://cubensisstore.com.br/wp-content/uploads/2026/01/artpoin-logo-pix-1-scaled.png';
           } else {
-            paymentIconUrl = pluginUrl ? (pluginUrl + 'assets/img/icones/bank-card.png') : 'https://cubensisstore.com.br/wp-content/uploads/2026/01/bank-card.png';
+            paymentIconUrl = pluginUrl ? (pluginUrl + 'assets/img/icones/bank-card.svg') : 'https://cubensisstore.com.br/wp-content/uploads/2026/01/bank-card.png';
           }
         } catch (e0) {}
 
@@ -1300,12 +2088,24 @@
         var billingCpf = ($('#billing_cpf').val() || $('#ctwpml-input-cpf').val() || '').trim();
         if (billingCpf && billingCpf.indexOf('CPF') !== 0) billingCpf = 'CPF ' + billingCpf;
 
-        var setHtml = function (thumbs) {
+        var setHtml = function (summary) {
+          summary = summary || {};
+          var itemCount = typeof summary.item_count === 'number'
+            ? summary.item_count
+            : (typeof summary.count === 'number' ? summary.count : 0);
+          var items = Array.isArray(summary.items) ? summary.items : [];
+          var thumbUrls = Array.isArray(summary.thumb_urls) ? summary.thumb_urls : [];
+          var subtotalText = summary.subtotal ? String(summary.subtotal) : (totals.subtotalText || '');
+          var totalText = summary.total ? String(summary.total) : (totals.totalText || '');
+
+          // Fonte da verdade para quantidade no bloco de entrega (Review)
+          state.reviewCartItemCount = Number(itemCount || 0);
+
           var html = window.CCCheckoutTabs.AddressMlScreens.renderReviewConfirmScreen({
-            productCount: thumbs && typeof thumbs.count === 'number' ? thumbs.count : 0,
-            subtotalText: totals.subtotalText || '',
+            productCount: itemCount,
+            subtotalText: subtotalText,
             shippingText: totals.shippingText || '',
-            totalText: totals.totalText || '',
+            totalText: totalText,
             paymentLabel: paymentLabel || '',
             billingName: billingName || '',
             billingCpf: billingCpf || '',
@@ -1314,13 +2114,28 @@
             billingIconUrl: billingIconUrl,
             shippingIconUrl: shippingIconUrl,
             paymentIconUrl: paymentIconUrl,
-            thumbUrls: thumbs && Array.isArray(thumbs.thumb_urls) ? thumbs.thumb_urls : [],
+            thumbUrls: thumbUrls,
+            items: items,
           });
           $('#ctwpml-view-review').html(html);
           $('#ctwpml-review-errors').hide().text('');
           fillReviewShippingDetails();
           bindReviewStickyFooter();
           ctwpmlInitReviewTermsState();
+          // Cupons aplicados: render imediato (sem depender de updated_checkout)
+          try {
+            var cps0 = woo && woo.readCoupons ? (woo.readCoupons() || []) : [];
+            ctwpmlRenderCouponsBlock('ctwpml-review-coupons', cps0, 'review');
+            if (typeof state.checkpoint === 'function') {
+              state.checkpoint('CHK_COUPONS_RENDERED', true, { context: 'review_after_render', count: Array.isArray(cps0) ? cps0.length : 0 });
+            }
+          } catch (eC0) {}
+
+          // v4.7: Aplicar imediatamente o mesmo render de desconto do Payment no topo + sticky do Review
+          try {
+            ctwpmlUpdateTotalsStateFromWoo('review_after_render');
+            ctwpmlRenderTotalsUI('review_after_render');
+          } catch (eT0) {}
 
           // Checkpoint: tela de review renderizada
           if (typeof state.checkpoint === 'function') {
@@ -1365,9 +2180,11 @@
         };
 
         if (woo && typeof woo.getCartThumbs === 'function') {
-          woo.getCartThumbs().then(setHtml).catch(function () { setHtml({ thumb_urls: [], count: 0 }); });
+          woo.getCartThumbs().then(setHtml).catch(function () {
+            setHtml({ thumb_urls: [], count: 0, item_count: 0, items: [], subtotal: '', total: '' });
+          });
         } else {
-          setHtml({ thumb_urls: [], count: 0 });
+          setHtml({ thumb_urls: [], count: 0, item_count: 0, items: [], subtotal: '', total: '' });
         }
       };
 
@@ -1379,9 +2196,26 @@
     }
 
     // Sempre que o Woo atualizar o checkout, refletimos no modal (subtotal/total).
-    $(document.body).on('updated_checkout applied_coupon removed_coupon', function () {
+    $(document.body).on('updated_checkout applied_coupon removed_coupon', function (e) {
       try {
-        if (currentView === 'payment') applyPaymentAvailabilityAndSync();
+        var eventType = e && e.type ? e.type : '';
+
+        // v4.2: Guard - se cupom está "busy" (operação AJAX em andamento), 
+        // os eventos applied_coupon/removed_coupon são nossos e não devemos re-processar
+        // O updated_checkout do Woo também é esperado e já tratamos via AJAX response
+        if (isCouponBusy()) {
+          if (typeof state.checkpoint === 'function') {
+            state.checkpoint('CHK_WOO_EVENT_SKIPPED_COUPON_BUSY', true, { event: eventType, currentView: currentView });
+          }
+          // Não fazemos nada - deixamos o AJAX handler do modal controlar a UI
+          return;
+        }
+
+        if (typeof state.checkpoint === 'function') {
+          state.checkpoint('CHK_WOO_EVENT_PROCESSED', true, { event: eventType, currentView: currentView, couponBusy: false });
+        }
+
+        if (currentView === 'payment') applyPaymentAvailabilityAndSync(eventType);
         if (currentView === 'review') {
           syncReviewTotalsFromWoo();
           // Re-sincroniza termos (Woo pode re-renderizar o DOM).
@@ -1477,7 +2311,7 @@
       $('#ctwpml-generate-cpf-modal').css('display', allow && !locked ? 'inline-block' : 'none');
     }
 
-    function loadContactMeta() {
+    function loadContactMeta(callback) {
       if (!isLoggedIn()) return;
 
       state.log('UI        Carregando dados de contato do perfil...', {}, 'UI');
@@ -1491,17 +2325,36 @@
         success: function (response) {
           if (response && response.success && response.data) {
             var whatsapp = response.data.whatsapp || '';
+            var phoneFull = response.data.phone_full || '';
+            var countryCode = response.data.country_code || '';
+            var dialCode = response.data.dial_code || '';
             var cpf = response.data.cpf || '';
             var cpfLocked = response.data.cpf_locked || false;
 
             state.log('UI        Dados de contato carregados', { 
               whatsapp: whatsapp, 
+              phoneFull: phoneFull,
+              countryCode: countryCode,
+              dialCode: dialCode,
               cpf: cpf,
               cpfLocked: cpfLocked 
             }, 'UI');
 
-            if (whatsapp) {
-              $('#ctwpml-input-fone').val(formatPhone(whatsapp));
+            // Telefone (novo formato): se phone_full existir, restaurar país + máscara; senão fallback para whatsapp.
+            try {
+              if (window.ctwpmlPhoneWidget && typeof window.ctwpmlPhoneWidget.setPhoneFull === 'function' && phoneFull) {
+                window.ctwpmlPhoneWidget.setPhoneFull(String(phoneFull));
+              } else if (whatsapp) {
+                $('#ctwpml-input-fone').val(formatPhone(whatsapp));
+                // Também tenta popular hidden para persistência
+                var digits = phoneDigits(whatsapp);
+                if (digits && (digits.length === 10 || digits.length === 11)) {
+                  var h = document.getElementById('ctwpml-phone-full');
+                  if (h) h.value = '+55' + digits;
+                }
+              }
+            } catch (e0) {
+              if (whatsapp) $('#ctwpml-input-fone').val(formatPhone(whatsapp));
             }
 
             if (cpf) {
@@ -1511,8 +2364,18 @@
                 $('#ctwpml-generate-cpf-modal').hide();
               }
             }
+            if (typeof callback === 'function') {
+              try {
+                callback(response.data);
+              } catch (eCb) {}
+            }
           } else {
             state.log('UI        Nenhum dado de contato encontrado no perfil', {}, 'UI');
+            if (typeof callback === 'function') {
+              try {
+                callback(null);
+              } catch (eCb2) {}
+            }
           }
         },
         error: function (xhr, status, error) {
@@ -1520,28 +2383,59 @@
             status: status, 
             error: error 
           }, 'UI');
+          if (typeof callback === 'function') {
+            try {
+              callback(null);
+            } catch (eCb3) {}
+          }
         },
       });
     }
 
-    function saveContactMeta(callback) {
+    function saveContactMeta(optionsOrCallback, maybeCallback) {
+      var opts = {};
+      var callback = null;
+      if (typeof optionsOrCallback === 'function') {
+        callback = optionsOrCallback;
+      } else {
+        opts = optionsOrCallback && typeof optionsOrCallback === 'object' ? optionsOrCallback : {};
+        callback = typeof maybeCallback === 'function' ? maybeCallback : null;
+      }
+
       if (!isLoggedIn()) {
         if (callback) callback();
         return;
       }
 
-      // IMPORTANTE: Remover máscara do WhatsApp antes de enviar
-      var whatsappRaw = $('#ctwpml-input-fone').val() || '';
-      var whatsappDigits = phoneDigits(whatsappRaw); // Remove formatação
+      // v2.0 [2.3] (novo formato): o valor fonte da verdade é #ctwpml-phone-full
+      var phoneFull = '';
+      var countryCode = '';
+      var dialCode = '';
+      var whatsappDigits = '';
+      try {
+        phoneFull = ($('#ctwpml-phone-full').val() || '').toString();
+        if (window.ctwpmlPhoneWidget && typeof window.ctwpmlPhoneWidget.getSelectedCountry === 'function') {
+          countryCode = String(window.ctwpmlPhoneWidget.getSelectedCountry() || '');
+          dialCode = String(window.ctwpmlPhoneWidget.getDialCode ? window.ctwpmlPhoneWidget.getDialCode() : '');
+        }
+        // compat: whatsapp = apenas dígitos (pode incluir DDI)
+        whatsappDigits = phoneFull ? String(phoneFull).replace(/\D/g, '') : phoneDigits($('#ctwpml-input-fone').val() || '');
+      } catch (e0) {
+        whatsappDigits = phoneDigits($('#ctwpml-input-fone').val() || '');
+      }
       var cpfRaw = $('#ctwpml-input-cpf').val() || '';
       var cpfDigits = cpfDigitsOnly(cpfRaw); // Remove formatação
 
       state.log('UI        Salvando dados de contato', { 
         whatsapp: whatsappDigits, 
+        phone_full: phoneFull,
+        country_code: countryCode,
+        dial_code: dialCode,
         cpf: cpfDigits 
       }, 'UI');
 
-      showModalSpinner();
+      var spinnerManagedByCaller = !!(opts && opts.spinnerManagedByCaller);
+      if (!spinnerManagedByCaller) ctwpmlSpinnerAcquire('save_contact_meta');
 
       $.ajax({
         url: state.params.ajax_url,
@@ -1549,6 +2443,9 @@
         data: {
           action: 'ctwpml_save_contact_meta',
           whatsapp: whatsappDigits,
+          phone_full: phoneFull,
+          country_code: countryCode,
+          dial_code: dialCode,
           cpf: cpfDigits,
         },
         success: function (response) {
@@ -1558,8 +2455,10 @@
               $('#ctwpml-input-cpf').prop('readonly', true);
               $('#ctwpml-generate-cpf-modal').hide();
             }
-            // Feedback de sucesso para contato também (se salvar apenas contato)
-            showNotification('Dados de contato salvos com sucesso!', 'success', 2000);
+            // Feedback de sucesso para contato (somente quando não for fluxo de salvar endereço)
+            if (!opts || !opts.silent) {
+              showNotification('Dados de contato salvos com sucesso!', 'success', 2000);
+            }
           } else {
             var errorMsg = (response && response.data && response.data.message) || 'Erro ao salvar dados de contato';
             showNotification(errorMsg, 'error', 3000);
@@ -1577,9 +2476,311 @@
           if (callback) callback();
         },
         complete: function () {
-          hideModalSpinner();
+          if (!spinnerManagedByCaller) ctwpmlSpinnerRelease('save_contact_meta');
         },
       });
+    }
+
+    // v2.0 [2.3]: Campo DDI (NOVO FORMATO: TomSelect + IMask) - baseado no modelo externo
+    function initInternationalPhoneInput() {
+      try {
+        var selectEl = document.getElementById('ctwpml-phone-country');
+        var inputEl = document.getElementById('ctwpml-input-fone');
+        var hiddenEl = document.getElementById('ctwpml-phone-full');
+
+        if (!selectEl || !inputEl || !hiddenEl) {
+          if (typeof state.checkpoint === 'function') state.checkpoint('CHK_PHONE_WIDGET_INIT', false, { reason: 'missing_dom', hasSelect: !!selectEl, hasInput: !!inputEl, hasHidden: !!hiddenEl });
+          return;
+        }
+
+        if (String(inputEl.getAttribute('data-ctwpml-phone-initialized') || '') === '1') return;
+
+        // deps
+        if (!window.IMask || !window.TomSelect) {
+          if (typeof state.log === 'function') state.log('UI        v2.0 [2.3] deps ausentes (IMask/TomSelect)', { hasIMask: !!window.IMask, hasTomSelect: !!window.TomSelect }, 'UI');
+          if (typeof state.checkpoint === 'function') state.checkpoint('CHK_PHONE_WIDGET_INIT', false, { reason: 'missing_deps', hasIMask: !!window.IMask, hasTomSelect: !!window.TomSelect });
+          return;
+        }
+
+        // countryData: ISO2 -> [Nome, DDI, Máscara]
+        var countryData = {
+          BR: ['Brasil', '55', '(00) 00000-0000'],
+          US: ['Estados Unidos', '1', '(000) 000-0000'],
+          PT: ['Portugal', '351', '000 000 000'],
+          AO: ['Angola', '244', '000 000 000'],
+          AR: ['Argentina', '54', '(000) 000-0000'],
+          AU: ['Austrália', '61', '0000 000 000'],
+          GB: ['Reino Unido', '44', '0000 000000'],
+          DE: ['Alemanha', '49', '0000 0000000'],
+          ES: ['Espanha', '34', '000 000 000'],
+          FR: ['França', '33', '0 00 00 00 00'],
+          IT: ['Itália', '39', '000 000 0000'],
+          CA: ['Canadá', '1', '(000) 000-0000'],
+          JP: ['Japão', '81', '00-0000-0000'],
+          CN: ['China', '86', '000 0000 0000'],
+          PY: ['Paraguai', '595', '000 000 000'],
+          UY: ['Uruguai', '598', '00 000 000'],
+          CL: ['Chile', '56', '9 0000 0000'],
+          CO: ['Colômbia', '57', '000 000 0000'],
+          MX: ['México', '52', '(000) 000-0000'],
+          PE: ['Peru', '51', '000 000 000'],
+          VE: ['Venezuela', '58', '(000) 000-0000'],
+          ZA: ['África do Sul', '27', '00 000 0000'],
+          CH: ['Suíça', '41', '00 000 00 00'],
+          SE: ['Suécia', '46', '00-000 000 00'],
+          NL: ['Holanda', '31', '06 00000000'],
+          BE: ['Bélgica', '32', '000 00 00 00'],
+          AT: ['Áustria', '43', '000 0000000'],
+          DK: ['Dinamarca', '45', '00 00 00 00'],
+          NO: ['Noruega', '47', '000 00 000'],
+          FI: ['Finlândia', '358', '00 000 0000'],
+          NZ: ['Nova Zelândia', '64', '000 000 000'],
+          IE: ['Irlanda', '353', '00 000 0000'],
+          TR: ['Turquia', '90', '(000) 000 00 00'],
+          KR: ['Coreia do Sul', '82', '00-0000-0000'],
+          IL: ['Israel', '972', '00-000-0000'],
+          SA: ['Arábia Saudita', '966', '00 000 0000'],
+          AE: ['Emirados Árabes', '971', '00 000 0000'],
+          IN: ['Índia', '91', '00000 00000'],
+          ID: ['Indonésia', '62', '000-0000-0000'],
+          RU: ['Rússia', '7', '(000) 000-00-00'],
+          PL: ['Polônia', '48', '000 000 000'],
+          UA: ['Ucrânia', '380', '00 000 00 00'],
+          XX: ['Outro', '', '000000000000000'],
+        };
+
+        function getFlagEmoji(code) {
+          try {
+            if (code === 'XX') return '🌐';
+            return String(code || '')
+              .toUpperCase()
+              .replace(/./g, function (char) {
+                return String.fromCodePoint(char.charCodeAt(0) + 127397);
+              });
+          } catch (e) {
+            return '';
+          }
+        }
+
+        var options = [];
+        Object.keys(countryData).forEach(function (code) {
+          if (code === 'XX') return;
+          options.push({
+            value: code,
+            text: countryData[code][0],
+            ddi: countryData[code][1],
+            flag: getFlagEmoji(code),
+          });
+        });
+        options.sort(function (a, b) {
+          return String(a.text || '').localeCompare(String(b.text || ''));
+        });
+        options.push({ value: 'XX', text: 'Outro', ddi: '+', flag: getFlagEmoji('XX') });
+
+        var maskInstance = null;
+
+        function updateHidden(countryCode, ddi, unmaskedValue) {
+          var val = String(unmaskedValue || '');
+          var ddiStr = String(ddi || '');
+          var full = '';
+          if (countryCode === 'XX') {
+            full = val ? ('+' + val.replace(/\D/g, '')) : '';
+          } else {
+            full = val ? ('+' + ddiStr + val.replace(/\D/g, '')) : '';
+          }
+          hiddenEl.value = full;
+
+          // Mantém billing_cellphone sincronizado (somente dígitos)
+          var digits = full ? full.replace(/\D/g, '') : '';
+          if (digits) $('#billing_cellphone').val(digits).trigger('change');
+
+          if (typeof state.log === 'function') {
+            state.log('UI        v2.0 [2.3] Phone accept', { country: countryCode, ddi: ddiStr ? ('+' + ddiStr) : '', digitsLen: digits.length, phone_full: full.slice(0, 8) + '...' }, 'UI');
+          }
+        }
+
+        function updateMask(countryCode, isInitCall) {
+          var data = countryData[countryCode];
+          if (!data) return;
+          var maskPattern = data[2];
+          var ddi = data[1];
+
+          if (maskInstance && typeof maskInstance.destroy === 'function') {
+            try { maskInstance.destroy(); } catch (e0) {}
+          }
+
+          var maskOpts = { lazy: true };
+          if (countryCode === 'BR') {
+            maskOpts.mask = [{ mask: '(00) 0000-0000' }, { mask: '(00) 00000-0000' }];
+          } else {
+            maskOpts.mask = maskPattern;
+          }
+
+          try {
+            maskInstance = window.IMask(inputEl, maskOpts);
+            maskInstance.on('accept', function () {
+              updateHidden(countryCode, ddi, maskInstance.unmaskedValue);
+            });
+
+            if (countryCode === 'BR') inputEl.placeholder = '(11) 99999-9999';
+            else inputEl.placeholder = String(maskPattern || '').replace(/0/g, '0');
+
+            // No modelo, ao trocar país limpa input/hidden (mantém UX consistente)
+            if (!isInitCall) {
+              inputEl.value = '';
+              hiddenEl.value = '';
+              $('#billing_cellphone').val('').trigger('change');
+            }
+
+            if (typeof state.checkpoint === 'function') {
+              state.checkpoint('CHK_PHONE_COUNTRY_CHANGED', true, { country: countryCode, dial_code: ddi ? ('+' + ddi) : '' });
+            }
+          } catch (e1) {
+            if (typeof state.checkpoint === 'function') {
+              state.checkpoint('CHK_PHONE_COUNTRY_CHANGED', false, { error: e1 && e1.message, country: countryCode });
+            }
+          }
+        }
+
+        var tom = new window.TomSelect(selectEl, {
+          options: options,
+          items: ['BR'],
+          valueField: 'value',
+          labelField: 'text',
+          searchField: ['text', 'ddi'],
+          maxOptions: null,
+          create: false,
+          openOnFocus: true,
+          render: {
+            option: function (data, escape) {
+              var ddiLabel = data.ddi === '+' ? '' : '+' + escape(data.ddi);
+              return (
+                '<div class="option-content" style="display:flex; align-items:center;">' +
+                '  <span class="option-flag" style="font-size:24px;margin-right:8px;line-height:1;">' + (data.flag || '') + '</span>' +
+                '  <div style="display:flex; flex-direction:column; margin-left:10px;">' +
+                '    <span class="option-name" style="font-weight:bold;">' + escape(data.text || '') + '</span>' +
+                '    <span class="option-ddi" style="color:#555;">' + ddiLabel + '</span>' +
+                '  </div>' +
+                '</div>'
+              );
+            },
+            item: function (data, escape) {
+              var ddiLabel = data.ddi === '+' ? '' : '+' + escape(data.ddi);
+              return (
+                '<div class="option-content" style="display:flex; align-items:center;">' +
+                '  <span class="option-flag" style="font-size:24px;line-height:1;">' + (data.flag || '') + '</span>' +
+                '  <span class="option-ddi" style="margin-left:5px;">' + ddiLabel + '</span>' +
+                '</div>'
+              );
+            },
+          },
+          dropdownParent: 'body',
+          onDropdownOpen: function (dropdown) {
+            try {
+              var searchInput = dropdown.querySelector('.dropdown-input');
+              if (searchInput) {
+                searchInput.setAttribute('inputmode', 'numeric');
+                searchInput.setAttribute('pattern', '[0-9]*');
+              }
+            } catch (e0) {}
+          },
+        });
+
+        tom.on('change', function (val) {
+          updateMask(String(val || ''), false);
+          try { setTimeout(function () { inputEl.focus(); }, 100); } catch (e0) {}
+        });
+
+        function setNationalDigits(countryCode, digits, opts) {
+          try {
+            var cc = String(countryCode || '').toUpperCase();
+            var only = String(digits || '').replace(/\D/g, '');
+            if (!cc) cc = 'BR';
+
+            // BR: nunca permitir que o DDI apareça no input (somente no seletor).
+            // Se vier um número com DDI repetido (ex.: 5555...), remove apenas um prefixo de DDI.
+            if (cc === 'BR') {
+              var brDdi = String((countryData.BR && countryData.BR[1]) || '55');
+              if (only.length >= 12 && only.indexOf(brDdi) === 0) {
+                only = only.slice(brDdi.length);
+              }
+            }
+
+            tom.setValue(cc, true);
+            updateMask(cc, true);
+
+            if (maskInstance) {
+              try { maskInstance.unmaskedValue = only; } catch (e1) {}
+            } else {
+              inputEl.value = only;
+            }
+
+            var ddi = (countryData[cc] && countryData[cc][1]) ? String(countryData[cc][1]) : '';
+            updateHidden(cc, ddi, only);
+          } catch (e0) {}
+        }
+
+        // API para o resto do modal
+        window.ctwpmlPhoneWidget = {
+          getSelectedCountry: function () { return String(tom.getValue() || ''); },
+          getDialCode: function () {
+            var cc = String(tom.getValue() || '');
+            var ddi = (countryData[cc] && countryData[cc][1]) ? String(countryData[cc][1]) : '';
+            return ddi ? ('+' + ddi) : '';
+          },
+          getPhoneFull: function () { return String(hiddenEl.value || ''); },
+          getDigits: function () { return String(hiddenEl.value || '').replace(/\D/g, ''); },
+          setNationalDigits: function (countryCode, digits) {
+            setNationalDigits(countryCode, digits);
+          },
+          setPhoneFull: function (phoneFull) {
+            try {
+              var pf = String(phoneFull || '').trim();
+              if (!pf) return;
+              var hasPlus = pf.indexOf('+') === 0;
+              var digits = pf.replace(/\D/g, '');
+              if (!digits) return;
+
+              // Se não vier em formato E.164 (sem +), NÃO tenta inferir DDI.
+              // Isso evita “roubar” prefixos (ex.: DDD 55) e duplicar DDI no input.
+              if (!hasPlus) {
+                setNationalDigits('BR', digits);
+                return;
+              }
+
+              // Encontrar país por match de DDI (maior DDI primeiro)
+              var best = { code: 'XX', ddi: '', rest: digits };
+              Object.keys(countryData).forEach(function (code) {
+                var ddi = (countryData[code] && countryData[code][1]) ? String(countryData[code][1]) : '';
+                if (!ddi) return;
+                if (digits.indexOf(ddi) === 0 && ddi.length > (best.ddi || '').length) {
+                  best = { code: code, ddi: ddi, rest: digits.slice(ddi.length) };
+                }
+              });
+
+              tom.setValue(best.code, true);
+              updateMask(best.code, true);
+              if (maskInstance) {
+                try { maskInstance.unmaskedValue = String(best.rest || ''); } catch (e1) {}
+              } else {
+                inputEl.value = String(best.rest || '');
+              }
+              updateHidden(best.code, best.ddi, String(best.rest || ''));
+            } catch (e0) {}
+          },
+        };
+
+        // init default BR
+        updateMask('BR', true);
+        inputEl.setAttribute('data-ctwpml-phone-initialized', '1');
+
+        if (typeof state.checkpoint === 'function') state.checkpoint('CHK_PHONE_WIDGET_INIT', true, { defaultCountry: 'BR' });
+        if (typeof state.log === 'function') state.log('UI        v2.0 [2.3] Phone widget inicializado (TomSelect+IMask)', {}, 'UI');
+      } catch (e0) {
+        try {
+          if (typeof state.checkpoint === 'function') state.checkpoint('CHK_PHONE_WIDGET_INIT', false, { error: e0 && e0.message });
+        } catch (_) {}
+      }
     }
 
     function openModal() {
@@ -1792,6 +2993,7 @@
 
     function showList() {
       currentView = 'list';
+      formDirty = false;
       $('#ctwpml-modal-title').text('Meus endereços');
       $('#ctwpml-view-initial').hide();
       $('#ctwpml-view-shipping').hide();
@@ -1807,6 +3009,7 @@
 
     function showForm() {
       currentView = 'form';
+      formDirty = false;
       $('#ctwpml-modal-title').text('Adicione um endereço');
       $('#ctwpml-view-initial').hide();
       $('#ctwpml-view-shipping').hide();
@@ -1820,6 +3023,7 @@
       prefillFormFromCheckout();
       syncLoginBanner();
       syncCpfUiFromCheckout();
+      initInternationalPhoneInput(); // v2.0 [2.3] (TomSelect + IMask)
       loadContactMeta(); // Carregar WhatsApp e CPF salvos
       setFooterVisible(true);
       persistModalState({ view: 'form' });
@@ -1827,6 +3031,7 @@
 
     function showFormForNewAddress() {
       currentView = 'form';
+      formDirty = false;
       $('#ctwpml-modal-title').text('Adicionar endereço');
       $('#ctwpml-view-initial').hide();
       $('#ctwpml-view-shipping').hide();
@@ -1858,6 +3063,7 @@
       syncLoginBanner();
       syncCpfUiFromCheckout();
       // v3.2.13: Carregar CPF e WhatsApp do perfil (user_meta) para novo endereço
+      initInternationalPhoneInput(); // v2.0 [2.3] (TomSelect + IMask)
       loadContactMeta();
       setFooterVisible(true);
       persistModalState({ view: 'form' });
@@ -1870,6 +3076,7 @@
         return;
       }
       currentView = 'form';
+      formDirty = false;
       selectedAddressId = item.id;
       $('#ctwpml-modal-title').text('Editar endereço');
       $('#ctwpml-view-initial').hide();
@@ -1913,22 +3120,44 @@
       var receiverName = String(item.receiver_name || (first + ' ' + last)).trim();
       $('#ctwpml-input-nome').val(receiverName);
       
-      // WhatsApp: tentar do checkout primeiro
-      var phoneFromCheckout = ($('#billing_cellphone').val() || '').trim();
-      $('#ctwpml-input-fone').val(formatPhone(phoneFromCheckout));
-      
-      // v3.2.7: Se WhatsApp/CPF estiverem vazios, carregar do perfil (user_meta)
-      var needsContactMeta = !phoneFromCheckout;
-      if (needsContactMeta) {
-        loadContactMeta(function(meta) {
-          if (meta) {
-            // Preencher WhatsApp se estiver vazio
-            if (!$('#ctwpml-input-fone').val() && meta.whatsapp) {
-              $('#ctwpml-input-fone').val(formatPhone(meta.whatsapp));
-            }
+      // WhatsApp: fonte da verdade é phone_full do perfil; billing_cellphone é fallback.
+      initInternationalPhoneInput(); // v2.0 [2.3]
+
+      // 1) Primeiro tenta perfil (phone_full) para evitar duplicidade de DDI no input.
+      loadContactMeta(function (meta) {
+        var filled = false;
+        try {
+          if (meta && meta.phone_full && window.ctwpmlPhoneWidget && typeof window.ctwpmlPhoneWidget.setPhoneFull === 'function') {
+            window.ctwpmlPhoneWidget.setPhoneFull(String(meta.phone_full));
+            filled = true;
           }
-        });
-      }
+        } catch (e0) {}
+
+        // 2) Fallback: billing_cellphone do checkout (assumir nacional BR e nunca injetar DDI no input).
+        if (!filled) {
+          var phoneFromCheckout = ($('#billing_cellphone').val() || '').trim();
+          try {
+            var digits = phoneDigits(String(phoneFromCheckout || ''));
+            if (digits && window.ctwpmlPhoneWidget) {
+              // Se já vier com DDI 55 + DDD + número (13 dígitos), remove DDI para preencher só o nacional no input.
+              if (digits.length >= 12 && digits.indexOf('55') === 0) {
+                digits = digits.slice(2);
+              }
+              if (typeof window.ctwpmlPhoneWidget.setNationalDigits === 'function') {
+                window.ctwpmlPhoneWidget.setNationalDigits('BR', digits);
+              } else if (typeof window.ctwpmlPhoneWidget.setPhoneFull === 'function') {
+                window.ctwpmlPhoneWidget.setPhoneFull('+' + '55' + digits);
+              } else {
+                $('#ctwpml-input-fone').val(formatPhone(phoneFromCheckout));
+              }
+            } else {
+              $('#ctwpml-input-fone').val(formatPhone(phoneFromCheckout));
+            }
+          } catch (e1) {
+            $('#ctwpml-input-fone').val(formatPhone(phoneFromCheckout));
+          }
+        }
+      });
       
       syncLoginBanner();
       syncCpfUiFromCheckout();
@@ -2049,6 +3278,83 @@
 
       if (errors.length > 0) {
         state.log('ERROR     validateForm falhou', { errors: errors, city: city, st: st, hasLastCepLookup: !!lastCepLookup }, 'ERROR');
+
+        // UX: rolar automaticamente para o primeiro erro e focar o campo.
+        try {
+          var $body = $('.ctwpml-modal-body').first();
+          var bodyEl = $body.length ? $body[0] : null;
+
+          var $firstErr = $('#ctwpml-view-form .ctwpml-form-group.is-error:visible, #ctwpml-view-form input.is-error:visible, #ctwpml-view-form textarea.is-error:visible, #ctwpml-view-form .ctwpml-type-option.is-error:visible').first();
+          var $focus = null;
+
+          if ($firstErr.length) {
+            if ($firstErr.is('input,textarea')) {
+              $focus = $firstErr;
+            } else {
+              $focus = $firstErr.find('input,textarea').filter(':visible').first();
+              if (!$focus.length && $firstErr.is('.ctwpml-type-option')) {
+                $focus = $firstErr; // opção casa/trabalho
+              }
+            }
+
+            var targetEl = ($focus && $focus.length) ? $focus[0] : $firstErr[0];
+
+            if (bodyEl && targetEl && targetEl.getBoundingClientRect) {
+              var footerH = 0;
+              try {
+                var $footer = $('.ctwpml-footer:visible').first();
+                footerH = $footer.length ? ($footer.outerHeight() || 0) : 0;
+              } catch (e0) {}
+              if (!footerH) footerH = 180;
+
+              var bodyRect = bodyEl.getBoundingClientRect();
+              var targetRect = targetEl.getBoundingClientRect();
+
+              var vv = window.visualViewport;
+              var viewportTop = vv ? (vv.offsetTop || 0) : 0;
+              var viewportBottom = vv ? ((vv.offsetTop || 0) + (vv.height || window.innerHeight)) : window.innerHeight;
+
+              var padding = 16;
+              var targetTopOffset = 40;
+              var visibleTop = Math.max(bodyRect.top, viewportTop) + targetTopOffset;
+              var visibleBottom = Math.min(bodyRect.bottom, viewportBottom) - footerH - padding;
+              if (visibleBottom < visibleTop) visibleBottom = visibleTop + 10;
+
+              var nextTop = bodyEl.scrollTop;
+              var delta = 0;
+              if (targetRect.top < visibleTop) {
+                delta = (targetRect.top - visibleTop) - 12;
+                nextTop = Math.max(0, bodyEl.scrollTop + delta);
+              } else if (targetRect.bottom > visibleBottom) {
+                delta = (targetRect.bottom - visibleBottom) + 12;
+                nextTop = Math.max(0, bodyEl.scrollTop + delta);
+              }
+
+              try {
+                $body.stop(true).animate({ scrollTop: nextTop }, 250);
+              } catch (e1) {
+                bodyEl.scrollTop = nextTop;
+              }
+
+              try {
+                if (state && typeof state.checkpoint === 'function') {
+                  state.checkpoint('CHK_SCROLL_TO_FIRST_ERROR', true, {
+                    fieldId: String(($focus && $focus.length && $focus[0] && $focus[0].id) ? $focus[0].id : ''),
+                    delta: delta,
+                    nextTop: nextTop,
+                  });
+                }
+              } catch (e2) {}
+            }
+
+            // Foco após iniciar scroll (ajuda mobile/teclado).
+            if ($focus && $focus.length) {
+              setTimeout(function () {
+                try { $focus.focus(); } catch (e3) {}
+              }, 80);
+            }
+          }
+        } catch (e4) {}
       }
 
       return ok;
@@ -2125,22 +3431,25 @@
 
     function formatFullAddressLine(it) {
       it = it || {};
-      var label = (it.label || '').trim();
+      var label = (it.label || '').trim(); // Casa/Trabalho (opcional)
+      var a1 = (it.address_1 || '').trim();
       var number = (it.number || '').trim();
-      var prefix = '';
-      if (label) prefix = label + (number ? ' ' + number : '');
-      else if (number) prefix = number;
+      var complement = (it.complement || '').trim();
 
-      var location = [];
-      if (it.neighborhood) location.push(it.neighborhood);
-      if (it.city) location.push(it.city);
-      if (it.state) location.push(it.state);
+      // Linha 1: Rua + Número + Complemento
+      var line1 = (a1 ? a1 : 'Endereço') + (number ? ', ' + number : '');
+      if (complement) line1 += ' - ' + complement;
 
-      var line = '';
-      if (prefix) line += prefix;
-      if (prefix && location.length) line += ' - ';
-      line += location.join(', ');
+      var parts = [];
+      if (it.neighborhood) parts.push(String(it.neighborhood));
+      if (it.city) parts.push(String(it.city));
+      if (it.state) parts.push(String(it.state));
+
+      var line = line1 + (parts.length ? ' - ' + parts.join(', ') : '');
       if (it.cep) line += (line ? ', ' : '') + 'CEP ' + formatCep(it.cep);
+
+      // Prefixo opcional com label (não duplicar número aqui)
+      if (label) line = label + ': ' + line;
       return line;
     }
 
@@ -2267,8 +3576,17 @@
       });
     }
 
-    function saveAddressFromForm(done) {
+    function saveAddressFromForm(optionsOrDone, maybeDone) {
+      var opts = {};
+      var done = null;
+      if (typeof optionsOrDone === 'function') {
+        done = optionsOrDone;
+      } else {
+        opts = optionsOrDone && typeof optionsOrDone === 'object' ? optionsOrDone : {};
+        done = typeof maybeDone === 'function' ? maybeDone : null;
+      }
       done = typeof done === 'function' ? done : function () {};
+
       if (!state.params || !state.params.ajax_url || !state.params.addresses_nonce) {
         done({ ok: false, message: 'AJAX indisponível.' });
         return;
@@ -2279,7 +3597,8 @@
       }
       isSavingAddress = true;
       $('#ctwpml-btn-primary').prop('disabled', true);
-      showModalSpinner();
+      var spinnerManagedByCaller = !!(opts && opts.spinnerManagedByCaller);
+      if (!spinnerManagedByCaller) ctwpmlSpinnerAcquire('save_address_flow');
 
       var cepOnly = cepDigits($('#ctwpml-input-cep').val());
       var label = '';
@@ -2287,7 +3606,14 @@
       if ($('#ctwpml-type-work').hasClass('is-active')) label = 'Trabalho';
 
       var receiverName = ($('#ctwpml-input-nome').val() || '').trim();
-      var whatsappDigits = phoneDigits($('#ctwpml-input-fone').val());
+      // v2.0 [2.3] (novo formato): preferir digits do hidden phone_full
+      var whatsappDigits = '';
+      try {
+        var phoneFull = ($('#ctwpml-phone-full').val() || '').toString();
+        whatsappDigits = phoneFull ? phoneFull.replace(/\D/g, '') : phoneDigits($('#ctwpml-input-fone').val());
+      } catch (e0) {
+        whatsappDigits = phoneDigits($('#ctwpml-input-fone').val());
+      }
       var cpfDigits = cpfDigitsOnly($('#ctwpml-input-cpf').val());
 
       // v3.2.13: Primeiro, chamar webhook com evento consultaEnderecoFrete (completo)
@@ -2332,7 +3658,7 @@
           if (normalized && normalized.whatsappValido === false) {
             isSavingAddress = false;
             $('#ctwpml-btn-primary').prop('disabled', false);
-            hideModalSpinner();
+            if (!spinnerManagedByCaller) ctwpmlSpinnerRelease('save_address_flow');
             setFieldError('#ctwpml-input-fone', true);
             showNotification('Por favor, confira o seu número de WhatsApp.', 'error', 5000);
             done({ ok: false, message: 'WhatsApp inválido.' });
@@ -2340,7 +3666,7 @@
           }
 
           // Agora salvar o endereço no backend; payload será persistido APÓS obter address_id
-          doSaveAddressToBackend(cepOnly, label, receiverName, normalized, done, webhookData);
+          doSaveAddressToBackend(cepOnly, label, receiverName, normalized, done, webhookData, { spinnerManagedByCaller: spinnerManagedByCaller });
         },
         error: function (jqXHR, textStatus, errorThrown) {
           if (typeof state.log === 'function')
@@ -2348,13 +3674,15 @@
           
           // Mesmo com erro no webhook, tentar salvar o endereço usando dados em cache
           if (typeof state.log === 'function') state.log('UI        Salvando endereço sem resposta do webhook (usando cache)...', {}, 'UI');
-          doSaveAddressToBackend(cepOnly, label, receiverName, lastCepLookup, done, null);
+          doSaveAddressToBackend(cepOnly, label, receiverName, lastCepLookup, done, null, { spinnerManagedByCaller: spinnerManagedByCaller });
         },
       });
     }
 
     // v3.2.13: Função auxiliar para salvar endereço no backend (após validação do webhook)
-    function doSaveAddressToBackend(cepOnly, label, receiverName, webhookData, done, webhookRawForPayload) {
+    function doSaveAddressToBackend(cepOnly, label, receiverName, webhookData, done, webhookRawForPayload, opts) {
+      opts = opts && typeof opts === 'object' ? opts : {};
+      var spinnerManagedByCaller = !!opts.spinnerManagedByCaller;
       // Usar dados do webhook ou fallback para lastCepLookup ou campos do checkout
       var neighborhood = '';
       var city = '';
@@ -2442,7 +3770,7 @@
           done({ ok: false, message: 'Erro ao salvar endereço.' });
         },
         complete: function () {
-          hideModalSpinner();
+          if (!spinnerManagedByCaller) ctwpmlSpinnerRelease('save_address_flow');
         },
       });
     }
@@ -3002,13 +4330,40 @@
       }
       if (currentView === 'form') {
         console.log('[CTWPML][DEBUG] - voltando de form para list');
+        if (formDirty) {
+          try {
+            if (state && typeof state.checkpoint === 'function') {
+              state.checkpoint('CHK_FORM_DIRTY_BLOCK_BACK', true, { via: 'modal_back' });
+            }
+          } catch (e0) {}
+          // Produto decidiu: OK = voltar sem salvar / Cancelar = continuar editando
+          if (!window.confirm('Você tem alterações não salvas. Deseja voltar sem salvar?')) {
+            return;
+          }
+        }
         showList();
         renderAddressList();
         return;
       }
       if (currentView === 'initial') {
         console.log('[CTWPML][DEBUG] - fechando modal (estava em initial)');
-        closeModal({ reason: 'back_from_initial', allowNavigateBack: true });
+        // v5.x: no início do fluxo, voltar deve sair do checkout e ir para o carrinho
+        var cartUrl = (state.params && state.params.cart_url) ? String(state.params.cart_url) : '';
+        if (cartUrl) {
+          closeModal({ reason: 'back_from_initial', allowNavigateBack: false });
+          try {
+            if (typeof state.checkpoint === 'function') state.checkpoint('CHK_NAV_BACK_TO_CART', true, { cartUrl: cartUrl });
+          } catch (eC) {}
+          setTimeout(function () {
+            try { window.location.href = cartUrl; } catch (eN) {}
+          }, 0);
+        } else {
+          try {
+            if (typeof state.checkpoint === 'function') state.checkpoint('CHK_NAV_BACK_TO_CART', false, { reason: 'missing_cart_url' });
+          } catch (eC2) {}
+          // fallback: comportamento antigo (history)
+          closeModal({ reason: 'back_from_initial_fallback', allowNavigateBack: true });
+        }
         return;
       }
       console.log('[CTWPML][DEBUG] - fechando modal (view desconhecida)');
@@ -3127,6 +4482,16 @@
     });
     $(document).on('click', '#ctwpml-btn-secondary', function () {
       if ($('#ctwpml-view-form').is(':visible')) {
+        if (formDirty) {
+          try {
+            if (state && typeof state.checkpoint === 'function') {
+              state.checkpoint('CHK_FORM_DIRTY_BLOCK_BACK', true, { via: 'footer_secondary' });
+            }
+          } catch (e0) {}
+          if (!window.confirm('Você tem alterações não salvas. Deseja voltar sem salvar?')) {
+            return;
+          }
+        }
         showList();
         renderAddressList();
       } else {
@@ -3141,20 +4506,27 @@
           return;
         }
         applyFormToCheckout();
-        // Salvar WhatsApp e CPF antes do endereço
-        saveContactMeta(function () {
-          saveAddressFromForm(function (res) {
+        // Spinner deve persistir até confirmação + retorno para lista (evita confusão/janela sem bloqueio).
+        ctwpmlSpinnerAcquire('primary_save_click');
+
+        var releaseOnce = function (ok) {
+          try { ctwpmlSpinnerRelease('primary_save_click'); } catch (e0) {}
+        };
+
+        // Salvar WhatsApp e CPF antes do endereço (sem mexer no spinner aqui).
+        saveContactMeta({ silent: true, spinnerManagedByCaller: true }, function () {
+          saveAddressFromForm({ spinnerManagedByCaller: true }, function (res) {
             if (!res || !res.ok) {
               // Não precisa de alert, a notificação já foi exibida
               state.log('ERROR     saveAddressFromForm falhou', res || {}, 'ERROR');
+              releaseOnce(false);
               return;
             }
 
-            // Aguardar 800ms para usuário ver a confirmação, depois voltar para lista
-            setTimeout(function () {
-              showList();
-              renderAddressList();
-            }, 800);
+            // Toast de sucesso já foi exibido dentro do save; agora voltamos para lista e só então liberamos spinner.
+            showList();
+            renderAddressList();
+            releaseOnce(true);
           });
         });
       } else {
@@ -3258,6 +4630,9 @@
     });
 
     // Tela prazo: botão Continuar (confirma seleção e avança)
+    // Flag para evitar múltiplas esperas simultâneas
+    var __shippingContinueWaiting = false;
+    
     $(document).on('click', '#ctwpml-shipping-continue', function () {
       var log = function (msg, data) {
         if (typeof state.log === 'function') {
@@ -3266,7 +4641,8 @@
           console.log('[CTWPML][SHIPPING] ' + msg, data || '');
         }
       };
-
+      
+      var $btn = $(this);
       var $selected = $('#ctwpml-view-shipping .ctwpml-shipping-option.is-selected');
       var selectedMethod = $selected.data('method-id');
       var selectedType = $selected.data('type');
@@ -3279,6 +4655,37 @@
         log('ERRO: Nenhum método selecionado');
         showNotification('Selecione uma opção de entrega.', 'error');
         return;
+      }
+      
+      // Função auxiliar para avançar para pagamento
+      function proceedToPayment() {
+        log('Método de frete confirmado, avançando para tela de pagamento');
+
+        // Garantir persistência (caso tenha vindo via pré-seleção automática)
+        state.selectedShipping = {
+          methodId: selectedMethod || '',
+          type: selectedType || '',
+          priceText: selectedPriceText || '',
+          label: selectedLabelText || '',
+        };
+        persistModalState({ selectedShipping: state.selectedShipping, view: 'shipping' });
+
+        // Dispara evento customizado para que outros módulos possam reagir
+        $(document.body).trigger('ctwpml_shipping_selected', {
+          method_id: selectedMethod,
+          type: selectedType,
+        });
+
+        log('Evento ctwpml_shipping_selected disparado');
+
+        // Avançar para a tela de pagamento (não fecha o modal)
+        showPaymentScreen();
+      }
+      
+      // Função para restaurar botão ao estado normal
+      function restoreButton() {
+        __shippingContinueWaiting = false;
+        $btn.prop('disabled', false).text('Continuar');
       }
 
       // Bloquear avanço se o Woo NÃO aplicou de fato o método selecionado (evita finalizar com PAC por fallback).
@@ -3295,38 +4702,93 @@
           return;
         }
 
-        // Se o Woo está com outro método checked, não avança (mesmo que UI esteja em outro).
+        // Se o Woo está com outro método checked, aguardar aplicação ao invés de pedir "tente novamente"
         if (wooChecked && String(wooChecked) !== String(selectedMethod)) {
-          log('Bloqueando avanço: Woo checked != UI selected', { selectedMethod: String(selectedMethod), wooChecked: wooChecked, last: last });
-          if (typeof state.checkpoint === 'function') state.checkpoint('CHK_SHIPPING_CONTINUE_BLOCKED', true, { reason: 'woo_mismatch', selectedMethod: String(selectedMethod), wooChecked: wooChecked, last: last });
-          showNotification('O checkout ainda não aplicou o frete selecionado. Aguarde 2 segundos e tente novamente.', 'error', 4500);
+          log('Aguardando aplicação: Woo checked != UI selected', { selectedMethod: String(selectedMethod), wooChecked: wooChecked, last: last });
+          if (typeof state.checkpoint === 'function') state.checkpoint('CHK_SHIPPING_CONTINUE_BLOCKED', true, { reason: 'woo_mismatch_waiting', selectedMethod: String(selectedMethod), wooChecked: wooChecked, last: last });
+          
+          // Se já está aguardando, não faz nada
+          if (__shippingContinueWaiting) {
+            log('Já aguardando aplicação do frete...');
+            return;
+          }
+          
+          // Mostrar estado de "aguardando" no botão
+          __shippingContinueWaiting = true;
+          $btn.prop('disabled', true).text('Aplicando frete...');
+          
+          // Re-disparar setShippingMethodInWC para garantir que está em andamento
+          setShippingMethodInWC(selectedMethod);
+          
+          // Aguardar updated_checkout e verificar novamente
+          var waitStart = Date.now();
+          var maxWait = 8000; // máximo 8 segundos
+          
+          var checkAndProceed = function() {
+            var newSnap = ctwpmlReadWooShippingDomSnapshot();
+            var newChecked = newSnap && newSnap.checked ? String(newSnap.checked) : '';
+            
+            log('Verificando após updated_checkout:', { newChecked: newChecked, selectedMethod: String(selectedMethod), elapsed: Date.now() - waitStart });
+            
+            if (newChecked === String(selectedMethod)) {
+              // Sucesso! Avançar automaticamente
+              log('Frete aplicado com sucesso, auto-avançando');
+              if (typeof state.checkpoint === 'function') state.checkpoint('CHK_SHIPPING_CONTINUE_ALLOWED', true, { selectedMethod: String(selectedMethod), wooChecked: newChecked, autoAdvance: true });
+              restoreButton();
+              proceedToPayment();
+            } else if (Date.now() - waitStart > maxWait) {
+              // Timeout - restaurar e mostrar erro
+              log('Timeout aguardando aplicação do frete');
+              restoreButton();
+              showNotification('O frete está demorando para aplicar. Tente novamente.', 'error', 4500);
+            }
+            // Se ainda não aplicou e não deu timeout, o próximo updated_checkout vai chamar novamente
+          };
+          
+          // Escutar updated_checkout até aplicar ou timeout
+          var onUpdatedCheckout = function() {
+            if (!__shippingContinueWaiting) return; // já resolvido
+            checkAndProceed();
+          };
+          
+          $(document.body).on('updated_checkout.ctwpml_shipping_wait', onUpdatedCheckout);
+          
+          // Também verificar com polling como fallback (caso updated_checkout não dispare)
+          var pollInterval = setInterval(function() {
+            if (!__shippingContinueWaiting) {
+              clearInterval(pollInterval);
+              $(document.body).off('updated_checkout.ctwpml_shipping_wait');
+              return;
+            }
+            if (Date.now() - waitStart > maxWait) {
+              clearInterval(pollInterval);
+              $(document.body).off('updated_checkout.ctwpml_shipping_wait');
+              restoreButton();
+              showNotification('O frete está demorando para aplicar. Tente novamente.', 'error', 4500);
+              return;
+            }
+            // Verificar DOM periodicamente
+            var pollSnap = ctwpmlReadWooShippingDomSnapshot();
+            var pollChecked = pollSnap && pollSnap.checked ? String(pollSnap.checked) : '';
+            if (pollChecked === String(selectedMethod)) {
+              clearInterval(pollInterval);
+              $(document.body).off('updated_checkout.ctwpml_shipping_wait');
+              log('Frete aplicado (detectado via polling)');
+              if (typeof state.checkpoint === 'function') state.checkpoint('CHK_SHIPPING_CONTINUE_ALLOWED', true, { selectedMethod: String(selectedMethod), wooChecked: pollChecked, autoAdvance: true, viaPolling: true });
+              restoreButton();
+              proceedToPayment();
+            }
+          }, 500);
+          
           return;
         }
 
         if (typeof state.checkpoint === 'function') state.checkpoint('CHK_SHIPPING_CONTINUE_ALLOWED', true, { selectedMethod: String(selectedMethod), wooChecked: wooChecked, last: last });
-      } catch (e0) {}
+      } catch (e0) {
+        log('Erro ao verificar estado do frete:', e0);
+      }
 
-      log('Método de frete confirmado, avançando para tela de pagamento');
-
-      // Garantir persistência (caso tenha vindo via pré-seleção automática)
-      state.selectedShipping = {
-        methodId: selectedMethod || '',
-        type: selectedType || '',
-        priceText: selectedPriceText || '',
-        label: selectedLabelText || '',
-      };
-      persistModalState({ selectedShipping: state.selectedShipping, view: 'shipping' });
-
-      // Dispara evento customizado para que outros módulos possam reagir
-      $(document.body).trigger('ctwpml_shipping_selected', {
-        method_id: selectedMethod,
-        type: selectedType,
-      });
-
-      log('Evento ctwpml_shipping_selected disparado');
-
-      // Avançar para a tela de pagamento (não fecha o modal)
-      showPaymentScreen();
+      proceedToPayment();
     });
 
     // Tela 3 (Pagamento): clique em opção de pagamento (Pix, Boleto, Cartão)
@@ -3378,19 +4840,19 @@
       };
 
       log('Click em inserir cupom - abrindo drawer');
-      toggleCouponDrawer(true);
+      ctwpmlToggleCouponDrawer(true);
     });
 
     // Tela 3 (Pagamento): fechar drawer de cupom (click no overlay)
     $(document).on('click', '#ctwpml-coupon-overlay', function (e) {
       e.preventDefault();
-      toggleCouponDrawer(false);
+      ctwpmlToggleCouponDrawer(false);
     });
 
     // Tela 3 (Pagamento): fechar drawer de cupom (click no botão X)
     $(document).on('click', '#ctwpml-coupon-close', function (e) {
       e.preventDefault();
-      toggleCouponDrawer(false);
+      ctwpmlToggleCouponDrawer(false);
     });
 
     // Tela 3 (Pagamento): input no campo de cupom - habilita/desabilita botão
@@ -3405,12 +4867,13 @@
       }
     });
 
-    // Tela 3 (Pagamento): click no botão adicionar cupom
+    // Tela 3 (Pagamento): click no botão adicionar cupom - via AJAX controlado (sem reload)
     $(document).on('click', '#ctwpml-add-coupon-btn', function (e) {
       e.preventDefault();
+      try { e.stopPropagation(); } catch (e0) {}
       
       var $btn = $(this);
-      if ($btn.prop('disabled')) return;
+      if ($btn.prop('disabled') || $btn.hasClass('is-loading')) return;
       
       var log = function (msg, data) {
         if (typeof state.log === 'function') {
@@ -3421,106 +4884,360 @@
       };
 
       var couponCode = $('#ctwpml-coupon-input').val().trim();
-      log('Click em adicionar cupom:', { code: couponCode });
+      log('Click em adicionar cupom (AJAX):', { code: couponCode });
 
-      var woo = window.CCCheckoutTabs && window.CCCheckoutTabs.WooHost ? window.CCCheckoutTabs.WooHost : null;
-      if (!woo || typeof woo.ensureBlocks !== 'function') {
-        showNotification('Checkout não está pronto para aplicar cupom.', 'error', 3500);
-        return;
-      }
       if (!couponCode) return;
 
-      woo.ensureBlocks().then(function () {
-        // Debug/Checkpoint: tentativa de injeção do bloco de cupom
-        if (typeof state.checkpoint === 'function') {
-          try {
-            var last = window.CCCheckoutTabs && window.CCCheckoutTabs.__ctwpmlLastEnsureBlocks
-              ? window.CCCheckoutTabs.__ctwpmlLastEnsureBlocks
-              : null;
-            if (last && last.coupon) {
-              state.checkpoint('CHK_COUPON_BLOCK_FETCHED', !!last.coupon.fetched, {
-                fetched: last.coupon.fetched,
-                success: last.coupon.success,
-                htmlLength: last.coupon.htmlLength,
-              });
-            } else {
-              state.checkpoint('CHK_COUPON_BLOCK_FETCHED', false, { reason: 'no_lastEnsureBlocks' });
+      var ajaxUrl = state.params && state.params.ajax_url ? state.params.ajax_url : '';
+      var couponNonce = state.params && state.params.coupon_nonce ? state.params.coupon_nonce : '';
+
+      if (!ajaxUrl || !couponNonce) {
+        showNotification('Configuração inválida. Recarregue a página.', 'error', 3500);
+        return;
+      }
+
+      // Capturar totais antes para exibir preço riscado
+      var woo = window.CCCheckoutTabs && window.CCCheckoutTabs.WooHost ? window.CCCheckoutTabs.WooHost : null;
+      var before = woo && woo.readTotals ? woo.readTotals() : {};
+      state.__ctwpmlCouponAttempt = {
+        code: String(couponCode || ''),
+        couponName: String(couponCode || '').toUpperCase(),
+        originalTotal: String(before.totalText || ''),
+        originalSubtotal: String(before.subtotalText || ''),
+        ts: Date.now(),
+      };
+
+      // v4.2: Marcar cupom como "busy" para blindar eventos concorrentes do Woo
+      setCouponBusy(true);
+
+      // Mostrar spinner no botão
+      var originalBtnText = $btn.text();
+      $btn.addClass('is-loading').prop('disabled', true).data('original-text', originalBtnText);
+      $('#ctwpml-add-coupon-btn').removeClass('is-success');
+      $('#ctwpml-coupon-input').removeClass('is-error');
+
+      if (typeof state.checkpoint === 'function') {
+        state.checkpoint('CHK_COUPON_APPLY_AJAX_SENT', true, { code: couponCode, busy: true });
+      }
+
+      $.ajax({
+        url: ajaxUrl,
+        type: 'POST',
+        data: {
+          action: 'ctwpml_apply_coupon',
+          _ajax_nonce: couponNonce,
+          coupon_code: couponCode,
+        },
+        success: function (resp) {
+          log('Resposta apply_coupon AJAX:', resp);
+
+          if (resp && resp.success && resp.data) {
+            // Sucesso: atualizar UI com dados retornados
+            if (typeof state.checkpoint === 'function') {
+              state.checkpoint('CHK_COUPON_APPLY_AJAX_OK', true, { code: couponCode, data: resp.data });
             }
-          } catch (e0) {
-            state.checkpoint('CHK_COUPON_BLOCK_FETCHED', false, { reason: 'exception' });
-          }
-        }
 
-        // Debug/Checkpoint: presença de forms/elementor UI no DOM
-        if (typeof state.checkpoint === 'function') {
-          var counts = {
-            checkout_coupon: document.querySelectorAll('form.checkout_coupon').length,
-            woocommerce_checkout_form_coupon: document.querySelectorAll('#woocommerce-checkout-form-coupon').length,
-            elementor_coupon_box: document.querySelectorAll('.e-coupon-box').length,
-            elementor_apply_btn: document.querySelectorAll('.e-apply-coupon').length,
-            elementor_coupon_code: document.querySelectorAll('.e-coupon-box #coupon_code, .e-coupon-anchor #coupon_code, #coupon_code').length,
-          };
-          state.checkpoint('CHK_COUPON_FORM_FOUND', (counts.checkout_coupon + counts.woocommerce_checkout_form_coupon) > 0 || counts.elementor_apply_btn > 0, counts);
-        }
+            // Guardar desconto para exibir preço riscado
+            state.__ctwpmlPaymentDiscount = {
+              originalTotal: state.__ctwpmlCouponAttempt.originalTotal,
+              discountedTotal: resp.data.total_text || '',
+              originalSubtotal: state.__ctwpmlCouponAttempt.originalSubtotal,
+              discountedSubtotal: resp.data.subtotal_text || '',
+              couponName: String(couponCode || '').toUpperCase(),
+            };
 
-        // Preferir form padrão do Woo (tema ou injetado).
-        var $form = $('form.checkout_coupon').first();
-        if (!$form.length) $form = $('#woocommerce-checkout-form-coupon').first();
-        if ($form.length) {
-          var $code = $form.find('#coupon_code');
-          if (!$code.length) $code = $form.find('input[name="coupon_code"]');
-          if ($code.length) {
-            $code.val(couponCode).trigger('input').trigger('change');
-          }
-          // O template padrão do Woo deixa o form como display:none; garantimos submit “de verdade”.
-          try { $form.css('display', 'block'); } catch (e2) {}
-          $form.trigger('submit');
-        } else {
-          // Fallback Elementor: usa UI do Elementor (input #coupon_code + botão .e-apply-coupon)
-          try {
-            var $show = $('.e-show-coupon-form').first();
-            if ($show.length) $show.trigger('click');
-          } catch (e3) {}
+            // Atualizar lista de cupons na UI
+            if (typeof state.checkpoint === 'function') {
+              state.checkpoint('CHK_COUPON_APPLY_UPDATE_UI_START', true, { code: couponCode, couponsCount: (resp.data.coupons || []).length });
+            }
+            ctwpmlUpdateCouponsFromAjax(resp.data.coupons || [], 'payment');
+            ctwpmlUpdateCouponsFromAjax(resp.data.coupons || [], 'review');
 
-          var $elCode = $('.e-coupon-box #coupon_code, .e-coupon-anchor #coupon_code, #coupon_code').first();
-          var $elApply = $('.e-apply-coupon').first();
-          if ($elCode.length && $elApply.length) {
-            $elCode.val(couponCode).trigger('input').trigger('change');
-            // click real para permitir handlers do Elementor
-            try { $elApply[0].click(); } catch (e4) { $elApply.trigger('click'); }
+            // Atualizar totais na UI
+            ctwpmlUpdateTotalsFromAjax(resp.data);
+            // v4.7: Atualização imediata (sem depender de reload/navegação)
+            try {
+              ctwpmlUpdateTotalsStateFromAjax(resp.data, 'apply_ajax_success');
+              ctwpmlRenderTotalsUI('apply_ajax_success');
+              ctwpmlResyncReviewShipping('apply_ajax_success', resp.data);
+            } catch (eR0) {}
+
+            // Mostrar sucesso no botão
+            if (typeof state.checkpoint === 'function') {
+              state.checkpoint('CHK_COUPON_APPLY_SHOW_SUCCESS_START', true, { code: couponCode });
+            }
+            ctwpmlShowCouponSuccessIcon();
+            $('#ctwpml-coupon-input').val('');
+
+            // v4.4: Só fechar drawer quando o Woo terminar de atualizar (updated_checkout)
+            // e os totais do DOM baterem com o total esperado. Evita ver "HTML não renderizado" / layout intermediário.
+            (function waitWooAndFinalize() {
+              var expectedTotalText = String(resp.data.total_text || '');
+              var startedAt = Date.now();
+              var maxWait = 8000;
+              var finalized = false;
+
+              var finalize = function (reason) {
+                if (finalized) return;
+                finalized = true;
+                try { $(document.body).off('updated_checkout.ctwpml_coupon_apply_wait'); } catch (e0) {}
+                try { clearInterval(poll); } catch (e1) {}
+
+                // fechar drawer
+                ctwpmlToggleCouponDrawer(false);
+
+                // liberar state machine e resetar botão (só após estabilizar)
+                setCouponBusy(false);
+                $btn.removeClass('is-loading').prop('disabled', false);
+                var origText = $btn.data('original-text');
+                if (origText) $btn.text(origText);
+
+                if (typeof state.checkpoint === 'function') {
+                  state.checkpoint('CHK_COUPON_APPLY_DRAWER_CLOSED', true, { code: couponCode, reason: String(reason || ''), elapsedMs: Date.now() - startedAt });
+                }
+              };
+
+              var giveUpKeepOpen = function (reason, lastSnap) {
+                if (finalized) return;
+                finalized = true;
+                try { $(document.body).off('updated_checkout.ctwpml_coupon_apply_wait'); } catch (e0) {}
+                try { clearInterval(poll); } catch (e1) {}
+
+                // NÃO fechar o drawer no timeout: evita expor UI "meio atualizada"
+                // Libera o estado/botão para o usuário tentar novamente, mantendo o drawer aberto.
+                setCouponBusy(false);
+                $btn.removeClass('is-loading').prop('disabled', false);
+                var origText = $btn.data('original-text');
+                if (origText) $btn.text(origText);
+
+                if (typeof state.checkpoint === 'function') {
+                  state.checkpoint('CHK_COUPON_APPLY_WAIT_TIMEOUT_KEEP_OPEN', false, {
+                    code: couponCode,
+                    reason: String(reason || ''),
+                    expectedTotal: expectedTotalText,
+                    last: lastSnap || {},
+                    elapsedMs: Date.now() - startedAt,
+                  });
+                }
+                showNotification('O checkout ainda está atualizando. Aguarde mais alguns segundos antes de fechar.', 'info', 3500);
+              };
+
+              var checkNow = function (source) {
+                try {
+                  var w = window.CCCheckoutTabs && window.CCCheckoutTabs.WooHost ? window.CCCheckoutTabs.WooHost : null;
+                  var t = w && w.readTotals ? w.readTotals() : {};
+                  var cps = [];
+                  try { cps = w && w.readCoupons ? (w.readCoupons() || []) : []; } catch (e0) { cps = []; }
+                  var couponFound = false;
+                  var lc = String(couponCode || '').toLowerCase();
+                  if (lc && cps && cps.length) {
+                    couponFound = cps.some(function (c) { return String((c && c.code) || '').toLowerCase() === lc; });
+                  }
+                  var matches = ctwpmlTotalsRoughlyMatch(t.totalText || '', expectedTotalText);
+                  // Debug de visibilidade: só em updated_checkout/poll para não gerar spam
+                  if (typeof state.checkpoint === 'function' && (source === 'updated_checkout' || source === 'poll')) {
+                    state.checkpoint('CHK_COUPON_APPLY_WAIT_SNAPSHOT', true, {
+                      source: String(source || ''),
+                      expectedTotal: expectedTotalText,
+                      wooTotal: String(t.totalText || ''),
+                      matches: !!matches,
+                      couponFound: !!couponFound,
+                      wooCoupons: cps && cps.length ? cps.map(function (c) { return String((c && c.code) || ''); }) : [],
+                      elapsedMs: Date.now() - startedAt,
+                    });
+                  }
+                  if (matches) {
+                    if (typeof state.checkpoint === 'function') {
+                      state.checkpoint('CHK_COUPON_APPLY_WOO_TOTAL_MATCH', true, { source: String(source || ''), expected: expectedTotalText, wooTotal: String(t.totalText || '') });
+                    }
+                    finalize('woo_total_match:' + String(source || ''));
+                    return true;
+                  }
+                  // Fallback: se o cupom já apareceu no DOM do Woo, considera aplicado e fecha
+                  // (evita depender exclusivamente do total, que pode variar por texto/ruído)
+                  if (couponFound) {
+                    if (typeof state.checkpoint === 'function') {
+                      state.checkpoint('CHK_COUPON_APPLY_WOO_COUPON_FOUND', true, { source: String(source || ''), code: couponCode, wooTotal: String(t.totalText || ''), expectedTotal: expectedTotalText });
+                    }
+                    finalize('woo_coupon_found:' + String(source || ''));
+                    return true;
+                  }
+                } catch (e2) {}
+                return false;
+              };
+
+              // 1) escutar eventos do Woo
+              $(document.body).on('updated_checkout.ctwpml_coupon_apply_wait', function () {
+                if (finalized) return;
+                if (checkNow('updated_checkout')) return;
+                if (Date.now() - startedAt > maxWait) {
+                  // Capturar último snapshot antes de desistir
+                  var w = window.CCCheckoutTabs && window.CCCheckoutTabs.WooHost ? window.CCCheckoutTabs.WooHost : null;
+                  var t = w && w.readTotals ? w.readTotals() : {};
+                  var cps = [];
+                  try { cps = w && w.readCoupons ? (w.readCoupons() || []) : []; } catch (e0) { cps = []; }
+                  giveUpKeepOpen('timeout_updated_checkout', { wooTotal: String(t.totalText || ''), wooCoupons: cps.map(function (c) { return String((c && c.code) || ''); }) });
+                }
+              });
+
+              // 2) fallback: polling curto (caso updated_checkout não dispare)
+              var poll = setInterval(function () {
+                if (finalized) return;
+                if (checkNow('poll')) return;
+                if (Date.now() - startedAt > maxWait) {
+                  var w = window.CCCheckoutTabs && window.CCCheckoutTabs.WooHost ? window.CCCheckoutTabs.WooHost : null;
+                  var t = w && w.readTotals ? w.readTotals() : {};
+                  var cps = [];
+                  try { cps = w && w.readCoupons ? (w.readCoupons() || []) : []; } catch (e0) { cps = []; }
+                  giveUpKeepOpen('timeout_poll', { wooTotal: String(t.totalText || ''), wooCoupons: cps.map(function (c) { return String((c && c.code) || ''); }) });
+                }
+              }, 200);
+
+              // 3) check imediato (às vezes já está pronto)
+              checkNow('immediate');
+            })();
+
+            if (typeof state.checkpoint === 'function') {
+              state.checkpoint('CHK_COUPON_APPLY_SHOW_SUCCESS_DONE', true, { code: couponCode });
+            }
+
+            // Disparar evento para que o Woo atualize (fragments)
+            if (typeof state.checkpoint === 'function') {
+              state.checkpoint('CHK_COUPON_APPLY_TRIGGER_WOO_EVENTS', true, { code: couponCode, couponBusy: isCouponBusy() });
+            }
+            $(document.body).trigger('update_checkout');
+            $(document.body).trigger('applied_coupon', [couponCode]);
+
           } else {
-            showNotification('Form de cupom não encontrado.', 'error', 3500);
-            return;
+            // Erro
+            var errorMsg = (resp && resp.data && resp.data.message) ? resp.data.message : 'Cupom inválido.';
+            if (typeof state.checkpoint === 'function') {
+              state.checkpoint('CHK_COUPON_APPLY_AJAX_FAIL', false, { code: couponCode, error: errorMsg });
+            }
+            showNotification(errorMsg, 'error', 4000);
+            $('#ctwpml-coupon-input').addClass('is-error');
           }
-        }
-        try {
+
+          // v4.4: No sucesso, finalize() controla o reset/close após estabilizar.
+          // No erro, liberamos imediatamente.
+          if (!(resp && resp.success && resp.data)) {
+            setCouponBusy(false);
+            $btn.removeClass('is-loading').prop('disabled', false);
+            var origText = $btn.data('original-text');
+            if (origText) $btn.text(origText);
+          }
+        },
+        error: function (xhr, status, error) {
+          log('Erro AJAX apply_coupon:', { status: status, error: error });
           if (typeof state.checkpoint === 'function') {
-            state.checkpoint('CHK_OVERLAY_SOURCES', true, {
-              source: 'apply_coupon',
-              hasBlockOverlay: document.querySelectorAll('.blockUI.blockOverlay').length,
-              hasBlockMsg: document.querySelectorAll('.blockUI.blockMsg').length,
-              hasNoticeGroup: document.querySelectorAll('.woocommerce-NoticeGroup, .woocommerce-NoticeGroup-checkout').length,
-            });
+            state.checkpoint('CHK_COUPON_APPLY_AJAX_ERROR', false, { status: status, error: error });
           }
-        } catch (e5) {}
+          showNotification('Erro ao aplicar cupom. Tente novamente.', 'error', 4000);
 
-        toggleCouponDrawer(false);
+          // v4.2: Liberar state machine de cupom
+          setCouponBusy(false);
 
-        // Após o Woo atualizar o checkout, sincronizamos os valores do footer.
-        setTimeout(function () {
-          applyPaymentAvailabilityAndSync();
-        }, 600);
+          $btn.removeClass('is-loading').prop('disabled', false);
+          var origText = $btn.data('original-text');
+          if (origText) $btn.text(origText);
+        },
       });
     });
 
     /**
-     * Toggle do drawer de cupom
-     * @param {boolean} show - true para abrir, false para fechar
+     * Atualiza a lista de cupons na UI a partir da resposta AJAX
+     * @param {Array} coupons - Lista de cupons [{code, amount_text}]
+     * @param {string} context - 'payment' ou 'review'
      */
-    function toggleCouponDrawer(show) {
-      var $overlay = $('#ctwpml-coupon-overlay');
-      var $drawer = $('#ctwpml-coupon-drawer');
-      
+    function ctwpmlUpdateCouponsFromAjax(coupons, context) {
+      var targetId = context === 'review' ? 'ctwpml-review-coupons' : 'ctwpml-payment-coupons';
+      var $block = $('#' + targetId);
+      if (!$block.length) return;
+
+      if (!coupons || coupons.length === 0) {
+        $block.hide().empty();
+        return;
+      }
+
+      // v4.6: Usa layout unificado (ícone → nome → remover; valor à direita)
+      var pluginUrl = (window.cc_params && window.cc_params.plugin_url ? window.cc_params.plugin_url : '');
+      var removeIconUrl = pluginUrl + 'assets/img/icones/remover-cupom.svg';
+      var couponIconUrl = pluginUrl + 'assets/img/icones/coupom-icon.svg';
+      var title = coupons.length > 1 ? 'Cupons aplicados' : 'Cupom aplicado';
+      var html = '<div class="ctwpml-coupons-title">' + title + '</div>';
+
+      coupons.forEach(function (c) {
+        var code = String(c.code || '').toUpperCase();
+        var amount = String(c.amount_text || '');
+        html +=
+          '<div class="ctwpml-coupon-row" data-coupon-code="' + code.toLowerCase() + '">' +
+          '  <div class="ctwpml-coupon-left">' +
+          '    <img src="' + couponIconUrl + '" alt="" class="ctwpml-coupon-icon" width="16" height="16" />' +
+          '    <span class="ctwpml-coupon-code">' + code + '</span>' +
+          '    <button type="button" class="ctwpml-coupon-remove" data-coupon-code="' + code.toLowerCase() + '" data-ctwpml-context="' + context + '" title="Remover cupom"><img src="' + removeIconUrl + '" alt="Remover" width="18" height="18"></button>' +
+          '  </div>' +
+          '  <div class="ctwpml-coupon-right">' +
+          '    <span class="ctwpml-coupon-amount">' + amount + '</span>' +
+          '  </div>' +
+          '</div>';
+      });
+
+      $block.html(html).show();
+    }
+
+    /**
+     * Atualiza os totais na UI a partir da resposta AJAX
+     * @param {Object} data - Dados {subtotal_text, total_text, shipping_text, discount_text}
+     */
+    function ctwpmlUpdateTotalsFromAjax(data) {
+      if (!data) return;
+
+      // Tela Payment
+      if (data.subtotal_text) {
+        var $subtotalVal = $('#ctwpml-payment-subtotal-value');
+        if ($subtotalVal.length) $subtotalVal.text(data.subtotal_text);
+      }
+      if (data.total_text) {
+        var $totalVal = $('#ctwpml-payment-total-value');
+        if ($totalVal.length) $totalVal.text(data.total_text);
+      }
+
+      // Tela Review
+      if (data.subtotal_text) {
+        $('#ctwpml-review-products-subtotal').text(data.subtotal_text);
+      }
+      if (data.total_text) {
+        $('#ctwpml-review-total').text(data.total_text);
+        $('#ctwpml-review-payment-amount').text(data.total_text);
+        $('#ctwpml-review-sticky-total').text(data.total_text);
+
+        // v4.5: Atualizar valor original na Review (topo + sticky) se tivermos attempt
+        var $reviewTotalRow = $('.ctwpml-review-total-row').first();
+        var $reviewOriginal = $('#ctwpml-review-original-total');
+        var $stickyRow = $('.ctwpml-review-sticky-total-row').first();
+        var $stickyOriginal = $('#ctwpml-review-sticky-original-total');
+        if (state.__ctwpmlCouponAttempt && state.__ctwpmlCouponAttempt.originalTotal) {
+          $reviewOriginal.text(state.__ctwpmlCouponAttempt.originalTotal).show();
+          $reviewTotalRow.addClass('has-discount');
+          if ($stickyOriginal.length) $stickyOriginal.text(state.__ctwpmlCouponAttempt.originalTotal).show();
+          if ($stickyRow.length) $stickyRow.addClass('has-discount');
+        }
+      }
+    }
+
+    // v4.2: toggleCouponDrawer foi movida para ctwpmlToggleCouponDrawer() no escopo do módulo
+
+    // Remover cupom (lista em Payment/Review) - via AJAX controlado (sem reload)
+    $(document).on('click', '.ctwpml-coupon-remove', function (e) {
+      e.preventDefault();
+      try { e.stopPropagation(); } catch (e0) {}
+
+      var code = String($(this).data('coupon-code') || '').trim();
+      var context = String($(this).data('ctwpml-context') || '').trim();
+      var $btn = $(this);
+      var $row = $btn.closest('.ctwpml-coupon-row');
+      if (!code) return;
+
       var log = function (msg, data) {
         if (typeof state.log === 'function') {
           state.log(msg, data || {}, 'PAYMENT');
@@ -3529,23 +5246,124 @@
         }
       };
 
-      if (show) {
-        log('Abrindo drawer de cupom');
-        $overlay.addClass('is-active');
-        $drawer.addClass('is-active');
-        $('body').css('overflow', 'hidden'); // Trava scroll do fundo
-        
-        // Focar no input após animação
-        setTimeout(function() {
-          $('#ctwpml-coupon-input').focus();
-        }, 350);
-      } else {
-        log('Fechando drawer de cupom');
-        $overlay.removeClass('is-active');
-        $drawer.removeClass('is-active');
-        $('body').css('overflow', ''); // Restaura scroll
+      log('Remover cupom (AJAX):', { code: code, context: context });
+
+      var ajaxUrl = state.params && state.params.ajax_url ? state.params.ajax_url : '';
+      var couponNonce = state.params && state.params.coupon_nonce ? state.params.coupon_nonce : '';
+
+      if (!ajaxUrl || !couponNonce) {
+        showNotification('Configuração inválida. Recarregue a página.', 'error', 3500);
+        return;
       }
-    }
+
+      // v4.2: Marcar cupom como "busy" para blindar eventos concorrentes do Woo
+      setCouponBusy(true);
+
+      // Mostrar spinner no botão enquanto processa
+      try {
+        $btn.prop('disabled', true);
+        var originalContent = $btn.html();
+        $btn.data('original-content', originalContent);
+        $btn.html('<span class="ctwpml-coupon-spinner"></span>');
+      } catch (e1) {}
+
+      if (typeof state.checkpoint === 'function') {
+        try { state.checkpoint('CHK_COUPON_REMOVE_AJAX_SENT', true, { code: code, context: context, busy: true }); } catch (e2) {}
+      }
+
+      $.ajax({
+        url: ajaxUrl,
+        type: 'POST',
+        data: {
+          action: 'ctwpml_remove_coupon',
+          _ajax_nonce: couponNonce,
+          coupon_code: code,
+        },
+        success: function (resp) {
+          log('Resposta remove_coupon AJAX:', resp);
+
+          if (resp && resp.success && resp.data) {
+            // Sucesso
+            if (typeof state.checkpoint === 'function') {
+              state.checkpoint('CHK_COUPON_REMOVE_AJAX_OK', true, { code: code, data: resp.data });
+            }
+
+            // Limpar estado de desconto
+            state.__ctwpmlPaymentDiscount = null;
+            state.__ctwpmlCouponAttempt = null;
+
+            // v4.3: Limpar valor original na Review
+            var $reviewTotalRow = $('.ctwpml-review-total-row').first();
+            var $reviewOriginal = $('#ctwpml-review-original-total');
+            $reviewOriginal.text('').hide();
+            $reviewTotalRow.removeClass('has-discount');
+
+            // Remover linha da UI com animação
+            $row.fadeOut(200, function () {
+              $(this).remove();
+              // Se não houver mais cupons, esconder o bloco
+              var remainingCoupons = resp.data.coupons || [];
+              if (remainingCoupons.length === 0) {
+                $('#ctwpml-payment-coupons').hide().empty();
+                $('#ctwpml-review-coupons').hide().empty();
+              }
+            });
+
+            // Atualizar totais na UI
+            ctwpmlUpdateTotalsFromAjax(resp.data);
+
+            // v4.7: Re-render completo imediato (frete + totais) sem depender de eventos posteriores
+            try {
+              ctwpmlUpdateTotalsStateFromAjax(resp.data, 'remove_ajax_success');
+              ctwpmlRenderTotalsUI('remove_ajax_success');
+              ctwpmlResyncReviewShipping('remove_ajax_success', resp.data);
+            } catch (eR1) {}
+
+            // v4.2: Liberar state machine de cupom
+            setCouponBusy(false);
+
+            // Disparar evento para que o Woo atualize (fragments)
+            $(document.body).trigger('update_checkout');
+            $(document.body).trigger('removed_coupon', [code]);
+
+          } else {
+            // Erro
+            var errorMsg = (resp && resp.data && resp.data.message) ? resp.data.message : 'Não foi possível remover o cupom.';
+            if (typeof state.checkpoint === 'function') {
+              state.checkpoint('CHK_COUPON_REMOVE_AJAX_FAIL', false, { code: code, error: errorMsg });
+            }
+            showNotification(errorMsg, 'error', 3500);
+
+            // v4.2: Liberar state machine de cupom
+            setCouponBusy(false);
+
+            // Restaurar botão
+            try {
+              var orig = $btn.data('original-content');
+              if (orig) $btn.html(orig);
+              $btn.prop('disabled', false);
+            } catch (e3) {}
+          }
+        },
+        error: function (xhr, status, error) {
+          log('Erro AJAX remove_coupon:', { status: status, error: error });
+          if (typeof state.checkpoint === 'function') {
+            state.checkpoint('CHK_COUPON_REMOVE_AJAX_ERROR', false, { status: status, error: error });
+          }
+          showNotification('Erro ao remover cupom. Tente novamente.', 'error', 3500);
+
+          // v4.2: Liberar state machine de cupom
+          setCouponBusy(false);
+
+          // Restaurar botão
+          try {
+            var orig = $btn.data('original-content');
+            if (orig) $btn.html(orig);
+            $btn.prop('disabled', false);
+          } catch (e4) {}
+        },
+      });
+    });
 
     // Tela 4 (Revise e confirme): links de alteração
     $(document).on('click', '#ctwpml-review-change-payment', function (e) {
@@ -3564,7 +5382,9 @@
     });
     $(document).on('click', '#ctwpml-review-change-billing', function (e) {
       e.preventDefault();
-      showFormForEditAddress();
+      // UX: primeiro vai para lista de endereços cadastrados
+      showList();
+      renderAddressList();
     });
 
     // Tela 4 (Revise e confirme): termos (sync entre checkbox topo e sticky + Woo)
@@ -3621,6 +5441,20 @@
         return;
       }
 
+      // v2.0 [2.2]: overlay de preparação ao tentar finalizar compra (intenção de compra).
+      // Importante: só mostra após validar termos + gateway para não “piscar” com erro imediato.
+      var prep = window.CTWPMLPrepare || null;
+      // Garantir que o overlay NÃO apareça ao confirmar compra (cinto de segurança).
+      try {
+        if (prep && typeof prep.hidePreparingOverlay === 'function') {
+          prep.hidePreparingOverlay();
+        }
+      } catch (eP0) {}
+      if (typeof state.checkpoint === 'function') {
+        try { state.checkpoint('CHK_PREPARE_OVERLAY_FORCE_HIDE_ON_CONFIRM', true, {}); } catch (eC) {}
+      }
+      log('CTA click: iniciando finalização', { overlayShown: false, gateway: woo.getSelectedGatewayId ? woo.getSelectedGatewayId() : '' });
+
       // Evita duplo clique.
       $('#ctwpml-review-confirm, #ctwpml-review-confirm-sticky').prop('disabled', true).css('opacity', '0.7');
 
@@ -3628,6 +5462,10 @@
       $(document.body).one('checkout_error', function () {
         try {
           $('#ctwpml-review-confirm, #ctwpml-review-confirm-sticky').prop('disabled', false).css('opacity', '');
+          // Hide overlay se estiver visível
+          try {
+            if (prep && typeof prep.hidePreparingOverlay === 'function') prep.hidePreparingOverlay();
+          } catch (eP1) {}
           var $err = $('.woocommerce-error, .woocommerce-NoticeGroup-checkout').first();
           var errText = $err.length ? $err.text().trim() : '';
           log('checkout_error recebido', { text: errText });
@@ -3659,6 +5497,22 @@
       // (Opcional) garante update_checkout antes do submit.
       try { $(document.body).trigger('update_checkout'); } catch (e2) {}
 
+      // Watchdog: se nada acontecer (sem redirect/sem erro) por muito tempo, liberar para retry.
+      try {
+        setTimeout(function () {
+          try {
+            // Se ainda está na mesma página e CTA continua desabilitado, liberar.
+            var $cta = $('#ctwpml-review-confirm, #ctwpml-review-confirm-sticky');
+            if ($cta.length && $cta.is(':disabled')) {
+              $cta.prop('disabled', false).css('opacity', '');
+              if (prep && typeof prep.hidePreparingOverlay === 'function') prep.hidePreparingOverlay();
+              log('Watchdog: liberando CTA após timeout', { ms: 25000 });
+              if (typeof state.checkpoint === 'function') state.checkpoint('CHK_CTA_WATCHDOG_RELEASE', true, { ms: 25000 });
+            }
+          } catch (eW) {}
+        }, 25000);
+      } catch (eW0) {}
+
       // Preferência 1: click NATIVO no botão submit
       var btn = document.getElementById('place_order');
       if (btn && typeof btn.click === 'function') {
@@ -3682,6 +5536,19 @@
       // Fallback: jQuery submit
       $('form.checkout, form.woocommerce-checkout').first().trigger('submit');
       log('CTA submit via jQuery trigger(submit)');
+    });
+
+    // Checkout Woo: sucesso (AJAX) -> limpar estado do modal e evitar restore em nova compra
+    $(document.body).on('checkout_place_order_success', function (e, data) {
+      try {
+        var payload = data || {};
+        var result = payload && payload.result ? String(payload.result) : '';
+        markOrderCompleted({
+          source: 'checkout_place_order_success',
+          result: result,
+          redirect: payload && payload.redirect ? String(payload.redirect) : '',
+        });
+      } catch (e0) {}
     });
 
     // Tela 2: ao preencher o CEP, consulta webhook e preenche campos automaticamente.
@@ -3708,9 +5575,144 @@
     });
 
     // Ao editar qualquer campo, remove estado de erro para feedback imediato.
-    $(document).on('input change', '#ctwpml-view-form input, #ctwpml-view-form textarea', function () {
+    $(document).on('input change', '#ctwpml-view-form input, #ctwpml-view-form textarea', function (e) {
       $(this).closest('.ctwpml-form-group').removeClass('is-error');
       if ($(this).is('#ctwpml-input-rua')) setRuaHint('', false);
+
+      // Dirty state (somente em interações do usuário; eventos programáticos não contam).
+      try {
+        if (currentView === 'form' && !formDirty && e && e.originalEvent) {
+          formDirty = true;
+          if (state && typeof state.checkpoint === 'function') {
+            state.checkpoint('CHK_FORM_DIRTY_ON', true, { fieldId: String(this && this.id ? this.id : '') });
+          }
+        }
+      } catch (e0) {}
+    });
+
+    // v2.0 [2.1]: Auto-scroll ao focar campos perto do footer fixo (evita sobreposição/teclado).
+    // Delegado para funcionar após re-render de views.
+    function ctwpmlAutoScrollInModal(targetEl, reason, topOffsetPx) {
+      try {
+        var $body = $('.ctwpml-modal-body').first();
+        if (!$body.length) return;
+        var bodyEl = $body[0];
+        if (!bodyEl || !targetEl || !targetEl.getBoundingClientRect) return;
+
+        var footerH = 0;
+        try {
+          var $footer = $('.ctwpml-footer:visible').first();
+          footerH = $footer.length ? ($footer.outerHeight() || 0) : 0;
+        } catch (e0) {}
+        if (!footerH) footerH = 180;
+
+        var bodyRect = bodyEl.getBoundingClientRect();
+        var tRect = targetEl.getBoundingClientRect();
+
+        var vv = window.visualViewport;
+        var viewportTop = vv ? (vv.offsetTop || 0) : 0;
+        var viewportH = vv ? (vv.height || window.innerHeight) : window.innerHeight;
+        var viewportBottom = vv ? ((vv.offsetTop || 0) + viewportH) : window.innerHeight;
+
+        var padding = 16;
+        // v3.2.52 (UX): auto-scroll por proporção
+        // Objetivo: deixar ~80% de espaço abaixo do campo (campo perto de ~20% do topo do viewport).
+        // Mantemos compat com topOffsetPx (assinatura antiga), mas a regra principal é proporcional.
+        var desiredTop = viewportTop + Math.round(viewportH * 0.2);
+        var minTop = Math.max(bodyRect.top, viewportTop) + 12;
+        var maxTop = Math.min(bodyRect.bottom, viewportBottom) - footerH - padding - 40;
+        if (maxTop < minTop) maxTop = minTop + 10;
+        if (desiredTop < minTop) desiredTop = minTop;
+        if (desiredTop > maxTop) desiredTop = maxTop;
+        var visibleTop = desiredTop;
+        var visibleBottom = Math.min(bodyRect.bottom, viewportBottom) - footerH - padding;
+        if (visibleBottom < visibleTop) visibleBottom = visibleTop + 10;
+
+        var shouldScroll = false;
+        var nextTop = bodyEl.scrollTop;
+        var delta = 0;
+
+        // Para foco: só ajusta se sair da janela visível (evita “pulos” desnecessários).
+        // Para cliques no DDI/wrap: preferimos alinhar o input no topo desejado para sobrar espaço para o dropdown abrir para baixo.
+        var forceAlign = String(reason || '').indexOf('ddi') >= 0;
+        if (forceAlign) {
+          delta = (tRect.top - visibleTop);
+          if (Math.abs(delta) > 10) {
+            nextTop = Math.max(0, bodyEl.scrollTop + delta);
+            shouldScroll = true;
+          }
+        } else {
+          if (tRect.top < visibleTop) {
+            delta = (tRect.top - visibleTop) - 12;
+            nextTop = Math.max(0, bodyEl.scrollTop + delta);
+            shouldScroll = true;
+          } else if (tRect.bottom > visibleBottom) {
+            // Em vez de “empurrar” só até caber, alinhamos o topo no ponto desejado (20%).
+            delta = (tRect.top - visibleTop);
+            nextTop = Math.max(0, bodyEl.scrollTop + delta);
+            shouldScroll = true;
+          }
+        }
+
+        if (!shouldScroll) return;
+
+        try {
+          $body.stop(true).animate({ scrollTop: nextTop }, 220);
+        } catch (e1) {
+          bodyEl.scrollTop = nextTop;
+        }
+
+        if (state && typeof state.checkpoint === 'function') {
+          state.checkpoint('CHK_SCROLL_FOCUS_MOBILE', true, {
+            reason: String(reason || ''),
+            fieldId: String(targetEl.id || ''),
+            footerH: footerH,
+            delta: delta,
+            nextTop: nextTop,
+            desiredTop: visibleTop,
+            vvHeight: vv ? vv.height : null,
+          });
+        }
+        if (typeof state.log === 'function') {
+          state.log('UI        v2.0 [2.1] Auto-scroll no foco (mobile)', {
+            reason: String(reason || ''),
+            fieldId: String(targetEl.id || ''),
+            footerH: footerH,
+            delta: delta,
+            scrollTop: bodyEl.scrollTop,
+            nextTop: nextTop,
+            desiredTop: visibleTop,
+            vvHeight: vv ? vv.height : null,
+          }, 'UI');
+        }
+      } catch (e2) {}
+    }
+
+    $(document).on('focus', '#ctwpml-view-form input, #ctwpml-view-form textarea', function () {
+      // 1ª passada: imediata (antes do teclado terminar animação)
+      ctwpmlAutoScrollInModal(this, 'focus_immediate');
+      // 2ª passada: após o teclado abrir (principalmente mobile)
+      try {
+        var el = this;
+        setTimeout(function () {
+          ctwpmlAutoScrollInModal(el, 'focus_delayed');
+        }, 260);
+      } catch (e3) {}
+    });
+
+    // Auto-scroll também ao tocar no seletor de DDI (TomSelect) - faz parte do mesmo campo.
+    $(document).on('click', '.ctwpml-phone-wrap, .ctwpml-phone-wrap .ts-control, .ctwpml-phone-wrap .ts-wrapper', function (e) {
+      try {
+        // Evitar disparar em cliques fora da tela do form.
+        if (!$('#ctwpml-view-form').is(':visible')) return;
+        var inputEl = document.getElementById('ctwpml-input-fone');
+        if (!inputEl) return;
+        ctwpmlAutoScrollInModal(inputEl, 'ddi_click');
+        // Segunda passada para acompanhar animação do teclado.
+        setTimeout(function () {
+          ctwpmlAutoScrollInModal(inputEl, 'ddi_click_delayed');
+        }, 260);
+      } catch (e0) {}
     });
 
     // Se o usuário alterar o CEP direto no checkout (fora do modal), limpamos os campos também.
@@ -3718,12 +5720,21 @@
       onBillingCepChanged();
     });
 
-    // Máscara/regex do celular no modal (XX - X XXXX-XXXX)
+    // Máscara/regex do celular no modal
     $(document).on('input', '#ctwpml-input-fone', function () {
       var $input = $('#ctwpml-input-fone');
+
+      // v2.0 [2.3] (novo formato): IMask controla o input; aqui só mantemos sincronização defensiva
+      try {
+        var phoneFull = ($('#ctwpml-phone-full').val() || '').toString();
+        var digits = phoneFull ? phoneFull.replace(/\D/g, '') : phoneDigits($input.val());
+        if (digits) $('#billing_cellphone').val(digits).trigger('change');
+        return;
+      } catch (e0) {}
+
+      // Fallback (se widget não estiver ativo)
       var formatted = formatPhone($input.val());
       if ($input.val() !== formatted) $input.val(formatted);
-      // Mantém o campo real do checkout com dígitos (máscaras do tema/plugin podem formatar depois).
       $('#billing_cellphone').val(phoneDigits(formatted)).trigger('change');
     });
 

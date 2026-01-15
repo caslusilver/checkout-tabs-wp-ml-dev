@@ -4,6 +4,7 @@
   --ctwpml-brand-orange: #ff8500;
   --ctwpml-header-text: #0c0829;
   --ctwpml-ml-blue: #3483fa;
+  --ctwpml-ml-green: #00a650;
   /* Fundo padrão (referência ML): evita “duplo background” nas telas internas */
   --ctwpml-ml-bg: #f5f5f5;
   --ctwpml-ml-text-gray: #666666;
@@ -15,7 +16,8 @@
 .ctwpml-modal-overlay {
   position: fixed;
   inset: 0;
-  display: none; /* controlado via JS (display:block/flex) */
+  display: none;
+  /* controlado via JS (display:block/flex) */
   width: 100vw;
   height: 100vh;
   background: transparent;
@@ -84,6 +86,7 @@ body.ctwpml-ml-only:not(.elementor-editor-active) .e-checkout__container {
   background: #fff !important;
   border-radius: 3px !important;
 }
+
 .ctwpml-login-banner {
   background: rgba(52, 131, 250, 0.10);
   color: #1f2937 !important;
@@ -102,7 +105,8 @@ body.ctwpml-ml-only:not(.elementor-editor-active) .e-checkout__container {
 
 .ctwpml-modal-header {
   background: var(--ctwpml-brand-orange);
-  padding: 45px 16px 16px 16px; /* padding-top maior para safe area mobile */
+  padding: 45px 16px 16px 16px;
+  /* padding-top maior para safe area mobile */
   display: flex;
   align-items: center;
   gap: 12px;
@@ -135,7 +139,8 @@ body.ctwpml-ml-only:not(.elementor-editor-active) .e-checkout__container {
 .ctwpml-modal-back img {
   width: 24px;
   height: 24px;
-  filter: brightness(0) invert(1); /* Torna a seta branca para combinar com o header */
+  filter: brightness(0) invert(1);
+  /* Torna a seta branca para combinar com o header */
 }
 
 .ctwpml-modal-title {
@@ -146,12 +151,18 @@ body.ctwpml-ml-only:not(.elementor-editor-active) .e-checkout__container {
 
 .ctwpml-modal-body {
   padding: 16px;
-  padding-bottom: 120px; /* espaço para footer quando visível */
-  overflow: auto !important; /* scroll interno do modal */
-  -webkit-overflow-scrolling: touch; /* scroll suave no iOS */
+  /* Espaço para footer fixo (evita sobreposição dos últimos campos) */
+  padding-bottom: calc(320px + env(safe-area-inset-bottom));
+  /* espaço para footer quando visível */
+  overflow: auto !important;
+  /* scroll interno do modal */
+  -webkit-overflow-scrolling: touch;
+  /* scroll suave no iOS */
   flex: 1;
-  min-height: calc(100vh - 77px); /* altura total menos header */
-  max-height: calc(100vh - 77px); /* limita altura para scroll funcionar */
+  min-height: calc(100vh - 77px);
+  /* altura total menos header */
+  max-height: calc(100vh - 77px);
+  /* limita altura para scroll funcionar */
 }
 
 /* =====================================================
@@ -183,6 +194,7 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
 .ctwpml-ml-layout {
   display: block;
 }
+
 .ctwpml-ml-left,
 .ctwpml-ml-right {
   display: block;
@@ -195,13 +207,16 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
     gap: 16px;
     height: calc(100vh - 77px);
   }
+
   .ctwpml-ml-left {
     overflow: auto;
     padding-right: 4px;
   }
+
   .ctwpml-ml-right {
     overflow: auto;
   }
+
   /* No desktop, o summary não precisa ser fixed. */
   .ctwpml-payment-footer {
     position: sticky;
@@ -279,7 +294,17 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
 .ctwpml-cep-confirm .ctwpml-cep-icon {
   flex: 0 0 auto;
   margin-top: 2px;
-  color: #111;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ctwpml-cep-confirm .ctwpml-cep-icon img {
+  width: 20px;
+  height: 20px;
+  display: block;
 }
 
 .ctwpml-cep-confirm .ctwpml-cep-text {
@@ -302,17 +327,48 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
 }
 
 .ctwpml-footer {
-  padding: 14px 16px;
+  padding: 14px 16px calc(14px + env(safe-area-inset-bottom));
   background: var(--ctwpml-ml-white);
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 14px;
   position: fixed;
   bottom: 0;
   left: 0;
   right: 0;
   z-index: 99;
-  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.12);
+  /* Garantir que o fundo não seja transparente */
+  backdrop-filter: none;
+}
+
+/* Link de exclusão (deve ficar evidente e não “sumir” atrás do footer) */
+.ctwpml-delete-link {
+  display: block;
+  margin-top: 14px;
+  margin-bottom: 24px;
+  color: #dc2626 !important;
+  font-weight: 800;
+  text-decoration: none;
+  font-size: 14px;
+}
+
+.ctwpml-delete-link:active,
+.ctwpml-delete-link:focus,
+.ctwpml-delete-link:hover {
+  text-decoration: underline;
+}
+
+/* Separador visual entre conteúdo e botões (evita “sumir” o fim do form) */
+.ctwpml-footer::before {
+  content: '';
+  position: absolute;
+  top: -20px;
+  left: 0;
+  right: 0;
+  height: 20px;
+  background: linear-gradient(to top, rgba(255, 255, 255, 1) 0%, rgba(255, 255, 255, 0) 100%);
+  pointer-events: none;
 }
 
 .ctwpml-btn {
@@ -548,7 +604,8 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
   border-radius: 6px;
   overflow: hidden;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
-  margin-bottom: 90px; /* espaço para footer fixo */
+  margin-bottom: 90px;
+  /* espaço para footer fixo */
 }
 
 .ctwpml-shipping-package {
@@ -587,17 +644,28 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
 
 /* Stack/overlap de até 3 miniaturas (sem +N). */
 .ctwpml-shipping-thumbs .ctwpml-shipping-thumb {
-  border: 2px solid #fff; /* contorno branco para separar no overlap */
-  box-shadow: 0 0 0 1px #eee; /* mantém borda suave */
+  border: 2px solid #fff;
+  /* contorno branco para separar no overlap */
+  box-shadow: 0 0 0 1px #eee;
+  /* mantém borda suave */
 }
 
 .ctwpml-shipping-thumbs .ctwpml-shipping-thumb:not(:first-child) {
-  margin-left: -12px; /* overlap */
+  margin-left: -12px;
+  /* overlap */
 }
 
-.ctwpml-shipping-thumbs .ctwpml-shipping-thumb:nth-child(1) { z-index: 3; }
-.ctwpml-shipping-thumbs .ctwpml-shipping-thumb:nth-child(2) { z-index: 2; }
-.ctwpml-shipping-thumbs .ctwpml-shipping-thumb:nth-child(3) { z-index: 1; }
+.ctwpml-shipping-thumbs .ctwpml-shipping-thumb:nth-child(1) {
+  z-index: 3;
+}
+
+.ctwpml-shipping-thumbs .ctwpml-shipping-thumb:nth-child(2) {
+  z-index: 2;
+}
+
+.ctwpml-shipping-thumbs .ctwpml-shipping-thumb:nth-child(3) {
+  z-index: 1;
+}
 
 .ctwpml-shipping-thumb img {
   width: 100%;
@@ -644,6 +712,25 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
   border-radius: 50%;
 }
 
+/* Ícone de frete (correio/motoboy) antes do label */
+.ctwpml-shipping-option-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  margin-right: 5px;
+  flex-shrink: 0;
+}
+
+.ctwpml-shipping-option-icon img {
+  width: 20px;
+  height: 20px;
+  display: block;
+}
+
+/* Label do frete (texto) */
+.ctwpml-shipping-option-label,
 .ctwpml-shipping-option-text {
   font-size: 14px;
   color: #333 !important;
@@ -654,6 +741,8 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
   font-size: 14px;
   color: var(--ctwpml-ml-text-gray) !important;
   font-weight: 800;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .ctwpml-shipping-footer {
@@ -713,6 +802,91 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
   font-size: 15px;
   outline: none;
   background: #fff;
+}
+
+/* =====================================================
+   v2.0 [2.3] Campo DDI (NOVO FORMATO: TomSelect + IMask)
+   - Segue o MODELO FORMULARIO INTERNACIONAL PARA NUMEROS.PHP
+   ===================================================== */
+.ctwpml-phone-wrap {
+  display: flex;
+  flex-wrap: nowrap !important;
+  width: 100%;
+  position: relative;
+  background: #fff;
+  border: 1px solid var(--ctwpml-input-border);
+  border-radius: 3px;
+  align-items: center;
+  min-height: 46px;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.ctwpml-phone-wrap:focus-within {
+  border-color: #000;
+  box-shadow: 0 0 0 1px #000;
+}
+
+/* TomSelect: largura fixa para bandeira + +DDI */
+.ctwpml-phone-wrap .ts-wrapper.single {
+  width: 120px !important;
+  min-width: 120px !important;
+  height: 100%;
+}
+
+.ctwpml-phone-wrap .ts-wrapper.single .ts-control {
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  padding: 0 0 0 12px !important;
+  height: 100% !important;
+  display: flex !important;
+  align-items: center !important;
+}
+
+.ctwpml-phone-wrap .ts-wrapper.single .ts-control .item {
+  display: flex;
+  align-items: center;
+  white-space: nowrap;
+}
+
+.ts-dropdown {
+  z-index: 9999999 !important;
+  margin-top: 5px;
+  border-radius: 8px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+  border: 1px solid #ccc;
+  background: #fff;
+  padding-bottom: 20px !important;
+  min-width: 250px;
+}
+
+.ts-dropdown .dropdown-input {
+  font-size: 18px !important;
+  padding: 12px !important;
+  color: #000 !important;
+  border-bottom: 2px solid #eee !important;
+}
+
+/* Input telefone (visível) */
+#ctwpml-input-fone {
+  flex: 1;
+  min-width: 0;
+  border: none !important;
+  background: transparent !important;
+  padding: 0 12px !important;
+  font-size: 15px !important;
+  outline: none !important;
+  color: #000 !important;
+  height: 100%;
+  border-left: 1px solid #eee !important;
+  margin: 0 !important;
+}
+
+#ctwpml-input-fone::placeholder {
+  color: #999;
+  font-size: 15px;
+  opacity: 1;
 }
 
 .ctwpml-form-group.is-error input,
@@ -935,6 +1109,240 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
 }
 
 /* =====================================================
+   DESCONTO/CUPOM APLICADO (v4.0)
+   ===================================================== */
+
+/* =====================================================
+   DESCONTO/CUPOM v4.3 - Layout 1 linha (mobile-friendly)
+   ===================================================== */
+
+/* Container de preço com desconto - SEMPRE em linha */
+.ctwpml-payment-price-wrapper {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: baseline;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+/* Preço original (riscado) - ~30% menor */
+.ctwpml-payment-original-price {
+  font-size: 13px;
+  color: #999 !important;
+  text-decoration: line-through;
+  font-weight: 400;
+}
+
+/* Preço com desconto (destacado) */
+.ctwpml-payment-discounted-price {
+  font-size: 18px;
+  color: #00a650 !important;
+  font-weight: 700;
+}
+
+/* Linha do "Você pagará" no footer - SEMPRE row, nunca column */
+.ctwpml-payment-total-row.has-discount {
+  display: flex;
+  flex-direction: row !important;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.ctwpml-payment-total-row.has-discount .ctwpml-payment-total-label {
+  align-self: auto;
+  flex-shrink: 0;
+}
+
+/* Subtotal com desconto */
+.ctwpml-payment-subtotal-row.has-discount .ctwpml-payment-subtotal-value {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.ctwpml-payment-subtotal-original {
+  font-size: 12px;
+  color: #999;
+  text-decoration: line-through;
+}
+
+.ctwpml-payment-subtotal-discounted {
+  font-size: 14px;
+  font-weight: 700;
+  color: #00a650;
+}
+
+/* =====================================================
+   CUPONS APLICADOS (lista + remover) - Payment/Review
+   ===================================================== */
+
+.ctwpml-coupons-block {
+  margin: 8px 0 8px;
+}
+
+.ctwpml-coupons-title {
+  font-size: 12px;
+  color: #666;
+  margin: 2px 0 6px;
+  font-weight: 600;
+}
+
+/* =====================================================
+   CUPONS v4.3 - Botão esquerda, ícone+nome centro, valor direita
+   ===================================================== */
+
+.ctwpml-coupon-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 0;
+  white-space: nowrap;
+}
+
+.ctwpml-coupon-left {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex: 1;
+}
+
+.ctwpml-coupon-right {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+/* Ícone do cupom (SVG) */
+.ctwpml-coupon-icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.ctwpml-coupon-code {
+  font-size: 12px;
+  font-weight: 700;
+  color: #333;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100px;
+}
+
+.ctwpml-coupon-amount {
+  font-size: 12px;
+  font-weight: 700;
+  color: #16a34a; /* verde suave */
+  white-space: nowrap;
+}
+
+/* Botão remover cupom - à esquerda do nome (v4.3) */
+.ctwpml-coupon-remove {
+  border: none;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  transition: opacity 0.2s ease;
+  margin: 0;
+  /* v4.4: alinhar visualmente com ícone + texto (baseline) */
+  line-height: 0;
+  position: relative;
+  top: -7px;
+}
+
+.ctwpml-coupon-remove:hover {
+  opacity: 0.7;
+}
+
+.ctwpml-coupon-remove[disabled] {
+  opacity: 0.4;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* Ícone dentro do botão remover */
+.ctwpml-coupon-remove img,
+.ctwpml-coupon-remove svg {
+  width: 18px;
+  height: 18px;
+  display: block;
+}
+
+/* Spinner cinza pequeno para cupom (apply/remove) */
+.ctwpml-coupon-spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid #e5e5e5;
+  border-top-color: #525252;
+  border-radius: 50%;
+  animation: ctwpml-spin 0.8s linear infinite;
+  flex-shrink: 0;
+}
+
+/* Spinner dentro do botão de remover */
+.ctwpml-coupon-remove .ctwpml-coupon-spinner {
+  width: 16px;
+  height: 16px;
+}
+
+/* Spinner no botão "Adicionar cupom" */
+.ctwpml-add-coupon-btn.is-loading {
+  position: relative;
+  color: transparent !important;
+  pointer-events: none;
+}
+
+.ctwpml-add-coupon-btn.is-loading::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 20px;
+  height: 20px;
+  margin: -10px 0 0 -10px;
+  border: 2px solid rgba(255,255,255,0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: ctwpml-spin 0.8s linear infinite;
+}
+
+/* Ícone de sucesso (confirm) após aplicar cupom */
+.ctwpml-coupon-success-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  animation: ctwpml-coupon-pop 0.4s ease-out;
+}
+
+.ctwpml-coupon-success-icon img,
+.ctwpml-coupon-success-icon svg {
+  width: 22px;
+  height: 22px;
+}
+
+@keyframes ctwpml-coupon-pop {
+  0% { transform: scale(0); opacity: 0; }
+  60% { transform: scale(1.2); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.ctwpml-coupons-block--review {
+  margin: 4px 0 10px;
+}
+
+/* =====================================================
    TELA "REVISE E CONFIRME" (Review / Confirm)
    ===================================================== */
 
@@ -942,7 +1350,8 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
   /* O background vem do wrapper .ctwpml-modal (evita 2 camadas) */
   background: transparent !important;
   min-height: auto;
-  padding: 16px 0 140px; /* espaço para rodapé fixo interno */
+  padding: 16px 0 140px;
+  /* espaço para rodapé fixo interno */
 }
 
 .ctwpml-review-summary-top {
@@ -969,7 +1378,8 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
 }
 
 .ctwpml-review-terms--sticky {
-  margin: 0 0 4px 0; /* 4px de distância do checkbox para o CTA sticky */
+  margin: 0 0 4px 0;
+  /* 4px de distância do checkbox para o CTA sticky */
 }
 
 .ctwpml-review-terms-label {
@@ -977,13 +1387,15 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
   gap: 8px;
   align-items: flex-start;
   font-size: 12px;
-  color: #666666 !important; /* garantir contraste independente do tema */
+  color: #666666 !important;
+  /* garantir contraste independente do tema */
   line-height: 1.25;
 }
 
 .ctwpml-review-terms-label input[type="checkbox"] {
   margin-top: 2px;
 }
+
 .ctwpml-review-row {
   display: flex;
   justify-content: space-between;
@@ -995,11 +1407,34 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
 .ctwpml-review-total-row {
   display: flex;
   justify-content: space-between;
+  align-items: baseline;
   margin-top: 16px;
   margin-bottom: 10px;
   font-size: 18px;
   font-weight: 700;
   color: #333;
+}
+
+/* v4.3: Review - wrapper para valor original + valor atual */
+.ctwpml-review-total-right {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: baseline;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+/* v4.3: Review - valor original riscado (~30% menor) */
+.ctwpml-review-original-total {
+  font-size: 13px;
+  color: #999 !important;
+  text-decoration: line-through;
+  font-weight: 400;
+}
+
+/* v4.3: Review - valor atual com desconto (verde) */
+.ctwpml-review-total-row.has-discount #ctwpml-review-total {
+  color: #00a650 !important;
 }
 
 .ctwpml-review-pay-tag {
@@ -1021,6 +1456,175 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
   font-weight: 700;
   border: none;
   cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+
+.ctwpml-review-btn-confirm span {
+  position: relative;
+  z-index: 2;
+}
+
+.ctwpml-review-btn-confirm .ctwpml-success-icon {
+  display: none;
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 3;
+}
+
+/* Overlay/progresso */
+.ctwpml-review-btn-confirm::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 0;
+  background-color: rgba(0, 0, 0, 0.2);
+  transition: width 2s linear;
+  z-index: 1;
+}
+
+.ctwpml-review-btn-confirm.ctwpml-cta-loading::after {
+  width: 100%;
+}
+
+/* Sucesso: círculo central (botão se transforma) */
+.ctwpml-review-btn-confirm.ctwpml-cta-success {
+  width: 50px !important;
+  height: 50px !important;
+  border-radius: 50% !important;
+  background: var(--ctwpml-ml-green) !important;
+  color: transparent !important;
+  padding: 0 !important;
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto !important;
+}
+
+/* Hide overlay on success */
+.ctwpml-review-btn-confirm.ctwpml-cta-success::after {
+  display: none;
+}
+
+/* Removemos o ::before antigo que criava o círculo dentro do botão */
+.ctwpml-review-btn-confirm.ctwpml-cta-success::before {
+  display: none;
+}
+
+.ctwpml-review-btn-confirm.ctwpml-cta-success span {
+  display: none;
+  /* remove texto do fluxo */
+}
+
+.ctwpml-review-btn-confirm.ctwpml-cta-success .ctwpml-success-icon {
+  display: block;
+  animation: ctwpmlScaleIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  position: static;
+  /* não precisa ser absolute pois o pai é flex center */
+  transform: none;
+  z-index: 3;
+}
+
+@keyframes ctwpmlScaleIn {
+  from {
+    transform: scale(0);
+    opacity: 0;
+  }
+
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* Expansão final (Cover screen) */
+.ctwpml-review-btn-confirm.ctwpml-cta-expand {
+  position: fixed !important;
+  z-index: 9999 !important;
+  top: 50% !important;
+  left: 50% !important;
+  width: 150vmax !important;
+  height: 150vmax !important;
+  border-radius: 50% !important;
+  transform: translate(-50%, -50%) !important;
+  transition: width 0.8s ease-in, height 0.8s ease-in, border-radius 0.5s;
+  pointer-events: none;
+  /* Prevent clicks during expansion */
+  background: var(--ctwpml-ml-green) !important;
+  color: transparent !important;
+  margin: 0 !important;
+}
+
+/* Icon fade out on expand */
+.ctwpml-review-btn-confirm.ctwpml-cta-expand .ctwpml-success-icon {
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.ctwpml-review-btn-confirm.ctwpml-cta-expand span {
+  display: none;
+}
+
+.ctwpml-review-btn-confirm.ctwpml-cta-expand::before {
+  display: none;
+}
+
+/* =====================================================
+   Overlay “Sucesso” (fullscreen) — cobre o modal inteiro
+   ===================================================== */
+#ctwpml-success-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000000;
+  display: none;
+  background: #00a650;
+  color: #fff;
+  font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+}
+
+#ctwpml-success-overlay.ctwpml-success-overlay--visible {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#ctwpml-success-overlay .ctwpml-success-message {
+  text-align: center;
+  animation: ctwpmlFadeInSuccess 0.5s ease-out;
+  padding: 0 18px;
+}
+
+#ctwpml-success-overlay .ctwpml-success-message h1 {
+  font-size: 24px;
+  margin: 0 0 10px;
+  color: #fff;
+}
+
+#ctwpml-success-overlay .ctwpml-success-message p {
+  font-size: 16px;
+  opacity: 0.9;
+  margin: 0;
+  color: #fff;
+}
+
+@keyframes ctwpmlFadeInSuccess {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* CTA padrão (shipping/payment) */
@@ -1055,9 +1659,14 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
   margin-bottom: 12px;
 }
 
-.ctwpml-review-sticky-total-row span:last-child {
+.ctwpml-review-sticky-total-row #ctwpml-review-sticky-total {
   font-size: 20px;
   font-weight: 700;
+}
+
+/* v4.4: Sticky total verde quando houver desconto */
+.ctwpml-review-sticky-total-row.has-discount #ctwpml-review-sticky-total {
+  color: #00a650 !important;
 }
 
 .ctwpml-review-section-label {
@@ -1140,6 +1749,82 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
   border-top: 1px solid #eee;
   padding-top: 12px;
   align-items: center;
+}
+
+.ctwpml-review-shipment-icon {
+  width: 100px; /* mesmo footprint visual do bloco de 3 thumbs (40 + 30 + 30) */
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.ctwpml-review-shipment-icon img {
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+  display: block;
+}
+
+.ctwpml-review-products-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.ctwpml-review-product-item {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.ctwpml-review-product-thumb {
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  border: 1px solid #eee;
+  background: #fafafa;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.ctwpml-review-product-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  display: block;
+}
+
+.ctwpml-review-product-meta {
+  flex: 1;
+  min-width: 0;
+}
+
+.ctwpml-review-product-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #333;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ctwpml-review-product-qty {
+  font-size: 12px;
+  color: #666;
+}
+
+.ctwpml-review-product-price {
+  font-size: 13px;
+  font-weight: 700;
+  color: #333;
+  margin-left: auto;
 }
 
 .ctwpml-review-thumb {
@@ -1268,7 +1953,8 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
   font-size: 18px;
   font-weight: 600;
   margin: 0;
-  margin-right: 44px; /* Compensar o botão fechar para centralizar */
+  margin-right: 44px;
+  /* Compensar o botão fechar para centralizar */
   color: #333;
 }
 
@@ -1284,8 +1970,19 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
   margin-bottom: 20px;
 }
 
+/* v4.3: Ícone SVG no drawer de cupom */
 .ctwpml-coupon-ticket-icon {
-  font-size: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+.ctwpml-coupon-ticket-icon img {
+  width: 18px;
+  height: 18px;
 }
 
 .ctwpml-coupon-insert-text {
@@ -1344,4 +2041,62 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
   background-color: #2968c8;
 }
 
+/* =====================================================
+   CUPOM: FEEDBACK VISUAL (v4.2)
+   ===================================================== */
 
+.ctwpml-add-coupon-btn.is-success {
+  background-color: #00a650 !important;
+  color: #fff !important;
+  cursor: pointer;
+  animation: ctwpml-coupon-success 0.5s ease-out;
+}
+
+@keyframes ctwpml-coupon-success {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+  100% { transform: scale(1); }
+}
+
+.ctwpml-add-coupon-btn.is-success::before {
+  content: '✓ ';
+  animation: ctwpml-check-appear 0.3s ease-out;
+}
+
+@keyframes ctwpml-check-appear {
+  from { opacity: 0; transform: scale(0); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.ctwpml-coupon-input.is-error {
+  border-color: #dc2626 !important;
+  animation: ctwpml-shake 0.5s ease-in-out;
+}
+
+@keyframes ctwpml-shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-8px); }
+  40% { transform: translateX(8px); }
+  60% { transform: translateX(-4px); }
+  80% { transform: translateX(4px); }
+}
+
+
+/* Ocultar elementos com placeholders não resolvidos */
+[data-ctwpml-placeholder]:not([data-ctwpml-resolved]) {
+  visibility: hidden !important;
+}
+
+.ctwpml-pending-value {
+  visibility: hidden;
+}
+
+.ctwpml-pending-value.ctwpml-resolved {
+  visibility: visible;
+}
+
+/* Fallback: ocultar textos que parecem variáveis */
+.ctwpml-shipping-price:empty,
+.ctwpml-payment-total-value:empty {
+  visibility: hidden;
+}

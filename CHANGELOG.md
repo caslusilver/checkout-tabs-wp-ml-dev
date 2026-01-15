@@ -9,14 +9,145 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 - Criar o repositório: `caslusilver/checkout-tabs-wp-ml-dev`
 - Branch principal do fluxo: `develop`
 
+## [Unreleased]
+
+### Changed
+- **Versão atual**: v3.2.65  
+  **Versão sugerida após a mudança**: vX.Y.Z  
+  **Descrição**: texto objetivo do que mudou e impacto (pode listar itens separados por ponto e vírgula).
+
+## [v3.2.65] - 2026-01-15
+
+### Changed
+- Review: remove thumbs do bloco de entrega e exibe ícone dinâmico por modalidade (Correios/Motoboy) + prazo; corrige quantidade do bloco de entrega para usar total real do carrinho; link “Modificar dados de faturamento” passa a abrir a listagem; seta voltar da primeira tela retorna ao carrinho.
+
+#### Protocol: 0c6d354
+
 ## [v1.0.0] - 2026-01-09
 
 ### Stable Release
 - Primeira versão estável do plugin **Checkout Tabs WP ML**.
 - Baseada em `v3.2.37` (branch `develop`).
-- Inclui todas as funcionalidades desenvolvidas: modal ML fullscreen no checkout, integração com webhook de frete, popup de login/cadastro, geolocalização, painel admin com abas (Integrações/Debug/Styles), reCAPTCHA v2, persistência de endereços/WhatsApp/CPF, telas de frete e pagamento estilo Mercado Livre, e sistema de checkpoints de debug.
+- Inclui as funcionalidades desenvolvidas até então: modal ML fullscreen no checkout, integração com webhook de frete, popup de login/cadastro, geolocalização, painel admin com abas (Integrações/Debug/Styles), reCAPTCHA v2, persistência de endereços/WhatsApp/CPF, telas de frete e pagamento estilo Mercado Livre, e sistema de checkpoints de debug.
 
----
+## [v3.2.64] - 2026-01-13
+
+### Changed
+- Review: resumo passa a consumir dados do carrinho (quantidade real, subtotal/total e itens); exibição de lista de produtos com fotos/quantidade/preço no Review; correção do frete quebrado após remover cupom com leitura monetária do Woo; limpa estado do modal após checkout concluído para evitar retorno indevido à tela de review.
+
+#### Protocol: 4a6f461
+
+## [v3.2.63] - 2026-01-15
+
+### Changed
+- Cupom v4.7: centraliza estado de totais/cupom (`__ctwpmlTotalsState`) e aplica render único imediato (Payment + Review topo + sticky) no mesmo ciclo de `apply_coupon`/`remove_coupon`, eliminando dependência de reload/navegação para exibir valor original riscado e total em verde; resync explícito do frete no Review após aplicar/remover.
+
+#### Protocol: 0b19e2a
+
+## [v3.2.62] - 2026-01-15
+
+### Changed
+- Cupom: corrige valores monetários exibidos com entidades HTML (ex.: `&#82;&#36;&nbsp;88,00`) decodificando `wc_price` no backend; corrige ordem estrutural do bloco “Cupom aplicado” para ícone → nome → remover (Payment+Review), sem depender de CSS para ordenação.
+
+#### Protocol: 5959bde
+
+## [v3.2.61] - 2026-01-15
+
+### Changed
+- Cupom v4.5: ordem do cupom ajustada para ícone → remover → nome (Payment+Review); alinhamento do botão remover com `top:-7px`; drawer não fecha por timeout — agora fecha apenas quando o cupom aparece no DOM do Woo ou quando o total bate; debug reforçado com snapshots (CHK_COUPON_APPLY_WAIT_SNAPSHOT, CHK_COUPON_APPLY_WOO_COUPON_FOUND, CHK_COUPON_APPLY_WAIT_TIMEOUT_KEEP_OPEN); sticky total do Review corrigido para aplicar cor/estilos com wrapper.
+
+#### Protocol: 9210c08
+
+## [v3.2.60] - 2026-01-15
+
+### Changed
+- Cupom v4.4: backend AJAX passa a retornar valores formatados como texto puro (evita HTML aparecer na UI); desconto (valor riscado + valor final em verde) passa a persistir após reload derivando total original a partir dos cupons do Woo; drawer de cupom só fecha após `updated_checkout`/totais estabilizarem; Review topo e sticky total passam a refletir desconto; ajuste de alinhamento do botão remover cupom.
+
+#### Protocol: 58be68d
+
+## [v3.2.58] - 2026-01-13
+
+### Changed
+- Layout cupom v4.3: botão remover movido para esquerda (antes do nome); ícone coupom-icon.svg adicionado; emoji 🎫 substituído por SVG no drawer; linha "Você pagará" sempre em 1 linha (flex-row, nunca coluna) com valor original ~30% menor e riscado ao lado do atual; mesma lógica aplicada na tela Review; drawer só fecha após 800ms (evita quebra visual durante recálculo do Woo); CSS limpo de discount-tag não utilizada.
+
+#### Protocol: 13ea35f
+
+## [v3.2.57] - 2026-01-13
+
+### Changed
+- Hardening v4.2 do cupom: funções de UI (showCouponSuccessIcon, resetCouponUi, toggleCouponDrawer) extraídas para escopo do módulo, corrigindo ReferenceError; state machine de cupom (couponBusy) para evitar conflitos entre AJAX do modal e eventos do WooCommerce; guard no listener updated_checkout/applied_coupon/removed_coupon que ignora eventos quando cupom está busy; checkpoints de debug reforçados (CHK_COUPON_BUSY_STATE, CHK_COUPON_UI_RESET, CHK_COUPON_SUCCESS_ICON_SHOWN, CHK_WOO_EVENT_SKIPPED_COUPON_BUSY, CHK_WOO_EVENT_PROCESSED, CHK_COUPON_APPLY_UPDATE_UI_START, CHK_COUPON_APPLY_SHOW_SUCCESS_START/DONE, CHK_COUPON_APPLY_TRIGGER_WOO_EVENTS).
+
+#### Protocol: 4f3efe0
+
+## [v3.2.56] - 2026-01-13
+
+### Changed
+- Cupom aplicar/remover via AJAX controlado (sem reload da página); novos endpoints `ctwpml_apply_coupon` e `ctwpml_remove_coupon` usando APIs nativas do WooCommerce; ícones de frete (correio/motoboy) em wrapper próprio com espaçamento de 5px; ícone pin-drop.svg no form de endereço substituindo emoji; layout do botão remover cupom compactado (20x20px, alinhamento melhorado); documento de planejamento para integração futura com Elementor widget.
+
+#### Protocol: 5d4d16c
+
+## [v3.2.55] - 2026-01-13
+
+### Changed
+- Migração completa de ícones PNG para SVG (melhor performance e escalabilidade); novos ícones SVG locais para Pix, Cartão, Boleto (bar-code), Correios, Motoboy, Casa, Trabalho, confirm-cupom e remover-cupom; ícones de tipo de endereço (casa/trabalho) substituindo emojis; ícones de frete (correio.svg/motoboy.svg) exibidos nas opções de frete baseado no label (Sedex/PAC/Mini → Correios, Motoboy/Expresso → Motoboy); UI de cupom com animação de sucesso e botão de remover com ícone SVG; remoção dos PNGs antigos.
+
+#### Protocol: c593f4b
+
+## [v3.2.54] - 2026-01-13
+
+### Changed
+- Cupom: exibe cupons aplicados (lista, um por linha) com valor negativo em verde e botão “x remover cupom” na tela “Escolha como pagar” (abaixo do subtotal) e na tela “Revise e confirme” (abaixo do frete); leitura dos cupons é feita do DOM do Woo (`tr.cart-discount` + `woocommerce-remove-coupon`) e remoção dispara o link nativo do Woo; debug reforçado com checkpoints de render/remoção e captura de cupons antes/depois ao aplicar.
+
+#### Protocol: a30797f
+
+## [v3.2.53] - 2026-01-13
+
+### Changed
+- Cupom: corrigido fluxo de aplicação para não disparar submit do checkout (evita `wc-ajax=checkout` ao aplicar cupom); botão “Adicionar cupom” passa a ser `type="button"` e aplicação usa clique no `apply_coupon` do form oficial do Woo, com checkpoints de diagnóstico quando o alvo não é encontrado.
+
+#### Protocol: f287b56
+
+## [v3.2.52] - 2026-01-13
+
+### Changed
+- WhatsApp: auto-scroll reposicionado para ~20% do topo (80% de espaço abaixo) e dropdown do DDI volta a abrir para baixo; salvar endereço: spinner persiste até confirmação + retorno para lista (evita janela de interação); endereços: complemento passa a aparecer também na lista e no “Detalhe da entrega” (review); pagamento: UI de cupom/desconto com preço original riscado + valor final e feedback visual (sucesso/erro).
+
+#### Protocol: f2e5560
+
+## [v3.2.51] - 2026-01-13
+
+### Changed
+- Telefone internacional: impede DDI aparecer no input (DDI fica só no seletor) e melhora restauração no editar endereço; dropdown do DDI abre para cima e auto-scroll dispara também ao tocar no DDI; formulário: espaçamento do footer e link “Excluir endereço” fica visível acima dos botões (safe-area iOS); salvar endereço: remove toast duplicado e volta imediatamente para lista; frete/telas: inclui complemento no resumo do endereço e evita quebra de linha nos preços.
+
+#### Protocol: 2c222bc
+
+## [v3.2.48] - 2026-01-13
+
+### Changed
+- Correção do link clicável do reCAPTCHA (setMsg agora aceita HTML quando necessário); melhoria no fluxo de frete para aguardar aplicação automática ao invés de exibir "tente novamente" (UX significativamente melhorada); correção no cálculo de métricas da telemetria (successRate agora usa apenas operações concluídas no denominador, durations agora são registradas corretamente).
+
+#### Protocol: 7659edf
+
+## [v3.2.47] - 2026-01-12
+
+### Changed
+- Melhorias no popup de inicialização (login/signup) e geolocalização: reCAPTCHA na aba de signup com mensagem de erro melhorada e link para voltar à aba de login; animação de carregamento com pontos ("•••") ao aceitar localização; reforço de debug de geolocalização para Desktop com logs detalhados e script de diagnóstico; persistência de sessão após login/signup com redirecionamento forçado; ocultação de variáveis/códigos HTML quebrados enquanto localização não é aceita usando classes CSS e marcação de elementos como resolvidos. Sistema de telemetria implementado para rastrear eficiência de cada funcionalidade (tempo de execução, taxa de sucesso, eventos) com painel visual e exportação de relatórios JSON.
+
+#### Protocol: 4c21dcd
+
+## [v3.2.44] - 2026-01-09
+
+### Changed
+- Checkout (ML): correção para executar a animação apenas no CTA que foi clicado (topo ou sticky), mantendo sequência loading 6s → sucesso → expand e exibindo o overlay fullscreen somente após `expand_done`; mantém debugs/checkpoints para validar a ordem e latência do `wc-ajax=checkout`.
+
+#### Protocol: f6e5463
+
+## [v3.2.38] - 2026-01-09
+
+### Changed
+- Checkout (ML): animação visual no CTA “Confirmar a compra” no Review (botão normal + sticky) com estados `loading/success/expand`, ícone local (`check.svg`) e reset automático em `checkout_error`; mudança apenas de UI (não altera o submit nem o fluxo de frete).
+
+#### Protocol: 4576789
 
 ## [v3.1.20] - 2026-01-05
 

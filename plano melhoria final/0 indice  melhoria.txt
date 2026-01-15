@@ -1,0 +1,280 @@
+================================================================================
+           CHECKOUT TABS WP ML - ÍNDICE DE VERSÕES E MELHORIAS
+================================================================================
+
+Plugin: Checkout Tabs WP ML
+Versão Atual: 3.2.44 → 3.2.45 (após Versão 1.0)
+Data de Criação: 12/01/2026
+Última Atualização: 12/01/2026
+Autor: Lucas Andrade / AI
+
+================================================================================
+                           RESUMO EXECUTIVO
+================================================================================
+
+Este documento é o índice mestre para todas as melhorias planejadas para o
+plugin Checkout Tabs WP ML. As melhorias estão organizadas em 5 versões,
+cada uma com seu próprio documento detalhado.
+
+COMO USAR:
+1. Identificar qual versão de melhorias deseja implementar
+2. Abrir o documento TXT correspondente
+3. Seguir o checklist de implementação
+4. Testar todas as funcionalidades listadas
+5. Marcar como concluído no checklist
+
+================================================================================
+                        DOCUMENTOS DISPONÍVEIS
+================================================================================
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ VERSÃO 1.0 - POP-UP DE INICIALIZAÇÃO                                        │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ Arquivo: plano melhoria final/v1 melhoria.txt                               │
+│ Prioridade: ALTA                                                            │
+│ Status: ✅ IMPLEMENTADA (12/01/2026)                                        │
+│ Escopo: Login, Signup, Geolocalização, Sessão do usuário                    │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ MELHORIAS:                                                                  │
+│ ✅ [1.1] Replicar campo reCAPTCHA na aba "Criar uma conta"                   │
+│    └─ Solução: Mensagem de erro com link clicável que volta para aba login  │
+│       e destaca reCAPTCHA com stroke vermelho                                │
+│ ✅ [1.2] Animação CSS de carregamento ("•••") ao aceitar localização         │
+│    └─ Implementada com animação de pontos progressivos                      │
+│ ✅ [1.3] Reforçar debug de geolocalização para Desktop                     │
+│    └─ Logs detalhados e script de diagnóstico adicionados                   │
+│ ✅ [1.4] Manter usuário logado após login/signup                             │
+│    └─ Redirecionamento forçado com timestamp para garantir sessão           │
+│ ✅ [1.5] Ocultar variáveis/códigos HTML quebrados                            │
+│    └─ Classes CSS e lógica de marcação de elementos resolvidos              │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ ARQUIVOS MODIFICADOS:                                                       │
+│ • inc/frontend/login-popup.php                                              │
+│ • assets/js/login-signup.js (melhorias no handler de reCAPTCHA)             │
+│ • assets/css/login-popup.css (estilos de erro com stroke vermelho)         │
+│ • assets/js/geolocation-permission-modal.js (logs + animação)              │
+│ • assets/css/geolocation-permission-modal.css (animação de pontos)         │
+│ • assets/js/geolocation-client.js (marcação de elementos resolvidos)      │
+│ • assets/js/geolocation-debug.js (script de diagnóstico)                    │
+│ • assets/css/checkout-ui.css (ocultação de placeholders)                   │
+│ • assets/js/address-ml-screens.js (classes pending-value)                   │
+│ • assets/js/address-ml-modal.js (marcação de elementos resolvidos)           │
+│ • inc/ajax-login.php                                                        │
+│ • inc/ajax-signup.php (logs de debug)                                       │
+│ • inc/geolocation/enqueue.php                                               │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ VERSÃO 2.0 - ADICIONAR/EDITAR ENDEREÇO                                      │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ Arquivo: VERSAO_2_ADICIONAR_ENDERECO.txt                                    │
+│ Prioridade: ALTA                                                            │
+│ Escopo: Formulário de endereços, UI do modal, telefone internacional        │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ MELHORIAS:                                                                  │
+│ [2.1] Corrigir sobreposição de botões nos campos do formulário              │
+│ [2.2] Implementar loading overlay "Preparando tudo para sua compra"         │
+│ [2.3] Adicionar campo DDI com biblioteca intl-tel-input                     │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ ARQUIVOS PRINCIPAIS:                                                        │
+│ • assets/css/address-ml-modal.css                                           │
+│ • assets/js/address-ml-modal.js                                             │
+│ • assets/js/preparing-checkout.js                                           │
+│ • assets/css/preparing-checkout.css                                         │
+│ • inc/enqueue.php                                                           │
+│ • inc/frontend/addresses-api.php                                            │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ VERSÃO 3.0 - ESCOLHA QUANDO SEU PEDIDO CHEGARÁ                              │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ Arquivo: VERSAO_3_ESCOLHA_PRAZO_FRETE.txt                                   │
+│ Prioridade: MÉDIA                                                           │
+│ Escopo: Tela de seleção de frete, exibição de endereço, layout de preços    │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ MELHORIAS:                                                                  │
+│ [3.1] Incluir campo "complemento" na exibição do endereço                   │
+│ [3.2] Garantir que preços não quebrem linha (layout responsivo)             │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ ARQUIVOS PRINCIPAIS:                                                        │
+│ • assets/js/address-ml-screens.js                                           │
+│ • assets/css/address-ml-modal.css                                           │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ VERSÃO 4.0 - ESCOLHA COMO PAGAR                                             │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ Arquivo: VERSAO_4_ESCOLHA_COMO_PAGAR.txt                                    │
+│ Prioridade: MÉDIA                                                           │
+│ Escopo: Tela de pagamento, aplicação de cupom, exibição de desconto         │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ MELHORIAS:                                                                  │
+│ [4.1] Exibir valor antes do desconto ao aplicar cupom (preço riscado)       │
+│ [4.2] Animação CSS ao confirmar aplicação do cupom                          │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ ARQUIVOS PRINCIPAIS:                                                        │
+│ • assets/css/address-ml-modal.css                                           │
+│ • assets/js/address-ml-screens.js                                           │
+│ • assets/js/address-ml-modal.js                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ VERSÃO 5.0 - REVISE E CONFIRME                                              │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ Arquivo: VERSAO_5_REVISE_CONFIRME.txt                                       │
+│ Prioridade: ALTA                                                            │
+│ Escopo: Resumo do pedido, exibição de produtos, desconto, redirecionamento  │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ MELHORIAS:                                                                  │
+│ [5.1] Exibir quantidade dinâmica dos produtos no resumo                     │
+│ [5.2] Exibir produtos do carrinho em lista com fotos individuais            │
+│ [5.3] Exibir desconto no total final com antes/depois e nome do cupom       │
+│ [5.4] Corrigir redirecionamento após finalização do pedido                  │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ ARQUIVOS PRINCIPAIS:                                                        │
+│ • assets/js/address-ml-screens.js                                           │
+│ • assets/js/address-ml-modal.js                                             │
+│ • assets/js/cta-anim.js                                                     │
+│ • assets/js/preparing-checkout.js                                           │
+│ • assets/css/address-ml-modal.css                                           │
+│ • inc/frontend/cart-api.php                                                 │
+│ • inc/enqueue.php                                                           │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+================================================================================
+                        ARQUIVOS MAIS MODIFICADOS
+================================================================================
+
+Abaixo está a lista de arquivos ordenada por frequência de modificação
+necessária em todas as versões:
+
+1. assets/css/address-ml-modal.css    - Versões 2, 3, 4, 5 (4 versões)
+2. assets/js/address-ml-modal.js      - Versões 2, 4, 5 (3 versões)
+3. assets/js/address-ml-screens.js    - Versões 3, 4, 5 (3 versões)
+4. inc/enqueue.php                    - Versões 2, 5 (2 versões)
+5. assets/js/login-signup.js          - Versão 1
+6. assets/css/login-popup.css         - Versão 1
+7. inc/frontend/login-popup.php       - Versão 1
+8. assets/js/geolocation-*.js         - Versão 1
+9. assets/js/preparing-checkout.js    - Versões 2, 5
+10. assets/js/cta-anim.js             - Versão 5
+11. inc/frontend/addresses-api.php    - Versão 2
+12. inc/frontend/cart-api.php         - Versão 5
+13. inc/ajax-login.php                - Versão 1
+14. inc/ajax-signup.php               - Versão 1
+
+================================================================================
+                     ORDEM RECOMENDADA DE IMPLEMENTAÇÃO
+================================================================================
+
+FASE 1 - CRÍTICO (Implementar primeiro)
+─────────────────────────────────────────
+✅ [1.1] reCAPTCHA na aba signup (CONCLUÍDO - 12/01/2026)
+□ [5.4] Corrigir redirecionamento após finalização
+□ [2.1] Corrigir sobreposição de botões
+
+FASE 2 - IMPORTANTE (Após Fase 1)
+─────────────────────────────────────────
+✅ [1.4] Manter usuário logado (CONCLUÍDO - 12/01/2026)
+✅ [1.5] Ocultar variáveis quebradas (CONCLUÍDO - 12/01/2026)
+□ [5.1] Quantidade dinâmica de produtos
+□ [5.2] Lista de produtos com fotos
+
+FASE 3 - MELHORIAS UX (Após Fase 2)
+─────────────────────────────────────────
+✅ [1.2] Animação de carregamento localização (CONCLUÍDO - 12/01/2026)
+□ [2.2] Loading overlay "Preparando tudo"
+□ [3.1] Incluir complemento no endereço
+□ [3.2] Layout responsivo de preços
+
+FASE 4 - ENHANCEMENTS (Após Fase 3)
+─────────────────────────────────────────
+□ [4.1] Preço riscado ao aplicar cupom
+□ [4.2] Animação de confirmação do cupom
+□ [5.3] Desconto no total final
+
+FASE 5 - OPCIONAL/DEBUG (Quando necessário)
+─────────────────────────────────────────
+✅ [1.3] Debug de geolocalização Desktop (CONCLUÍDO - 12/01/2026)
+□ [2.3] Campo DDI internacional
+
+================================================================================
+                           VERSIONAMENTO GIT
+================================================================================
+
+BRANCH PRINCIPAL: develop
+TAG ATUAL: v3.2.44
+PRÓXIMA TAG: v3.2.45 (Versão 1.0 implementada)
+
+SUGESTÃO DE TAGS PARA RELEASES:
+─────────────────────────────────────────
+• v3.2.45  - Versão 1.0 completa (✅ IMPLEMENTADA - 12/01/2026)
+• v3.3.0   - Após Versão 2 completa
+• v3.4.0   - Após Versão 3 completa
+• v3.5.0   - Após Versão 4 completa
+• v3.6.0   - Após Versão 5 completa
+• v4.0.0   - Todas as melhorias implementadas
+
+COMMITS RECOMENDADOS:
+─────────────────────────────────────────
+• Usar prefixos: feat:, fix:, style:, refactor:
+• Um commit por melhoria implementada
+• Testar antes de commitar
+
+================================================================================
+                            COMANDOS ÚTEIS
+================================================================================
+
+# Verificar status das modificações
+git status
+
+# Ver diferenças
+git diff
+
+# Criar branch para versão específica
+git checkout -b feature/versao-1-popup
+
+# Commit de melhoria específica
+git commit -m "feat(popup): implementar reCAPTCHA na aba signup [1.1]"
+
+# Tag de release (Versão 1.0)
+git tag -a v3.2.45 -m "Release: Versão 1.0 - Melhorias do popup de inicialização"
+
+# Push com tags
+git push origin develop --tags
+
+================================================================================
+                        RESUMO DE PROGRESSO
+================================================================================
+
+VERSÃO 1.0 - POP-UP DE INICIALIZAÇÃO
+─────────────────────────────────────────
+Status: ✅ 100% IMPLEMENTADA (12/01/2026)
+Melhorias: 5/5 concluídas
+Arquivos modificados: 11 arquivos
+Próxima versão sugerida: v3.2.45
+
+DETALHES DA IMPLEMENTAÇÃO:
+• [1.1] ✅ Mensagem de erro com link clicável + stroke vermelho no reCAPTCHA
+• [1.2] ✅ Animação de pontos ("•••") ao aceitar localização
+• [1.3] ✅ Logs detalhados + script de diagnóstico para Desktop
+• [1.4] ✅ Redirecionamento forçado para garantir persistência de sessão
+• [1.5] ✅ Ocultação de variáveis quebradas com classes CSS pending-value
+
+PRÓXIMAS ETAPAS:
+─────────────────────────────────────────
+→ Implementar Versão 2.0 (Adicionar/Editar Endereço)
+→ Testar todas as melhorias da Versão 1.0 em produção
+→ Criar tag v3.2.45 após testes bem-sucedidos
+
+================================================================================
+                           CONTATO E SUPORTE
+================================================================================
+
+Repositório: https://github.com/caslusilver/checkout-tabs-wp-ml-dev
+Autor: Lucas Andrade
+Branch Principal: develop
+
+================================================================================
+                              FIM DO ÍNDICE
+================================================================================

@@ -1,0 +1,742 @@
+================================================================================
+                   CHECKOUT TABS WP ML - VERSÃO 1.0
+                   POP-UP DE INICIALIZAÇÃO (LOGIN/SIGNUP)
+================================================================================
+
+Data de Criação: 12/01/2026
+Status: Pendente
+Prioridade: Alta
+Escopo: Sistema de autenticação, geolocalização e sessão do usuário
+
+================================================================================
+                           ÍNDICE DE MELHORIAS
+================================================================================
+
+[1.1] Replicar campo reCAPTCHA na aba "Criar uma conta"
+[1.2] Animação CSS de carregamento ("•••") ao aceitar localização
+[1.3] Reforçar debug de geolocalização para Desktop
+[1.4] Manter usuário logado após login/signup (persistência de sessão)
+[1.5] Ocultar variáveis/códigos HTML quebrados enquanto localização não é aceita
+
+================================================================================
+                        DETALHAMENTO DAS MELHORIAS
+================================================================================
+
+--------------------------------------------------------------------------------
+[1.1] REPLICAR CAMPO RECAPTCHA NA ABA "CRIAR UMA CONTA"
+--------------------------------------------------------------------------------
+
+PROBLEMA IDENTIFICADO:
+O reCAPTCHA só é exibido na aba de Login. Quando o usuário está na aba 
+"Criar uma conta" e tenta submeter o formulário sem completar o reCAPTCHA,
+recebe erro mas precisa voltar à aba anterior para visualizá-lo.
+
+SOLUÇÃO IMPLEMENTADA:
+Quando o usuário tenta submeter o formulário de signup sem completar o reCAPTCHA,
+uma mensagem de erro é exibida com um link clicável "Clique aqui para completar 
+o reCAPTCHA". Ao clicar no link, o sistema:
+1. Volta automaticamente para a aba de Login
+2. Destaca o reCAPTCHA com um stroke vermelho circulando a caixa
+3. Faz scroll suave até o reCAPTCHA
+4. Remove o destaque após 5 segundos
+
+ARQUIVOS MODIFICADOS:
+
+1. assets/js/login-signup.js
+   Localização: Linhas 123-145 (validação do reCAPTCHA no signup)
+   
+   IMPLEMENTAÇÃO:
+   ```javascript
+   if (!recaptchaResponse) {
+     // Mensagem de erro com link clicável
+     var linkHtml = '<a href="#" id="ctwpml-goto-recaptcha" style="color:#3483fa;font-weight:bold;">Clique aqui para completar o reCAPTCHA</a>';
+     setMsg($msg, 'Por favor, complete o reCAPTCHA. ' + linkHtml, true);
+     
+     // Handler para voltar à aba de login e destacar reCAPTCHA
+     $(document).off('click', '#ctwpml-goto-recaptcha').on('click', '#ctwpml-goto-recaptcha', function(e) {
+       e.preventDefault();
+       // Trocar para aba login
+       $('#login-popup .ctwpml-auth-tab[data-tab="login"]').trigger('click');
+       
+       // Aguardar a aba de login aparecer e o reCAPTCHA estar visível
+       setTimeout(function() {
+         var recContainer = $('#ctwpml-recaptcha-login-container');
+         var recWidget = $('#g-recaptcha-login');
+         
+         // Adicionar classe de erro no container e destacar com stroke vermelho
+         if (recContainer.length) {
+           recContainer.addClass('ctwpml-recaptcha-error');
+           recContainer.css({
+             'border': '2px solid #dc2626',
+             'border-radius': '4px',
+             'padding': '4px',
+             'background-color': 'rgba(220, 38, 38, 0.05)'
+           });
+         }
+         
+         // Também destacar o widget do reCAPTCHA se existir
+         if (recWidget.length) {
+           recWidget.css({
+             'outline': '2px solid #dc2626',
+             'outline-offset': '2px'
+           });
+         }
+         
+         // Scroll suave para o reCAPTCHA
+         if (recContainer.length && recContainer[0].scrollIntoView) {
+           recContainer[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
+         }
+         
+         // Remover destaque após 5 segundos
+         setTimeout(function() {
+           recContainer.removeClass('ctwpml-recaptcha-error');
+           recContainer.css({
+             'border': '',
+             'border-radius': '',
+             'padding': '',
+             'background-color': ''
+           });
+           recWidget.css({
+             'outline': '',
+             'outline-offset': ''
+           });
+         }, 5000);
+       }, 300); // Aguardar 300ms para garantir que a aba foi trocada
+     });
+     return;
+   }
+   ```
+
+2. assets/css/login-popup.css
+   Localização: Linhas 195-217 (estilos de erro do reCAPTCHA)
+   
+   IMPLEMENTAÇÃO:
+   ```css
+   /* Estado de erro do reCAPTCHA - stroke vermelho circulando a caixa */
+   #ctwpml-recaptcha-login-container.ctwpml-recaptcha-error {
+     border: 2px solid #dc2626 !important;
+     border-radius: 4px !important;
+     padding: 4px !important;
+     background-color: rgba(220, 38, 38, 0.05) !important;
+     animation: ctwpml-shake 0.5s ease-in-out;
+     box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.2) !important;
+   }
+   
+   #g-recaptcha-login {
+     transition: outline 0.3s ease;
+   }
+   
+   #g-recaptcha-login[style*="outline"] {
+     outline: 2px solid #dc2626 !important;
+     outline-offset: 2px !important;
+   }
+   
+   @keyframes ctwpml-shake {
+     0%, 100% { transform: translateX(0); }
+     25% { transform: translateX(-5px); }
+     75% { transform: translateX(5px); }
+   }
+   ```
+
+3. inc/frontend/login-popup.php
+   Localização: Linhas 57-65 (container do reCAPTCHA no login)
+   
+   VERIFICAÇÃO:
+   - Container #ctwpml-recaptcha-login-container existe (linha 62)
+   - Widget #g-recaptcha-login existe (linha 63)
+   - IDs estão corretos e correspondem aos seletores no JavaScript
+
+FLUXO DE FUNCIONAMENTO:
+1. Usuário está na aba "Criar uma conta"
+2. Preenche nome e e-mail
+3. Tenta submeter o formulário SEM completar o reCAPTCHA
+4. Sistema exibe mensagem de erro: "Por favor, complete o reCAPTCHA. Clique aqui para completar o reCAPTCHA"
+5. Usuário clica no link "Clique aqui para completar o reCAPTCHA"
+6. Sistema automaticamente:
+   - Troca para a aba "Login"
+   - Adiciona stroke vermelho (borda + outline) circulando o reCAPTCHA
+   - Faz scroll suave até o reCAPTCHA
+   - Remove o destaque após 5 segundos
+7. Usuário completa o reCAPTCHA na aba Login
+8. Usuário volta para aba Signup e submete novamente (agora funcionará)
+
+TESTES REQUERIDOS:
+- [x] Abrir popup de login no checkout
+- [x] Ir para aba "Criar uma conta"
+- [x] Tentar submeter sem completar reCAPTCHA
+- [x] Verificar se mensagem de erro aparece com link clicável
+- [x] Clicar no link e verificar se volta para aba login
+- [x] Verificar se stroke vermelho aparece circulando o reCAPTCHA
+- [x] Verificar se scroll suave funciona
+- [x] Verificar se destaque é removido após 5 segundos
+- [ ] Completar reCAPTCHA na aba login e voltar para signup
+- [ ] Submeter formulário de signup com sucesso
+
+NOTAS IMPORTANTES:
+- O timeout de 300ms garante que a aba foi trocada antes de aplicar o destaque
+- O destaque é aplicado tanto no container quanto no widget do reCAPTCHA
+- A animação de "shake" chama atenção para o erro
+- O destaque é removido automaticamente após 5 segundos para não poluir a UI
+
+--------------------------------------------------------------------------------
+[1.2] ANIMAÇÃO CSS DE CARREGAMENTO ("•••") AO ACEITAR LOCALIZAÇÃO
+--------------------------------------------------------------------------------
+
+PROBLEMA IDENTIFICADO:
+Quando o usuário aceita compartilhar localização, a mensagem "Ativando 
+localização..." é exibida de forma estática, sem feedback visual de que
+algo está acontecendo.
+
+ARQUIVOS A MODIFICAR:
+
+1. assets/js/geolocation-permission-modal.js
+   Localização: Linha 91 (função setStatus)
+   
+   AÇÃO: Modificar para incluir animação de pontos
+
+2. assets/css/geolocation-permission-modal.css
+   
+   AÇÃO: Adicionar animação CSS para os pontos
+
+   CÓDIGO A ADICIONAR:
+   ```css
+   .ctwpml-geo-loading-dots::after {
+     content: '';
+     animation: ctwpml-dots 1.5s infinite;
+   }
+   
+   @keyframes ctwpml-dots {
+     0% { content: ''; }
+     25% { content: '•'; }
+     50% { content: '••'; }
+     75% { content: '•••'; }
+     100% { content: ''; }
+   }
+   
+   /* Fallback para navegadores que não suportam animação de content */
+   .ctwpml-geo-loading-text {
+     display: inline-flex;
+     align-items: center;
+   }
+   
+   .ctwpml-geo-loading-text .ctwpml-dots {
+     display: inline-block;
+     width: 20px;
+     text-align: left;
+   }
+   
+   .ctwpml-geo-loading-text .ctwpml-dots::after {
+     content: '';
+     animation: ctwpml-dots-alt 1.2s infinite step-end;
+   }
+   
+   @keyframes ctwpml-dots-alt {
+     0% { content: '•'; }
+     33% { content: '••'; }
+     66% { content: '•••'; }
+   }
+   ```
+
+3. assets/js/geolocation-permission-modal.js
+   Localização: Linha 91-92
+   
+   MODIFICAR setStatus() PARA:
+   ```javascript
+   function setStatus(msg, isLoading) {
+     var el = document.getElementById('ctwpml-geo-status');
+     if (!el) return;
+     
+     if (isLoading) {
+       el.innerHTML = '<span class="ctwpml-geo-loading-text">' + 
+         (msg || 'Carregando') + 
+         '<span class="ctwpml-dots"></span></span>';
+     } else {
+       el.textContent = msg || '';
+     }
+   }
+   ```
+   
+   MODIFICAR chamada na linha 92 (dentro do click handler):
+   ```javascript
+   setStatus('Ativando localização', true);  // true = isLoading
+   ```
+
+TESTES REQUERIDOS:
+- [ ] Acessar página de produto (não logado)
+- [ ] Verificar se popup de geolocalização aparece
+- [ ] Clicar em "Permitir"
+- [ ] Verificar se animação "•••" aparece após "Ativando localização"
+- [ ] Verificar se animação para quando localização é obtida
+
+--------------------------------------------------------------------------------
+[1.3] REFORÇAR DEBUG DE GEOLOCALIZAÇÃO PARA DESKTOP
+--------------------------------------------------------------------------------
+
+PROBLEMA IDENTIFICADO:
+O popup de permissão de localização não está aparecendo em desktop,
+dificultando diagnóstico do problema.
+
+ARQUIVOS A MODIFICAR:
+
+1. assets/js/geolocation-permission-modal.js
+   
+   AÇÃO: Adicionar logs de debug mais detalhados
+
+   CÓDIGO A ADICIONAR (no início do arquivo, após 'use strict'):
+   ```javascript
+   var DEBUG_GEO = true; // Forçar debug temporariamente
+   
+   function geoLog(msg, data) {
+     if (!DEBUG_GEO) return;
+     try {
+       var prefix = '[CTWPML GEO DEBUG] ';
+       if (data) {
+         console.log(prefix + msg, data);
+       } else {
+         console.log(prefix + msg);
+       }
+     } catch(e) {}
+   }
+   ```
+
+   ADICIONAR LOGS em pontos estratégicos:
+   
+   Linha ~127 (função init):
+   ```javascript
+   function init() {
+     geoLog('init() chamado');
+     geoLog('navigator.geolocation disponível:', 'geolocation' in navigator);
+     geoLog('navigator.permissions disponível:', !!(navigator && navigator.permissions));
+     geoLog('GEO.ensureSessionCache:', typeof GEO.ensureSessionCache);
+     geoLog('GEO.requestAndFetch:', typeof GEO.requestAndFetch);
+     
+     // ... resto do código existente
+   }
+   ```
+   
+   Linha ~114 (shouldShowModalViaPermissionsApi):
+   ```javascript
+   function shouldShowModalViaPermissionsApi() {
+     geoLog('Verificando permissions API...');
+     
+     if (!navigator || !navigator.permissions || !navigator.permissions.query) {
+       geoLog('Permissions API não disponível, retornando true');
+       return Promise.resolve(true);
+     }
+     
+     return navigator.permissions
+       .query({ name: 'geolocation' })
+       .then(function (res) {
+         geoLog('Permissions query result:', res ? res.state : 'null');
+         return res && res.state === 'prompt';
+       })
+       .catch(function (err) {
+         geoLog('Permissions query error:', err);
+         return true;
+       });
+   }
+   ```
+
+2. inc/geolocation/enqueue.php
+   
+   AÇÃO: Verificar se scripts estão sendo carregados corretamente em desktop
+
+   VERIFICAR:
+   - Se há condições que impedem carregamento em desktop
+   - Se o script está sendo enfileirado corretamente
+
+3. CRIAR NOVO ARQUIVO: assets/js/geolocation-debug.js (temporário)
+   
+   PROPÓSITO: Script de diagnóstico que pode ser removido após resolver o problema
+   
+   ```javascript
+   (function() {
+     'use strict';
+     
+     var report = {
+       timestamp: new Date().toISOString(),
+       userAgent: navigator.userAgent,
+       isMobile: /Mobile|Android|iPhone|iPad/i.test(navigator.userAgent),
+       isDesktop: !/Mobile|Android|iPhone|iPad/i.test(navigator.userAgent),
+       hasGeolocation: 'geolocation' in navigator,
+       hasPermissions: !!(navigator && navigator.permissions),
+       modalOverlayExists: !!document.getElementById('ctwpml-geo-modal-overlay'),
+       CTWPMLGeoExists: typeof window.CTWPMLGeo !== 'undefined',
+       CTWPMLGeoParamsExists: typeof window.CTWPMLGeoParams !== 'undefined',
+     };
+     
+     console.table(report);
+     
+     // Verificar estado da permissão
+     if (navigator.permissions && navigator.permissions.query) {
+       navigator.permissions.query({ name: 'geolocation' })
+         .then(function(result) {
+           console.log('[GEO DEBUG] Permission state:', result.state);
+         })
+         .catch(function(err) {
+           console.log('[GEO DEBUG] Permission query error:', err);
+         });
+     }
+     
+     // Checar sessionStorage
+     try {
+       var promptShown = sessionStorage.getItem('ctwpml_geo_prompt_shown');
+       var freteCache = sessionStorage.getItem('ctwpml_geo_freteData');
+       console.log('[GEO DEBUG] Prompt já mostrado:', promptShown);
+       console.log('[GEO DEBUG] Frete em cache:', !!freteCache);
+     } catch(e) {
+       console.log('[GEO DEBUG] SessionStorage error:', e);
+     }
+   })();
+   ```
+
+TESTES REQUERIDOS:
+- [ ] Abrir console do navegador em Desktop
+- [ ] Limpar sessionStorage: sessionStorage.clear()
+- [ ] Recarregar página de produto
+- [ ] Verificar logs no console
+- [ ] Analisar report gerado
+- [ ] Identificar ponto de falha
+
+--------------------------------------------------------------------------------
+[1.4] MANTER USUÁRIO LOGADO APÓS LOGIN/SIGNUP
+--------------------------------------------------------------------------------
+
+PROBLEMA IDENTIFICADO:
+Necessidade de garantir que o usuário permaneça logado após criar conta ou 
+fazer login, sem necessidade de novo login.
+
+ARQUIVOS A VERIFICAR/MODIFICAR:
+
+1. inc/ajax-signup.php
+   Localização: Linhas 132-134
+   
+   SITUAÇÃO ATUAL (JÁ IMPLEMENTADO):
+   ```php
+   // Loga automaticamente
+   wp_set_current_user($user_id);
+   wp_set_auth_cookie($user_id, true);  // true = remember
+   ```
+   
+   AÇÃO: Já está implementado corretamente. Verificar se está funcionando.
+   
+   POSSÍVEL PROBLEMA:
+   - O cookie pode não estar sendo persistido corretamente
+   - Conflito com cache de página
+   
+   ADICIONAR VERIFICAÇÃO:
+   ```php
+   // Após linha 134, adicionar:
+   if (function_exists('checkout_tabs_wp_ml_is_debug_enabled') && checkout_tabs_wp_ml_is_debug_enabled()) {
+     error_log('[CTWPML] Signup: Cookie de autenticação definido para user_id=' . $user_id);
+     error_log('[CTWPML] Signup: is_user_logged_in()=' . (is_user_logged_in() ? 'true' : 'false'));
+   }
+   ```
+
+2. inc/ajax-login.php
+   Localização: Linhas 77-83
+   
+   SITUAÇÃO ATUAL:
+   ```php
+   $creds = [
+     'user_login' => $email,
+     'user_password' => $password,
+     'remember' => true,  // Já está como true
+   ];
+   ```
+   
+   AÇÃO: Já está configurado para "remember me". Verificar persistência.
+
+3. assets/js/login-signup.js
+   
+   AÇÃO: Após login/signup bem-sucedido, verificar se página recarrega 
+   corretamente mantendo a sessão
+   
+   VERIFICAR linhas 144-146 (signup success) e 224-226 (login success):
+   ```javascript
+   window.location.reload();
+   ```
+   
+   POSSÍVEL MELHORIA:
+   Em vez de reload(), usar redirecionamento forçado para garantir nova sessão:
+   ```javascript
+   // Substituir window.location.reload() por:
+   window.location.href = window.location.href.split('?')[0] + '?ctwpml_session_refresh=' + Date.now();
+   ```
+
+TESTES REQUERIDOS:
+- [ ] Criar nova conta via popup
+- [ ] Verificar se usuário permanece logado após reload
+- [ ] Fazer logout
+- [ ] Fazer login via popup
+- [ ] Verificar se usuário permanece logado
+- [ ] Fechar navegador e reabrir (testar persistência)
+- [ ] Verificar se sessão persiste
+
+--------------------------------------------------------------------------------
+[1.5] OCULTAR VARIÁVEIS/CÓDIGOS HTML QUEBRADOS
+--------------------------------------------------------------------------------
+
+PROBLEMA IDENTIFICADO:
+Antes do popup de permissão de localização aparecer, variáveis não resolvidas
+estão sendo exibidas no site (ex: {{frete}}, ${valor}), causando visual amador.
+
+ARQUIVOS A MODIFICAR:
+
+1. assets/css/checkout-ui.css ou address-ml-modal.css
+   
+   AÇÃO: Adicionar regra CSS para ocultar elementos com placeholders
+
+   CÓDIGO A ADICIONAR:
+   ```css
+   /* Ocultar elementos com placeholders não resolvidos */
+   [data-ctwpml-placeholder]:not([data-ctwpml-resolved]) {
+     visibility: hidden !important;
+   }
+   
+   /* Ou usar classe específica */
+   .ctwpml-pending-value {
+     visibility: hidden;
+   }
+   
+   .ctwpml-pending-value.ctwpml-resolved {
+     visibility: visible;
+   }
+   
+   /* Fallback: ocultar textos que parecem variáveis */
+   .ctwpml-shipping-price:empty,
+   .ctwpml-payment-total-value:empty {
+     visibility: hidden;
+   }
+   ```
+
+2. assets/js/address-ml-screens.js
+   
+   AÇÃO: Adicionar lógica para marcar elementos como "resolvidos"
+   
+   CÓDIGO A ADICIONAR (após renderizar valores):
+   ```javascript
+   // Após preencher um valor dinâmico:
+   $element.addClass('ctwpml-resolved').attr('data-ctwpml-resolved', 'true');
+   ```
+
+3. assets/js/geolocation-client.js
+   Localização: Função persistContract (linhas 49-59)
+   
+   AÇÃO: Após persistir dados, disparar evento para atualizar UI
+   
+   CÓDIGO A ADICIONAR (após linha 59):
+   ```javascript
+   function persistContract(data) {
+     // ... código existente ...
+     
+     // Após persistir, marcar elementos como resolvidos
+     try {
+       document.querySelectorAll('.ctwpml-pending-value').forEach(function(el) {
+         el.classList.add('ctwpml-resolved');
+       });
+       // Disparar evento customizado
+       document.dispatchEvent(new CustomEvent('ctwpml_values_resolved', { detail: data }));
+     } catch(e) {}
+   }
+   ```
+
+4. inc/frontend/login-popup.php (ou template relevante)
+   
+   AÇÃO: Adicionar classe "ctwpml-pending-value" em elementos que exibem
+   valores dinâmicos de frete/localização
+
+TESTES REQUERIDOS:
+- [ ] Acessar página de produto (não logado, sem cache de localização)
+- [ ] Verificar se NÃO aparecem textos como {{frete}} ou ${valor}
+- [ ] Aceitar permissão de localização
+- [ ] Verificar se valores aparecem corretamente após aceitar
+- [ ] Testar em diferentes navegadores
+
+================================================================================
+                        SISTEMA DE TELEMETRIA E DEBUG
+================================================================================
+
+FUNCIONALIDADE IMPLEMENTADA:
+Sistema completo de telemetria para rastrear eficiência de cada funcionalidade
+da Versão 1.0, permitindo mapear performance, taxa de sucesso e identificar
+gargalos.
+
+ARQUIVOS CRIADOS:
+1. assets/js/telemetry.js
+   - Sistema core de telemetria
+   - Rastreamento de eventos, cliques, sucessos/erros
+   - Cálculo de métricas (duração média, taxa de sucesso, etc.)
+   - Armazenamento em sessionStorage
+   - Funções: track(), start(), end(), click(), getReport(), exportReport()
+
+2. assets/js/telemetry-panel.js
+   - Painel visual flutuante (botão 📊 no canto superior direito)
+   - Exibe métricas em tempo real
+   - Atualização automática a cada 2 segundos quando visível
+   - Botões: Exportar JSON, Limpar dados
+   - Acessível apenas quando debug está ativo
+
+INSTRUMENTAÇÃO ADICIONADA:
+
+[1.1] reCAPTCHA na aba signup:
+- ✅ Rastreamento de validação (start/end)
+- ✅ Evento de erro quando reCAPTCHA não preenchido
+- ✅ Clique no link de redirecionamento
+- ✅ Aplicação e remoção do destaque visual
+
+[1.2] Animação de geolocalização:
+- ✅ Início da solicitação de geolocalização
+- ✅ Início da animação de pontos
+- ✅ Sucesso/erro ao obter localização
+- ✅ Duração total do processo
+
+[1.3] Debug de geolocalização Desktop:
+- ✅ Inicialização do modal
+- ✅ Verificação de permissões
+- ✅ Cache hit/miss
+- ✅ Exibição do modal
+
+[1.4] Persistência de sessão:
+- ✅ Login bem-sucedido
+- ✅ Signup bem-sucedido
+- ✅ Dados do usuário (sem informações sensíveis)
+
+[1.5] Ocultação de placeholders:
+- ✅ Início da persistência de dados
+- ✅ Elementos encontrados e resolvidos
+- ✅ Erros ao marcar elementos
+
+COMO USAR:
+
+1. Via Console do Navegador:
+   ```javascript
+   // Ver relatório completo
+   ctwpmlTelemetry.logReport();
+   
+   // Exportar dados como JSON
+   var json = ctwpmlTelemetry.exportReport();
+   console.log(json);
+   
+   // Obter relatório programaticamente
+   var report = ctwpmlTelemetry.getReport();
+   console.table(report.features);
+   ```
+
+2. Via Painel Visual:
+   - Quando debug está ativo, aparece botão 📊 no canto superior direito
+   - Clique para abrir/fechar painel
+   - Métricas atualizadas automaticamente
+   - Botão "Exportar JSON" para salvar relatório completo
+
+3. Métricas Disponíveis:
+   - Total de eventos por funcionalidade
+   - Taxa de sucesso (%)
+   - Contagem de sucessos/erros/cliques
+   - Duração média (ms)
+   - Duração mínima/máxima
+   - Último evento registrado
+
+EXEMPLO DE RELATÓRIO:
+```json
+{
+  "report": {
+    "sessionStart": "2026-01-12T10:30:00.000Z",
+    "sessionDuration": 120000,
+    "totalEvents": 15,
+    "features": {
+      "1.1-recaptcha-signup": {
+        "totalEvents": 3,
+        "successCount": 1,
+        "errorCount": 1,
+        "clickCount": 1,
+        "successRate": "33.33%",
+        "avgDuration": "245.50ms"
+      },
+      "1.2-geolocation-animation": {
+        "totalEvents": 2,
+        "successCount": 1,
+        "errorCount": 0,
+        "clickCount": 0,
+        "successRate": "50.00%",
+        "avgDuration": "1234.00ms"
+      }
+    }
+  }
+}
+```
+
+================================================================================
+                        CHECKLIST DE IMPLEMENTAÇÃO
+================================================================================
+
+[✅] 1.1 - Replicar reCAPTCHA na aba signup
+    [✅] Verificar renderização do widget
+    [✅] Adicionar mensagem de erro com link
+    [✅] Adicionar estilos de destaque
+    [✅] Adicionar telemetria de rastreamento
+    [ ] Testar fluxo completo
+
+[✅] 1.2 - Animação de carregamento
+    [✅] Adicionar CSS da animação de pontos
+    [✅] Modificar função setStatus()
+    [✅] Adicionar telemetria de rastreamento
+    [ ] Testar em diferentes navegadores
+
+[✅] 1.3 - Debug de geolocalização Desktop
+    [✅] Adicionar logs detalhados
+    [✅] Criar script de diagnóstico
+    [✅] Adicionar telemetria de rastreamento
+    [ ] Identificar causa raiz
+    [ ] Corrigir problema identificado
+
+[✅] 1.4 - Persistência de sessão
+    [✅] Verificar configuração atual
+    [✅] Adicionar logs de debug
+    [✅] Adicionar telemetria de rastreamento
+    [ ] Testar persistência
+    [ ] Ajustar se necessário
+
+[✅] 1.5 - Ocultar variáveis quebradas
+    [✅] Adicionar CSS de ocultação
+    [✅] Marcar elementos como pending
+    [✅] Adicionar lógica de resolução
+    [✅] Adicionar telemetria de rastreamento
+    [ ] Testar visual em diferentes estados
+
+================================================================================
+                           NOTAS DE DESENVOLVIMENTO
+================================================================================
+
+DEPENDÊNCIAS:
+- jQuery (já carregado)
+- Google reCAPTCHA v2 (já configurado)
+- Geolocation API do navegador
+- sessionStorage (para armazenamento de telemetria)
+
+COMPATIBILIDADE:
+- Chrome 80+
+- Firefox 75+
+- Safari 13+
+- Edge 80+
+
+CONSIDERAÇÕES DE SEGURANÇA:
+- Validação de reCAPTCHA sempre no servidor
+- Não expor informações sensíveis em logs de produção
+
+SISTEMA DE TELEMETRIA:
+- Scripts: assets/js/telemetry.js, assets/js/telemetry-panel.js
+- Enfileirado em: inc/enqueue.php
+- Armazenamento: sessionStorage (limpa ao fechar aba)
+- Limite: 500 eventos por sessão (FIFO)
+- Acesso: window.CCTelemetry ou window.ctwpmlTelemetry
+- Painel visual: apenas quando debug está ativo
+
+ROLLBACK:
+- Em caso de problemas, reverter para versão anterior via Git
+- Branch de desenvolvimento: develop
+- Tag atual: v3.2.44 → v3.2.45 (após implementação completa)
+
+================================================================================
+                              FIM DO DOCUMENTO
+================================================================================

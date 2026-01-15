@@ -246,22 +246,87 @@
     var subtotalEl = root.querySelector('tr.cart-subtotal td');
     var shippingEl = root.querySelector('tr.shipping td, tr.shipping th, .woocommerce-shipping-totals td');
     var totalEl = root.querySelector('tr.order-total td') || root.querySelector('.order-total .woocommerce-Price-amount');
+    var shippingText = '';
+
+    if (shippingEl) {
+      // Preferir o valor monetário puro (evita texto concatenado no Review)
+      var amounts = shippingEl.querySelectorAll('.woocommerce-Price-amount');
+      if (amounts && amounts.length) {
+        shippingText = String(amounts[amounts.length - 1].textContent || '').trim();
+      } else {
+        shippingText = String(shippingEl.textContent || '').trim();
+      }
+    }
 
     return {
       subtotalText: subtotalEl ? subtotalEl.textContent.trim() : '',
-      shippingText: shippingEl ? shippingEl.textContent.trim() : '',
+      shippingText: shippingText,
       totalText: totalEl ? totalEl.textContent.trim() : '',
     };
   }
 
+  function readCoupons() {
+    var root = getReviewRoot() || document;
+    var rows = root.querySelectorAll('tr.cart-discount');
+    var out = [];
+
+    rows.forEach(function (row) {
+      try {
+        var code = '';
+        var removeLink = row.querySelector('a.woocommerce-remove-coupon');
+        if (removeLink && removeLink.getAttribute('data-coupon')) {
+          code = String(removeLink.getAttribute('data-coupon') || '').trim();
+        }
+
+        if (!code) {
+          // Woo geralmente usa classe cart-discount-<coupon>
+          var cls = String(row.className || '');
+          var m = cls.match(/\bcart-discount-([^\s]+)/);
+          if (m && m[1]) code = String(m[1] || '').trim();
+        }
+
+        if (!code) {
+          var th = row.querySelector('th');
+          code = th ? String(th.textContent || '').trim() : '';
+          code = code.replace(/cupom/i, '').replace(/:/g, '').trim();
+        }
+
+        var td = row.querySelector('td');
+        var amountText = '';
+        if (td) {
+          // Preferir o valor monetário “limpo” (sem texto do link remover)
+          var amounts = td.querySelectorAll('.woocommerce-Price-amount');
+          if (amounts && amounts.length) {
+            amountText = String(amounts[amounts.length - 1].textContent || '').trim();
+          } else {
+            amountText = String(td.textContent || '').trim();
+          }
+        }
+
+        out.push({
+          code: code,
+          amountText: amountText,
+          hasRemoveLink: !!removeLink,
+        });
+      } catch (e0) {}
+    });
+
+    log('readCoupons()', { count: out.length, coupons: out });
+    return out;
+  }
+
   async function getCartThumbs() {
     var nonce = getCartThumbsNonce();
-    if (!getAjaxUrl() || !nonce) return { thumb_urls: [], count: 0 };
+    if (!getAjaxUrl() || !nonce) return { thumb_urls: [], count: 0, item_count: 0, items: [], subtotal: '', total: '' };
     var resp = await ajaxPost({ action: 'ctwpml_get_cart_thumbs', _ajax_nonce: nonce });
-    if (!resp || !resp.success || !resp.data) return { thumb_urls: [], count: 0 };
+    if (!resp || !resp.success || !resp.data) return { thumb_urls: [], count: 0, item_count: 0, items: [], subtotal: '', total: '' };
     return {
       thumb_urls: Array.isArray(resp.data.thumb_urls) ? resp.data.thumb_urls.slice(0, 3) : [],
       count: Number(resp.data.count || 0),
+      item_count: Number(resp.data.item_count || resp.data.count || 0),
+      items: Array.isArray(resp.data.items) ? resp.data.items : [],
+      subtotal: String(resp.data.subtotal || ''),
+      total: String(resp.data.total || ''),
     };
   }
 
@@ -274,6 +339,7 @@
     getSelectedGatewayId: getSelectedGatewayId,
     getSelectedGatewayLabel: getSelectedGatewayLabel,
     readTotals: readTotals,
+    readCoupons: readCoupons,
     getCartThumbs: getCartThumbs,
     hasCheckoutForm: function () { return !!getCheckoutFormEl(); },
   };
