@@ -14,7 +14,7 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 ### Changed
 - **Versão atual**: v3.2.65  
   **Versão sugerida após a mudança**: vX.Y.Z  
-  **Descrição**: texto objetivo do que mudou e impacto (pode listar itens separados por ponto e vírgula).
+  **Descrição**: Docs: documenta política de branches/tags (main estável, develop dev) e baselines recomendadas; atualiza Stable tag do readme para 3.2.65.
 
 ## [v3.2.65] - 2026-01-15
 
