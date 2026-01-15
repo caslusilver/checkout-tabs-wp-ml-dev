@@ -1904,6 +1904,7 @@
       var methodName = mapShippingName(methodId);
       var priceText = String(sel.priceText || '');
       var label = String(sel.label || '');
+      var pluginUrl = (state.params && state.params.plugin_url) ? String(state.params.plugin_url) : '';
 
       // linha "Frete" no topo: preferir o preço do método selecionado
       if (priceText) {
@@ -1934,23 +1935,48 @@
 
       // Detalhe da entrega: título = método + preço, eta = label
       var eta = label ? ('Chegará ' + label) : '';
-      if (eta) $('#ctwpml-review-shipment-eta').text(eta);
+      $('#ctwpml-review-shipment-eta').text(eta || '');
 
       var methodLine = methodName ? methodName : '';
       if (methodLine && priceText) methodLine += ' • ' + priceText;
       if (!methodLine && priceText) methodLine = priceText;
       if (methodLine) $('#ctwpml-review-shipment-title').text(methodLine);
 
-      // Produto/quantidade (pega do order_review real quando existir)
+      // Ícone dinâmico da modalidade: Motoboy vs Correios
       try {
-        var $firstItem = $('#order_review .cart_item').first();
-        if ($firstItem.length) {
-          var name = ($firstItem.find('.product-name').clone().children().remove().end().text() || '').trim();
-          var qty = ($firstItem.find('.product-quantity').text() || '').replace(/[^0-9]/g, '');
-          if (name) $('#ctwpml-review-product-name').text(name);
-          if (qty) $('#ctwpml-review-product-qty').text('Quantidade: ' + qty);
+        var iconUrl = '';
+        if (methodName && /motoboy/i.test(methodName)) {
+          iconUrl = pluginUrl ? (pluginUrl + 'assets/img/icones/motoboy.svg') : '';
+        } else if (methodName && /(sedex|pac|mini)/i.test(methodName)) {
+          iconUrl = pluginUrl ? (pluginUrl + 'assets/img/icones/correio.svg') : '';
         }
-      } catch (e) {}
+        if (iconUrl) {
+          $('#ctwpml-review-shipment-icon').html('<img src="' + iconUrl + '" alt="" />');
+          if (typeof state.checkpoint === 'function') {
+            state.checkpoint('CHK_REVIEW_SHIPMENT_ICON_SET', true, { methodId: methodId, methodName: methodName, icon: iconUrl });
+          }
+        } else {
+          $('#ctwpml-review-shipment-icon').empty();
+          if (typeof state.checkpoint === 'function') {
+            state.checkpoint('CHK_REVIEW_SHIPMENT_ICON_SET', false, { methodId: methodId, methodName: methodName, reason: 'no_match_or_no_pluginUrl' });
+          }
+        }
+      } catch (eI) {}
+
+      // Quantidade total de itens no carrinho (fonte: resumo do carrinho)
+      try {
+        // Evita conteúdo antigo nesse campo (a lista de produtos já é exibida abaixo)
+        $('#ctwpml-review-product-name').text('');
+
+        var qtyTotal = Number(state.reviewCartItemCount || 0);
+        if (qtyTotal > 0) {
+          $('#ctwpml-review-product-qty').text('Quantidade: ' + qtyTotal);
+          if (typeof state.checkpoint === 'function') state.checkpoint('CHK_REVIEW_SHIPMENT_QTY', true, { qty: qtyTotal });
+        } else {
+          $('#ctwpml-review-product-qty').text('');
+          if (typeof state.checkpoint === 'function') state.checkpoint('CHK_REVIEW_SHIPMENT_QTY', false, { qty: qtyTotal });
+        }
+      } catch (eQ) {}
     }
 
     function bindReviewStickyFooter() {
@@ -2071,6 +2097,9 @@
           var thumbUrls = Array.isArray(summary.thumb_urls) ? summary.thumb_urls : [];
           var subtotalText = summary.subtotal ? String(summary.subtotal) : (totals.subtotalText || '');
           var totalText = summary.total ? String(summary.total) : (totals.totalText || '');
+
+          // Fonte da verdade para quantidade no bloco de entrega (Review)
+          state.reviewCartItemCount = Number(itemCount || 0);
 
           var html = window.CCCheckoutTabs.AddressMlScreens.renderReviewConfirmScreen({
             productCount: itemCount,
@@ -4318,7 +4347,23 @@
       }
       if (currentView === 'initial') {
         console.log('[CTWPML][DEBUG] - fechando modal (estava em initial)');
-        closeModal({ reason: 'back_from_initial', allowNavigateBack: true });
+        // v5.x: no início do fluxo, voltar deve sair do checkout e ir para o carrinho
+        var cartUrl = (state.params && state.params.cart_url) ? String(state.params.cart_url) : '';
+        if (cartUrl) {
+          closeModal({ reason: 'back_from_initial', allowNavigateBack: false });
+          try {
+            if (typeof state.checkpoint === 'function') state.checkpoint('CHK_NAV_BACK_TO_CART', true, { cartUrl: cartUrl });
+          } catch (eC) {}
+          setTimeout(function () {
+            try { window.location.href = cartUrl; } catch (eN) {}
+          }, 0);
+        } else {
+          try {
+            if (typeof state.checkpoint === 'function') state.checkpoint('CHK_NAV_BACK_TO_CART', false, { reason: 'missing_cart_url' });
+          } catch (eC2) {}
+          // fallback: comportamento antigo (history)
+          closeModal({ reason: 'back_from_initial_fallback', allowNavigateBack: true });
+        }
         return;
       }
       console.log('[CTWPML][DEBUG] - fechando modal (view desconhecida)');
@@ -5337,7 +5382,9 @@
     });
     $(document).on('click', '#ctwpml-review-change-billing', function (e) {
       e.preventDefault();
-      showFormForEditAddress();
+      // UX: primeiro vai para lista de endereços cadastrados
+      showList();
+      renderAddressList();
     });
 
     // Tela 4 (Revise e confirme): termos (sync entre checkbox topo e sticky + Woo)

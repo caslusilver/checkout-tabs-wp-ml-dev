@@ -12,9 +12,16 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 ## [Unreleased]
 
 ### Changed
-- **Versão atual**: v3.2.64  
+- **Versão atual**: v3.2.65  
   **Versão sugerida após a mudança**: vX.Y.Z  
   **Descrição**: texto objetivo do que mudou e impacto (pode listar itens separados por ponto e vírgula).
+
+## [v3.2.65] - 2026-01-15
+
+### Changed
+- Review: remove thumbs do bloco de entrega e exibe ícone dinâmico por modalidade (Correios/Motoboy) + prazo; corrige quantidade do bloco de entrega para usar total real do carrinho; link “Modificar dados de faturamento” passa a abrir a listagem; seta voltar da primeira tela retorna ao carrinho.
+
+#### Protocol: 0c6d354
 
 ## [v3.2.64] - 2026-01-13
 

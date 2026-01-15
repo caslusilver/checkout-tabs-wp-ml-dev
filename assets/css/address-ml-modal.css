@@ -1751,6 +1751,22 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
   align-items: center;
 }
 
+.ctwpml-review-shipment-icon {
+  width: 100px; /* mesmo footprint visual do bloco de 3 thumbs (40 + 30 + 30) */
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.ctwpml-review-shipment-icon img {
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+  display: block;
+}
+
 .ctwpml-review-products-list {
   display: flex;
   flex-direction: column;

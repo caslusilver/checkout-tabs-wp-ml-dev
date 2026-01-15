@@ -513,17 +513,8 @@
     var thumbUrls = Array.isArray(options.thumbUrls) ? options.thumbUrls : [];
     var items = Array.isArray(options.items) ? options.items : [];
 
-    var thumbsHtml = '';
-    if (thumbUrls.length) {
-      thumbsHtml = '<div class="ctwpml-review-thumbs" aria-hidden="true">';
-      thumbUrls.slice(0, 3).forEach(function (url) {
-        if (!url) return;
-        thumbsHtml += '<div class="ctwpml-review-thumb"><img src="' + escapeHtml(String(url)) + '" alt="Produto" /></div>';
-      });
-      thumbsHtml += '</div>';
-    } else {
-      thumbsHtml = '<div class="ctwpml-review-thumb" aria-hidden="true"></div>';
-    }
+    // Bloco de entrega: removemos thumbs e usamos um ícone dinâmico (definido no JS do modal)
+    var shipmentIconHtml = '<div class="ctwpml-review-shipment-icon" id="ctwpml-review-shipment-icon" aria-hidden="true"></div>';
 
     var itemsHtml = '';
     if (items.length) {
@@ -606,7 +597,7 @@
       '      </div>' +
       '    </div>' +
       '    <div class="ctwpml-review-shipment-detail">' +
-      thumbsHtml +
+      shipmentIconHtml +
       '      <div class="ctwpml-review-shipment-info">' +
       '        <div class="ctwpml-review-shipment-eta" id="ctwpml-review-shipment-eta"></div>' +
       '        <div class="ctwpml-review-shipment-title" id="ctwpml-review-shipment-title"></div>' +
