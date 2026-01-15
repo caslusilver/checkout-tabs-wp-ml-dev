@@ -12,9 +12,16 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 ## [Unreleased]
 
 ### Changed
-- **Versão atual**: v3.2.62  
+- **Versão atual**: v3.2.63  
   **Versão sugerida após a mudança**: vX.Y.Z  
   **Descrição**: texto objetivo do que mudou e impacto (pode listar itens separados por ponto e vírgula).
+
+## [v3.2.63] - 2026-01-15
+
+### Changed
+- Cupom v4.7: centraliza estado de totais/cupom (`__ctwpmlTotalsState`) e aplica render único imediato (Payment + Review topo + sticky) no mesmo ciclo de `apply_coupon`/`remove_coupon`, eliminando dependência de reload/navegação para exibir valor original riscado e total em verde; resync explícito do frete no Review após aplicar/remover.
+
+#### Protocol: 0b19e2a
 
 ## [v3.2.62] - 2026-01-15
 

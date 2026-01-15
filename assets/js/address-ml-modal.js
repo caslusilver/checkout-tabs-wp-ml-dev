@@ -1273,6 +1273,185 @@
       return Math.abs(a - b) < 0.02; // tolerância 2 centavos
     }
 
+    // =========================================================
+    // STATE ÚNICO DE TOTAIS/CUPOM + RENDER ÚNICO (v4.7)
+    // Objetivo: tudo que aparece "só após reload" deve ser renderizado imediatamente no mesmo ciclo.
+    // =========================================================
+    state.__ctwpmlTotalsState = state.__ctwpmlTotalsState || {
+      totals: { subtotalText: '', shippingText: '', totalText: '' },
+      coupons: [], // [{code, amountText}]
+      discount: { hasDiscount: false, originalTotalText: '', discountedTotalText: '' },
+      updatedAt: 0,
+      source: '',
+    };
+
+    function ctwpmlDeriveDiscountState(totals, coupons) {
+      totals = totals || {};
+      coupons = Array.isArray(coupons) ? coupons : [];
+      var totalNowNum = ctwpmlParseBRLToNumber(totals.totalText || '');
+      var discountSum = ctwpmlSumCouponDiscountFromWooCoupons(coupons);
+      if (totalNowNum === null || discountSum <= 0.001) {
+        return { hasDiscount: false, originalTotalText: '', discountedTotalText: String(totals.totalText || '') };
+      }
+      var original = totalNowNum + discountSum;
+      var originalText = ctwpmlFormatNumberToBRL(original);
+      return {
+        hasDiscount: true,
+        originalTotalText: originalText,
+        discountedTotalText: String(totals.totalText || ''),
+      };
+    }
+
+    function ctwpmlUpdateTotalsStateFromWoo(source) {
+      var woo = window.CCCheckoutTabs && window.CCCheckoutTabs.WooHost ? window.CCCheckoutTabs.WooHost : null;
+      if (!woo) return;
+      var totals = woo.readTotals ? (woo.readTotals() || {}) : {};
+      var coupons = [];
+      try { coupons = woo.readCoupons ? (woo.readCoupons() || []) : []; } catch (e0) { coupons = []; }
+      state.__ctwpmlTotalsState.totals = {
+        subtotalText: String(totals.subtotalText || ''),
+        shippingText: String(totals.shippingText || ''),
+        totalText: String(totals.totalText || ''),
+      };
+      // normalizar para {code, amountText}
+      state.__ctwpmlTotalsState.coupons = coupons.map(function (c) {
+        return { code: String((c && c.code) || ''), amountText: String((c && c.amountText) || '') };
+      });
+      state.__ctwpmlTotalsState.discount = ctwpmlDeriveDiscountState(state.__ctwpmlTotalsState.totals, state.__ctwpmlTotalsState.coupons);
+      state.__ctwpmlTotalsState.updatedAt = Date.now();
+      state.__ctwpmlTotalsState.source = String(source || 'woo');
+      if (typeof state.checkpoint === 'function') {
+        state.checkpoint('CHK_TOTALS_STATE_UPDATED_FROM_WOO', true, {
+          source: state.__ctwpmlTotalsState.source,
+          totalText: state.__ctwpmlTotalsState.totals.totalText,
+          couponCodes: state.__ctwpmlTotalsState.coupons.map(function (x) { return String(x.code || ''); }),
+          hasDiscount: !!state.__ctwpmlTotalsState.discount.hasDiscount,
+        });
+      }
+    }
+
+    function ctwpmlUpdateTotalsStateFromAjax(data, source) {
+      data = data || {};
+      var totals = {
+        subtotalText: String(data.subtotal_text || ''),
+        shippingText: String(data.shipping_text || ''),
+        totalText: String(data.total_text || ''),
+      };
+      var coupons = Array.isArray(data.coupons) ? data.coupons : [];
+      var normalizedCoupons = coupons.map(function (c) {
+        return { code: String((c && c.code) || ''), amountText: String((c && c.amount_text) || (c && c.amountText) || '') };
+      });
+      state.__ctwpmlTotalsState.totals = totals;
+      state.__ctwpmlTotalsState.coupons = normalizedCoupons;
+
+      // Preferir originalTotal do attempt (quando existe), mas derivar sempre como fallback.
+      var derived = ctwpmlDeriveDiscountState(totals, normalizedCoupons);
+      if (state.__ctwpmlCouponAttempt && state.__ctwpmlCouponAttempt.originalTotal) {
+        derived.originalTotalText = String(state.__ctwpmlCouponAttempt.originalTotal || derived.originalTotalText || '');
+        derived.discountedTotalText = String(totals.totalText || derived.discountedTotalText || '');
+        derived.hasDiscount = !!(derived.originalTotalText && derived.discountedTotalText && normalizedCoupons.length);
+      }
+      state.__ctwpmlTotalsState.discount = derived;
+      state.__ctwpmlTotalsState.updatedAt = Date.now();
+      state.__ctwpmlTotalsState.source = String(source || 'ajax');
+      if (typeof state.checkpoint === 'function') {
+        state.checkpoint('CHK_TOTALS_STATE_UPDATED_FROM_AJAX', true, {
+          source: state.__ctwpmlTotalsState.source,
+          totalText: state.__ctwpmlTotalsState.totals.totalText,
+          couponCodes: state.__ctwpmlTotalsState.coupons.map(function (x) { return String(x.code || ''); }),
+          hasDiscount: !!state.__ctwpmlTotalsState.discount.hasDiscount,
+        });
+      }
+    }
+
+    function ctwpmlResyncReviewShipping(source, data) {
+      try {
+        var sel = state.selectedShipping || {};
+        var priceText = String(sel.priceText || '');
+        if (priceText) {
+          $('#ctwpml-review-shipping').text(priceText);
+          if (typeof state.checkpoint === 'function') {
+            state.checkpoint('CHK_SHIPPING_UI_RESYNC_AFTER_COUPON', true, { source: String(source || ''), value: priceText, from: 'selectedShipping' });
+          }
+          return;
+        }
+        if (data && data.shipping_text) {
+          $('#ctwpml-review-shipping').text(String(data.shipping_text || ''));
+          if (typeof state.checkpoint === 'function') {
+            state.checkpoint('CHK_SHIPPING_UI_RESYNC_AFTER_COUPON', true, { source: String(source || ''), value: String(data.shipping_text || ''), from: 'ajax' });
+          }
+        }
+      } catch (e0) {}
+    }
+
+    function ctwpmlRenderTotalsUI(source) {
+      var totals = (state.__ctwpmlTotalsState && state.__ctwpmlTotalsState.totals) ? state.__ctwpmlTotalsState.totals : {};
+      var discount = (state.__ctwpmlTotalsState && state.__ctwpmlTotalsState.discount) ? state.__ctwpmlTotalsState.discount : { hasDiscount: false };
+
+      // Payment: subtotal/total
+      try {
+        if (totals.subtotalText) $('#ctwpml-payment-subtotal-value').text(totals.subtotalText);
+      } catch (e0) {}
+      try {
+        var $totalRow = $('.ctwpml-payment-total-row').first();
+        if ($totalRow.length) {
+          if (discount && discount.hasDiscount && discount.originalTotalText && discount.discountedTotalText) {
+            $totalRow.addClass('has-discount');
+            $totalRow.html(
+              '<span class="ctwpml-payment-total-label">Você pagará</span>' +
+              '<div class="ctwpml-payment-price-wrapper">' +
+              '  <span class="ctwpml-payment-original-price" id="ctwpml-payment-original-price">' + escapeHtml(discount.originalTotalText) + '</span>' +
+              '  <span class="ctwpml-payment-discounted-price" id="ctwpml-payment-total-value">' + escapeHtml(discount.discountedTotalText) + '</span>' +
+              '</div>'
+            );
+          } else {
+            $totalRow.removeClass('has-discount');
+            $totalRow.html(
+              '<span class="ctwpml-payment-total-label">Você pagará</span>' +
+              '<span class="ctwpml-payment-total-value" id="ctwpml-payment-total-value">' + escapeHtml(String(totals.totalText || '')) + '</span>'
+            );
+          }
+        } else if (totals.totalText) {
+          $('#ctwpml-payment-total-value').text(totals.totalText);
+        }
+      } catch (e1) {}
+
+      // Review topo + sticky: total + original riscado
+      try {
+        if (totals.subtotalText) $('#ctwpml-review-products-subtotal').text(totals.subtotalText);
+        if (totals.totalText) {
+          $('#ctwpml-review-total').text(totals.totalText);
+          $('#ctwpml-review-payment-amount').text(totals.totalText);
+          $('#ctwpml-review-sticky-total').text(totals.totalText);
+        }
+        var $reviewRow = $('.ctwpml-review-total-row').first();
+        var $reviewOrig = $('#ctwpml-review-original-total');
+        var $stickyRow = $('.ctwpml-review-sticky-total-row').first();
+        var $stickyOrig = $('#ctwpml-review-sticky-original-total');
+        if (discount && discount.hasDiscount && discount.originalTotalText) {
+          $reviewOrig.text(discount.originalTotalText).show();
+          $reviewRow.addClass('has-discount');
+          if ($stickyOrig.length) $stickyOrig.text(discount.originalTotalText).show();
+          if ($stickyRow.length) $stickyRow.addClass('has-discount');
+        } else {
+          $reviewOrig.text('').hide();
+          $reviewRow.removeClass('has-discount');
+          if ($stickyOrig.length) $stickyOrig.text('').hide();
+          if ($stickyRow.length) $stickyRow.removeClass('has-discount');
+        }
+      } catch (e2) {}
+
+      if (typeof state.checkpoint === 'function') {
+        state.checkpoint('CHK_TOTALS_UI_RENDERED', true, {
+          source: String(source || ''),
+          view: String(currentView || ''),
+          hasDiscount: !!(discount && discount.hasDiscount),
+          originalTotalText: discount ? String(discount.originalTotalText || '') : '',
+          totalText: String(totals.totalText || ''),
+        });
+      }
+    }
+
     function ctwpmlNormalizeCouponAmount(amountText) {
       var s = String(amountText || '').trim();
       if (!s) return '';
@@ -1541,6 +1720,10 @@
           renderTotalsNoDiscount();
         }
       }
+
+      // v4.7: Sincronizar state único e render único imediatamente
+      try { ctwpmlUpdateTotalsStateFromWoo('payment_sync'); } catch (eS0) {}
+      try { ctwpmlRenderTotalsUI('payment_sync'); } catch (eS1) {}
 
       // Guardar mapping para clique
       state.paymentGatewayMap = map;
@@ -1819,6 +2002,12 @@
               state.checkpoint('CHK_COUPONS_RENDERED', true, { context: 'review_after_render', count: Array.isArray(cps0) ? cps0.length : 0 });
             }
           } catch (eC0) {}
+
+          // v4.7: Aplicar imediatamente o mesmo render de desconto do Payment no topo + sticky do Review
+          try {
+            ctwpmlUpdateTotalsStateFromWoo('review_after_render');
+            ctwpmlRenderTotalsUI('review_after_render');
+          } catch (eT0) {}
 
           // Checkpoint: tela de review renderizada
           if (typeof state.checkpoint === 'function') {
@@ -4620,6 +4809,12 @@
 
             // Atualizar totais na UI
             ctwpmlUpdateTotalsFromAjax(resp.data);
+            // v4.7: Atualização imediata (sem depender de reload/navegação)
+            try {
+              ctwpmlUpdateTotalsStateFromAjax(resp.data, 'apply_ajax_success');
+              ctwpmlRenderTotalsUI('apply_ajax_success');
+              ctwpmlResyncReviewShipping('apply_ajax_success', resp.data);
+            } catch (eR0) {}
 
             // Mostrar sucesso no botão
             if (typeof state.checkpoint === 'function') {
@@ -4970,6 +5165,13 @@
 
             // Atualizar totais na UI
             ctwpmlUpdateTotalsFromAjax(resp.data);
+
+            // v4.7: Re-render completo imediato (frete + totais) sem depender de eventos posteriores
+            try {
+              ctwpmlUpdateTotalsStateFromAjax(resp.data, 'remove_ajax_success');
+              ctwpmlRenderTotalsUI('remove_ajax_success');
+              ctwpmlResyncReviewShipping('remove_ajax_success', resp.data);
+            } catch (eR1) {}
 
             // v4.2: Liberar state machine de cupom
             setCouponBusy(false);
