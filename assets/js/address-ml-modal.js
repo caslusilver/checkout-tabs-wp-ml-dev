@@ -1294,12 +1294,12 @@
         var code = String(it.code || '').trim();
         var amount = ctwpmlNormalizeCouponAmount(it.amountText || '');
         if (!code && !amount) continue;
-        // v4.3: Botão remover à esquerda, ícone+nome no meio, valor à direita
+        // v4.5: Ordem visual desejada: ÍCONE do cupom → REMOVER → NOME do cupom (e valor à direita)
         html += '' +
           '<div class="ctwpml-coupon-row" data-coupon-code="' + escapeHtml(code) + '">' +
           '  <div class="ctwpml-coupon-left">' +
-          '    <button type="button" class="ctwpml-coupon-remove" data-coupon-code="' + escapeHtml(code) + '" data-ctwpml-context="' + escapeHtml(context || '') + '" title="Remover cupom"><img src="' + escapeHtml(removeIconUrl) + '" alt="Remover" width="18" height="18"></button>' +
           '    <img src="' + escapeHtml(couponIconUrl) + '" alt="" class="ctwpml-coupon-icon" width="16" height="16" />' +
+          '    <button type="button" class="ctwpml-coupon-remove" data-coupon-code="' + escapeHtml(code) + '" data-ctwpml-context="' + escapeHtml(context || '') + '" title="Remover cupom"><img src="' + escapeHtml(removeIconUrl) + '" alt="Remover" width="18" height="18"></button>' +
           '    <span class="ctwpml-coupon-code">' + escapeHtml(code ? code.toUpperCase() : 'CUPOM') + '</span>' +
           '  </div>' +
           '  <div class="ctwpml-coupon-right">' +
@@ -4656,16 +4656,69 @@
                 }
               };
 
+              var giveUpKeepOpen = function (reason, lastSnap) {
+                if (finalized) return;
+                finalized = true;
+                try { $(document.body).off('updated_checkout.ctwpml_coupon_apply_wait'); } catch (e0) {}
+                try { clearInterval(poll); } catch (e1) {}
+
+                // NÃO fechar o drawer no timeout: evita expor UI "meio atualizada"
+                // Libera o estado/botão para o usuário tentar novamente, mantendo o drawer aberto.
+                setCouponBusy(false);
+                $btn.removeClass('is-loading').prop('disabled', false);
+                var origText = $btn.data('original-text');
+                if (origText) $btn.text(origText);
+
+                if (typeof state.checkpoint === 'function') {
+                  state.checkpoint('CHK_COUPON_APPLY_WAIT_TIMEOUT_KEEP_OPEN', false, {
+                    code: couponCode,
+                    reason: String(reason || ''),
+                    expectedTotal: expectedTotalText,
+                    last: lastSnap || {},
+                    elapsedMs: Date.now() - startedAt,
+                  });
+                }
+                showNotification('O checkout ainda está atualizando. Aguarde mais alguns segundos antes de fechar.', 'info', 3500);
+              };
+
               var checkNow = function (source) {
                 try {
                   var w = window.CCCheckoutTabs && window.CCCheckoutTabs.WooHost ? window.CCCheckoutTabs.WooHost : null;
                   var t = w && w.readTotals ? w.readTotals() : {};
+                  var cps = [];
+                  try { cps = w && w.readCoupons ? (w.readCoupons() || []) : []; } catch (e0) { cps = []; }
+                  var couponFound = false;
+                  var lc = String(couponCode || '').toLowerCase();
+                  if (lc && cps && cps.length) {
+                    couponFound = cps.some(function (c) { return String((c && c.code) || '').toLowerCase() === lc; });
+                  }
                   var matches = ctwpmlTotalsRoughlyMatch(t.totalText || '', expectedTotalText);
+                  // Debug de visibilidade: só em updated_checkout/poll para não gerar spam
+                  if (typeof state.checkpoint === 'function' && (source === 'updated_checkout' || source === 'poll')) {
+                    state.checkpoint('CHK_COUPON_APPLY_WAIT_SNAPSHOT', true, {
+                      source: String(source || ''),
+                      expectedTotal: expectedTotalText,
+                      wooTotal: String(t.totalText || ''),
+                      matches: !!matches,
+                      couponFound: !!couponFound,
+                      wooCoupons: cps && cps.length ? cps.map(function (c) { return String((c && c.code) || ''); }) : [],
+                      elapsedMs: Date.now() - startedAt,
+                    });
+                  }
                   if (matches) {
                     if (typeof state.checkpoint === 'function') {
                       state.checkpoint('CHK_COUPON_APPLY_WOO_TOTAL_MATCH', true, { source: String(source || ''), expected: expectedTotalText, wooTotal: String(t.totalText || '') });
                     }
                     finalize('woo_total_match:' + String(source || ''));
+                    return true;
+                  }
+                  // Fallback: se o cupom já apareceu no DOM do Woo, considera aplicado e fecha
+                  // (evita depender exclusivamente do total, que pode variar por texto/ruído)
+                  if (couponFound) {
+                    if (typeof state.checkpoint === 'function') {
+                      state.checkpoint('CHK_COUPON_APPLY_WOO_COUPON_FOUND', true, { source: String(source || ''), code: couponCode, wooTotal: String(t.totalText || ''), expectedTotal: expectedTotalText });
+                    }
+                    finalize('woo_coupon_found:' + String(source || ''));
                     return true;
                   }
                 } catch (e2) {}
@@ -4676,14 +4729,27 @@
               $(document.body).on('updated_checkout.ctwpml_coupon_apply_wait', function () {
                 if (finalized) return;
                 if (checkNow('updated_checkout')) return;
-                if (Date.now() - startedAt > maxWait) finalize('timeout_updated_checkout');
+                if (Date.now() - startedAt > maxWait) {
+                  // Capturar último snapshot antes de desistir
+                  var w = window.CCCheckoutTabs && window.CCCheckoutTabs.WooHost ? window.CCCheckoutTabs.WooHost : null;
+                  var t = w && w.readTotals ? w.readTotals() : {};
+                  var cps = [];
+                  try { cps = w && w.readCoupons ? (w.readCoupons() || []) : []; } catch (e0) { cps = []; }
+                  giveUpKeepOpen('timeout_updated_checkout', { wooTotal: String(t.totalText || ''), wooCoupons: cps.map(function (c) { return String((c && c.code) || ''); }) });
+                }
               });
 
               // 2) fallback: polling curto (caso updated_checkout não dispare)
               var poll = setInterval(function () {
                 if (finalized) return;
                 if (checkNow('poll')) return;
-                if (Date.now() - startedAt > maxWait) finalize('timeout_poll');
+                if (Date.now() - startedAt > maxWait) {
+                  var w = window.CCCheckoutTabs && window.CCCheckoutTabs.WooHost ? window.CCCheckoutTabs.WooHost : null;
+                  var t = w && w.readTotals ? w.readTotals() : {};
+                  var cps = [];
+                  try { cps = w && w.readCoupons ? (w.readCoupons() || []) : []; } catch (e0) { cps = []; }
+                  giveUpKeepOpen('timeout_poll', { wooTotal: String(t.totalText || ''), wooCoupons: cps.map(function (c) { return String((c && c.code) || ''); }) });
+                }
               }, 200);
 
               // 3) check imediato (às vezes já está pronto)
@@ -4752,7 +4818,7 @@
         return;
       }
 
-      // v4.3: Usa layout unificado (botão esquerda, ícone+nome centro, valor direita)
+      // v4.5: Usa layout unificado (ícone → remover → nome; valor à direita)
       var pluginUrl = (window.cc_params && window.cc_params.plugin_url ? window.cc_params.plugin_url : '');
       var removeIconUrl = pluginUrl + 'assets/img/icones/remover-cupom.svg';
       var couponIconUrl = pluginUrl + 'assets/img/icones/coupom-icon.svg';
@@ -4765,8 +4831,8 @@
         html +=
           '<div class="ctwpml-coupon-row" data-coupon-code="' + code.toLowerCase() + '">' +
           '  <div class="ctwpml-coupon-left">' +
-          '    <button type="button" class="ctwpml-coupon-remove" data-coupon-code="' + code.toLowerCase() + '" data-ctwpml-context="' + context + '" title="Remover cupom"><img src="' + removeIconUrl + '" alt="Remover" width="18" height="18"></button>' +
           '    <img src="' + couponIconUrl + '" alt="" class="ctwpml-coupon-icon" width="16" height="16" />' +
+          '    <button type="button" class="ctwpml-coupon-remove" data-coupon-code="' + code.toLowerCase() + '" data-ctwpml-context="' + context + '" title="Remover cupom"><img src="' + removeIconUrl + '" alt="Remover" width="18" height="18"></button>' +
           '    <span class="ctwpml-coupon-code">' + code + '</span>' +
           '  </div>' +
           '  <div class="ctwpml-coupon-right">' +
@@ -4804,12 +4870,16 @@
         $('#ctwpml-review-payment-amount').text(data.total_text);
         $('#ctwpml-review-sticky-total').text(data.total_text);
 
-        // v4.3: Atualizar valor original na Review (se houver desconto)
+        // v4.5: Atualizar valor original na Review (topo + sticky) se tivermos attempt
         var $reviewTotalRow = $('.ctwpml-review-total-row').first();
         var $reviewOriginal = $('#ctwpml-review-original-total');
+        var $stickyRow = $('.ctwpml-review-sticky-total-row').first();
+        var $stickyOriginal = $('#ctwpml-review-sticky-original-total');
         if (state.__ctwpmlCouponAttempt && state.__ctwpmlCouponAttempt.originalTotal) {
           $reviewOriginal.text(state.__ctwpmlCouponAttempt.originalTotal).show();
           $reviewTotalRow.addClass('has-discount');
+          if ($stickyOriginal.length) $stickyOriginal.text(state.__ctwpmlCouponAttempt.originalTotal).show();
+          if ($stickyRow.length) $stickyRow.addClass('has-discount');
         }
       }
     }

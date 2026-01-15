@@ -1258,7 +1258,7 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
   /* v4.4: alinhar visualmente com ícone + texto (baseline) */
   line-height: 0;
   position: relative;
-  top: -1px;
+  top: -7px;
 }
 
 .ctwpml-coupon-remove:hover {
@@ -1659,7 +1659,7 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
   margin-bottom: 12px;
 }
 
-.ctwpml-review-sticky-total-row span:last-child {
+.ctwpml-review-sticky-total-row #ctwpml-review-sticky-total {
   font-size: 20px;
   font-weight: 700;
 }

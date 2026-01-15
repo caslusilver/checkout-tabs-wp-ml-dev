@@ -12,9 +12,16 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 ## [Unreleased]
 
 ### Changed
-- **Versão atual**: v3.2.60  
+- **Versão atual**: v3.2.61  
   **Versão sugerida após a mudança**: vX.Y.Z  
   **Descrição**: texto objetivo do que mudou e impacto (pode listar itens separados por ponto e vírgula).
+
+## [v3.2.61] - 2026-01-15
+
+### Changed
+- Cupom v4.5: ordem do cupom ajustada para ícone → remover → nome (Payment+Review); alinhamento do botão remover com `top:-7px`; drawer não fecha por timeout — agora fecha apenas quando o cupom aparece no DOM do Woo ou quando o total bate; debug reforçado com snapshots (CHK_COUPON_APPLY_WAIT_SNAPSHOT, CHK_COUPON_APPLY_WOO_COUPON_FOUND, CHK_COUPON_APPLY_WAIT_TIMEOUT_KEEP_OPEN); sticky total do Review corrigido para aplicar cor/estilos com wrapper.
+
+#### Protocol: 9210c08
 
 ## [v3.2.60] - 2026-01-15
 
