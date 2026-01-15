@@ -1217,6 +1217,62 @@
     // =========================================================
     // CUPONS (lista + remover) - helpers
     // =========================================================
+    function ctwpmlParseBRLToNumber(text) {
+      // Aceita: "R$ 79,00", "- R$ 30,00", "−R$30,00", "79,00"
+      var s = String(text || '').trim();
+      if (!s) return null;
+      // normalizar sinal “menos” unicode
+      s = s.replace(/\u2212/g, '-');
+      // manter apenas dígitos, separadores e sinal
+      var negative = s.indexOf('-') !== -1;
+      s = s.replace(/[^0-9.,]/g, '');
+      if (!s) return null;
+      // pt-BR: vírgula é decimal; ponto é milhar (pode existir)
+      // remover separadores de milhar
+      var parts = s.split(',');
+      if (parts.length > 2) {
+        // se tiver múltiplas vírgulas, mantém a última como decimal
+        var last = parts.pop();
+        s = parts.join('') + ',' + last;
+      }
+      s = s.replace(/\./g, '');
+      s = s.replace(',', '.');
+      var n = parseFloat(s);
+      if (!isFinite(n)) return null;
+      return negative ? -Math.abs(n) : n;
+    }
+
+    function ctwpmlFormatNumberToBRL(amount) {
+      var n = typeof amount === 'number' ? amount : null;
+      if (n === null || !isFinite(n)) return '';
+      try {
+        return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(n);
+      } catch (e) {
+        // fallback simples
+        var fixed = (Math.round(n * 100) / 100).toFixed(2);
+        return 'R$ ' + fixed.replace('.', ',');
+      }
+    }
+
+    function ctwpmlSumCouponDiscountFromWooCoupons(coupons) {
+      coupons = Array.isArray(coupons) ? coupons : [];
+      var sum = 0;
+      for (var i = 0; i < coupons.length; i++) {
+        var it = coupons[i] || {};
+        var v = ctwpmlParseBRLToNumber(it.amountText || '');
+        if (v === null) continue;
+        sum += Math.abs(v);
+      }
+      return sum;
+    }
+
+    function ctwpmlTotalsRoughlyMatch(aText, bText) {
+      var a = ctwpmlParseBRLToNumber(aText);
+      var b = ctwpmlParseBRLToNumber(bText);
+      if (a === null || b === null) return false;
+      return Math.abs(a - b) < 0.02; // tolerância 2 centavos
+    }
+
     function ctwpmlNormalizeCouponAmount(amountText) {
       var s = String(amountText || '').trim();
       if (!s) return '';
@@ -1414,6 +1470,27 @@
         renderTotalsNoDiscount();
         // lista já foi renderizada acima; manter consistente
       } else {
+        // v4.4: Persistência pós-reload
+        // Se houver cupons aplicados mas não temos attempt, derivar valor original pelo DOM do Woo:
+        // originalTotal = totalAtual + soma(descontos)
+        try {
+          var hasCoupons = Array.isArray(coupons) && coupons.length > 0;
+          if (hasCoupons && totals && totals.totalText) {
+            var discountSum = ctwpmlSumCouponDiscountFromWooCoupons(coupons);
+            var totalNow = ctwpmlParseBRLToNumber(totals.totalText);
+            if (totalNow !== null && discountSum > 0.001) {
+              state.__ctwpmlPaymentDiscount = {
+                originalTotal: ctwpmlFormatNumberToBRL(totalNow + discountSum),
+                discountedTotal: String(totals.totalText || ''),
+                // subtotal original é ambíguo (pode ser cupom em shipping), então não forçamos aqui
+                originalSubtotal: '',
+                discountedSubtotal: '',
+                couponName: '',
+              };
+            }
+          }
+        } catch (eDerive) {}
+
         // Se houver tentativa recente, tenta derivar “antes/depois”
         var attempt = state.__ctwpmlCouponAttempt;
         if (attempt && attempt.originalTotal && totals.totalText) {
@@ -1506,6 +1583,33 @@
         $('#ctwpml-review-payment-amount').text(totals.totalText);
         $('#ctwpml-review-sticky-total').text(totals.totalText);
       }
+      // v4.4: Review (topo + sticky) com valor original riscado + verde quando houver cupom
+      try {
+        var hasCoupons = Array.isArray(coupons) && coupons.length > 0;
+        var $reviewTotalRow = $('.ctwpml-review-total-row').first();
+        var $reviewOriginal = $('#ctwpml-review-original-total');
+        var $stickyOriginal = $('#ctwpml-review-sticky-original-total');
+        var $stickyRow = $('.ctwpml-review-sticky-total-row').first();
+        if (hasCoupons && totals && totals.totalText) {
+          var discountSum = ctwpmlSumCouponDiscountFromWooCoupons(coupons);
+          var totalNow = ctwpmlParseBRLToNumber(totals.totalText);
+          if (totalNow !== null && discountSum > 0.001) {
+            var originalText = ctwpmlFormatNumberToBRL(totalNow + discountSum);
+            $reviewOriginal.text(originalText).show();
+            $reviewTotalRow.addClass('has-discount');
+            if ($stickyOriginal.length) {
+              $stickyOriginal.text(originalText).show();
+            }
+            if ($stickyRow.length) $stickyRow.addClass('has-discount');
+          }
+        } else {
+          // sem cupons: limpar
+          $reviewOriginal.text('').hide();
+          $reviewTotalRow.removeClass('has-discount');
+          if ($stickyOriginal.length) $stickyOriginal.text('').hide();
+          if ($stickyRow.length) $stickyRow.removeClass('has-discount');
+        }
+      } catch (e3) {}
       // Cupons aplicados (logo abaixo do frete)
       ctwpmlRenderCouponsBlock('ctwpml-review-coupons', coupons, 'review');
       var pay = woo.getSelectedGatewayLabel();
@@ -4524,14 +4628,67 @@
             ctwpmlShowCouponSuccessIcon();
             $('#ctwpml-coupon-input').val('');
 
-            // v4.3: Aguardar 800ms para a UI estabilizar, depois fechar drawer
-            // Isso evita "quebra visual" durante o recálculo do Woo
-            setTimeout(function () {
-              ctwpmlToggleCouponDrawer(false);
-              if (typeof state.checkpoint === 'function') {
-                state.checkpoint('CHK_COUPON_APPLY_DRAWER_CLOSED', true, { code: couponCode, delayMs: 800 });
-              }
-            }, 800);
+            // v4.4: Só fechar drawer quando o Woo terminar de atualizar (updated_checkout)
+            // e os totais do DOM baterem com o total esperado. Evita ver "HTML não renderizado" / layout intermediário.
+            (function waitWooAndFinalize() {
+              var expectedTotalText = String(resp.data.total_text || '');
+              var startedAt = Date.now();
+              var maxWait = 8000;
+              var finalized = false;
+
+              var finalize = function (reason) {
+                if (finalized) return;
+                finalized = true;
+                try { $(document.body).off('updated_checkout.ctwpml_coupon_apply_wait'); } catch (e0) {}
+                try { clearInterval(poll); } catch (e1) {}
+
+                // fechar drawer
+                ctwpmlToggleCouponDrawer(false);
+
+                // liberar state machine e resetar botão (só após estabilizar)
+                setCouponBusy(false);
+                $btn.removeClass('is-loading').prop('disabled', false);
+                var origText = $btn.data('original-text');
+                if (origText) $btn.text(origText);
+
+                if (typeof state.checkpoint === 'function') {
+                  state.checkpoint('CHK_COUPON_APPLY_DRAWER_CLOSED', true, { code: couponCode, reason: String(reason || ''), elapsedMs: Date.now() - startedAt });
+                }
+              };
+
+              var checkNow = function (source) {
+                try {
+                  var w = window.CCCheckoutTabs && window.CCCheckoutTabs.WooHost ? window.CCCheckoutTabs.WooHost : null;
+                  var t = w && w.readTotals ? w.readTotals() : {};
+                  var matches = ctwpmlTotalsRoughlyMatch(t.totalText || '', expectedTotalText);
+                  if (matches) {
+                    if (typeof state.checkpoint === 'function') {
+                      state.checkpoint('CHK_COUPON_APPLY_WOO_TOTAL_MATCH', true, { source: String(source || ''), expected: expectedTotalText, wooTotal: String(t.totalText || '') });
+                    }
+                    finalize('woo_total_match:' + String(source || ''));
+                    return true;
+                  }
+                } catch (e2) {}
+                return false;
+              };
+
+              // 1) escutar eventos do Woo
+              $(document.body).on('updated_checkout.ctwpml_coupon_apply_wait', function () {
+                if (finalized) return;
+                if (checkNow('updated_checkout')) return;
+                if (Date.now() - startedAt > maxWait) finalize('timeout_updated_checkout');
+              });
+
+              // 2) fallback: polling curto (caso updated_checkout não dispare)
+              var poll = setInterval(function () {
+                if (finalized) return;
+                if (checkNow('poll')) return;
+                if (Date.now() - startedAt > maxWait) finalize('timeout_poll');
+              }, 200);
+
+              // 3) check imediato (às vezes já está pronto)
+              checkNow('immediate');
+            })();
 
             if (typeof state.checkpoint === 'function') {
               state.checkpoint('CHK_COUPON_APPLY_SHOW_SUCCESS_DONE', true, { code: couponCode });
@@ -4554,13 +4711,14 @@
             $('#ctwpml-coupon-input').addClass('is-error');
           }
 
-          // v4.2: Liberar state machine de cupom
-          setCouponBusy(false);
-
-          // Resetar botão
-          $btn.removeClass('is-loading').prop('disabled', false);
-          var origText = $btn.data('original-text');
-          if (origText) $btn.text(origText);
+          // v4.4: No sucesso, finalize() controla o reset/close após estabilizar.
+          // No erro, liberamos imediatamente.
+          if (!(resp && resp.success && resp.data)) {
+            setCouponBusy(false);
+            $btn.removeClass('is-loading').prop('disabled', false);
+            var origText = $btn.data('original-text');
+            if (origText) $btn.text(origText);
+          }
         },
         error: function (xhr, status, error) {
           log('Erro AJAX apply_coupon:', { status: status, error: error });

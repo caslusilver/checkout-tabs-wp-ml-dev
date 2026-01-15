@@ -608,7 +608,10 @@
       '  <div class="ctwpml-review-sticky-footer" id="ctwpml-review-sticky-footer">' +
       '    <div class="ctwpml-review-sticky-total-row">' +
       '      <span>Total</span>' +
-      '      <span id="ctwpml-review-sticky-total">' + escapeHtml(totalText) + '</span>' +
+      '      <span class="ctwpml-review-total-right" id="ctwpml-review-sticky-total-wrapper">' +
+      '        <span class="ctwpml-review-original-total" id="ctwpml-review-sticky-original-total" style="display:none;"></span>' +
+      '        <span id="ctwpml-review-sticky-total">' + escapeHtml(totalText) + '</span>' +
+      '      </span>' +
       '    </div>' +
       '    <div class="ctwpml-review-terms ctwpml-review-terms--sticky">' +
       '      <label class="ctwpml-review-terms-label">' +

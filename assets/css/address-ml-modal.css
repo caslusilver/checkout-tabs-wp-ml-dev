@@ -1255,6 +1255,10 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
   flex-shrink: 0;
   transition: opacity 0.2s ease;
   margin: 0;
+  /* v4.4: alinhar visualmente com ícone + texto (baseline) */
+  line-height: 0;
+  position: relative;
+  top: -1px;
 }
 
 .ctwpml-coupon-remove:hover {
@@ -1658,6 +1662,11 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
 .ctwpml-review-sticky-total-row span:last-child {
   font-size: 20px;
   font-weight: 700;
+}
+
+/* v4.4: Sticky total verde quando houver desconto */
+.ctwpml-review-sticky-total-row.has-discount #ctwpml-review-sticky-total {
+  color: #00a650 !important;
 }
 
 .ctwpml-review-section-label {

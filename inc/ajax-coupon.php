@@ -139,6 +139,11 @@ function ctwpml_ajax_remove_coupon(): void {
 function ctwpml_get_cart_totals_response(): array {
 	$cart = WC()->cart;
 
+	$to_plain_price = static function (float $amount): string {
+		// wc_price retorna HTML; precisamos texto puro para evitar "HTML não renderizado" na UI.
+		return wp_strip_all_tags(wc_price($amount));
+	};
+
 	// Totais formatados
 	$subtotal = $cart->get_subtotal();
 	$subtotal_tax = $cart->get_subtotal_tax();
@@ -154,23 +159,24 @@ function ctwpml_get_cart_totals_response(): array {
 		$coupon = new WC_Coupon($code);
 		$discount_amount = $cart->get_coupon_discount_amount($code, $cart->display_cart_ex_tax);
 		$discount_tax_amount = $cart->get_coupon_discount_tax_amount($code);
+		$coupon_discount = (float) ($discount_amount + $discount_tax_amount);
 
 		$coupons[] = [
 			'code' => $code,
-			'amount' => $discount_amount + $discount_tax_amount,
-			'amount_text' => '-' . wc_price($discount_amount + $discount_tax_amount),
+			'amount' => $coupon_discount,
+			'amount_text' => '-' . $to_plain_price($coupon_discount),
 		];
 	}
 
 	return [
 		'subtotal' => $subtotal + $subtotal_tax,
-		'subtotal_text' => wc_price($subtotal + $subtotal_tax),
+		'subtotal_text' => $to_plain_price((float) ($subtotal + $subtotal_tax)),
 		'shipping' => $shipping_total + $shipping_tax,
-		'shipping_text' => ($shipping_total > 0) ? wc_price($shipping_total + $shipping_tax) : 'Grátis',
+		'shipping_text' => ($shipping_total > 0) ? $to_plain_price((float) ($shipping_total + $shipping_tax)) : 'Grátis',
 		'discount' => $discount_total + $discount_tax,
-		'discount_text' => ($discount_total > 0) ? '-' . wc_price($discount_total + $discount_tax) : '',
+		'discount_text' => ($discount_total > 0) ? '-' . $to_plain_price((float) ($discount_total + $discount_tax)) : '',
 		'total' => (float) $total,
-		'total_text' => wc_price($total),
+		'total_text' => $to_plain_price((float) $total),
 		'coupons' => $coupons,
 		'coupon_count' => count($coupons),
 	];
