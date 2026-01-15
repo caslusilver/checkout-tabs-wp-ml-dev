@@ -12,9 +12,16 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 ## [Unreleased]
 
 ### Changed
-- **Versão atual**: v3.2.56  
+- **Versão atual**: v3.2.57  
   **Versão sugerida após a mudança**: vX.Y.Z  
   **Descrição**: texto objetivo do que mudou e impacto (pode listar itens separados por ponto e vírgula).
+
+## [v3.2.57] - 2026-01-13
+
+### Changed
+- Hardening v4.2 do cupom: funções de UI (showCouponSuccessIcon, resetCouponUi, toggleCouponDrawer) extraídas para escopo do módulo, corrigindo ReferenceError; state machine de cupom (couponBusy) para evitar conflitos entre AJAX do modal e eventos do WooCommerce; guard no listener updated_checkout/applied_coupon/removed_coupon que ignora eventos quando cupom está busy; checkpoints de debug reforçados (CHK_COUPON_BUSY_STATE, CHK_COUPON_UI_RESET, CHK_COUPON_SUCCESS_ICON_SHOWN, CHK_WOO_EVENT_SKIPPED_COUPON_BUSY, CHK_WOO_EVENT_PROCESSED, CHK_COUPON_APPLY_UPDATE_UI_START, CHK_COUPON_APPLY_SHOW_SUCCESS_START/DONE, CHK_COUPON_APPLY_TRIGGER_WOO_EVENTS).
+
+#### Protocol: 4f3efe0
 
 ## [v3.2.56] - 2026-01-13
 

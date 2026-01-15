@@ -29,6 +29,127 @@
     var formDirty = false;
 
     // =========================================================
+    // STATE MACHINE DE CUPOM (hardening v4.2)
+    // Evita conflitos entre AJAX do modal e eventos do Woo
+    // =========================================================
+    state.__ctwpmlCouponBusy = false;
+    state.__ctwpmlCouponBusyTs = 0;
+
+    /**
+     * Marca início de operação de cupom (apply/remove)
+     * Enquanto busy, listeners do Woo não devem re-renderizar UI de cupom
+     */
+    function setCouponBusy(busy) {
+      state.__ctwpmlCouponBusy = !!busy;
+      state.__ctwpmlCouponBusyTs = busy ? Date.now() : 0;
+      if (typeof state.checkpoint === 'function') {
+        state.checkpoint('CHK_COUPON_BUSY_STATE', true, { busy: !!busy, ts: state.__ctwpmlCouponBusyTs });
+      }
+    }
+
+    /**
+     * Verifica se está em operação de cupom (com timeout de segurança de 10s)
+     */
+    function isCouponBusy() {
+      if (!state.__ctwpmlCouponBusy) return false;
+      // Timeout de segurança: se demorar mais de 10s, libera
+      if (Date.now() - state.__ctwpmlCouponBusyTs > 10000) {
+        state.__ctwpmlCouponBusy = false;
+        state.__ctwpmlCouponBusyTs = 0;
+        return false;
+      }
+      return true;
+    }
+
+    // =========================================================
+    // FUNÇÕES DE UI DE CUPOM (escopo do módulo - hardening v4.2)
+    // Extraídas para serem acessíveis de qualquer handler
+    // =========================================================
+
+    /**
+     * Reseta a UI do botão de cupom (spinner, loading, etc.)
+     */
+    function ctwpmlResetCouponUi() {
+      try {
+        var $btn = $('#ctwpml-add-coupon-btn');
+        // Remover spinner/loading state
+        $btn.removeClass('is-success is-loading').prop('disabled', false);
+        var origText = $btn.data('original-text');
+        if (origText) $btn.text(origText);
+        // Remover ícone de sucesso se existir
+        $btn.find('.ctwpml-coupon-success-icon').remove();
+        $('#ctwpml-coupon-input').removeClass('is-error');
+        if (typeof state.checkpoint === 'function') {
+          state.checkpoint('CHK_COUPON_UI_RESET', true, {});
+        }
+      } catch (e0) {
+        if (typeof state.checkpoint === 'function') {
+          state.checkpoint('CHK_COUPON_UI_RESET', false, { error: String(e0.message || e0) });
+        }
+      }
+    }
+
+    /**
+     * Mostra ícone de sucesso (confirm-cupom.svg) após aplicar cupom
+     */
+    function ctwpmlShowCouponSuccessIcon() {
+      try {
+        var $btn = $('#ctwpml-add-coupon-btn');
+        var confirmIconUrl = (window.cc_params && window.cc_params.plugin_url ? window.cc_params.plugin_url : '') + 'assets/img/icones/confirm-cupom.svg';
+        $btn.removeClass('is-loading').addClass('is-success');
+        // Inserir ícone de sucesso antes do texto
+        if (!$btn.find('.ctwpml-coupon-success-icon').length) {
+          $btn.prepend('<span class="ctwpml-coupon-success-icon"><img src="' + confirmIconUrl + '" alt="Sucesso" width="22" height="22"></span> ');
+        }
+        if (typeof state.checkpoint === 'function') {
+          state.checkpoint('CHK_COUPON_SUCCESS_ICON_SHOWN', true, {});
+        }
+        // Fechar drawer após 1.5s
+        setTimeout(function () {
+          ctwpmlToggleCouponDrawer(false);
+        }, 1500);
+      } catch (e0) {
+        if (typeof state.checkpoint === 'function') {
+          state.checkpoint('CHK_COUPON_SUCCESS_ICON_SHOWN', false, { error: String(e0.message || e0) });
+        }
+      }
+    }
+
+    /**
+     * Toggle do drawer de cupom (escopo do módulo)
+     * @param {boolean} show - true para abrir, false para fechar
+     */
+    function ctwpmlToggleCouponDrawer(show) {
+      var $overlay = $('#ctwpml-coupon-overlay');
+      var $drawer = $('#ctwpml-coupon-drawer');
+      
+      var log = function (msg, data) {
+        if (typeof state.log === 'function') {
+          state.log(msg, data || {}, 'PAYMENT');
+        } else {
+          console.log('[CTWPML][PAYMENT] ' + msg, data || '');
+        }
+      };
+
+      if (show) {
+        log('Abrindo drawer de cupom');
+        $overlay.addClass('is-active');
+        $drawer.addClass('is-active');
+        $('body').css('overflow', 'hidden'); // Trava scroll do fundo
+        
+        // Focar no input após animação
+        setTimeout(function() {
+          $('#ctwpml-coupon-input').focus();
+        }, 350);
+      } else {
+        log('Fechando drawer de cupom');
+        $overlay.removeClass('is-active');
+        $drawer.removeClass('is-active');
+        $('body').css('overflow', ''); // Restaura scroll
+      }
+    }
+
+    // =========================================================
     // PERSISTÊNCIA DO ESTADO DO MODAL (sessionStorage)
     // =========================================================
     var CTWPML_MODAL_STATE_KEY = 'ctwpml_ml_modal_state_v1';
@@ -1209,35 +1330,8 @@
       state.__ctwpmlPaymentDiscount = state.__ctwpmlPaymentDiscount || null;
       state.__ctwpmlCouponAttempt = state.__ctwpmlCouponAttempt || null;
 
-      function resetCouponUi() {
-        try {
-          var $btn = $('#ctwpml-add-coupon-btn');
-          // Remover spinner/loading state
-          $btn.removeClass('is-success is-loading').prop('disabled', false);
-          var origText = $btn.data('original-text');
-          if (origText) $btn.text(origText);
-          // Remover ícone de sucesso se existir
-          $btn.find('.ctwpml-coupon-success-icon').remove();
-          $('#ctwpml-coupon-input').removeClass('is-error');
-        } catch (e0) {}
-      }
-
-      // v4.1: Mostrar ícone de sucesso (confirm-cupom.svg) após aplicar cupom
-      function showCouponSuccessIcon() {
-        try {
-          var $btn = $('#ctwpml-add-coupon-btn');
-          var confirmIconUrl = (window.cc_params && window.cc_params.plugin_url ? window.cc_params.plugin_url : '') + 'assets/img/icones/confirm-cupom.svg';
-          $btn.removeClass('is-loading').addClass('is-success');
-          // Inserir ícone de sucesso antes do texto
-          if (!$btn.find('.ctwpml-coupon-success-icon').length) {
-            $btn.prepend('<span class="ctwpml-coupon-success-icon"><img src="' + confirmIconUrl + '" alt="Sucesso" width="22" height="22"></span> ');
-          }
-          // Fechar drawer após 1.5s
-          setTimeout(function () {
-            toggleCouponDrawer(false);
-          }, 1500);
-        } catch (e0) {}
-      }
+      // v4.2: Usar funções extraídas do escopo do módulo (ctwpmlResetCouponUi, ctwpmlShowCouponSuccessIcon)
+      // Isso evita ReferenceError quando chamadas de fora deste escopo
 
       function renderTotalsNoDiscount() {
         try {
@@ -1313,7 +1407,7 @@
       if (String(eventType || '') === 'removed_coupon') {
         state.__ctwpmlPaymentDiscount = null;
         state.__ctwpmlCouponAttempt = null;
-        resetCouponUi();
+        ctwpmlResetCouponUi();
         renderTotalsNoDiscount();
         // lista já foi renderizada acima; manter consistente
       } else {
@@ -1330,12 +1424,12 @@
               couponName: String(attempt.couponName || attempt.code || ''),
             };
             // v4.1: Mostrar ícone de sucesso com animação
-            try { showCouponSuccessIcon(); } catch (e4) {}
+            try { ctwpmlShowCouponSuccessIcon(); } catch (e4) {}
             try { $('#ctwpml-coupon-input').removeClass('is-error'); } catch (e5) {}
           } else if (String(eventType || '') === 'applied_coupon') {
             // Cupom aplicado sem mudar total (ex.: efeito só no frete, etc.) – mantém UI normal.
             // v4.1: Mostrar ícone de sucesso com animação
-            try { showCouponSuccessIcon(); } catch (e6) {}
+            try { ctwpmlShowCouponSuccessIcon(); } catch (e6) {}
             try { $('#ctwpml-coupon-input').removeClass('is-error'); } catch (e7) {}
           } else if (String(eventType || '') === 'apply_coupon') {
             // Tentativa concluída sem efeito aparente no total: marcar visualmente como erro (sem travar o usuário).
@@ -1678,7 +1772,24 @@
     // Sempre que o Woo atualizar o checkout, refletimos no modal (subtotal/total).
     $(document.body).on('updated_checkout applied_coupon removed_coupon', function (e) {
       try {
-        if (currentView === 'payment') applyPaymentAvailabilityAndSync(e && e.type ? e.type : '');
+        var eventType = e && e.type ? e.type : '';
+
+        // v4.2: Guard - se cupom está "busy" (operação AJAX em andamento), 
+        // os eventos applied_coupon/removed_coupon são nossos e não devemos re-processar
+        // O updated_checkout do Woo também é esperado e já tratamos via AJAX response
+        if (isCouponBusy()) {
+          if (typeof state.checkpoint === 'function') {
+            state.checkpoint('CHK_WOO_EVENT_SKIPPED_COUPON_BUSY', true, { event: eventType, currentView: currentView });
+          }
+          // Não fazemos nada - deixamos o AJAX handler do modal controlar a UI
+          return;
+        }
+
+        if (typeof state.checkpoint === 'function') {
+          state.checkpoint('CHK_WOO_EVENT_PROCESSED', true, { event: eventType, currentView: currentView, couponBusy: false });
+        }
+
+        if (currentView === 'payment') applyPaymentAvailabilityAndSync(eventType);
         if (currentView === 'review') {
           syncReviewTotalsFromWoo();
           // Re-sincroniza termos (Woo pode re-renderizar o DOM).
@@ -4287,19 +4398,19 @@
       };
 
       log('Click em inserir cupom - abrindo drawer');
-      toggleCouponDrawer(true);
+      ctwpmlToggleCouponDrawer(true);
     });
 
     // Tela 3 (Pagamento): fechar drawer de cupom (click no overlay)
     $(document).on('click', '#ctwpml-coupon-overlay', function (e) {
       e.preventDefault();
-      toggleCouponDrawer(false);
+      ctwpmlToggleCouponDrawer(false);
     });
 
     // Tela 3 (Pagamento): fechar drawer de cupom (click no botão X)
     $(document).on('click', '#ctwpml-coupon-close', function (e) {
       e.preventDefault();
-      toggleCouponDrawer(false);
+      ctwpmlToggleCouponDrawer(false);
     });
 
     // Tela 3 (Pagamento): input no campo de cupom - habilita/desabilita botão
@@ -4354,6 +4465,9 @@
         ts: Date.now(),
       };
 
+      // v4.2: Marcar cupom como "busy" para blindar eventos concorrentes do Woo
+      setCouponBusy(true);
+
       // Mostrar spinner no botão
       var originalBtnText = $btn.text();
       $btn.addClass('is-loading').prop('disabled', true).data('original-text', originalBtnText);
@@ -4361,7 +4475,7 @@
       $('#ctwpml-coupon-input').removeClass('is-error');
 
       if (typeof state.checkpoint === 'function') {
-        state.checkpoint('CHK_COUPON_APPLY_AJAX_SENT', true, { code: couponCode });
+        state.checkpoint('CHK_COUPON_APPLY_AJAX_SENT', true, { code: couponCode, busy: true });
       }
 
       $.ajax({
@@ -4391,6 +4505,9 @@
             };
 
             // Atualizar lista de cupons na UI
+            if (typeof state.checkpoint === 'function') {
+              state.checkpoint('CHK_COUPON_APPLY_UPDATE_UI_START', true, { code: couponCode, couponsCount: (resp.data.coupons || []).length });
+            }
             ctwpmlUpdateCouponsFromAjax(resp.data.coupons || [], 'payment');
             ctwpmlUpdateCouponsFromAjax(resp.data.coupons || [], 'review');
 
@@ -4398,11 +4515,20 @@
             ctwpmlUpdateTotalsFromAjax(resp.data);
 
             // Mostrar sucesso
-            showCouponSuccessIcon();
-            toggleCouponDrawer(false);
+            if (typeof state.checkpoint === 'function') {
+              state.checkpoint('CHK_COUPON_APPLY_SHOW_SUCCESS_START', true, { code: couponCode });
+            }
+            ctwpmlShowCouponSuccessIcon();
+            ctwpmlToggleCouponDrawer(false);
             $('#ctwpml-coupon-input').val('');
+            if (typeof state.checkpoint === 'function') {
+              state.checkpoint('CHK_COUPON_APPLY_SHOW_SUCCESS_DONE', true, { code: couponCode });
+            }
 
             // Disparar evento para que o Woo atualize (fragments)
+            if (typeof state.checkpoint === 'function') {
+              state.checkpoint('CHK_COUPON_APPLY_TRIGGER_WOO_EVENTS', true, { code: couponCode, couponBusy: isCouponBusy() });
+            }
             $(document.body).trigger('update_checkout');
             $(document.body).trigger('applied_coupon', [couponCode]);
 
@@ -4416,6 +4542,9 @@
             $('#ctwpml-coupon-input').addClass('is-error');
           }
 
+          // v4.2: Liberar state machine de cupom
+          setCouponBusy(false);
+
           // Resetar botão
           $btn.removeClass('is-loading').prop('disabled', false);
           var origText = $btn.data('original-text');
@@ -4427,6 +4556,10 @@
             state.checkpoint('CHK_COUPON_APPLY_AJAX_ERROR', false, { status: status, error: error });
           }
           showNotification('Erro ao aplicar cupom. Tente novamente.', 'error', 4000);
+
+          // v4.2: Liberar state machine de cupom
+          setCouponBusy(false);
+
           $btn.removeClass('is-loading').prop('disabled', false);
           var origText = $btn.data('original-text');
           if (origText) $btn.text(origText);
@@ -4496,39 +4629,7 @@
       }
     }
 
-    /**
-     * Toggle do drawer de cupom
-     * @param {boolean} show - true para abrir, false para fechar
-     */
-    function toggleCouponDrawer(show) {
-      var $overlay = $('#ctwpml-coupon-overlay');
-      var $drawer = $('#ctwpml-coupon-drawer');
-      
-      var log = function (msg, data) {
-        if (typeof state.log === 'function') {
-          state.log(msg, data || {}, 'PAYMENT');
-        } else {
-          console.log('[CTWPML][PAYMENT] ' + msg, data || '');
-        }
-      };
-
-      if (show) {
-        log('Abrindo drawer de cupom');
-        $overlay.addClass('is-active');
-        $drawer.addClass('is-active');
-        $('body').css('overflow', 'hidden'); // Trava scroll do fundo
-        
-        // Focar no input após animação
-        setTimeout(function() {
-          $('#ctwpml-coupon-input').focus();
-        }, 350);
-      } else {
-        log('Fechando drawer de cupom');
-        $overlay.removeClass('is-active');
-        $drawer.removeClass('is-active');
-        $('body').css('overflow', ''); // Restaura scroll
-      }
-    }
+    // v4.2: toggleCouponDrawer foi movida para ctwpmlToggleCouponDrawer() no escopo do módulo
 
     // Remover cupom (lista em Payment/Review) - via AJAX controlado (sem reload)
     $(document).on('click', '.ctwpml-coupon-remove', function (e) {
@@ -4559,6 +4660,9 @@
         return;
       }
 
+      // v4.2: Marcar cupom como "busy" para blindar eventos concorrentes do Woo
+      setCouponBusy(true);
+
       // Mostrar spinner no botão enquanto processa
       try {
         $btn.prop('disabled', true);
@@ -4568,7 +4672,7 @@
       } catch (e1) {}
 
       if (typeof state.checkpoint === 'function') {
-        try { state.checkpoint('CHK_COUPON_REMOVE_AJAX_SENT', true, { code: code, context: context }); } catch (e2) {}
+        try { state.checkpoint('CHK_COUPON_REMOVE_AJAX_SENT', true, { code: code, context: context, busy: true }); } catch (e2) {}
       }
 
       $.ajax({
@@ -4606,6 +4710,9 @@
             // Atualizar totais na UI
             ctwpmlUpdateTotalsFromAjax(resp.data);
 
+            // v4.2: Liberar state machine de cupom
+            setCouponBusy(false);
+
             // Disparar evento para que o Woo atualize (fragments)
             $(document.body).trigger('update_checkout');
             $(document.body).trigger('removed_coupon', [code]);
@@ -4617,6 +4724,9 @@
               state.checkpoint('CHK_COUPON_REMOVE_AJAX_FAIL', false, { code: code, error: errorMsg });
             }
             showNotification(errorMsg, 'error', 3500);
+
+            // v4.2: Liberar state machine de cupom
+            setCouponBusy(false);
 
             // Restaurar botão
             try {
@@ -4632,6 +4742,9 @@
             state.checkpoint('CHK_COUPON_REMOVE_AJAX_ERROR', false, { status: status, error: error });
           }
           showNotification('Erro ao remover cupom. Tente novamente.', 'error', 3500);
+
+          // v4.2: Liberar state machine de cupom
+          setCouponBusy(false);
 
           // Restaurar botão
           try {
