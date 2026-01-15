@@ -1112,17 +1112,22 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
    DESCONTO/CUPOM APLICADO (v4.0)
    ===================================================== */
 
-/* Container de preço com desconto */
+/* =====================================================
+   DESCONTO/CUPOM v4.3 - Layout 1 linha (mobile-friendly)
+   ===================================================== */
+
+/* Container de preço com desconto - SEMPRE em linha */
 .ctwpml-payment-price-wrapper {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 2px;
+  display: inline-flex;
+  flex-direction: row;
+  align-items: baseline;
+  gap: 8px;
+  white-space: nowrap;
 }
 
-/* Preço original (riscado) */
+/* Preço original (riscado) - ~30% menor */
 .ctwpml-payment-original-price {
-  font-size: 14px;
+  font-size: 13px;
   color: #999 !important;
   text-decoration: line-through;
   font-weight: 400;
@@ -1135,34 +1140,18 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
   font-weight: 700;
 }
 
-/* Linha do "Você pagará" no footer */
+/* Linha do "Você pagará" no footer - SEMPRE row, nunca column */
 .ctwpml-payment-total-row.has-discount {
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 4px;
+  display: flex;
+  flex-direction: row !important;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
 }
 
 .ctwpml-payment-total-row.has-discount .ctwpml-payment-total-label {
-  align-self: flex-start;
-}
-
-/* Tag de desconto */
-.ctwpml-discount-tag {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  background: rgba(0, 166, 80, 0.1);
-  color: #00a650;
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-size: 12px;
-  font-weight: 600;
-  margin-top: 4px;
-}
-
-.ctwpml-discount-tag::before {
-  content: '🎫';
-  font-size: 14px;
+  align-self: auto;
+  flex-shrink: 0;
 }
 
 /* Subtotal com desconto */
@@ -1200,21 +1189,39 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
   font-weight: 600;
 }
 
+/* =====================================================
+   CUPONS v4.3 - Botão esquerda, ícone+nome centro, valor direita
+   ===================================================== */
+
 .ctwpml-coupon-row {
   display: flex;
   align-items: center;
-  justify-content: flex-start;
-  gap: 6px;
+  justify-content: space-between;
+  gap: 8px;
   padding: 6px 0;
+  white-space: nowrap;
 }
 
 .ctwpml-coupon-left {
-  min-width: 0;
-  flex: 1;
   display: flex;
   flex-direction: row;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+  min-width: 0;
+  flex: 1;
+}
+
+.ctwpml-coupon-right {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+/* Ícone do cupom (SVG) */
+.ctwpml-coupon-icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
 }
 
 .ctwpml-coupon-code {
@@ -1224,7 +1231,7 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 120px;
+  max-width: 100px;
 }
 
 .ctwpml-coupon-amount {
@@ -1232,11 +1239,9 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
   font-weight: 700;
   color: #16a34a; /* verde suave */
   white-space: nowrap;
-  margin-left: auto;
-  margin-right: 4px;
 }
 
-/* Botão remover cupom - apenas ícone SVG (compacto) */
+/* Botão remover cupom - à esquerda do nome (v4.3) */
 .ctwpml-coupon-remove {
   border: none;
   background: transparent;
@@ -1245,11 +1250,11 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
   flex-shrink: 0;
   transition: opacity 0.2s ease;
-  margin-left: 2px;
+  margin: 0;
 }
 
 .ctwpml-coupon-remove:hover {
@@ -1398,11 +1403,34 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
 .ctwpml-review-total-row {
   display: flex;
   justify-content: space-between;
+  align-items: baseline;
   margin-top: 16px;
   margin-bottom: 10px;
   font-size: 18px;
   font-weight: 700;
   color: #333;
+}
+
+/* v4.3: Review - wrapper para valor original + valor atual */
+.ctwpml-review-total-right {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: baseline;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+/* v4.3: Review - valor original riscado (~30% menor) */
+.ctwpml-review-original-total {
+  font-size: 13px;
+  color: #999 !important;
+  text-decoration: line-through;
+  font-weight: 400;
+}
+
+/* v4.3: Review - valor atual com desconto (verde) */
+.ctwpml-review-total-row.has-discount #ctwpml-review-total {
+  color: #00a650 !important;
 }
 
 .ctwpml-review-pay-tag {
@@ -1857,8 +1885,19 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
   margin-bottom: 20px;
 }
 
+/* v4.3: Ícone SVG no drawer de cupom */
 .ctwpml-coupon-ticket-icon {
-  font-size: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+.ctwpml-coupon-ticket-icon img {
+  width: 18px;
+  height: 18px;
 }
 
 .ctwpml-coupon-insert-text {

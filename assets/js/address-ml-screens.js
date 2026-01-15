@@ -471,7 +471,7 @@
       '  </div>' +
       '  <div class="ctwpml-coupon-drawer-content">' +
       '    <div class="ctwpml-coupon-insert-label">' +
-      '      <span class="ctwpml-coupon-ticket-icon">🎫</span>' +
+      '      <span class="ctwpml-coupon-ticket-icon"><img src="' + escapeHtml(pluginUrl + 'assets/img/icones/coupom-icon.svg') + '" alt="" width="18" height="18" /></span>' +
       '      <span class="ctwpml-coupon-insert-text">Inserir código</span>' +
       '    </div>' +
       '    <div class="ctwpml-coupon-input-wrapper">' +
@@ -540,7 +540,10 @@
       '    <div class="ctwpml-coupons-block ctwpml-coupons-block--review" id="ctwpml-review-coupons" style="display:none;"></div>' +
       '    <div class="ctwpml-review-total-row">' +
       '      <span>Você pagará</span>' +
-      '      <span id="ctwpml-review-total">' + escapeHtml(totalText) + '</span>' +
+      '      <span class="ctwpml-review-total-right" id="ctwpml-review-total-wrapper">' +
+      '        <span class="ctwpml-review-original-total" id="ctwpml-review-original-total" style="display:none;"></span>' +
+      '        <span id="ctwpml-review-total">' + escapeHtml(totalText) + '</span>' +
+      '      </span>' +
       '    </div>' +
       '    <span class="ctwpml-review-pay-tag" id="ctwpml-review-pay-tag">' + escapeHtml(paymentLabel) + '</span>' +
       '    <div class="ctwpml-review-terms">' +

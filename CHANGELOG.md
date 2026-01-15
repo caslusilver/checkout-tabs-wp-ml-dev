@@ -12,9 +12,16 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 ## [Unreleased]
 
 ### Changed
-- **Versão atual**: v3.2.57  
+- **Versão atual**: v3.2.58  
   **Versão sugerida após a mudança**: vX.Y.Z  
   **Descrição**: texto objetivo do que mudou e impacto (pode listar itens separados por ponto e vírgula).
+
+## [v3.2.58] - 2026-01-13
+
+### Changed
+- Layout cupom v4.3: botão remover movido para esquerda (antes do nome); ícone coupom-icon.svg adicionado; emoji 🎫 substituído por SVG no drawer; linha "Você pagará" sempre em 1 linha (flex-row, nunca coluna) com valor original ~30% menor e riscado ao lado do atual; mesma lógica aplicada na tela Review; drawer só fecha após 800ms (evita quebra visual durante recálculo do Woo); CSS limpo de discount-tag não utilizada.
+
+#### Protocol: 13ea35f
 
 ## [v3.2.57] - 2026-01-13
 

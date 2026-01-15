@@ -91,6 +91,7 @@
 
     /**
      * Mostra ícone de sucesso (confirm-cupom.svg) após aplicar cupom
+     * v4.3: Não fecha automaticamente - o caller decide quando fechar
      */
     function ctwpmlShowCouponSuccessIcon() {
       try {
@@ -104,10 +105,8 @@
         if (typeof state.checkpoint === 'function') {
           state.checkpoint('CHK_COUPON_SUCCESS_ICON_SHOWN', true, {});
         }
-        // Fechar drawer após 1.5s
-        setTimeout(function () {
-          ctwpmlToggleCouponDrawer(false);
-        }, 1500);
+        // v4.3: Removido o setTimeout que fechava automaticamente
+        // O caller (handler AJAX) agora controla quando fechar para evitar "quebra visual"
       } catch (e0) {
         if (typeof state.checkpoint === 'function') {
           state.checkpoint('CHK_COUPON_SUCCESS_ICON_SHOWN', false, { error: String(e0.message || e0) });
@@ -1229,22 +1228,26 @@
       coupons = Array.isArray(coupons) ? coupons : [];
       if (!coupons.length) return '';
       var title = coupons.length > 1 ? 'Cupons aplicados' : 'Cupom aplicado';
-      // Ícone SVG de remover cupom (apenas ícone, sem texto)
-      var removeIconUrl = (window.cc_params && window.cc_params.plugin_url ? window.cc_params.plugin_url : '') + 'assets/img/icones/remover-cupom.svg';
+      // Ícones SVG
+      var pluginUrl = (window.cc_params && window.cc_params.plugin_url ? window.cc_params.plugin_url : '');
+      var removeIconUrl = pluginUrl + 'assets/img/icones/remover-cupom.svg';
+      var couponIconUrl = pluginUrl + 'assets/img/icones/coupom-icon.svg';
       var html = '<div class="ctwpml-coupons-title">' + escapeHtml(title) + '</div>';
       for (var i = 0; i < coupons.length; i++) {
         var it = coupons[i] || {};
         var code = String(it.code || '').trim();
         var amount = ctwpmlNormalizeCouponAmount(it.amountText || '');
         if (!code && !amount) continue;
+        // v4.3: Botão remover à esquerda, ícone+nome no meio, valor à direita
         html += '' +
           '<div class="ctwpml-coupon-row" data-coupon-code="' + escapeHtml(code) + '">' +
           '  <div class="ctwpml-coupon-left">' +
-          '    <div class="ctwpml-coupon-code">' + escapeHtml(code ? code.toUpperCase() : 'CUPOM') + '</div>' +
+          '    <button type="button" class="ctwpml-coupon-remove" data-coupon-code="' + escapeHtml(code) + '" data-ctwpml-context="' + escapeHtml(context || '') + '" title="Remover cupom"><img src="' + escapeHtml(removeIconUrl) + '" alt="Remover" width="18" height="18"></button>' +
+          '    <img src="' + escapeHtml(couponIconUrl) + '" alt="" class="ctwpml-coupon-icon" width="16" height="16" />' +
+          '    <span class="ctwpml-coupon-code">' + escapeHtml(code ? code.toUpperCase() : 'CUPOM') + '</span>' +
           '  </div>' +
-          '  <div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">' +
-          '    <div class="ctwpml-coupon-amount">' + escapeHtml(amount) + '</div>' +
-          '    <button type="button" class="ctwpml-coupon-remove" data-coupon-code="' + escapeHtml(code) + '" data-ctwpml-context="' + escapeHtml(context || '') + '" title="Remover cupom"><img src="' + escapeHtml(removeIconUrl) + '" alt="Remover" width="20" height="20"></button>' +
+          '  <div class="ctwpml-coupon-right">' +
+          '    <span class="ctwpml-coupon-amount">' + escapeHtml(amount) + '</span>' +
           '  </div>' +
           '</div>';
       }
@@ -1368,8 +1371,8 @@
         try {
           var $totalRow = $('.ctwpml-payment-total-row').first();
           var $subtotalRow = $('.ctwpml-payment-subtotal-row').first();
-          var couponName = discount && discount.couponName ? String(discount.couponName) : '';
 
+          // v4.3: Subtotal com desconto - valor original riscado ao lado do atual
           if ($subtotalRow.length && discount.originalSubtotal && discount.discountedSubtotal && String(discount.originalSubtotal) !== String(discount.discountedSubtotal)) {
             $subtotalRow.addClass('has-discount');
             $subtotalRow.html(
@@ -1387,6 +1390,7 @@
             );
           }
 
+          // v4.3: Total "Você pagará" - tudo em 1 linha: label esquerda, valor original riscado + valor atual direita
           if ($totalRow.length) {
             $totalRow.addClass('has-discount');
             $totalRow.html(
@@ -1394,7 +1398,6 @@
               '<div class="ctwpml-payment-price-wrapper">' +
               '  <span class="ctwpml-payment-original-price" id="ctwpml-payment-original-price">' + escapeHtml(discount.originalTotal || '') + '</span>' +
               '  <span class="ctwpml-payment-discounted-price" id="ctwpml-payment-total-value">' + escapeHtml(discount.discountedTotal || (totals.totalText || '')) + '</span>' +
-              (couponName ? '  <span class="ctwpml-discount-tag" id="ctwpml-discount-tag">' + escapeHtml(couponName) + '</span>' : '') +
               '</div>'
             );
           }
@@ -4514,13 +4517,22 @@
             // Atualizar totais na UI
             ctwpmlUpdateTotalsFromAjax(resp.data);
 
-            // Mostrar sucesso
+            // Mostrar sucesso no botão
             if (typeof state.checkpoint === 'function') {
               state.checkpoint('CHK_COUPON_APPLY_SHOW_SUCCESS_START', true, { code: couponCode });
             }
             ctwpmlShowCouponSuccessIcon();
-            ctwpmlToggleCouponDrawer(false);
             $('#ctwpml-coupon-input').val('');
+
+            // v4.3: Aguardar 800ms para a UI estabilizar, depois fechar drawer
+            // Isso evita "quebra visual" durante o recálculo do Woo
+            setTimeout(function () {
+              ctwpmlToggleCouponDrawer(false);
+              if (typeof state.checkpoint === 'function') {
+                state.checkpoint('CHK_COUPON_APPLY_DRAWER_CLOSED', true, { code: couponCode, delayMs: 800 });
+              }
+            }, 800);
+
             if (typeof state.checkpoint === 'function') {
               state.checkpoint('CHK_COUPON_APPLY_SHOW_SUCCESS_DONE', true, { code: couponCode });
             }
@@ -4582,8 +4594,12 @@
         return;
       }
 
-      var removeIconUrl = (window.cc_params && window.cc_params.plugin_url ? window.cc_params.plugin_url : '') + 'assets/img/icones/remover-cupom.svg';
-      var html = '<div class="ctwpml-coupons-title">Cupom aplicado</div>';
+      // v4.3: Usa layout unificado (botão esquerda, ícone+nome centro, valor direita)
+      var pluginUrl = (window.cc_params && window.cc_params.plugin_url ? window.cc_params.plugin_url : '');
+      var removeIconUrl = pluginUrl + 'assets/img/icones/remover-cupom.svg';
+      var couponIconUrl = pluginUrl + 'assets/img/icones/coupom-icon.svg';
+      var title = coupons.length > 1 ? 'Cupons aplicados' : 'Cupom aplicado';
+      var html = '<div class="ctwpml-coupons-title">' + title + '</div>';
 
       coupons.forEach(function (c) {
         var code = String(c.code || '').toUpperCase();
@@ -4591,10 +4607,13 @@
         html +=
           '<div class="ctwpml-coupon-row" data-coupon-code="' + code.toLowerCase() + '">' +
           '  <div class="ctwpml-coupon-left">' +
-          '    <div class="ctwpml-coupon-code">' + code + '</div>' +
+          '    <button type="button" class="ctwpml-coupon-remove" data-coupon-code="' + code.toLowerCase() + '" data-ctwpml-context="' + context + '" title="Remover cupom"><img src="' + removeIconUrl + '" alt="Remover" width="18" height="18"></button>' +
+          '    <img src="' + couponIconUrl + '" alt="" class="ctwpml-coupon-icon" width="16" height="16" />' +
+          '    <span class="ctwpml-coupon-code">' + code + '</span>' +
           '  </div>' +
-          '  <div class="ctwpml-coupon-amount">' + amount + '</div>' +
-          '  <button type="button" class="ctwpml-coupon-remove" data-coupon-code="' + code.toLowerCase() + '" data-ctwpml-context="' + context + '" title="Remover cupom"><img src="' + removeIconUrl + '" alt="Remover" width="20" height="20"></button>' +
+          '  <div class="ctwpml-coupon-right">' +
+          '    <span class="ctwpml-coupon-amount">' + amount + '</span>' +
+          '  </div>' +
           '</div>';
       });
 
@@ -4626,6 +4645,14 @@
         $('#ctwpml-review-total').text(data.total_text);
         $('#ctwpml-review-payment-amount').text(data.total_text);
         $('#ctwpml-review-sticky-total').text(data.total_text);
+
+        // v4.3: Atualizar valor original na Review (se houver desconto)
+        var $reviewTotalRow = $('.ctwpml-review-total-row').first();
+        var $reviewOriginal = $('#ctwpml-review-original-total');
+        if (state.__ctwpmlCouponAttempt && state.__ctwpmlCouponAttempt.originalTotal) {
+          $reviewOriginal.text(state.__ctwpmlCouponAttempt.originalTotal).show();
+          $reviewTotalRow.addClass('has-discount');
+        }
       }
     }
 
@@ -4695,6 +4722,12 @@
             // Limpar estado de desconto
             state.__ctwpmlPaymentDiscount = null;
             state.__ctwpmlCouponAttempt = null;
+
+            // v4.3: Limpar valor original na Review
+            var $reviewTotalRow = $('.ctwpml-review-total-row').first();
+            var $reviewOriginal = $('#ctwpml-review-original-total');
+            $reviewOriginal.text('').hide();
+            $reviewTotalRow.removeClass('has-discount');
 
             // Remover linha da UI com animação
             $row.fadeOut(200, function () {
