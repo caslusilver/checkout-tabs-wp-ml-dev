@@ -265,6 +265,7 @@ add_action('wp_enqueue_scripts', function () {
 		'set_shipping_nonce' => wp_create_nonce('ctwpml_set_shipping'),
 		'cart_thumbs_nonce' => wp_create_nonce('ctwpml_cart_thumbs'),
 		'checkout_blocks_nonce' => wp_create_nonce('ctwpml_checkout_blocks'),
+		'coupon_nonce' => wp_create_nonce('ctwpml_coupon'),
 		'allow_fake_cpf' => checkout_tabs_wp_ml_allow_fake_cpf() ? 1 : 0,
 		'signup_nonce' => wp_create_nonce('ctwpml_signup'),
 		'login_nonce' => wp_create_nonce('ctwpml_login'),

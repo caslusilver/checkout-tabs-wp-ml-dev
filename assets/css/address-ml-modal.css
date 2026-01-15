@@ -294,7 +294,17 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
 .ctwpml-cep-confirm .ctwpml-cep-icon {
   flex: 0 0 auto;
   margin-top: 2px;
-  color: #111;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ctwpml-cep-confirm .ctwpml-cep-icon img {
+  width: 20px;
+  height: 20px;
+  display: block;
 }
 
 .ctwpml-cep-confirm .ctwpml-cep-text {
@@ -702,6 +712,25 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
   border-radius: 50%;
 }
 
+/* Ícone de frete (correio/motoboy) antes do label */
+.ctwpml-shipping-option-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  margin-right: 5px;
+  flex-shrink: 0;
+}
+
+.ctwpml-shipping-option-icon img {
+  width: 20px;
+  height: 20px;
+  display: block;
+}
+
+/* Label do frete (texto) */
+.ctwpml-shipping-option-label,
 .ctwpml-shipping-option-text {
   font-size: 14px;
   color: #333 !important;
@@ -1174,16 +1203,18 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
 .ctwpml-coupon-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+  justify-content: flex-start;
+  gap: 6px;
   padding: 6px 0;
 }
 
 .ctwpml-coupon-left {
   min-width: 0;
+  flex: 1;
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
 }
 
 .ctwpml-coupon-code {
@@ -1193,7 +1224,7 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 220px;
+  max-width: 120px;
 }
 
 .ctwpml-coupon-amount {
@@ -1201,21 +1232,24 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
   font-weight: 700;
   color: #16a34a; /* verde suave */
   white-space: nowrap;
+  margin-left: auto;
+  margin-right: 4px;
 }
 
-/* Botão remover cupom - apenas ícone SVG */
+/* Botão remover cupom - apenas ícone SVG (compacto) */
 .ctwpml-coupon-remove {
   border: none;
   background: transparent;
-  padding: 4px;
+  padding: 0;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
+  width: 20px;
+  height: 20px;
   flex-shrink: 0;
   transition: opacity 0.2s ease;
+  margin-left: 2px;
 }
 
 .ctwpml-coupon-remove:hover {
@@ -1231,8 +1265,8 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
 /* Ícone dentro do botão remover */
 .ctwpml-coupon-remove img,
 .ctwpml-coupon-remove svg {
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
   display: block;
 }
 

@@ -12,9 +12,16 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 ## [Unreleased]
 
 ### Changed
-- **Versão atual**: v3.2.55  
+- **Versão atual**: v3.2.56  
   **Versão sugerida após a mudança**: vX.Y.Z  
   **Descrição**: texto objetivo do que mudou e impacto (pode listar itens separados por ponto e vírgula).
+
+## [v3.2.56] - 2026-01-13
+
+### Changed
+- Cupom aplicar/remover via AJAX controlado (sem reload da página); novos endpoints `ctwpml_apply_coupon` e `ctwpml_remove_coupon` usando APIs nativas do WooCommerce; ícones de frete (correio/motoboy) em wrapper próprio com espaçamento de 5px; ícone pin-drop.svg no form de endereço substituindo emoji; layout do botão remover cupom compactado (20x20px, alinhamento melhorado); documento de planejamento para integração futura com Elementor widget.
+
+#### Protocol: 5d4d16c
 
 ## [v3.2.55] - 2026-01-13
 

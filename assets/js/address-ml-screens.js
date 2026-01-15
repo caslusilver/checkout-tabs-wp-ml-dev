@@ -225,18 +225,22 @@
     var correioIconUrl = pluginUrl ? (pluginUrl + 'assets/img/icones/correio.svg') : '';
     var motoboyIconUrl = pluginUrl ? (pluginUrl + 'assets/img/icones/motoboy.svg') : '';
 
-    // Função para determinar o ícone de frete baseado no label
-    function getShippingIcon(label) {
+    // Função para determinar o ícone de frete baseado no label (retorna HTML do wrapper com img)
+    function getShippingIconHtml(label) {
       var labelLower = String(label || '').toLowerCase();
+      var iconUrl = '';
       // Motoboy/Expresso
       if (labelLower.indexOf('motoboy') !== -1 || labelLower.indexOf('expresso') !== -1 || labelLower.indexOf('express') !== -1) {
-        return motoboyIconUrl ? '<img src="' + escapeHtml(motoboyIconUrl) + '" alt="" width="20" height="20" style="vertical-align:middle;margin-right:5px;">' : '';
+        iconUrl = motoboyIconUrl;
       }
       // Correios (Sedex, PAC, Mini, etc)
-      if (labelLower.indexOf('sedex') !== -1 || labelLower.indexOf('pac') !== -1 || labelLower.indexOf('mini') !== -1 || labelLower.indexOf('correio') !== -1) {
-        return correioIconUrl ? '<img src="' + escapeHtml(correioIconUrl) + '" alt="" width="20" height="20" style="vertical-align:middle;margin-right:5px;">' : '';
+      else if (labelLower.indexOf('sedex') !== -1 || labelLower.indexOf('pac') !== -1 || labelLower.indexOf('mini') !== -1 || labelLower.indexOf('correio') !== -1) {
+        iconUrl = correioIconUrl;
       }
-      // Fallback: sem ícone
+      // Retorna wrapper com ícone ou vazio
+      if (iconUrl) {
+        return '<span class="ctwpml-shipping-option-icon"><img src="' + escapeHtml(iconUrl) + '" alt="" width="20" height="20" /></span>';
+      }
       return '';
     }
 
@@ -244,10 +248,10 @@
     shippingOptions.forEach(function (opt, idx) {
       var isFirst = idx === 0;
       var priceText = opt.price_text || '';
-      var shippingIconHtml = getShippingIcon(opt.label);
+      var shippingIconHtml = getShippingIconHtml(opt.label);
 
       if (debugMode) {
-        console.log('[CTWPML][DEBUG] renderShippingOptions - Opção ' + idx + ':', opt);
+        console.log('[CTWPML][DEBUG] renderShippingOptions - Opção ' + idx + ':', opt, 'iconHtml:', shippingIconHtml ? 'sim' : 'nao');
       }
 
       optionsHtml +=
@@ -259,7 +263,8 @@
         'data-option="opt' + idx + '">' +
         '  <div class="ctwpml-shipping-option-left">' +
         '    <div class="ctwpml-shipping-radio"></div>' +
-        '    <span class="ctwpml-shipping-option-text">' + shippingIconHtml + escapeHtml(opt.label) + '</span>' +
+        shippingIconHtml +
+        '    <span class="ctwpml-shipping-option-label">' + escapeHtml(opt.label) + '</span>' +
         '  </div>' +
         '  <span class="ctwpml-shipping-price">' + escapeHtml(priceText) + '</span>' +
         '</div>';

@@ -349,7 +349,7 @@
           '          <input id="ctwpml-input-cep" type="text" placeholder="00000-000" inputmode="numeric" autocomplete="postal-code" />' +
           '          <a class="ctwpml-link-right" href="#" id="ctwpml-nao-sei-cep">Não sei meu CEP</a>' +
           '          <div id="ctwpml-cep-confirm" class="ctwpml-cep-confirm" aria-live="polite">' +
-          '            <div class="ctwpml-cep-icon">📍</div>' +
+          '            <div class="ctwpml-cep-icon"><img src="' + (window.cc_params && window.cc_params.plugin_url ? window.cc_params.plugin_url : '') + 'assets/img/icones/pin-drop.svg" alt="" width="20" height="20" /></div>' +
           '            <div>' +
           '              <div class="ctwpml-cep-text" id="ctwpml-cep-confirm-text"></div>' +
           '              <div class="ctwpml-cep-subtext" id="ctwpml-cep-confirm-subtext"></div>' +
@@ -4314,7 +4314,7 @@
       }
     });
 
-    // Tela 3 (Pagamento): click no botão adicionar cupom
+    // Tela 3 (Pagamento): click no botão adicionar cupom - via AJAX controlado (sem reload)
     $(document).on('click', '#ctwpml-add-coupon-btn', function (e) {
       e.preventDefault();
       try { e.stopPropagation(); } catch (e0) {}
@@ -4331,161 +4331,170 @@
       };
 
       var couponCode = $('#ctwpml-coupon-input').val().trim();
-      log('Click em adicionar cupom:', { code: couponCode });
+      log('Click em adicionar cupom (AJAX):', { code: couponCode });
 
-      var woo = window.CCCheckoutTabs && window.CCCheckoutTabs.WooHost ? window.CCCheckoutTabs.WooHost : null;
-      if (!woo || typeof woo.ensureBlocks !== 'function') {
-        showNotification('Checkout não está pronto para aplicar cupom.', 'error', 3500);
-        return;
-      }
       if (!couponCode) return;
 
-      // v4.1: Mostrar spinner cinza no botão enquanto processa
+      var ajaxUrl = state.params && state.params.ajax_url ? state.params.ajax_url : '';
+      var couponNonce = state.params && state.params.coupon_nonce ? state.params.coupon_nonce : '';
+
+      if (!ajaxUrl || !couponNonce) {
+        showNotification('Configuração inválida. Recarregue a página.', 'error', 3500);
+        return;
+      }
+
+      // Capturar totais antes para exibir preço riscado
+      var woo = window.CCCheckoutTabs && window.CCCheckoutTabs.WooHost ? window.CCCheckoutTabs.WooHost : null;
+      var before = woo && woo.readTotals ? woo.readTotals() : {};
+      state.__ctwpmlCouponAttempt = {
+        code: String(couponCode || ''),
+        couponName: String(couponCode || '').toUpperCase(),
+        originalTotal: String(before.totalText || ''),
+        originalSubtotal: String(before.subtotalText || ''),
+        ts: Date.now(),
+      };
+
+      // Mostrar spinner no botão
       var originalBtnText = $btn.text();
       $btn.addClass('is-loading').prop('disabled', true).data('original-text', originalBtnText);
+      $('#ctwpml-add-coupon-btn').removeClass('is-success');
+      $('#ctwpml-coupon-input').removeClass('is-error');
 
-      // v4.0: capturar total/subtotal antes do cupom para exibir preço riscado após updated_checkout.
-      try {
-        var before = woo.readTotals ? woo.readTotals() : {};
-        var beforeCoupons = [];
-        try { beforeCoupons = woo.readCoupons ? (woo.readCoupons() || []) : []; } catch (e0) { beforeCoupons = []; }
-        state.__ctwpmlCouponAttempt = {
-          code: String(couponCode || ''),
-          couponName: String(couponCode || '').toUpperCase(),
-          originalTotal: String(before && before.totalText ? before.totalText : ''),
-          originalSubtotal: String(before && before.subtotalText ? before.subtotalText : ''),
-          beforeCouponCodes: Array.isArray(beforeCoupons) ? beforeCoupons.map(function (c) { return String((c && c.code) || ''); }) : [],
-          ts: Date.now(),
-        };
-        // Reset visual de erro/sucesso antes de tentar novamente.
-        $('#ctwpml-add-coupon-btn').removeClass('is-success');
-        $('#ctwpml-coupon-input').removeClass('is-error');
-        if (typeof state.checkpoint === 'function') {
-          state.checkpoint('CHK_COUPON_ATTEMPT_CAPTURED', true, {
-            code: state.__ctwpmlCouponAttempt.code,
-            originalTotal: state.__ctwpmlCouponAttempt.originalTotal,
-            originalSubtotal: state.__ctwpmlCouponAttempt.originalSubtotal,
-          });
-        }
-      } catch (eCap) {}
+      if (typeof state.checkpoint === 'function') {
+        state.checkpoint('CHK_COUPON_APPLY_AJAX_SENT', true, { code: couponCode });
+      }
 
-      woo.ensureBlocks().then(function () {
-        // Debug/Checkpoint: tentativa de injeção do bloco de cupom
-        if (typeof state.checkpoint === 'function') {
-          try {
-            var last = window.CCCheckoutTabs && window.CCCheckoutTabs.__ctwpmlLastEnsureBlocks
-              ? window.CCCheckoutTabs.__ctwpmlLastEnsureBlocks
-              : null;
-            if (last && last.coupon) {
-              state.checkpoint('CHK_COUPON_BLOCK_FETCHED', !!last.coupon.fetched, {
-                fetched: last.coupon.fetched,
-                success: last.coupon.success,
-                htmlLength: last.coupon.htmlLength,
-              });
-            } else {
-              state.checkpoint('CHK_COUPON_BLOCK_FETCHED', false, { reason: 'no_lastEnsureBlocks' });
+      $.ajax({
+        url: ajaxUrl,
+        type: 'POST',
+        data: {
+          action: 'ctwpml_apply_coupon',
+          _ajax_nonce: couponNonce,
+          coupon_code: couponCode,
+        },
+        success: function (resp) {
+          log('Resposta apply_coupon AJAX:', resp);
+
+          if (resp && resp.success && resp.data) {
+            // Sucesso: atualizar UI com dados retornados
+            if (typeof state.checkpoint === 'function') {
+              state.checkpoint('CHK_COUPON_APPLY_AJAX_OK', true, { code: couponCode, data: resp.data });
             }
-          } catch (e0) {
-            state.checkpoint('CHK_COUPON_BLOCK_FETCHED', false, { reason: 'exception' });
-          }
-        }
 
-        // Debug/Checkpoint: presença de forms/elementor UI no DOM
-        if (typeof state.checkpoint === 'function') {
-          var counts = {
-            checkout_coupon: document.querySelectorAll('form.checkout_coupon').length,
-            woocommerce_checkout_form_coupon: document.querySelectorAll('#woocommerce-checkout-form-coupon').length,
-            elementor_coupon_box: document.querySelectorAll('.e-coupon-box').length,
-            elementor_apply_btn: document.querySelectorAll('.e-apply-coupon').length,
-            elementor_coupon_code: document.querySelectorAll('.e-coupon-box #coupon_code, .e-coupon-anchor #coupon_code, #coupon_code').length,
-          };
-          state.checkpoint('CHK_COUPON_FORM_FOUND', (counts.checkout_coupon + counts.woocommerce_checkout_form_coupon) > 0 || counts.elementor_apply_btn > 0, counts);
-        }
+            // Guardar desconto para exibir preço riscado
+            state.__ctwpmlPaymentDiscount = {
+              originalTotal: state.__ctwpmlCouponAttempt.originalTotal,
+              discountedTotal: resp.data.total_text || '',
+              originalSubtotal: state.__ctwpmlCouponAttempt.originalSubtotal,
+              discountedSubtotal: resp.data.subtotal_text || '',
+              couponName: String(couponCode || '').toUpperCase(),
+            };
 
-        // Aplicar cupom como no template oficial do Woo:
-        // - preencher #coupon_code
-        // - clicar no botão name="apply_coupon"
-        // Importante: NÃO usar submit genérico (pode cair no form.checkout em alguns temas/Elementor).
-        var applied = false;
-        try {
-          // Prioridade máxima: id oficial do template
-          var $couponForm = $('#woocommerce-checkout-form-coupon').first();
-          if (!$couponForm.length) {
-            // Fallback: form oficial por classe
-            $couponForm = $('form.checkout_coupon.woocommerce-form-coupon, form.checkout_coupon').first();
-          }
+            // Atualizar lista de cupons na UI
+            ctwpmlUpdateCouponsFromAjax(resp.data.coupons || [], 'payment');
+            ctwpmlUpdateCouponsFromAjax(resp.data.coupons || [], 'review');
 
-          // Se o seletor pegou algo, validar que é realmente um form de cupom (e não o checkout)
-          if ($couponForm.length) {
-            var isCheckoutForm = $couponForm.is('form.checkout, form.woocommerce-checkout') || $couponForm.find('#place_order').length > 0;
-            var hasCouponCode = $couponForm.find('#coupon_code, input[name="coupon_code"]').length > 0;
-            var $applyBtn = $couponForm.find('button[name="apply_coupon"], button.woocommerce-form-coupon__submit, input[name="apply_coupon"]').first();
+            // Atualizar totais na UI
+            ctwpmlUpdateTotalsFromAjax(resp.data);
 
-            if (!isCheckoutForm && hasCouponCode && $applyBtn.length) {
-              var $code = $couponForm.find('#coupon_code');
-              if (!$code.length) $code = $couponForm.find('input[name="coupon_code"]').first();
-              $code.val(couponCode).trigger('input').trigger('change');
+            // Mostrar sucesso
+            showCouponSuccessIcon();
+            toggleCouponDrawer(false);
+            $('#ctwpml-coupon-input').val('');
 
-              // O template padrão do Woo deixa o form como display:none
-              try { $couponForm.css('display', 'block'); } catch (e2) {}
-              // Clique real no botão apply_coupon (mais seguro que submit)
-              try { $applyBtn[0].click(); } catch (e3) { $applyBtn.trigger('click'); }
-              applied = true;
+            // Disparar evento para que o Woo atualize (fragments)
+            $(document.body).trigger('update_checkout');
+            $(document.body).trigger('applied_coupon', [couponCode]);
+
+          } else {
+            // Erro
+            var errorMsg = (resp && resp.data && resp.data.message) ? resp.data.message : 'Cupom inválido.';
+            if (typeof state.checkpoint === 'function') {
+              state.checkpoint('CHK_COUPON_APPLY_AJAX_FAIL', false, { code: couponCode, error: errorMsg });
             }
+            showNotification(errorMsg, 'error', 4000);
+            $('#ctwpml-coupon-input').addClass('is-error');
           }
 
-          // Fallback Elementor: usa UI do Elementor (input #coupon_code + botão .e-apply-coupon)
-          if (!applied) {
-            try {
-              var $show = $('.showcoupon, .e-show-coupon-form').first();
-              if ($show.length) $show.trigger('click');
-            } catch (e4) {}
-
-            var $elCode = $('.e-coupon-box #coupon_code, .e-coupon-anchor #coupon_code, #coupon_code').first();
-            var $elApply = $('.e-apply-coupon, button[name="apply_coupon"], input[name="apply_coupon"]').first();
-            if ($elCode.length && $elApply.length) {
-              $elCode.val(couponCode).trigger('input').trigger('change');
-              try { $elApply[0].click(); } catch (e5) { $elApply.trigger('click'); }
-              applied = true;
-            }
-          }
-        } catch (e6) {}
-
-        if (!applied) {
-          showNotification('Não foi possível localizar o formulário de cupom do WooCommerce.', 'error', 4500);
+          // Resetar botão
+          $btn.removeClass('is-loading').prop('disabled', false);
+          var origText = $btn.data('original-text');
+          if (origText) $btn.text(origText);
+        },
+        error: function (xhr, status, error) {
+          log('Erro AJAX apply_coupon:', { status: status, error: error });
           if (typeof state.checkpoint === 'function') {
-            try {
-              state.checkpoint('CHK_COUPON_APPLY_TARGET_NOT_FOUND', false, {
-                hasWooCouponForm: document.querySelectorAll('#woocommerce-checkout-form-coupon, form.checkout_coupon').length,
-                hasElementorApply: document.querySelectorAll('.e-apply-coupon').length,
-              });
-            } catch (e7) {}
+            state.checkpoint('CHK_COUPON_APPLY_AJAX_ERROR', false, { status: status, error: error });
           }
-          return;
-        } else if (typeof state.checkpoint === 'function') {
-          try {
-            state.checkpoint('CHK_COUPON_APPLY_CLICKED', true, { code: String(couponCode || '') });
-          } catch (e8) {}
-        }
-        try {
-          if (typeof state.checkpoint === 'function') {
-            state.checkpoint('CHK_OVERLAY_SOURCES', true, {
-              source: 'apply_coupon',
-              hasBlockOverlay: document.querySelectorAll('.blockUI.blockOverlay').length,
-              hasBlockMsg: document.querySelectorAll('.blockUI.blockMsg').length,
-              hasNoticeGroup: document.querySelectorAll('.woocommerce-NoticeGroup, .woocommerce-NoticeGroup-checkout').length,
-            });
-          }
-        } catch (e5) {}
-
-        toggleCouponDrawer(false);
-
-        // Após o Woo atualizar o checkout, sincronizamos os valores do footer.
-        setTimeout(function () {
-          applyPaymentAvailabilityAndSync('apply_coupon');
-        }, 600);
+          showNotification('Erro ao aplicar cupom. Tente novamente.', 'error', 4000);
+          $btn.removeClass('is-loading').prop('disabled', false);
+          var origText = $btn.data('original-text');
+          if (origText) $btn.text(origText);
+        },
       });
     });
+
+    /**
+     * Atualiza a lista de cupons na UI a partir da resposta AJAX
+     * @param {Array} coupons - Lista de cupons [{code, amount_text}]
+     * @param {string} context - 'payment' ou 'review'
+     */
+    function ctwpmlUpdateCouponsFromAjax(coupons, context) {
+      var targetId = context === 'review' ? 'ctwpml-review-coupons' : 'ctwpml-payment-coupons';
+      var $block = $('#' + targetId);
+      if (!$block.length) return;
+
+      if (!coupons || coupons.length === 0) {
+        $block.hide().empty();
+        return;
+      }
+
+      var removeIconUrl = (window.cc_params && window.cc_params.plugin_url ? window.cc_params.plugin_url : '') + 'assets/img/icones/remover-cupom.svg';
+      var html = '<div class="ctwpml-coupons-title">Cupom aplicado</div>';
+
+      coupons.forEach(function (c) {
+        var code = String(c.code || '').toUpperCase();
+        var amount = String(c.amount_text || '');
+        html +=
+          '<div class="ctwpml-coupon-row" data-coupon-code="' + code.toLowerCase() + '">' +
+          '  <div class="ctwpml-coupon-left">' +
+          '    <div class="ctwpml-coupon-code">' + code + '</div>' +
+          '  </div>' +
+          '  <div class="ctwpml-coupon-amount">' + amount + '</div>' +
+          '  <button type="button" class="ctwpml-coupon-remove" data-coupon-code="' + code.toLowerCase() + '" data-ctwpml-context="' + context + '" title="Remover cupom"><img src="' + removeIconUrl + '" alt="Remover" width="20" height="20"></button>' +
+          '</div>';
+      });
+
+      $block.html(html).show();
+    }
+
+    /**
+     * Atualiza os totais na UI a partir da resposta AJAX
+     * @param {Object} data - Dados {subtotal_text, total_text, shipping_text, discount_text}
+     */
+    function ctwpmlUpdateTotalsFromAjax(data) {
+      if (!data) return;
+
+      // Tela Payment
+      if (data.subtotal_text) {
+        var $subtotalVal = $('#ctwpml-payment-subtotal-value');
+        if ($subtotalVal.length) $subtotalVal.text(data.subtotal_text);
+      }
+      if (data.total_text) {
+        var $totalVal = $('#ctwpml-payment-total-value');
+        if ($totalVal.length) $totalVal.text(data.total_text);
+      }
+
+      // Tela Review
+      if (data.subtotal_text) {
+        $('#ctwpml-review-products-subtotal').text(data.subtotal_text);
+      }
+      if (data.total_text) {
+        $('#ctwpml-review-total').text(data.total_text);
+        $('#ctwpml-review-payment-amount').text(data.total_text);
+        $('#ctwpml-review-sticky-total').text(data.total_text);
+      }
+    }
 
     /**
      * Toggle do drawer de cupom
@@ -4521,7 +4530,7 @@
       }
     }
 
-    // Remover cupom (lista em Payment/Review) - usa link nativo do Woo para evitar endpoints/nonce custom.
+    // Remover cupom (lista em Payment/Review) - via AJAX controlado (sem reload)
     $(document).on('click', '.ctwpml-coupon-remove', function (e) {
       e.preventDefault();
       try { e.stopPropagation(); } catch (e0) {}
@@ -4529,7 +4538,26 @@
       var code = String($(this).data('coupon-code') || '').trim();
       var context = String($(this).data('ctwpml-context') || '').trim();
       var $btn = $(this);
+      var $row = $btn.closest('.ctwpml-coupon-row');
       if (!code) return;
+
+      var log = function (msg, data) {
+        if (typeof state.log === 'function') {
+          state.log(msg, data || {}, 'PAYMENT');
+        } else {
+          console.log('[CTWPML][PAYMENT] ' + msg, data || '');
+        }
+      };
+
+      log('Remover cupom (AJAX):', { code: code, context: context });
+
+      var ajaxUrl = state.params && state.params.ajax_url ? state.params.ajax_url : '';
+      var couponNonce = state.params && state.params.coupon_nonce ? state.params.coupon_nonce : '';
+
+      if (!ajaxUrl || !couponNonce) {
+        showNotification('Configuração inválida. Recarregue a página.', 'error', 3500);
+        return;
+      }
 
       // Mostrar spinner no botão enquanto processa
       try {
@@ -4540,28 +4568,79 @@
       } catch (e1) {}
 
       if (typeof state.checkpoint === 'function') {
-        try { state.checkpoint('CHK_COUPON_REMOVE_CLICK', true, { code: code, context: context }); } catch (e2) {}
-      }
-      if (typeof state.log === 'function') {
-        try { state.log('PAYMENT    Remover cupom clicado', { code: code, context: context }, 'PAYMENT'); } catch (e3) {}
+        try { state.checkpoint('CHK_COUPON_REMOVE_AJAX_SENT', true, { code: code, context: context }); } catch (e2) {}
       }
 
-      var res = ctwpmlTryClickRemoveCoupon(code, context);
-      if (!res || !res.ok) {
-        if (typeof state.checkpoint === 'function') {
-          try { state.checkpoint('CHK_COUPON_REMOVE_FAILED', false, { code: code, context: context, reason: res && res.reason ? res.reason : 'unknown' }); } catch (e4) {}
-        }
-        showNotification('Não foi possível remover o cupom. Tente novamente.', 'error', 3500);
-        // Restaurar conteúdo original do botão
-        try {
-          var orig = $btn.data('original-content');
-          if (orig) $btn.html(orig);
-          $btn.prop('disabled', false);
-        } catch (e5) {}
-        return;
-      }
+      $.ajax({
+        url: ajaxUrl,
+        type: 'POST',
+        data: {
+          action: 'ctwpml_remove_coupon',
+          _ajax_nonce: couponNonce,
+          coupon_code: code,
+        },
+        success: function (resp) {
+          log('Resposta remove_coupon AJAX:', resp);
 
-      // A UI será atualizada via removed_coupon/updated_checkout (linha some automaticamente).
+          if (resp && resp.success && resp.data) {
+            // Sucesso
+            if (typeof state.checkpoint === 'function') {
+              state.checkpoint('CHK_COUPON_REMOVE_AJAX_OK', true, { code: code, data: resp.data });
+            }
+
+            // Limpar estado de desconto
+            state.__ctwpmlPaymentDiscount = null;
+            state.__ctwpmlCouponAttempt = null;
+
+            // Remover linha da UI com animação
+            $row.fadeOut(200, function () {
+              $(this).remove();
+              // Se não houver mais cupons, esconder o bloco
+              var remainingCoupons = resp.data.coupons || [];
+              if (remainingCoupons.length === 0) {
+                $('#ctwpml-payment-coupons').hide().empty();
+                $('#ctwpml-review-coupons').hide().empty();
+              }
+            });
+
+            // Atualizar totais na UI
+            ctwpmlUpdateTotalsFromAjax(resp.data);
+
+            // Disparar evento para que o Woo atualize (fragments)
+            $(document.body).trigger('update_checkout');
+            $(document.body).trigger('removed_coupon', [code]);
+
+          } else {
+            // Erro
+            var errorMsg = (resp && resp.data && resp.data.message) ? resp.data.message : 'Não foi possível remover o cupom.';
+            if (typeof state.checkpoint === 'function') {
+              state.checkpoint('CHK_COUPON_REMOVE_AJAX_FAIL', false, { code: code, error: errorMsg });
+            }
+            showNotification(errorMsg, 'error', 3500);
+
+            // Restaurar botão
+            try {
+              var orig = $btn.data('original-content');
+              if (orig) $btn.html(orig);
+              $btn.prop('disabled', false);
+            } catch (e3) {}
+          }
+        },
+        error: function (xhr, status, error) {
+          log('Erro AJAX remove_coupon:', { status: status, error: error });
+          if (typeof state.checkpoint === 'function') {
+            state.checkpoint('CHK_COUPON_REMOVE_AJAX_ERROR', false, { status: status, error: error });
+          }
+          showNotification('Erro ao remover cupom. Tente novamente.', 'error', 3500);
+
+          // Restaurar botão
+          try {
+            var orig = $btn.data('original-content');
+            if (orig) $btn.html(orig);
+            $btn.prop('disabled', false);
+          } catch (e4) {}
+        },
+      });
     });
 
     // Tela 4 (Revise e confirme): links de alteração
