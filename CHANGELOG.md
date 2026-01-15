@@ -12,9 +12,16 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 ## [Unreleased]
 
 ### Changed
-- **Versão atual**: v3.2.61  
+- **Versão atual**: v3.2.62  
   **Versão sugerida após a mudança**: vX.Y.Z  
   **Descrição**: texto objetivo do que mudou e impacto (pode listar itens separados por ponto e vírgula).
+
+## [v3.2.62] - 2026-01-15
+
+### Changed
+- Cupom: corrige valores monetários exibidos com entidades HTML (ex.: `&#82;&#36;&nbsp;88,00`) decodificando `wc_price` no backend; corrige ordem estrutural do bloco “Cupom aplicado” para ícone → nome → remover (Payment+Review), sem depender de CSS para ordenação.
+
+#### Protocol: 5959bde
 
 ## [v3.2.61] - 2026-01-15
 

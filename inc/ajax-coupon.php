@@ -141,7 +141,10 @@ function ctwpml_get_cart_totals_response(): array {
 
 	$to_plain_price = static function (float $amount): string {
 		// wc_price retorna HTML; precisamos texto puro para evitar "HTML não renderizado" na UI.
-		return wp_strip_all_tags(wc_price($amount));
+		$raw = wp_strip_all_tags(wc_price($amount));
+		// wc_price pode conter entidades como &#82;&#36; e &nbsp;
+		// Decodificar para texto humano (R$ 88,00) antes de enviar ao JS.
+		return html_entity_decode($raw, ENT_QUOTES, 'UTF-8');
 	};
 
 	// Totais formatados

@@ -1294,13 +1294,13 @@
         var code = String(it.code || '').trim();
         var amount = ctwpmlNormalizeCouponAmount(it.amountText || '');
         if (!code && !amount) continue;
-        // v4.5: Ordem visual desejada: ÍCONE do cupom → REMOVER → NOME do cupom (e valor à direita)
+        // v4.6: Ordem (DOM) exigida: ÍCONE → NOME → REMOVER (e valor à direita)
         html += '' +
           '<div class="ctwpml-coupon-row" data-coupon-code="' + escapeHtml(code) + '">' +
           '  <div class="ctwpml-coupon-left">' +
           '    <img src="' + escapeHtml(couponIconUrl) + '" alt="" class="ctwpml-coupon-icon" width="16" height="16" />' +
-          '    <button type="button" class="ctwpml-coupon-remove" data-coupon-code="' + escapeHtml(code) + '" data-ctwpml-context="' + escapeHtml(context || '') + '" title="Remover cupom"><img src="' + escapeHtml(removeIconUrl) + '" alt="Remover" width="18" height="18"></button>' +
           '    <span class="ctwpml-coupon-code">' + escapeHtml(code ? code.toUpperCase() : 'CUPOM') + '</span>' +
+          '    <button type="button" class="ctwpml-coupon-remove" data-coupon-code="' + escapeHtml(code) + '" data-ctwpml-context="' + escapeHtml(context || '') + '" title="Remover cupom"><img src="' + escapeHtml(removeIconUrl) + '" alt="Remover" width="18" height="18"></button>' +
           '  </div>' +
           '  <div class="ctwpml-coupon-right">' +
           '    <span class="ctwpml-coupon-amount">' + escapeHtml(amount) + '</span>' +
@@ -4818,7 +4818,7 @@
         return;
       }
 
-      // v4.5: Usa layout unificado (ícone → remover → nome; valor à direita)
+      // v4.6: Usa layout unificado (ícone → nome → remover; valor à direita)
       var pluginUrl = (window.cc_params && window.cc_params.plugin_url ? window.cc_params.plugin_url : '');
       var removeIconUrl = pluginUrl + 'assets/img/icones/remover-cupom.svg';
       var couponIconUrl = pluginUrl + 'assets/img/icones/coupom-icon.svg';
@@ -4832,8 +4832,8 @@
           '<div class="ctwpml-coupon-row" data-coupon-code="' + code.toLowerCase() + '">' +
           '  <div class="ctwpml-coupon-left">' +
           '    <img src="' + couponIconUrl + '" alt="" class="ctwpml-coupon-icon" width="16" height="16" />' +
-          '    <button type="button" class="ctwpml-coupon-remove" data-coupon-code="' + code.toLowerCase() + '" data-ctwpml-context="' + context + '" title="Remover cupom"><img src="' + removeIconUrl + '" alt="Remover" width="18" height="18"></button>' +
           '    <span class="ctwpml-coupon-code">' + code + '</span>' +
+          '    <button type="button" class="ctwpml-coupon-remove" data-coupon-code="' + code.toLowerCase() + '" data-ctwpml-context="' + context + '" title="Remover cupom"><img src="' + removeIconUrl + '" alt="Remover" width="18" height="18"></button>' +
           '  </div>' +
           '  <div class="ctwpml-coupon-right">' +
           '    <span class="ctwpml-coupon-amount">' + amount + '</span>' +
