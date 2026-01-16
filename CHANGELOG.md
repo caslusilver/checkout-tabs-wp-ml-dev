@@ -9,6 +9,20 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 - Criar o repositório: `caslusilver/checkout-tabs-wp-ml-dev`
 - Branch principal do fluxo: `develop`
 
+## [Unreleased]
+
+### Changed
+- **Versão atual**: vX.Y.Z  
+  **Versão sugerida após a mudança**: vX.Y.Z  
+  **Descrição**: texto objetivo do que mudou e impacto (pode listar itens separados por ponto e vírgula).
+
+## [v3.2.75] - 2026-01-16
+
+### Changed
+- Auth no modal ML: layout desktop em 2 colunas (esquerda Google+login; direita criar conta+reCAPTCHA+Entrar); remove “Entrar” duplicado dentro da view; CSS reforçado para contraste/persistência (labels e botão com `!important`) e wrapper preservado para evitar override de tema/Elementor.
+
+#### Protocol: 8ba7e53
+
 ## [v3.2.71] - 2026-01-16
 
 ### Changed
@@ -36,13 +50,6 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 - autenticação migrada do Fancybox para uma view dentro do modal ML (sem popup/fechamento ao clicar fora); reCAPTCHA com loader anti-loop (timeout, limite de tentativas, cancelamento) e fallback de injeção do `api.js` quando necessário; cache-busting do JS (novo arquivo/handle) para evitar mistura de versões antigas e logs em loop.
 
 #### Protocol: 898003f
-
-## [Unreleased]
-
-### Changed
-- **Versão atual**: vX.Y.Z  
-  **Versão sugerida após a mudança**: vX.Y.Z  
-  **Descrição**: texto objetivo do que mudou e impacto (pode listar itens separados por ponto e vírgula).
 
 ## [v3.2.70] - 2026-01-16
 

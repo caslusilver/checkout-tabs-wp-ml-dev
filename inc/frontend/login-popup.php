@@ -24,65 +24,73 @@ add_action('wp_footer', function () {
 
 	// HTML minimalista, inspirado no exemplo fornecido, sem anexar handlers globais.
 	?>
-	<div id="ctwpml-auth-template" class="ctwpml-login-popup" style="display:none;">
-		<div class="ctwpml-popup-h1 ctwpml-auth-title">Entrar</div>
+	<div id="ctwpml-auth-template" style="display:none;">
+		<!-- Wrapper interno é movido para dentro do modal via JS (showAuthView) -->
+		<div class="ctwpml-login-popup">
+			<form id="ctwpml-auth-form" class="ctwpml-auth-form" autocomplete="on">
+				<div class="ctwpml-auth-grid">
+					<!-- Esquerda: Google + Login -->
+					<div class="ctwpml-auth-col ctwpml-auth-col-left">
+						<div class="ctwpml-auth-social" style="text-align:center; margin: 12px 0 16px;">
+							<?php echo do_shortcode('[nextend_social_login]'); ?>
+						</div>
 
-		<!-- 1) Login social (prioridade) -->
-		<div style="text-align:center; margin: 12px 0 16px;">
-			<?php echo do_shortcode('[nextend_social_login]'); ?>
+						<div class="ctwpml-auth-divider">
+							<div class="ctwpml-auth-divider-line"></div>
+							<span class="ctwpml-auth-divider-text">ou</span>
+							<div class="ctwpml-auth-divider-line"></div>
+						</div>
+
+						<div class="ctwpml-popup-h2 ctwpml-auth-subtitle" style="margin-top: 12px;">
+							Faça login com seu e-mail e senha.
+						</div>
+
+						<label for="ctwpml-login-email" class="ctwpml-popup-h3">E-mail</label>
+						<input type="email" id="ctwpml-login-email" autocomplete="username">
+
+						<label for="ctwpml-login-password" class="ctwpml-popup-h3">Senha</label>
+						<input type="password" id="ctwpml-login-password" autocomplete="current-password">
+
+						<div class="ctwpml-auth-footer" style="text-align: left; margin: 10px 0 8px;">
+							<a href="<?php echo esc_url(wp_lostpassword_url()); ?>" class="ctwpml-auth-link">Perdeu a senha?</a>
+						</div>
+					</div>
+
+					<!-- Direita: Criar conta + reCAPTCHA + Entrar -->
+					<div class="ctwpml-auth-col ctwpml-auth-col-right">
+						<div class="ctwpml-popup-h2 ctwpml-auth-subtitle" style="margin-top: 12px;">
+							Criar uma conta
+						</div>
+						<div class="ctwpml-popup-h3" style="opacity:.9; margin: 0 0 10px;">
+							Você pode criar uma conta apenas com seu e-mail e redefinir a senha depois.
+						</div>
+						<label for="ctwpml-create-email" class="ctwpml-popup-h3">E-mail para criar conta</label>
+						<input type="email" id="ctwpml-create-email" autocomplete="email">
+
+						<?php
+						// reCAPTCHA v2: chave pública por site/ambiente
+						$site_key = (string) get_option('checkout_tabs_wp_ml_recaptcha_site_key', '');
+						if ($site_key === '') {
+							$login_recaptcha_opts = get_option('login_nocaptcha_options', []);
+							if (is_array($login_recaptcha_opts) && isset($login_recaptcha_opts['site_key'])) {
+								$site_key = (string) $login_recaptcha_opts['site_key'];
+							}
+						}
+
+						if (!empty($site_key)) {
+							echo '<div id="ctwpml-recaptcha-container" style="margin: 16px 0;">';
+							echo '<div id="g-recaptcha" data-sitekey="' . esc_attr($site_key) . '"></div>';
+							echo '</div>';
+						}
+						?>
+
+						<button type="submit" id="ctwpml-auth-submit" class="ctwpml-auth-submit">Entrar</button>
+						<div id="ctwpml-auth-msg" class="ctwpml-auth-msg" style="display:none;"></div>
+					</div>
+				</div>
+			</form>
 		</div>
-
-		<div class="ctwpml-auth-divider">
-			<div class="ctwpml-auth-divider-line"></div>
-			<span class="ctwpml-auth-divider-text">ou</span>
-			<div class="ctwpml-auth-divider-line"></div>
-		</div>
-
-		<form id="ctwpml-auth-form" class="ctwpml-auth-form" autocomplete="on">
-			<!-- 2) Login tradicional -->
-			<div class="ctwpml-popup-h2 ctwpml-auth-subtitle" style="margin-top: 12px;">
-				Faça login com seu e-mail e senha.
-			</div>
-			<label for="ctwpml-login-email" class="ctwpml-popup-h3">E-mail</label>
-			<input type="email" id="ctwpml-login-email" autocomplete="username">
-
-			<label for="ctwpml-login-password" class="ctwpml-popup-h3">Senha</label>
-			<input type="password" id="ctwpml-login-password" autocomplete="current-password">
-
-			<div class="ctwpml-auth-footer" style="text-align: left; margin: 10px 0 8px;">
-				<a href="<?php echo esc_url(wp_lostpassword_url()); ?>" class="ctwpml-auth-link">Perdeu a senha?</a>
-			</div>
-
-			<!-- 3) Criar conta (secundário) -->
-			<div class="ctwpml-popup-h2 ctwpml-auth-subtitle" style="margin-top: 16px;">
-				Criar uma conta
-			</div>
-			<div class="ctwpml-popup-h3" style="opacity:.9; margin: 0 0 10px;">
-				Você pode criar uma conta apenas com seu e-mail e redefinir a senha depois.
-			</div>
-			<label for="ctwpml-create-email" class="ctwpml-popup-h3">E-mail para criar conta</label>
-			<input type="email" id="ctwpml-create-email" autocomplete="email">
-
-			<?php
-			// reCAPTCHA v2: chave pública por site/ambiente
-			$site_key = (string) get_option('checkout_tabs_wp_ml_recaptcha_site_key', '');
-			if ($site_key === '') {
-				$login_recaptcha_opts = get_option('login_nocaptcha_options', []);
-				if (is_array($login_recaptcha_opts) && isset($login_recaptcha_opts['site_key'])) {
-					$site_key = (string) $login_recaptcha_opts['site_key'];
-				}
-			}
-
-			if (!empty($site_key)) {
-				echo '<div id="ctwpml-recaptcha-container" style="margin: 16px 0;">';
-				echo '<div id="g-recaptcha" data-sitekey="' . esc_attr($site_key) . '"></div>';
-				echo '</div>';
-			}
-			?>
-
-			<button type="submit" id="ctwpml-auth-submit" class="ctwpml-auth-submit">Entrar</button>
-			<div id="ctwpml-auth-msg" class="ctwpml-auth-msg" style="display:none;"></div>
-		</form>
+	</div>
 	<script>
 	// Callbacks globais do reCAPTCHA (render explícito quando a view auth estiver visível)
 	window.ctwpmlRecaptchaOnload = function() {
