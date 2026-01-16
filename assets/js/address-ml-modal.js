@@ -66,6 +66,10 @@
     // Extraídas para serem acessíveis de qualquer handler
     // =========================================================
 
+    function hasSavedAddresses() {
+      return Array.isArray(addressesCache) && addressesCache.length > 0;
+    }
+
     /**
      * Reseta a UI do botão de cupom (spinner, loading, etc.)
      */
@@ -2938,55 +2942,23 @@
         src: '#login-popup',
         type: 'inline',
         touch: false,
-        // Evita fechar clicando fora (UX no checkout). ESC continua funcionando.
+        // Evita fechar clicando fora (UX no checkout). ESC também bloqueado.
         clickOutside: false,
         clickSlide: false,
         // Compatibilidade: algumas versões usam closeClickOutside.
         closeClickOutside: false,
+        closeOnEsc: false,
+        keyboard: false,
         smallBtn: false,
         toolbar: false,
         buttons: [],
         afterShow: function() {
           state.log('UI        Popup de login aberto (afterShow)', {}, 'UI');
-          var siteKey = (window.cc_params && window.cc_params.recaptcha_site_key) ? String(window.cc_params.recaptcha_site_key) : '';
-
-          // Render explícito: SIGNUP (ID unificado g-recaptcha como no exemplo)
-          var $signupContainer = $('#g-recaptcha');
-          if (!siteKey) {
-            try { siteKey = String($signupContainer.attr('data-sitekey') || ''); } catch (e0) {}
-          }
-          if (typeof grecaptcha !== 'undefined' && $signupContainer.length && !$signupContainer.hasClass('recaptcha-rendered')) {
-            try {
-              window.__ctwpmlRecaptchaSignupId = grecaptcha.render($signupContainer[0], {
-                sitekey: siteKey,
-                callback: window.ctwpmlSignupEnable,
-                'expired-callback': window.ctwpmlSignupDisable,
-              });
-              $signupContainer.addClass('recaptcha-rendered');
-              state.log('UI        reCAPTCHA signup renderizado', { widgetId: window.__ctwpmlRecaptchaSignupId }, 'UI');
-            } catch (e) {
-              state.log('ERROR     Erro ao renderizar reCAPTCHA signup', { error: e && e.message }, 'ERROR');
+          try {
+            if (window.ctwpmlRenderRecaptchaIfNeeded) {
+              window.ctwpmlRenderRecaptchaIfNeeded();
             }
-          }
-
-          // Render explícito: LOGIN
-          var $loginContainer = $('#g-recaptcha-login');
-          if (!siteKey) {
-            try { siteKey = String($loginContainer.attr('data-sitekey') || ''); } catch (e1) {}
-          }
-          if (typeof grecaptcha !== 'undefined' && $loginContainer.length && !$loginContainer.hasClass('recaptcha-rendered')) {
-            try {
-              window.__ctwpmlRecaptchaLoginId = grecaptcha.render($loginContainer[0], {
-                sitekey: siteKey,
-                callback: window.ctwpmlLoginEnable,
-                'expired-callback': window.ctwpmlLoginDisable,
-              });
-              $loginContainer.addClass('recaptcha-rendered');
-              state.log('UI        reCAPTCHA login renderizado', { widgetId: window.__ctwpmlRecaptchaLoginId }, 'UI');
-            } catch (e) {
-              state.log('ERROR     Erro ao renderizar reCAPTCHA login', { error: e && e.message }, 'ERROR');
-            }
-          }
+          } catch (e0) {}
         }
       });
     }
@@ -4380,6 +4352,18 @@
             return;
           }
         }
+        if (!hasSavedAddresses()) {
+          var cartUrl0 = (state.params && state.params.cart_url) ? String(state.params.cart_url) : '';
+          if (cartUrl0) {
+            closeModal({ reason: 'back_from_form_no_addresses', allowNavigateBack: false });
+            setTimeout(function () {
+              try { window.location.href = cartUrl0; } catch (eN0) {}
+            }, 0);
+          } else {
+            closeModal({ reason: 'back_from_form_no_addresses_fallback', allowNavigateBack: true });
+          }
+          return;
+        }
         showList();
         renderAddressList();
         return;
@@ -4530,6 +4514,18 @@
           if (!window.confirm('Você tem alterações não salvas. Deseja voltar sem salvar?')) {
             return;
           }
+        }
+        if (!hasSavedAddresses()) {
+          var cartUrl1 = (state.params && state.params.cart_url) ? String(state.params.cart_url) : '';
+          if (cartUrl1) {
+            closeModal({ reason: 'footer_back_no_addresses', allowNavigateBack: false });
+            setTimeout(function () {
+              try { window.location.href = cartUrl1; } catch (eN1) {}
+            }, 0);
+          } else {
+            closeModal({ reason: 'footer_back_no_addresses_fallback', allowNavigateBack: true });
+          }
+          return;
         }
         showList();
         renderAddressList();

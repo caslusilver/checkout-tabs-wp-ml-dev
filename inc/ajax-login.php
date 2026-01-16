@@ -83,7 +83,7 @@ function checkout_tabs_wp_ml_ajax_login(): void {
 	$user = wp_signon($creds, is_ssl());
 	if (is_wp_error($user)) {
 		if ($is_debug_enabled) error_log('[CTWPML ERROR] ajax_login - wp_signon: ' . $user->get_error_message());
-		wp_send_json_error(['message' => $user->get_error_message()]);
+		wp_send_json_error(['message' => wp_strip_all_tags((string) $user->get_error_message())]);
 		return;
 	}
 

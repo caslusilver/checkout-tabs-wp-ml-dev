@@ -286,6 +286,7 @@ add_action('wp_enqueue_scripts', function () {
 		'allow_fake_cpf' => checkout_tabs_wp_ml_allow_fake_cpf() ? 1 : 0,
 		'signup_nonce' => wp_create_nonce('ctwpml_signup'),
 		'login_nonce' => wp_create_nonce('ctwpml_login'),
+		'auth_email_nonce' => wp_create_nonce('ctwpml_auth_email'),
 		'user_email' => is_user_logged_in() ? (string) wp_get_current_user()->user_email : '',
 		'webhook_url'=> checkout_tabs_wp_ml_get_webhook_url(),
 		'recaptcha_site_key' => $recaptcha_site_key,

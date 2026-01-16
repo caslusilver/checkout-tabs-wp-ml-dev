@@ -16,6 +16,13 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
 #### Protocol: 78d824e
 
+## [v3.2.72] - 2026-01-16
+
+### Changed
+- popup de login reestruturado para página única com e-mail + reCAPTCHA e confirmação antes de prosseguir; novo endpoint `ctwpml_auth_email` cria/loga conta com reCAPTCHA e recarrega sessão; fechamento por overlay/ESC bloqueado e botão X redireciona ao carrinho; reCAPTCHA renderizado uma única vez; back do formulário sem endereços volta ao carrinho; sanitização do erro de senha no login.
+
+#### Protocol: f02f57b
+
 ## [Unreleased]
 
 ### Changed
