@@ -12,9 +12,30 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 ## [Unreleased]
 
 ### Changed
-- **Versão atual**: v3.2.65  
+- **Versão atual**: vX.Y.Z  
   **Versão sugerida após a mudança**: vX.Y.Z  
   **Descrição**: Docs: documenta política de branches/tags (main estável, develop dev) e baselines recomendadas; atualiza Stable tag do readme para 3.2.65.
+
+## [v3.2.68] - 2026-01-16
+
+### Changed
+- Corrige erro de JS no `address-ml-screens.js` que impedia `AddressMlScreens` de ser criado (quebrando `showInitial()` e a navegação/abas no checkout); termos do Review agora usam HTML montado fora da string principal, evitando SyntaxError.
+
+#### Protocol: 3a68af9
+
+## [v3.2.67] - 2026-01-16
+
+### Changed
+- Ajustes finais de UI/UX (desktop footer do pagamento contido no layout; prazo do Motoboy exibido a partir do label; divisória inferior após quantidade; ícone de frete -20% e alinhamento); link de política de privacidade configurável no admin; cores configuráveis do header do modal (fundo/título/ícone); splash screen opcional configurável (sem CLS, corte seco).
+
+#### Protocol: 03b3ed4
+
+## [v3.2.66] - 2026-01-16
+
+### Changed
+- Adiciona shortcode oficial `[checkout_ml]` para tornar o checkout ML a interface principal sem depender do widget do Elementor, mantendo o checkout Woo real offscreen para compatibilidade com gateways/eventos; ajusta JS/CSS para montar o ML inline no root quando presente.
+
+#### Protocol: adfb3a0
 
 ## [v3.2.65] - 2026-01-15
 
@@ -22,6 +43,13 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 - Review: remove thumbs do bloco de entrega e exibe ícone dinâmico por modalidade (Correios/Motoboy) + prazo; corrige quantidade do bloco de entrega para usar total real do carrinho; link “Modificar dados de faturamento” passa a abrir a listagem; seta voltar da primeira tela retorna ao carrinho.
 
 #### Protocol: 0c6d354
+
+## [v1.0.0] - 2026-01-09
+
+### Stable Release
+- Primeira versão estável do plugin **Checkout Tabs WP ML**.
+- Baseada em `v3.2.37` (branch `develop`).
+- Inclui as funcionalidades desenvolvidas até então: modal ML fullscreen no checkout, integração com webhook de frete, popup de login/cadastro, geolocalização, painel admin com abas (Integrações/Debug/Styles), reCAPTCHA v2, persistência de endereços/WhatsApp/CPF, telas de frete e pagamento estilo Mercado Livre, e sistema de checkpoints de debug.
 
 ## [v3.2.64] - 2026-01-13
 

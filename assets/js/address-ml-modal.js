@@ -484,17 +484,24 @@
     function ensureModal() {
       if ($('#ctwpml-address-modal-overlay').length) return;
 
-      // Modo ML definitivo: SEMPRE injeta no <body> para não ficar preso no container do Elementor/widget.
-      // (O widget pode ser movido/offscreen via CSS e não deve arrastar o modal junto.)
-      var $root = $('body');
-      console.log('[CTWPML][DEBUG] ensureModal() - inserindo componente ML no body (modo fullscreen)');
+      // Se existir root do shortcode [checkout_ml], montamos DENTRO dele (sem overlay fullscreen).
+      // Caso contrário, mantém comportamento legado (injeta no body).
+      var $inlineRoot = $('#ctwpml-root');
+      var rootMode = !!($inlineRoot && $inlineRoot.length);
+      var $root = rootMode ? $inlineRoot : $('body');
+      console.log(
+        '[CTWPML][DEBUG] ensureModal() - inserindo componente ML em ' +
+          (rootMode ? '#ctwpml-root (modo inline)' : 'body (modo fullscreen legado)')
+      );
 
       $root.append(
         '' +
-          '<div id="ctwpml-address-modal-overlay" class="ctwpml-modal-overlay">' +
+          '<div id="ctwpml-address-modal-overlay" class="ctwpml-modal-overlay' +
+          (rootMode ? ' ctwpml-modal-overlay--root' : '') +
+          '">' +
           '  <div class="ctwpml-modal" role="dialog" aria-modal="true" aria-label="Meus endereços">' +
           '    <div class="ctwpml-modal-header">' +
-          '      <button type="button" class="ctwpml-modal-back" id="ctwpml-modal-back"><img src="' + (window.cc_params && window.cc_params.plugin_url ? window.cc_params.plugin_url : '') + 'assets/img/arrow-back.svg" alt="Voltar" /></button>' +
+          '      <button type="button" class="ctwpml-modal-back" id="ctwpml-modal-back"><span class="ctwpml-modal-back-icon" aria-hidden="true"></span><img src="' + (window.cc_params && window.cc_params.plugin_url ? window.cc_params.plugin_url : '') + 'assets/img/arrow-back.svg" alt="Voltar" /></button>' +
           '      <div class="ctwpml-modal-title" id="ctwpml-modal-title">Meus endereços</div>' +
           '    </div>' +
           '    <div class="ctwpml-modal-body">' +
@@ -1933,14 +1940,26 @@
         } catch (e1) {}
       }
 
-      // Detalhe da entrega: título = método + preço, eta = label
-      var eta = label ? ('Chegará ' + label) : '';
-      $('#ctwpml-review-shipment-eta').text(eta || '');
-
       var methodLine = methodName ? methodName : '';
       if (methodLine && priceText) methodLine += ' • ' + priceText;
       if (!methodLine && priceText) methodLine = priceText;
       if (methodLine) $('#ctwpml-review-shipment-title').text(methodLine);
+
+      // Detalhe da entrega: segunda linha (prazo) usa exatamente o label retornado.
+      // Regras:
+      // - Só exibe se houver label
+      // - Se for motoboy, exibe em verde via classe
+      try {
+        var $eta = $('#ctwpml-review-shipment-eta');
+        if (!$eta.length) return;
+        $eta.removeClass('is-motoboy');
+        if (!label) {
+          $eta.text('').hide();
+        } else {
+          $eta.text(label).show();
+          if (methodId === 'flat_rate:3') $eta.addClass('is-motoboy');
+        }
+      } catch (eEta) {}
 
       // Ícone dinâmico da modalidade: Motoboy vs Correios
       try {
@@ -2799,7 +2818,13 @@
       // Modo fullscreen: mostrar componente inline e esconder abas antigas
       $('#ctwpml-address-modal-overlay').css('display', 'block');
       try {
-        $('body').addClass('ctwpml-ml-open').css('overflow', 'hidden');
+        var rootMode = !!document.getElementById('ctwpml-root');
+        // Root mode: não trava o scroll da página (checkout-ml-root.css garante isso)
+        if (rootMode) {
+          $('body').addClass('ctwpml-ml-open ctwpml-ml-open--root').css('overflow', '');
+        } else {
+          $('body').addClass('ctwpml-ml-open').css('overflow', 'hidden');
+        }
       } catch (e) {}
       // Marcar modal como "aberto" para restaurar após reload.
       persistModalState({ open: true, view: currentView || 'list' });
@@ -2969,9 +2994,18 @@
       state.log('ACTION    closeModal()', { reason: reason, allowNavigateBack: allowNavigateBack, currentView: currentView }, 'ACTION');
       console.log('[CTWPML][DEBUG] closeModal() - reason:', reason, 'allowNavigateBack:', allowNavigateBack, 'currentView:', currentView);
 
+      // Modo root (shortcode): não "fecha" o checkout ML (senão a página fica vazia).
+      // Mantém a UI visível e deixa o handler (se houver) decidir navegação (ex.: ir pro carrinho).
+      try {
+        if (document.getElementById('ctwpml-root')) {
+          state.log('ACTION    closeModal(): rootMode ativo, ignorando hide()', { reason: reason }, 'ACTION');
+          return;
+        }
+      } catch (eR) {}
+
       $('#ctwpml-address-modal-overlay').hide();
       try {
-        $('body').removeClass('ctwpml-ml-open').css('overflow', '');
+        $('body').removeClass('ctwpml-ml-open ctwpml-ml-open--root').css('overflow', '');
       } catch (e) {}
 
       // Se o usuário fechou, não devemos restaurar automaticamente após reload.

@@ -17,6 +17,32 @@
       .replace(/\'/g, '&#039;');
   }
 
+  /**
+   * Texto de termos do Review.
+   * - Se houver URL configurada, rende link clicável para "política de privacidade".
+   * - Retorna HTML (string) já seguro para concatenar no markup final.
+   */
+  function buildPrivacyTermsHtml() {
+    var url = '';
+    try {
+      url = (window.cc_params && window.cc_params.privacy_policy_url) ? String(window.cc_params.privacy_policy_url) : '';
+    } catch (e0) {
+      url = '';
+    }
+    url = (url || '').trim();
+
+    if (url) {
+      return (
+        'Li e concordo com os termos e a ' +
+        '<a class="ctwpml-privacy-link" href="' +
+        escapeHtml(url) +
+        '" target="_blank" rel="noopener">política de privacidade</a>.'
+      );
+    }
+
+    return 'Li e concordo com os termos e a política de privacidade.';
+  }
+
   function formatAddressSummary(address) {
     if (!address) return '';
     var a1 = (address.address_1 || '').trim();
@@ -516,6 +542,9 @@
     // Bloco de entrega: removemos thumbs e usamos um ícone dinâmico (definido no JS do modal)
     var shipmentIconHtml = '<div class="ctwpml-review-shipment-icon" id="ctwpml-review-shipment-icon" aria-hidden="true"></div>';
 
+    // Termos: evita IIFE dentro de string (quebra o JS inteiro).
+    var termsHtml = buildPrivacyTermsHtml();
+
     var itemsHtml = '';
     if (items.length) {
       itemsHtml = '<div class="ctwpml-review-products-list" id="ctwpml-review-products-list">';
@@ -565,7 +594,7 @@
       '    <div class="ctwpml-review-terms">' +
       '      <label class="ctwpml-review-terms-label">' +
       '        <input type="checkbox" id="ctwpml-review-terms" class="ctwpml-review-terms-checkbox" />' +
-      '        <span>Li e concordo com os termos e a política de privacidade.</span>' +
+      '        <span>' + termsHtml + '</span>' +
       '      </label>' +
       '    </div>' +
       '    <button type="button" class="ctwpml-review-btn-confirm" id="ctwpml-review-confirm">' +
@@ -599,8 +628,8 @@
       '    <div class="ctwpml-review-shipment-detail">' +
       shipmentIconHtml +
       '      <div class="ctwpml-review-shipment-info">' +
-      '        <div class="ctwpml-review-shipment-eta" id="ctwpml-review-shipment-eta"></div>' +
       '        <div class="ctwpml-review-shipment-title" id="ctwpml-review-shipment-title"></div>' +
+      '        <div class="ctwpml-review-shipment-eta" id="ctwpml-review-shipment-eta"></div>' +
       '        <div class="ctwpml-review-shipment-product" id="ctwpml-review-product-name"></div>' +
       '        <div class="ctwpml-review-shipment-qty" id="ctwpml-review-product-qty"></div>' +
       '      </div>' +
@@ -633,7 +662,7 @@
       '    <div class="ctwpml-review-terms ctwpml-review-terms--sticky">' +
       '      <label class="ctwpml-review-terms-label">' +
       '        <input type="checkbox" id="ctwpml-review-terms-sticky" class="ctwpml-review-terms-checkbox" />' +
-      '        <span>Li e concordo com os termos e a política de privacidade.</span>' +
+      '        <span>' + termsHtml + '</span>' +
       '      </label>' +
       '    </div>' +
       '    <button type="button" class="ctwpml-review-btn-confirm" id="ctwpml-review-confirm-sticky">' +

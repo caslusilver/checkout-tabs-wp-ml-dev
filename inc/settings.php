@@ -111,6 +111,91 @@ add_action('admin_init', function () {
 		'default'           => '',
 	]);
 
+	// Link da política de privacidade (usado no Review/termos do modal ML).
+	register_setting(CHECKOUT_TABS_WP_ML_SETTINGS_GROUP, 'checkout_tabs_wp_ml_privacy_policy_url', [
+		'type'              => 'string',
+		'sanitize_callback' => 'esc_url_raw',
+		'default'           => '',
+	]);
+
+	// Header do modal ML (cores) - apenas fundo/título/ícone.
+	register_setting(CHECKOUT_TABS_WP_ML_SETTINGS_GROUP, 'checkout_tabs_wp_ml_ml_header_bg', [
+		'type'              => 'string',
+		'sanitize_callback' => 'sanitize_hex_color',
+		'default'           => '#ff8500',
+	]);
+	register_setting(CHECKOUT_TABS_WP_ML_SETTINGS_GROUP, 'checkout_tabs_wp_ml_ml_header_title_color', [
+		'type'              => 'string',
+		'sanitize_callback' => 'sanitize_hex_color',
+		'default'           => '#0c0829',
+	]);
+	register_setting(CHECKOUT_TABS_WP_ML_SETTINGS_GROUP, 'checkout_tabs_wp_ml_ml_header_icon_color', [
+		'type'              => 'string',
+		'sanitize_callback' => 'sanitize_hex_color',
+		'default'           => '#ffffff',
+	]);
+
+	// Splash screen (identidade visual) - opções básicas.
+	register_setting(CHECKOUT_TABS_WP_ML_SETTINGS_GROUP, 'checkout_tabs_wp_ml_splash_enabled', [
+		'type'              => 'integer',
+		'sanitize_callback' => static function ($value) {
+			return !empty($value) ? 1 : 0;
+		},
+		'default'           => 0,
+	]);
+	register_setting(CHECKOUT_TABS_WP_ML_SETTINGS_GROUP, 'checkout_tabs_wp_ml_splash_bg', [
+		'type'              => 'string',
+		'sanitize_callback' => 'sanitize_hex_color',
+		'default'           => '#ffdb15',
+	]);
+	register_setting(CHECKOUT_TABS_WP_ML_SETTINGS_GROUP, 'checkout_tabs_wp_ml_splash_image_url', [
+		'type'              => 'string',
+		'sanitize_callback' => 'esc_url_raw',
+		'default'           => '',
+	]);
+	register_setting(CHECKOUT_TABS_WP_ML_SETTINGS_GROUP, 'checkout_tabs_wp_ml_splash_duration_ms', [
+		'type'              => 'integer',
+		'sanitize_callback' => 'absint',
+		'default'           => 1200,
+	]);
+	register_setting(CHECKOUT_TABS_WP_ML_SETTINGS_GROUP, 'checkout_tabs_wp_ml_splash_text_enabled', [
+		'type'              => 'integer',
+		'sanitize_callback' => static function ($value) {
+			return !empty($value) ? 1 : 0;
+		},
+		'default'           => 0,
+	]);
+	register_setting(CHECKOUT_TABS_WP_ML_SETTINGS_GROUP, 'checkout_tabs_wp_ml_splash_text', [
+		'type'              => 'string',
+		'sanitize_callback' => 'sanitize_text_field',
+		'default'           => '',
+	]);
+	register_setting(CHECKOUT_TABS_WP_ML_SETTINGS_GROUP, 'checkout_tabs_wp_ml_splash_text_color', [
+		'type'              => 'string',
+		'sanitize_callback' => 'sanitize_hex_color',
+		'default'           => '#111111',
+	]);
+	register_setting(CHECKOUT_TABS_WP_ML_SETTINGS_GROUP, 'checkout_tabs_wp_ml_splash_text_font', [
+		'type'              => 'string',
+		'sanitize_callback' => 'sanitize_text_field',
+		'default'           => 'Arial',
+	]);
+	register_setting(CHECKOUT_TABS_WP_ML_SETTINGS_GROUP, 'checkout_tabs_wp_ml_splash_text_gap_px', [
+		'type'              => 'integer',
+		'sanitize_callback' => static function ($value) {
+			$v = absint($value);
+			return $v < 10 ? 10 : $v;
+		},
+		'default'           => 12,
+	]);
+	register_setting(CHECKOUT_TABS_WP_ML_SETTINGS_GROUP, 'checkout_tabs_wp_ml_splash_text_typing', [
+		'type'              => 'integer',
+		'sanitize_callback' => static function ($value) {
+			return !empty($value) ? 1 : 0;
+		},
+		'default'           => 0,
+	]);
+
 	// Registrar 24 options de estilo (8 propriedades × 3 hierarquias)
 	$levels = ['h1', 'h2', 'h3'];
 	$defaults = [
