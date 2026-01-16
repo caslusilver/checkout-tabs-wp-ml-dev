@@ -16,6 +16,13 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
   **Versão sugerida após a mudança**: vX.Y.Z  
   **Descrição**: texto objetivo do que mudou e impacto (pode listar itens separados por ponto e vírgula).
 
+## [v3.2.68] - 2026-01-16
+
+### Changed
+- Corrige erro de JS no `address-ml-screens.js` que impedia `AddressMlScreens` de ser criado (quebrando `showInitial()` e a navegação/abas no checkout); termos do Review agora usam HTML montado fora da string principal, evitando SyntaxError.
+
+#### Protocol: 3a68af9
+
 ## [v3.2.67] - 2026-01-16
 
 ### Changed
