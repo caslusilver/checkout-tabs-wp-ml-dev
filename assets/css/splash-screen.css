@@ -9,10 +9,12 @@
   align-items: center;
   justify-content: center;
   z-index: 2147483647;
+  pointer-events: none; /* não bloqueia carregamento/layout por baixo */
 }
 
-#ctwpml-splash.ctwpml-splash--visible {
+html.ctwpml-splash-on #ctwpml-splash {
   display: flex;
+  pointer-events: auto; /* bloqueia clique/scroll enquanto visível */
 }
 
 #ctwpml-splash .ctwpml-splash-inner {

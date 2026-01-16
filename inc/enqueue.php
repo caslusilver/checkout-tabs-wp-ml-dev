@@ -326,7 +326,7 @@ add_action('wp_enqueue_scripts', function () {
 		CHECKOUT_TABS_WP_ML_URL . 'assets/js/splash-screen.js',
 		[],
 		$version,
-		true
+		false
 	);
 
 	$bg = sanitize_hex_color((string) get_option('checkout_tabs_wp_ml_splash_bg', '#ffdb15')) ?: '#ffdb15';
@@ -341,6 +341,12 @@ add_action('wp_enqueue_scripts', function () {
 
 	wp_add_inline_script(
 		'checkout-tabs-wp-ml-splash',
+		'(function(){' .
+			'try{' .
+				'if(window.sessionStorage&&sessionStorage.getItem("ctwpml_splash_seen")==="1"){return;}' .
+				'document.documentElement.classList.add("ctwpml-splash-on");' .
+			'}catch(e){document.documentElement.classList.add("ctwpml-splash-on");}' .
+		'}());' .
 		'window.CTWPMLSplashConfig=' . wp_json_encode([
 			'bg' => $bg,
 			'imageUrl' => $image_url,
@@ -355,6 +361,35 @@ add_action('wp_enqueue_scripts', function () {
 		'before'
 	);
 }, 5);
+
+/**
+ * Splash Screen (opcional) - HTML o mais cedo possível (1ª visita).
+ * Renderiza o overlay via wp_body_open para evitar "flash" do site no iOS.
+ */
+add_action('wp_body_open', function () {
+	$enabled = ((int) get_option('checkout_tabs_wp_ml_splash_enabled', 0) === 1);
+	if (!$enabled) {
+		return;
+	}
+
+	$bg = sanitize_hex_color((string) get_option('checkout_tabs_wp_ml_splash_bg', '#ffdb15')) ?: '#ffdb15';
+	$image_url = esc_url((string) get_option('checkout_tabs_wp_ml_splash_image_url', ''));
+	$text_enabled = ((int) get_option('checkout_tabs_wp_ml_splash_text_enabled', 0) === 1);
+	$text = sanitize_text_field((string) get_option('checkout_tabs_wp_ml_splash_text', ''));
+	$text_color = sanitize_hex_color((string) get_option('checkout_tabs_wp_ml_splash_text_color', '#111111')) ?: '#111111';
+	$text_font = sanitize_text_field((string) get_option('checkout_tabs_wp_ml_splash_text_font', 'Arial')) ?: 'Arial';
+	$text_gap_px = max(10, absint(get_option('checkout_tabs_wp_ml_splash_text_gap_px', 12)));
+
+	echo '<div id="ctwpml-splash" aria-hidden="true" style="background:' . esc_attr($bg) . ';">';
+	echo '<div class="ctwpml-splash-inner">';
+	if (!empty($image_url)) {
+		echo '<img class="ctwpml-splash-image" src="' . esc_url($image_url) . '" alt="" aria-hidden="true" decoding="async" loading="eager" fetchpriority="high" />';
+	}
+	if ($text_enabled && !empty($text)) {
+		echo '<p class="ctwpml-splash-text" style="color:' . esc_attr($text_color) . ';font-family:' . esc_attr($text_font) . ';margin-top:' . esc_attr((string) $text_gap_px) . 'px;">' . esc_html($text) . '</p>';
+	}
+	echo '</div></div>';
+}, 0);
 
 /**
  * Overlay "Preparando tudo para sua compra"

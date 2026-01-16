@@ -16,6 +16,13 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
   **Versão sugerida após a mudança**: vX.Y.Z  
   **Descrição**: texto objetivo do que mudou e impacto (pode listar itens separados por ponto e vírgula).
 
+## [v3.2.70] - 2026-01-16
+
+### Changed
+- Splash screen: prioriza exibição na primeira visita (markup via `wp_body_open` + flag em `html`), carrega JS no head para evitar “flash” do site no iOS e inicia timer após início de load do asset (fallback), mantendo branding enquanto a página carrega por baixo.
+
+#### Protocol: d5f0faf
+
 ## [v3.2.69] - 2026-01-16
 
 ### Changed

@@ -9,6 +9,11 @@
     if (window.sessionStorage && sessionStorage.getItem('ctwpml_splash_seen') === '1') return;
   } catch (e0) {}
 
+  // Liga a splash o mais cedo possível (CSS controla a exibição)
+  try {
+    document.documentElement.classList.add('ctwpml-splash-on');
+  } catch (e0a) {}
+
   function safeNumber(n, fallback) {
     n = Number(n);
     return isFinite(n) ? n : fallback;
@@ -64,24 +69,57 @@
     return t;
   }
 
+  function closeSplash(el) {
+    try {
+      document.documentElement.classList.remove('ctwpml-splash-on');
+    } catch (e0c) {}
+    try {
+      if (el && el.parentNode) el.parentNode.removeChild(el);
+    } catch (e1) {}
+    try {
+      if (window.sessionStorage) sessionStorage.setItem('ctwpml_splash_seen', '1');
+    } catch (e2) {}
+  }
+
   function show() {
     var el = ensureSplash();
-    el.classList.add('ctwpml-splash--visible');
+
+    // Aplica background também no elemento já renderizado (garante consistência)
+    try {
+      el.style.background = String(cfg.bg || '#ffdb15');
+    } catch (eBg) {}
 
     if (cfg.textTyping && el.__ctwpmlTextEl && cfg.text) {
       typeText(el.__ctwpmlTextEl, cfg.text, Math.min(900, safeNumber(cfg.durationMs, 1200)));
     }
 
-    // Corte seco: remove após o tempo configurado
-    setTimeout(function () {
-      try {
-        el.classList.remove('ctwpml-splash--visible');
-        el.remove();
-      } catch (e1) {}
-      try {
-        if (window.sessionStorage) sessionStorage.setItem('ctwpml_splash_seen', '1');
-      } catch (e2) {}
-    }, safeNumber(cfg.durationMs, 1200));
+    var duration = safeNumber(cfg.durationMs, 1200);
+    var started = false;
+
+    function startTimerOnce() {
+      if (started) return;
+      started = true;
+      setTimeout(function () {
+        closeSplash(el);
+      }, duration);
+    }
+
+    // iOS: esperar o asset (animated webp/gif) começar a carregar antes de iniciar o timer.
+    // Fallback: inicia o timer após 600ms caso o load demore.
+    try {
+      var img = el.querySelector ? el.querySelector('.ctwpml-splash-image') : null;
+      if (img && img.complete) {
+        startTimerOnce();
+      } else if (img) {
+        img.addEventListener('load', startTimerOnce, { once: true });
+        img.addEventListener('error', startTimerOnce, { once: true });
+        setTimeout(startTimerOnce, 600);
+      } else {
+        startTimerOnce();
+      }
+    } catch (eImg) {
+      startTimerOnce();
+    }
   }
 
   if (document.readyState === 'loading') {
