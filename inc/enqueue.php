@@ -243,8 +243,8 @@ add_action('wp_enqueue_scripts', function () {
 		true
 	);
 	wp_enqueue_script(
-		'checkout-tabs-wp-ml-login-signup',
-		CHECKOUT_TABS_WP_ML_URL . 'assets/js/login-signup.js',
+		'checkout-tabs-wp-ml-auth',
+		CHECKOUT_TABS_WP_ML_URL . 'assets/js/login-auth-v2.js',
 		['jquery'],
 		$version,
 		true
@@ -252,7 +252,7 @@ add_action('wp_enqueue_scripts', function () {
 	wp_enqueue_script(
 		'checkout-tabs-wp-ml-main',
 		CHECKOUT_TABS_WP_ML_URL . 'assets/js/checkout-tabs.js',
-		['checkout-tabs-wp-ml-address-ml-modal', 'checkout-tabs-wp-ml-cta-anim', 'checkout-tabs-wp-ml-login-signup'],
+		['checkout-tabs-wp-ml-address-ml-modal', 'checkout-tabs-wp-ml-cta-anim', 'checkout-tabs-wp-ml-auth'],
 		$version,
 		true
 	);

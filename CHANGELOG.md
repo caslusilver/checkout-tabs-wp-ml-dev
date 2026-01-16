@@ -30,6 +30,13 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
 #### Protocol: fd5edab
 
+## [v3.2.74] - 2026-01-16
+
+### Changed
+- autenticação migrada do Fancybox para uma view dentro do modal ML (sem popup/fechamento ao clicar fora); reCAPTCHA com loader anti-loop (timeout, limite de tentativas, cancelamento) e fallback de injeção do `api.js` quando necessário; cache-busting do JS (novo arquivo/handle) para evitar mistura de versões antigas e logs em loop.
+
+#### Protocol: 898003f
+
 ## [Unreleased]
 
 ### Changed

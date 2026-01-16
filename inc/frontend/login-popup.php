@@ -24,8 +24,7 @@ add_action('wp_footer', function () {
 
 	// HTML minimalista, inspirado no exemplo fornecido, sem anexar handlers globais.
 	?>
-	<div id="login-popup" class="ctwpml-login-popup" style="display:none;">
-		<span class="popup-close-button" style="position:absolute; top:14px; right:14px; font-size:24px; cursor:pointer;">×</span>
+	<div id="ctwpml-auth-template" class="ctwpml-login-popup" style="display:none;">
 		<div class="ctwpml-popup-h1 ctwpml-auth-title">Entrar</div>
 
 		<!-- 1) Login social (prioridade) -->
@@ -85,9 +84,9 @@ add_action('wp_footer', function () {
 			<div id="ctwpml-auth-msg" class="ctwpml-auth-msg" style="display:none;"></div>
 		</form>
 	<script>
-	// Callbacks globais do reCAPTCHA (render explícito no afterShow do Fancybox)
+	// Callbacks globais do reCAPTCHA (render explícito quando a view auth estiver visível)
 	window.ctwpmlRecaptchaOnload = function() {
-		// Apenas sinaliza que a API carregou. Render acontece no afterShow.
+		// Apenas sinaliza que a API carregou. Render é controlado pelo JS do modal.
 	};
 	window.ctwpmlAuthEnable = function() {
 		// reCAPTCHA completado: habilita CTA

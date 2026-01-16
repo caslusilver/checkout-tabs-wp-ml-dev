@@ -509,6 +509,7 @@
           '      <div class="ctwpml-modal-title" id="ctwpml-modal-title">Meus endereços</div>' +
           '    </div>' +
           '    <div class="ctwpml-modal-body">' +
+          '      <div id="ctwpml-view-auth" style="display:none;"></div>' +
           '      <div id="ctwpml-view-initial" style="display:none;"></div>' +
           '      <div id="ctwpml-view-shipping" style="display:none;"></div>' +
           '      <div id="ctwpml-view-payment" style="display:none;"></div>' +
@@ -580,6 +581,36 @@
           '  </div>' +
           '</div>'
       );
+    }
+
+    function showAuthView() {
+      currentView = 'auth';
+      try { persistModalState({ view: 'auth' }); } catch (e0) {}
+      $('#ctwpml-modal-title').text('Entrar');
+      $('#ctwpml-view-initial').hide();
+      $('#ctwpml-view-list').hide();
+      $('#ctwpml-view-form').hide();
+      $('#ctwpml-view-shipping').hide();
+      $('#ctwpml-view-payment').hide();
+      $('#ctwpml-view-review').hide();
+      $('#ctwpml-view-auth').show();
+      setFooterVisible(false);
+
+      // Move o template do auth (servido pelo PHP) para dentro do modal, evitando IDs duplicados.
+      try {
+        if (!$('#ctwpml-view-auth').children().length) {
+          var $tpl = $('#ctwpml-auth-template');
+          if ($tpl.length) {
+            $('#ctwpml-view-auth').append($tpl.children());
+            $tpl.remove();
+          }
+        }
+      } catch (e1) {}
+
+      // Render do reCAPTCHA acontece quando a view auth está visível
+      try {
+        if (window.ctwpmlRenderRecaptchaIfNeeded) window.ctwpmlRenderRecaptchaIfNeeded();
+      } catch (e2) {}
     }
 
     function setFooterVisible(visible) {
@@ -2811,7 +2842,10 @@
       console.log('[CTWPML][DEBUG] openModal() - isLoggedIn:', isLoggedIn());
 
       if (!isLoggedIn()) {
-        console.log('[CTWPML][DEBUG] openModal() - usuário NÃO logado, abortando');
+        ensureModal();
+        $('#ctwpml-address-modal-overlay').show();
+        try { $('body').addClass('ctwpml-ml-open').css('overflow', 'hidden'); } catch (e0) {}
+        showAuthView();
         return;
       }
 
@@ -2933,34 +2967,8 @@
     } catch (e) {}
 
     function openLoginPopup() {
-      // Usa Fancybox existente no site (sem duplicar libs).
-      if (isLoggedIn()) return;
-      if (!($.fancybox && typeof $.fancybox.open === 'function')) return;
-      if (!$('#login-popup').length) return;
-
-      $.fancybox.open({
-        src: '#login-popup',
-        type: 'inline',
-        touch: false,
-        // Evita fechar clicando fora (UX no checkout). ESC também bloqueado.
-        clickOutside: false,
-        clickSlide: false,
-        // Compatibilidade: algumas versões usam closeClickOutside.
-        closeClickOutside: false,
-        closeOnEsc: false,
-        keyboard: false,
-        smallBtn: false,
-        toolbar: false,
-        buttons: [],
-        afterShow: function() {
-          state.log('UI        Popup de login aberto (afterShow)', {}, 'UI');
-          try {
-            if (window.ctwpmlRenderRecaptchaIfNeeded) {
-              window.ctwpmlRenderRecaptchaIfNeeded();
-            }
-          } catch (e0) {}
-        }
-      });
+      // Depreciado: auth agora acontece dentro do modal ML (view auth), sem Fancybox/popup.
+      openModal();
     }
 
     function closeModal(opts) {
@@ -4319,6 +4327,17 @@
       // review → payment
       // initial → fecha modal (ou history.back quando for fullscreen)
 
+      if (currentView === 'auth') {
+        // Saída explícita: voltar ao carrinho
+        var cartUrlA = (state.params && state.params.cart_url) ? String(state.params.cart_url) : '';
+        closeModal({ reason: 'auth_exit_to_cart', allowNavigateBack: false });
+        if (cartUrlA) {
+          setTimeout(function () {
+            try { window.location.href = cartUrlA; } catch (eN0) {}
+          }, 0);
+        }
+        return;
+      }
       if (currentView === 'payment') {
         console.log('[CTWPML][DEBUG] - voltando de payment para shipping');
         showShippingPlaceholder();
@@ -5784,18 +5803,13 @@
 
     // NOVO: iniciar fluxo automaticamente ao entrar no /checkout.
     // - logado: abre modal ML
-    // - deslogado: abre popup de login (Fancybox)
+    // - deslogado: abre view auth dentro do modal ML (sem Fancybox)
     setTimeout(function () {
       console.log('[CTWPML][DEBUG] setTimeout 800ms - auto abertura do modal');
       console.log('[CTWPML][DEBUG] setTimeout - isLoggedIn:', isLoggedIn());
       try {
-        if (isLoggedIn()) {
-          console.log('[CTWPML][DEBUG] setTimeout - chamando openModal()');
-          openModal();
-        } else {
-          console.log('[CTWPML][DEBUG] setTimeout - chamando openLoginPopup()');
-          openLoginPopup();
-        }
+        console.log('[CTWPML][DEBUG] setTimeout - chamando openModal() (auth dentro do modal)');
+        openModal();
       } catch (e) {
         console.log('[CTWPML][DEBUG] setTimeout - ERRO:', e);
       }
