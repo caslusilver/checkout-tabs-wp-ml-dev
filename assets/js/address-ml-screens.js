@@ -385,6 +385,7 @@
     var pixIconUrl = pluginUrl ? (pluginUrl + 'assets/img/icones/pix.svg') : 'https://cubensisstore.com.br/wp-content/uploads/2026/01/artpoin-logo-pix-1-scaled.png';
     var cardIconUrl = pluginUrl ? (pluginUrl + 'assets/img/icones/bank-card.svg') : 'https://cubensisstore.com.br/wp-content/uploads/2026/01/bank-card.png';
     var boletoIconUrl = pluginUrl ? (pluginUrl + 'assets/img/icones/bar-code.svg') : '';
+    var chevronIconUrl = pluginUrl ? (pluginUrl + 'assets/img/icones/ctwpml-payment-chevron.svg') : '';
 
     var totalRowHtml = '';
     if (hasDiscount) {
@@ -444,7 +445,9 @@
       '          <p class="ctwpml-payment-method-subtitle">Aprovação imediata</p>' +
       '        </div>' +
       '      </div>' +
-      '      <span class="ctwpml-payment-chevron">›</span>' +
+      '      <span class="ctwpml-payment-chevron" aria-hidden="true">' +
+      (chevronIconUrl ? ('        <img src="' + escapeHtml(chevronIconUrl) + '" alt="" />') : '›') +
+      '      </span>' +
       '    </a>' +
       // Boleto
       '    <a href="#" class="ctwpml-payment-option" data-method="boleto">' +
@@ -457,7 +460,9 @@
       '          <p class="ctwpml-payment-method-subtitle">Aprovação em 1 a 2 dias úteis</p>' +
       '        </div>' +
       '      </div>' +
-      '      <span class="ctwpml-payment-chevron">›</span>' +
+      '      <span class="ctwpml-payment-chevron" aria-hidden="true">' +
+      (chevronIconUrl ? ('        <img src="' + escapeHtml(chevronIconUrl) + '" alt="" />') : '›') +
+      '      </span>' +
       '    </a>' +
       '  </div>' +
       // Seção Cartões
@@ -473,7 +478,9 @@
       '          <h3 class="ctwpml-payment-method-title ctwpml-payment-title-blue">Novo cartão de crédito</h3>' +
       '        </div>' +
       '      </div>' +
-      '      <span class="ctwpml-payment-chevron">›</span>' +
+      '      <span class="ctwpml-payment-chevron" aria-hidden="true">' +
+      (chevronIconUrl ? ('        <img src="' + escapeHtml(chevronIconUrl) + '" alt="" />') : '›') +
+      '      </span>' +
       '    </a>' +
       '  </div>' +
       '  </div>' + // left
@@ -629,7 +636,7 @@
       shipmentIconHtml +
       '      <div class="ctwpml-review-shipment-info">' +
       '        <div class="ctwpml-review-shipment-title" id="ctwpml-review-shipment-title"></div>' +
-      '        <div class="ctwpml-review-shipment-eta" id="ctwpml-review-shipment-eta"></div>' +
+      '        <div class="ctwpml-review-shipment-eta ctwpml-shipping-option-label" id="ctwpml-review-shipment-eta"></div>' +
       '        <div class="ctwpml-review-shipment-product" id="ctwpml-review-product-name"></div>' +
       '        <div class="ctwpml-review-shipment-qty" id="ctwpml-review-product-qty"></div>' +
       '      </div>' +

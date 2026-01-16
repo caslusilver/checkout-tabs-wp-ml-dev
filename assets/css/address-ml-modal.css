@@ -824,6 +824,21 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
   background: #fff;
 }
 
+/* Form (editar/criar): todos os campos com stroke 2px #bbbbbb (inclui wrapper do telefone). */
+#ctwpml-view-form .ctwpml-form-group input,
+#ctwpml-view-form .ctwpml-form-group textarea {
+  border: 2px solid #bbbbbb !important;
+}
+
+#ctwpml-view-form .ctwpml-phone-wrap {
+  border: 2px solid #bbbbbb !important;
+}
+
+#ctwpml-view-form .ctwpml-phone-wrap:focus-within {
+  border-color: #bbbbbb !important;
+  box-shadow: none !important;
+}
+
 /* =====================================================
    v2.0 [2.3] Campo DDI (NOVO FORMATO: TomSelect + IMask)
    - Segue o MODELO FORMULARIO INTERNACIONAL PARA NUMEROS.PHP
@@ -1060,9 +1075,19 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
 
 /* Chevron (seta) */
 .ctwpml-payment-chevron {
-  color: #ccc;
-  font-size: 18px;
   flex-shrink: 0;
+}
+
+.ctwpml-payment-chevron {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ctwpml-payment-chevron img {
+  width: 18px;
+  height: 18px;
+  display: block;
 }
 
 /* Footer fixo (sticky) */
@@ -1917,6 +1942,12 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
 
 .ctwpml-review-shipment-eta.is-motoboy {
   color: #00a650;
+}
+
+/* Prazo selecionado no Review (abaixo do título do frete) */
+.ctwpml-review-shipment-eta.ctwpml-shipping-option-label {
+  color: #00A66C;
+  font-weight: 700;
 }
 
 .ctwpml-review-shipment-title {

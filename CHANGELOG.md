@@ -14,7 +14,14 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 ### Changed
 - **Versão atual**: vX.Y.Z  
   **Versão sugerida após a mudança**: vX.Y.Z  
-  **Descrição**: Docs: documenta política de branches/tags (main estável, develop dev) e baselines recomendadas; atualiza Stable tag do readme para 3.2.65.
+  **Descrição**: texto objetivo do que mudou e impacto (pode listar itens separados por ponto e vírgula).
+
+## [v3.2.69] - 2026-01-16
+
+### Changed
+- Pagamento: substitui chevron textual por SVG local mais nítido; Form de endereço: aplica borda/stroke 2px #bbbbbb em todos os campos (inclui wrapper do telefone); Review: exibe o prazo selecionado com `ctwpml-shipping-option-label` em verde (#00A66C) abaixo do título do frete.
+
+#### Protocol: c0d135a
 
 ## [v3.2.68] - 2026-01-16
 
