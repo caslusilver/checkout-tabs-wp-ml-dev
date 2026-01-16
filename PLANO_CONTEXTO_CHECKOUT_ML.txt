@@ -1,0 +1,223 @@
+# PLANO DE CONTEXTO - Checkout ML Oficial (substituir Elementor)
+#
+# Objetivo: reunir TODO o contexto necessário antes do plano de execução definitivo.
+# Uso: a cada resposta do usuário, este arquivo será atualizado com o conteúdo coletado.
+# Status: EM COLETA
+#
+# --------------------------------------------------------------------------------
+# TAREFA 1 — Identificar o tipo de checkout (Woo clássico vs Blocks) e confirmar
+#           presença de form.checkout
+# --------------------------------------------------------------------------------
+# O que você precisa fazer (no navegador):
+# 1) Acesse a página de checkout real (ex.: /finalizar-compra/).
+# 2) Abra o DevTools:
+#    - Windows: F12 ou Ctrl+Shift+I
+# 3) Vá na aba "Console" e execute:
+#    document.querySelector('form.checkout')
+# 4) Anote o resultado:
+#    - Se aparecer um elemento HTML (ex.: <form class="checkout"...>), é Woo clássico.
+#    - Se retornar null, pode ser Woo Blocks ou o Elementor não está renderizando o form.
+# 5) Ainda no Console, execute:
+#    document.querySelector('[data-block-name="woocommerce/checkout"]') ||
+#    document.querySelector('.wc-block-checkout')
+# 6) Anote o resultado:
+#    - Se aparecer um elemento, é Woo Blocks.
+#    - Se retornar null, provavelmente é Woo clássico.
+#
+# Cole aqui seus resultados:
+# - Resultado do form.checkout: ENCONTRADO (existe <form name="checkout" class="checkout woocommerce-checkout" ...>)
+# - Resultado do wc-block-checkout: null
+# - Conclusão (Clássico ou Blocks): Woo CLÁSSICO (não é Blocks). Elementor está renderizando o form clássico.
+#
+# --------------------------------------------------------------------------------
+# TAREFA 2 — Confirmar que a página de checkout é do Elementor
+# --------------------------------------------------------------------------------
+# O que você precisa fazer:
+# 1) Abra o editor do Elementor na página de checkout.
+# 2) Confirme se existe o widget "WooCommerce Checkout" no template.
+# 3) Se puder, exporte o template (JSON) OU copie o HTML renderizado.
+#
+# Cole aqui:
+# - Existe widget "WooCommerce Checkout"? SIM
+# - Você tem export do template (JSON)? SIM (arquivo: elementor-4523-2026-01-16.json)
+# - Detalhes do template (do JSON):
+#   - title: BKP CHECKOUT 2026 ANTES DO ML
+#   - widget principal: widgetType="woocommerce-checkout-page" (Elementor Pro)
+#   - estrutura: Container com layout e, dentro, o widget "woocommerce-checkout-page"
+#   - checkout é Woo CLÁSSICO (confere com TAREFA 1), com markup gerado dentro do widget.
+#
+# --------------------------------------------------------------------------------
+# TAREFA 3 — Gateways ativos e comportamento com checkout invisível
+# --------------------------------------------------------------------------------
+# O que você precisa fazer:
+# 1) Liste os gateways ativos (Pix/Boleto/Cartão e nome do plugin).
+# 2) Diga se já houve problema quando o checkout ficou invisível/offscreen.
+#
+# Cole aqui:
+# - Gateways ativos:
+#   - Asaas Pix: ATIVO
+#   - Asaas Boleto Bancário: ATIVO
+#   - Asaas Cartão de Crédito: INATIVO (temporariamente; plugin corporativo deverá suportar cartão no futuro)
+#   - Pagamentos offline: disponível (confirmar se está ativo/uso real)
+#   - IDs reais em input[name="payment_method"] (capturado no checkout):
+#     - asaas-pix
+#     - asaas-ticket
+# - Problemas observados:
+#   - (pendente) usuário não relatou erro por checkout offscreen; validar via teste/IDs de payment_method
+#
+# --------------------------------------------------------------------------------
+# TAREFA 4 — Requisito de login (checkout guest)
+# --------------------------------------------------------------------------------
+# O que você precisa fazer:
+# 1) Confirme se o checkout deve funcionar para usuário NÃO logado.
+#    - Se sim, precisamos liberar o fluxo ML para guest.
+#    - Se não, mantemos login obrigatório.
+#
+# Cole aqui:
+# - Checkout guest permitido? NÃO (login pode permanecer obrigatório)
+#
+# --------------------------------------------------------------------------------
+# TAREFA 5 — Conteúdo atual da página /finalizar-compra/
+# --------------------------------------------------------------------------------
+# O que você precisa fazer:
+# 1) Diga se você quer remover completamente o widget do Elementor
+#    e usar apenas o shortcode do plugin.
+# 2) Se possível, cole o conteúdo atual da página (texto do editor ou HTML).
+#
+# Cole aqui:
+# - Remover widget e usar só shortcode? SIM
+# - Objetivo/decisão: o checkout ML do plugin será a camada oficial (sem sobreposições), substituindo o widget do Elementor.
+# - No lugar do widget do Elementor, será usado um widget de Shortcode com: [checkout_ml]
+# - Conteúdo atual da página (trecho relevante): (pendente: confirmar como ficará o layout do Elementor ao remover o widget e inserir o shortcode)
+#
+# --------------------------------------------------------------------------------
+# TAREFA 6 — Arquivos do template que você mencionou
+# --------------------------------------------------------------------------------
+# Você citou:
+# C:\Users\Dell\Desktop\checkout-tab-estilo-ml-2026\checkout ml\checkout-woocommerce
+#
+# O que você precisa fazer:
+# 1) Liste os arquivos que existem nessa pasta.
+# 2) Se houver PHP/HTML/JSON relevantes, informe os nomes.
+#
+# Cole aqui:
+# - Lista de arquivos (pasta checkout-woocommerce fornecida pelo usuário):
+#   - cart-errors.php
+#   - form-billing.php
+#   - form-checkout.php
+#   - form-coupon.php
+#   - form-login.php
+#   - form-pay.php
+#   - form-shipping.php
+#   - form-verify-email.php
+#   - order-receipt.php
+#   - order-received.php
+#   - payment-method.php
+#   - payment.php
+#   - review-order (2).php
+#   - terms.php
+#   - thankyou.php
+#   - car woo/cart-shipping.php
+#   - car woo/cart-totals.php
+#   - car woo/cart.php
+#   - car woo/mini-cart.php
+#   - car woo/proceed-to-checkout-button... (nome truncado na saída)
+#   - login woo/form-login.php
+#   - login woo/my-account.php
+# - Arquivos principais (para análise/espelhamento no shortcode):
+#   - form-checkout.php (base do checkout)
+#   - review-order (2).php / payment.php / payment-method.php (pagamento + review)
+#   - form-coupon.php (cupom)
+#
+
+# ================================================================================
+# CONTEXTO CONSOLIDADO (OK)
+# ================================================================================
+# - Checkout atual: Elementor Pro widgetType="woocommerce-checkout-page"
+# - WooCommerce: CLÁSSICO (existe form.checkout; não é Blocks)
+# - Gateways ativos (hoje): asaas-pix, asaas-ticket (cartão inativo por enquanto)
+# - Login: pode permanecer obrigatório
+# - Direção: remover widget do Elementor e substituir por shortcode do plugin (checkout ML oficial)
+#
+# Templates Woo fornecidos (referência):
+# - form-checkout.php (Woo 9.4.0): renderiza <form class="checkout woocommerce-checkout"> + hooks padrão
+# - payment.php (Woo 9.8.0): renderiza #payment e o botão #place_order
+# - payment-method.php (Woo 3.5.0): renderiza input[name="payment_method"] (ids como asaas-pix/asaas-ticket)
+# - review-order.php (Woo 5.2.0): subtotal/frete/cupom/total no #order_review
+#
+# Observação crítica:
+# - Hoje o plugin depende da existência do checkout real no DOM (form.checkout + #payment/#order_review)
+#   para gateways, fragments e eventos do WC funcionarem.
+#
+# ================================================================================
+# PLANO DE EXECUÇÃO DEFINITIVO (PROPOSTA) — Checkout ML oficial via Shortcode
+# ================================================================================
+# Objetivo técnico:
+# - Implementar um shortcode ([checkout_ml]) que:
+#   1) Renderiza um container "root" do ML no layout (sem overlay fullscreen).
+#   2) Renderiza o checkout Woo real (clássico) invisível/offscreen (NUNCA display:none).
+#   3) Faz o JS do plugin montar a UI ML DENTRO do root (não no body) quando o root existir.
+#   4) Mantém total compatibilidade com gateways/eventos (update_checkout/updated_checkout).
+#   5) Permite remover o widget do Elementor sem perda de funcionalidade.
+#
+# Premissas:
+# - Página /finalizar-compra/ continua sendo a página de checkout do Woo.
+# - Elementor continua podendo ser usado apenas como layout/container, mas SEM o widget de checkout.
+#
+# Fase 0 — Segurança / rollback (pré)
+# - Criar uma opção "modo de integração" (feature flag) no plugin:
+#   - "elementor_widget" (atual) vs "shortcode_root" (novo)
+# - Enquanto a flag não estiver "shortcode_root", não muda comportamento em produção.
+#
+# Fase 1 — Shortcode e markup mínimo (PHP)
+# - Registrar shortcode [checkout_ml]
+# - Output do shortcode:
+#   - <div id="ctwpml-root" class="ctwpml-root"></div>  (onde o ML será montado)
+#   - <div id="ctwpml-wc-host" class="ctwpml-wc-host">...checkout do Woo...</div>
+# - Dentro de ctwpml-wc-host:
+#   - renderizar o checkout Woo clássico (preferência: woocommerce_checkout() ou shortcode [woocommerce_checkout])
+# - CSS: ctwpml-wc-host fica offscreen/invisível (sem display:none), similar ao ensureHiddenBlocksRoot().
+#
+# Fase 2 — JS/CSS: deixar de ser overlay e montar no root
+# - Alterar o JS do ML (address-ml-modal.js):
+#   - Se existir #ctwpml-root:
+#     - NÃO injetar no body
+#     - Montar o markup do ML dentro do #ctwpml-root
+#     - Desativar lógica de "position:fixed; inset:0" e a trava de scroll (body.ctwpml-ml-open)
+#   - Se NÃO existir #ctwpml-root:
+#     - Manter comportamento atual (compatibilidade)
+# - Ajustar CSS (address-ml-modal.css):
+#   - Quando dentro do root: overlay vira layout normal (position:relative/static; height:auto)
+#   - Manter regras de esconder widget do Elementor apenas quando ele existir (backward compat).
+#
+# Fase 3 — Enqueue e detecção (PHP/JS)
+# - Garantir que scripts/estilos do plugin carreguem quando:
+#   - is_checkout() (como já acontece)
+#   - e/ou shortcode [checkout_ml] estiver presente (para cenários futuros)
+# - Trocar "detecção de Elementor" como gatilho do ML-only por:
+#   - Presença de #ctwpml-root OU opção/flag (source of truth)
+#
+# Fase 4 — Testes de regressão (checklist)
+# - Login obrigatório:
+#   - usuário deslogado: deve abrir login popup / bloquear fluxo conforme regra atual
+# - Endereço:
+#   - abrir fluxo, selecionar/criar endereço, aplicar no checkout real
+# - Frete:
+#   - escolher frete no ML e validar update_checkout + total atualizado
+# - Cupom:
+#   - aplicar/remover cupom e validar total
+# - Pagamento:
+#   - selecionar asaas-pix e asaas-ticket e confirmar que o gateway “enxerga” o checkout
+# - Finalização:
+#   - submeter pedido (#place_order) funciona e redireciona para thankyou
+#
+# Fase 5 — Corte definitivo
+# - Atualizar template Elementor:
+#   - Remover widget woocommerce-checkout-page
+#   - Inserir widget de Shortcode com [checkout_ml]
+# - Ativar flag "shortcode_root"
+#
+# Rollback rápido
+# - Voltar o template Elementor para o widget antigo
+# - Desativar flag "shortcode_root" (retorna ao comportamento atual)
+#

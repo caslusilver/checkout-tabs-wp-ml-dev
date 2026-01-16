@@ -36,6 +36,12 @@ add_action('wp_enqueue_scripts', function () {
 		$version
 	);
 	wp_enqueue_style(
+		'checkout-tabs-wp-ml-checkout-ml-root',
+		CHECKOUT_TABS_WP_ML_URL . 'assets/css/checkout-ml-root.css',
+		['checkout-tabs-wp-ml-address-ml-modal'],
+		$version
+	);
+	wp_enqueue_style(
 		'checkout-tabs-wp-ml-login-popup',
 		CHECKOUT_TABS_WP_ML_URL . 'assets/css/login-popup.css',
 		['checkout-tabs-wp-ml-checkout-ui'],

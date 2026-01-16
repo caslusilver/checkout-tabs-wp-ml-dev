@@ -12,9 +12,16 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 ## [Unreleased]
 
 ### Changed
-- **Versão atual**: v3.2.65  
+- **Versão atual**: vX.Y.Z  
   **Versão sugerida após a mudança**: vX.Y.Z  
   **Descrição**: texto objetivo do que mudou e impacto (pode listar itens separados por ponto e vírgula).
+
+## [v3.2.66] - 2026-01-16
+
+### Changed
+- Adiciona shortcode oficial `[checkout_ml]` para tornar o checkout ML a interface principal sem depender do widget do Elementor, mantendo o checkout Woo real offscreen para compatibilidade com gateways/eventos; ajusta JS/CSS para montar o ML inline no root quando presente.
+
+#### Protocol: adfb3a0
 
 ## [v3.2.65] - 2026-01-15
 

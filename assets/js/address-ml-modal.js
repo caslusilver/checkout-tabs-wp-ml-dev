@@ -484,14 +484,21 @@
     function ensureModal() {
       if ($('#ctwpml-address-modal-overlay').length) return;
 
-      // Modo ML definitivo: SEMPRE injeta no <body> para não ficar preso no container do Elementor/widget.
-      // (O widget pode ser movido/offscreen via CSS e não deve arrastar o modal junto.)
-      var $root = $('body');
-      console.log('[CTWPML][DEBUG] ensureModal() - inserindo componente ML no body (modo fullscreen)');
+      // Se existir root do shortcode [checkout_ml], montamos DENTRO dele (sem overlay fullscreen).
+      // Caso contrário, mantém comportamento legado (injeta no body).
+      var $inlineRoot = $('#ctwpml-root');
+      var rootMode = !!($inlineRoot && $inlineRoot.length);
+      var $root = rootMode ? $inlineRoot : $('body');
+      console.log(
+        '[CTWPML][DEBUG] ensureModal() - inserindo componente ML em ' +
+          (rootMode ? '#ctwpml-root (modo inline)' : 'body (modo fullscreen legado)')
+      );
 
       $root.append(
         '' +
-          '<div id="ctwpml-address-modal-overlay" class="ctwpml-modal-overlay">' +
+          '<div id="ctwpml-address-modal-overlay" class="ctwpml-modal-overlay' +
+          (rootMode ? ' ctwpml-modal-overlay--root' : '') +
+          '">' +
           '  <div class="ctwpml-modal" role="dialog" aria-modal="true" aria-label="Meus endereços">' +
           '    <div class="ctwpml-modal-header">' +
           '      <button type="button" class="ctwpml-modal-back" id="ctwpml-modal-back"><img src="' + (window.cc_params && window.cc_params.plugin_url ? window.cc_params.plugin_url : '') + 'assets/img/arrow-back.svg" alt="Voltar" /></button>' +
@@ -2799,7 +2806,13 @@
       // Modo fullscreen: mostrar componente inline e esconder abas antigas
       $('#ctwpml-address-modal-overlay').css('display', 'block');
       try {
-        $('body').addClass('ctwpml-ml-open').css('overflow', 'hidden');
+        var rootMode = !!document.getElementById('ctwpml-root');
+        // Root mode: não trava o scroll da página (checkout-ml-root.css garante isso)
+        if (rootMode) {
+          $('body').addClass('ctwpml-ml-open ctwpml-ml-open--root').css('overflow', '');
+        } else {
+          $('body').addClass('ctwpml-ml-open').css('overflow', 'hidden');
+        }
       } catch (e) {}
       // Marcar modal como "aberto" para restaurar após reload.
       persistModalState({ open: true, view: currentView || 'list' });
@@ -2969,9 +2982,18 @@
       state.log('ACTION    closeModal()', { reason: reason, allowNavigateBack: allowNavigateBack, currentView: currentView }, 'ACTION');
       console.log('[CTWPML][DEBUG] closeModal() - reason:', reason, 'allowNavigateBack:', allowNavigateBack, 'currentView:', currentView);
 
+      // Modo root (shortcode): não "fecha" o checkout ML (senão a página fica vazia).
+      // Mantém a UI visível e deixa o handler (se houver) decidir navegação (ex.: ir pro carrinho).
+      try {
+        if (document.getElementById('ctwpml-root')) {
+          state.log('ACTION    closeModal(): rootMode ativo, ignorando hide()', { reason: reason }, 'ACTION');
+          return;
+        }
+      } catch (eR) {}
+
       $('#ctwpml-address-modal-overlay').hide();
       try {
-        $('body').removeClass('ctwpml-ml-open').css('overflow', '');
+        $('body').removeClass('ctwpml-ml-open ctwpml-ml-open--root').css('overflow', '');
       } catch (e) {}
 
       // Se o usuário fechou, não devemos restaurar automaticamente após reload.

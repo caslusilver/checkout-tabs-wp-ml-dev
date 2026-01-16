@@ -63,9 +63,14 @@
     if (!state.params || !state.params.ajax_url) return;
 
     // =========================================================
-    // MODO ML DEFINITIVO (Elementor checkout widget)
+    // MODO ML DEFINITIVO
     // - Desliga completamente a lógica antiga de abas/snippet
-    // - Mantém apenas: UI + Woo events + Modal ML
+    // - Mantém apenas: UI + Woo events + Modal/Root ML
+    //
+    // Critérios:
+    // - option/params ml_only = 1 (modo atual)
+    // - checkout do Elementor (legado)
+    // - OU presença do root do shortcode [checkout_ml] (#ctwpml-root)
     // =========================================================
     var isElementorCheckout = false;
     try {
@@ -74,7 +79,15 @@
       );
     } catch (e) {}
 
-    var mlOnly = !!(state.params && (state.params.ml_only === 1 || state.params.ml_only === '1')) || isElementorCheckout;
+    var hasCheckoutMlRoot = false;
+    try {
+      hasCheckoutMlRoot = !!document.getElementById('ctwpml-root');
+    } catch (e) {}
+
+    var mlOnly =
+      !!(state.params && (state.params.ml_only === 1 || state.params.ml_only === '1')) ||
+      isElementorCheckout ||
+      hasCheckoutMlRoot;
     if (mlOnly) {
       try { document.body.classList.add('ctwpml-ml-only'); } catch (e) {}
       state.log('INIT      ML-only ativo: lógica antiga de abas está desabilitada.', { isElementorCheckout: isElementorCheckout }, 'INIT');

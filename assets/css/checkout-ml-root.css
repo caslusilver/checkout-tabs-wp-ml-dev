@@ -1,0 +1,41 @@
+/* Checkout Tabs WP ML - Root do shortcode [checkout_ml] */
+
+/* Host do Woo checkout (necessário para gateways), mas invisível/offscreen */
+.ctwpml-wc-host {
+  position: fixed !important;
+  left: -99999px !important;
+  top: -99999px !important;
+  width: 1px !important;
+  height: 1px !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  overflow: hidden !important;
+}
+
+/* Root visível onde o ML será montado (no layout da página) */
+.ctwpml-root {
+  width: 100%;
+}
+
+/* Quando o modal é montado dentro do root, ele deixa de ser fullscreen */
+.ctwpml-root .ctwpml-modal-overlay {
+  position: relative !important;
+  inset: auto !important;
+  width: 100% !important;
+  height: auto !important;
+  display: block !important;
+  background: transparent !important;
+  z-index: auto !important;
+}
+
+.ctwpml-root .ctwpml-modal {
+  min-height: auto !important;
+  height: auto !important;
+  max-width: 100% !important;
+}
+
+/* No modo root, não travar scroll global da página */
+body.ctwpml-ml-open.ctwpml-ml-open--root {
+  overflow: auto !important;
+}
+
