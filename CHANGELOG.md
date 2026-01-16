@@ -23,6 +23,13 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
 #### Protocol: f02f57b
 
+## [v3.2.73] - 2026-01-16
+
+### Changed
+- pop-up de autenticação reestruturado para hierarquia correta (Google primeiro, login e-mail+senha e criação de conta separada); endpoint `ctwpml_auth_email` passa a criar conta apenas quando o e-mail não existe (sem login inseguro); reCAPTCHA com controlador anti-loop (timeout, limite de tentativas e cancelamento), render único quando modal está visível e reset controlado; remove render no `document.ready` para evitar loop com popup oculto.
+
+#### Protocol: fd5edab
+
 ## [Unreleased]
 
 ### Changed

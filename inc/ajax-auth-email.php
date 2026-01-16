@@ -69,9 +69,16 @@ function ctwpml_ajax_auth_email(): void {
 		return;
 	}
 
+	// Importante (UX + segurança):
+	// Este endpoint é exclusivo para "Criar conta" (e-mail + reCAPTCHA).
+	// Para login tradicional, use ctwpml_login (e-mail + senha + reCAPTCHA).
 	$user = get_user_by('email', $email);
-	$is_new = false;
+	if ($user) {
+		wp_send_json_error(['message' => 'Já existe uma conta com este e-mail. Faça login.']);
+		return;
+	}
 
+	$is_new = true;
 	if (!$user) {
 		$username_base = sanitize_user(current(explode('@', $email)));
 		$username = $username_base;
@@ -98,7 +105,6 @@ function ctwpml_ajax_auth_email(): void {
 			return;
 		}
 		$user = get_user_by('id', $user_id);
-		$is_new = true;
 		if ($user) {
 			wp_update_user([
 				'ID' => $user->ID,
@@ -113,7 +119,7 @@ function ctwpml_ajax_auth_email(): void {
 		return;
 	}
 
-	// Login sem senha conforme regra do produto (reCAPTCHA é a barreira).
+	// Login do usuário recém-criado.
 	wp_set_current_user($user->ID);
 	wp_set_auth_cookie($user->ID, true);
 

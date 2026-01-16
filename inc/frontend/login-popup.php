@@ -26,12 +26,10 @@ add_action('wp_footer', function () {
 	?>
 	<div id="login-popup" class="ctwpml-login-popup" style="display:none;">
 		<span class="popup-close-button" style="position:absolute; top:14px; right:14px; font-size:24px; cursor:pointer;">×</span>
-		<div class="ctwpml-popup-h1 ctwpml-auth-title">Criar uma conta</div>
-		<div class="ctwpml-popup-h2 ctwpml-auth-subtitle">
-			Você pode criar uma conta apenas com seu e-mail e redefinir a senha depois.
-		</div>
+		<div class="ctwpml-popup-h1 ctwpml-auth-title">Entrar</div>
 
-		<div style="text-align:center; margin-bottom: 16px;">
+		<!-- 1) Login social (prioridade) -->
+		<div style="text-align:center; margin: 12px 0 16px;">
 			<?php echo do_shortcode('[nextend_social_login]'); ?>
 		</div>
 
@@ -42,8 +40,29 @@ add_action('wp_footer', function () {
 		</div>
 
 		<form id="ctwpml-auth-form" class="ctwpml-auth-form" autocomplete="on">
-			<label for="ctwpml-auth-email" class="ctwpml-popup-h3">E-mail</label>
-			<input type="email" id="ctwpml-auth-email" autocomplete="username" required>
+			<!-- 2) Login tradicional -->
+			<div class="ctwpml-popup-h2 ctwpml-auth-subtitle" style="margin-top: 12px;">
+				Faça login com seu e-mail e senha.
+			</div>
+			<label for="ctwpml-login-email" class="ctwpml-popup-h3">E-mail</label>
+			<input type="email" id="ctwpml-login-email" autocomplete="username">
+
+			<label for="ctwpml-login-password" class="ctwpml-popup-h3">Senha</label>
+			<input type="password" id="ctwpml-login-password" autocomplete="current-password">
+
+			<div class="ctwpml-auth-footer" style="text-align: left; margin: 10px 0 8px;">
+				<a href="<?php echo esc_url(wp_lostpassword_url()); ?>" class="ctwpml-auth-link">Perdeu a senha?</a>
+			</div>
+
+			<!-- 3) Criar conta (secundário) -->
+			<div class="ctwpml-popup-h2 ctwpml-auth-subtitle" style="margin-top: 16px;">
+				Criar uma conta
+			</div>
+			<div class="ctwpml-popup-h3" style="opacity:.9; margin: 0 0 10px;">
+				Você pode criar uma conta apenas com seu e-mail e redefinir a senha depois.
+			</div>
+			<label for="ctwpml-create-email" class="ctwpml-popup-h3">E-mail para criar conta</label>
+			<input type="email" id="ctwpml-create-email" autocomplete="email">
 
 			<?php
 			// reCAPTCHA v2: chave pública por site/ambiente
@@ -62,9 +81,7 @@ add_action('wp_footer', function () {
 			}
 			?>
 
-			<button type="submit" id="ctwpml-auth-submit" class="ctwpml-auth-submit">
-				Entrar
-			</button>
+			<button type="submit" id="ctwpml-auth-submit" class="ctwpml-auth-submit">Entrar</button>
 			<div id="ctwpml-auth-msg" class="ctwpml-auth-msg" style="display:none;"></div>
 		</form>
 	<script>
@@ -73,6 +90,7 @@ add_action('wp_footer', function () {
 		// Apenas sinaliza que a API carregou. Render acontece no afterShow.
 	};
 	window.ctwpmlAuthEnable = function() {
+		// reCAPTCHA completado: habilita CTA
 		var btn = document.getElementById('ctwpml-auth-submit');
 		if (btn) { btn.disabled = false; btn.style.opacity = '1'; }
 	};
