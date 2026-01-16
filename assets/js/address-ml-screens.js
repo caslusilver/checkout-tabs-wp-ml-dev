@@ -565,7 +565,15 @@
       '    <div class="ctwpml-review-terms">' +
       '      <label class="ctwpml-review-terms-label">' +
       '        <input type="checkbox" id="ctwpml-review-terms" class="ctwpml-review-terms-checkbox" />' +
-      '        <span>Li e concordo com os termos e a política de privacidade.</span>' +
+      '        <span>' + (function () { ' +
+      '          try {' +
+      '            var url = (window.cc_params && window.cc_params.privacy_policy_url) ? String(window.cc_params.privacy_policy_url) : \"\";' +
+      '            if (url) {' +
+      '              return \"Li e concordo com os termos e a <a class=\\\"ctwpml-privacy-link\\\" href=\\\"\" + escapeHtml(url) + \"\\\" target=\\\"_blank\\\" rel=\\\"noopener\\\">política de privacidade</a>.\";' +
+      '            }' +
+      '          } catch (e) {}' +
+      '          return \"Li e concordo com os termos e a política de privacidade.\";' +
+      '        }()) + '</span>' +
       '      </label>' +
       '    </div>' +
       '    <button type="button" class="ctwpml-review-btn-confirm" id="ctwpml-review-confirm">' +
@@ -599,8 +607,8 @@
       '    <div class="ctwpml-review-shipment-detail">' +
       shipmentIconHtml +
       '      <div class="ctwpml-review-shipment-info">' +
-      '        <div class="ctwpml-review-shipment-eta" id="ctwpml-review-shipment-eta"></div>' +
       '        <div class="ctwpml-review-shipment-title" id="ctwpml-review-shipment-title"></div>' +
+      '        <div class="ctwpml-review-shipment-eta" id="ctwpml-review-shipment-eta"></div>' +
       '        <div class="ctwpml-review-shipment-product" id="ctwpml-review-product-name"></div>' +
       '        <div class="ctwpml-review-shipment-qty" id="ctwpml-review-product-qty"></div>' +
       '      </div>' +
@@ -633,7 +641,15 @@
       '    <div class="ctwpml-review-terms ctwpml-review-terms--sticky">' +
       '      <label class="ctwpml-review-terms-label">' +
       '        <input type="checkbox" id="ctwpml-review-terms-sticky" class="ctwpml-review-terms-checkbox" />' +
-      '        <span>Li e concordo com os termos e a política de privacidade.</span>' +
+      '        <span>' + (function () { ' +
+      '          try {' +
+      '            var url = (window.cc_params && window.cc_params.privacy_policy_url) ? String(window.cc_params.privacy_policy_url) : \"\";' +
+      '            if (url) {' +
+      '              return \"Li e concordo com os termos e a <a class=\\\"ctwpml-privacy-link\\\" href=\\\"\" + escapeHtml(url) + \"\\\" target=\\\"_blank\\\" rel=\\\"noopener\\\">política de privacidade</a>.\";' +
+      '            }' +
+      '          } catch (e) {}' +
+      '          return \"Li e concordo com os termos e a política de privacidade.\";' +
+      '        }()) + '</span>' +
       '      </label>' +
       '    </div>' +
       '    <button type="button" class="ctwpml-review-btn-confirm" id="ctwpml-review-confirm-sticky">' +

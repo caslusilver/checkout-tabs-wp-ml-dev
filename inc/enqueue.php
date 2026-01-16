@@ -279,7 +279,17 @@ add_action('wp_enqueue_scripts', function () {
 		'webhook_url'=> checkout_tabs_wp_ml_get_webhook_url(),
 		'plugin_url' => CHECKOUT_TABS_WP_ML_URL,
 		'cart_url'   => function_exists('wc_get_cart_url') ? wc_get_cart_url() : '',
+		'privacy_policy_url' => esc_url((string) get_option('checkout_tabs_wp_ml_privacy_policy_url', '')),
 	]);
+
+	// Variáveis de cor do header do modal ML (apenas fundo/título/ícone).
+	$ml_header_bg = sanitize_hex_color((string) get_option('checkout_tabs_wp_ml_ml_header_bg', '#ff8500')) ?: '#ff8500';
+	$ml_header_title_color = sanitize_hex_color((string) get_option('checkout_tabs_wp_ml_ml_header_title_color', '#0c0829')) ?: '#0c0829';
+	$ml_header_icon_color = sanitize_hex_color((string) get_option('checkout_tabs_wp_ml_ml_header_icon_color', '#ffffff')) ?: '#ffffff';
+	wp_add_inline_style(
+		'checkout-tabs-wp-ml-address-ml-modal',
+		':root{--ctwpml-ml-header-bg:' . $ml_header_bg . ';--ctwpml-ml-header-title-color:' . $ml_header_title_color . ';--ctwpml-ml-header-icon-color:' . $ml_header_icon_color . ';}'
+	);
 
 	// Enfileirar Google reCAPTCHA v2 (v3.2.6: usando chave fixa do exemplo para máxima compatibilidade)
 	$site_key = '6LfWXPIqAAAAAF3U6KDkq9WnI1IeYh8uQ1ZvqiPX';
@@ -294,6 +304,57 @@ add_action('wp_enqueue_scripts', function () {
 		);
 	}
 });
+
+/**
+ * Splash Screen (opcional) - carregamento global (primeiro load).
+ */
+add_action('wp_enqueue_scripts', function () {
+	$enabled = ((int) get_option('checkout_tabs_wp_ml_splash_enabled', 0) === 1);
+	if (!$enabled) {
+		return;
+	}
+
+	$version = function_exists('checkout_tabs_wp_ml_get_version') ? checkout_tabs_wp_ml_get_version() : '0.0.0';
+	wp_enqueue_style(
+		'checkout-tabs-wp-ml-splash',
+		CHECKOUT_TABS_WP_ML_URL . 'assets/css/splash-screen.css',
+		[],
+		$version
+	);
+	wp_enqueue_script(
+		'checkout-tabs-wp-ml-splash',
+		CHECKOUT_TABS_WP_ML_URL . 'assets/js/splash-screen.js',
+		[],
+		$version,
+		true
+	);
+
+	$bg = sanitize_hex_color((string) get_option('checkout_tabs_wp_ml_splash_bg', '#ffdb15')) ?: '#ffdb15';
+	$image_url = esc_url_raw((string) get_option('checkout_tabs_wp_ml_splash_image_url', ''));
+	$duration_ms = absint(get_option('checkout_tabs_wp_ml_splash_duration_ms', 1200));
+	$text_enabled = ((int) get_option('checkout_tabs_wp_ml_splash_text_enabled', 0) === 1);
+	$text = sanitize_text_field((string) get_option('checkout_tabs_wp_ml_splash_text', ''));
+	$text_color = sanitize_hex_color((string) get_option('checkout_tabs_wp_ml_splash_text_color', '#111111')) ?: '#111111';
+	$text_font = sanitize_text_field((string) get_option('checkout_tabs_wp_ml_splash_text_font', 'Arial')) ?: 'Arial';
+	$text_gap_px = max(10, absint(get_option('checkout_tabs_wp_ml_splash_text_gap_px', 12)));
+	$text_typing = ((int) get_option('checkout_tabs_wp_ml_splash_text_typing', 0) === 1);
+
+	wp_add_inline_script(
+		'checkout-tabs-wp-ml-splash',
+		'window.CTWPMLSplashConfig=' . wp_json_encode([
+			'bg' => $bg,
+			'imageUrl' => $image_url,
+			'durationMs' => $duration_ms,
+			'textEnabled' => $text_enabled,
+			'text' => $text,
+			'textColor' => $text_color,
+			'textFont' => $text_font,
+			'textGapPx' => $text_gap_px,
+			'textTyping' => $text_typing,
+		]) . ';',
+		'before'
+	);
+}, 5);
 
 /**
  * Overlay "Preparando tudo para sua compra"

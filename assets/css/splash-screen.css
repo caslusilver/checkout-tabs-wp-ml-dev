@@ -1,0 +1,39 @@
+/* Checkout Tabs WP ML - Splash Screen (opcional) */
+
+#ctwpml-splash {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 2147483647;
+}
+
+#ctwpml-splash.ctwpml-splash--visible {
+  display: flex;
+}
+
+#ctwpml-splash .ctwpml-splash-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  text-align: center;
+}
+
+#ctwpml-splash .ctwpml-splash-image {
+  max-width: min(70vw, 280px);
+  max-height: 45vh;
+  object-fit: contain;
+  display: block;
+}
+
+#ctwpml-splash .ctwpml-splash-text {
+  margin: 0;
+  font-weight: 700;
+  line-height: 1.25;
+}
+

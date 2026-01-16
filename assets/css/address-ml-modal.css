@@ -104,7 +104,7 @@ body.ctwpml-ml-only:not(.elementor-editor-active) .e-checkout__container {
 }
 
 .ctwpml-modal-header {
-  background: var(--ctwpml-brand-orange);
+  background: var(--ctwpml-ml-header-bg, var(--ctwpml-brand-orange));
   padding: 45px 16px 16px 16px;
   /* padding-top maior para safe area mobile */
   display: flex;
@@ -139,14 +139,34 @@ body.ctwpml-ml-only:not(.elementor-editor-active) .e-checkout__container {
 .ctwpml-modal-back img {
   width: 24px;
   height: 24px;
+  /* Fallback: mantém ícone branco. Quando houver CSS mask (abaixo), o <img> será ocultado. */
   filter: brightness(0) invert(1);
   /* Torna a seta branca para combinar com o header */
+}
+
+/* Ícone customizável (cor) via mask, sem dependências externas */
+.ctwpml-modal-back .ctwpml-modal-back-icon {
+  display: none;
+}
+
+@supports ((-webkit-mask: url("")) or (mask: url(""))) {
+  .ctwpml-modal-back img {
+    display: none;
+  }
+  .ctwpml-modal-back .ctwpml-modal-back-icon {
+    display: block;
+    width: 24px;
+    height: 24px;
+    background-color: var(--ctwpml-ml-header-icon-color, #ffffff);
+    -webkit-mask: url("../img/arrow-back.svg") no-repeat center / contain;
+    mask: url("../img/arrow-back.svg") no-repeat center / contain;
+  }
 }
 
 .ctwpml-modal-title {
   font-size: 18px;
   font-weight: 600;
-  color: var(--ctwpml-header-text);
+  color: var(--ctwpml-ml-header-title-color, var(--ctwpml-header-text));
 }
 
 .ctwpml-modal-body {
@@ -1058,6 +1078,23 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
   z-index: 100;
 }
 
+/* Desktop: footer deve respeitar o container (mesmo comportamento do mobile, sem ocupar a viewport inteira). */
+@media (min-width: 1024px) {
+  .ctwpml-payment-footer {
+    position: sticky !important;
+    bottom: 0 !important;
+    top: auto !important;
+    left: auto !important;
+    right: auto !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    z-index: auto !important;
+    margin: 16px;
+    border-radius: 10px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+  }
+}
+
 /* Link do cupom */
 .ctwpml-payment-coupon-link {
   color: #3483fa;
@@ -1738,6 +1775,12 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
   text-decoration: underline;
 }
 
+/* Link da política de privacidade (renderizado quando configurado no admin) */
+.ctwpml-privacy-link {
+  color: #3483fa;
+  text-decoration: underline;
+}
+
 .ctwpml-review-change-link-inline {
   margin-top: 6px;
 }
@@ -1748,21 +1791,23 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
   margin-top: 12px;
   border-top: 1px solid #eee;
   padding-top: 12px;
-  align-items: center;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 10px; /* 10px entre "Quantidade" e a linha inferior */
+  align-items: flex-start;
 }
 
 .ctwpml-review-shipment-icon {
-  width: 100px; /* mesmo footprint visual do bloco de 3 thumbs (40 + 30 + 30) */
+  width: 40px;
   height: 40px;
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   flex-shrink: 0;
 }
 
 .ctwpml-review-shipment-icon img {
-  width: 40px;
-  height: 40px;
+  width: 32px; /* -20% */
+  height: 32px; /* -20% */
   object-fit: contain;
   display: block;
 }
@@ -1867,6 +1912,10 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
 .ctwpml-review-shipment-eta {
   font-size: 13px;
   font-weight: 700;
+  color: #666;
+}
+
+.ctwpml-review-shipment-eta.is-motoboy {
   color: #00a650;
 }
 

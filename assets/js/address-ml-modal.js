@@ -501,7 +501,7 @@
           '">' +
           '  <div class="ctwpml-modal" role="dialog" aria-modal="true" aria-label="Meus endereços">' +
           '    <div class="ctwpml-modal-header">' +
-          '      <button type="button" class="ctwpml-modal-back" id="ctwpml-modal-back"><img src="' + (window.cc_params && window.cc_params.plugin_url ? window.cc_params.plugin_url : '') + 'assets/img/arrow-back.svg" alt="Voltar" /></button>' +
+          '      <button type="button" class="ctwpml-modal-back" id="ctwpml-modal-back"><span class="ctwpml-modal-back-icon" aria-hidden="true"></span><img src="' + (window.cc_params && window.cc_params.plugin_url ? window.cc_params.plugin_url : '') + 'assets/img/arrow-back.svg" alt="Voltar" /></button>' +
           '      <div class="ctwpml-modal-title" id="ctwpml-modal-title">Meus endereços</div>' +
           '    </div>' +
           '    <div class="ctwpml-modal-body">' +
@@ -1940,14 +1940,26 @@
         } catch (e1) {}
       }
 
-      // Detalhe da entrega: título = método + preço, eta = label
-      var eta = label ? ('Chegará ' + label) : '';
-      $('#ctwpml-review-shipment-eta').text(eta || '');
-
       var methodLine = methodName ? methodName : '';
       if (methodLine && priceText) methodLine += ' • ' + priceText;
       if (!methodLine && priceText) methodLine = priceText;
       if (methodLine) $('#ctwpml-review-shipment-title').text(methodLine);
+
+      // Detalhe da entrega: segunda linha (prazo) usa exatamente o label retornado.
+      // Regras:
+      // - Só exibe se houver label
+      // - Se for motoboy, exibe em verde via classe
+      try {
+        var $eta = $('#ctwpml-review-shipment-eta');
+        if (!$eta.length) return;
+        $eta.removeClass('is-motoboy');
+        if (!label) {
+          $eta.text('').hide();
+        } else {
+          $eta.text(label).show();
+          if (methodId === 'flat_rate:3') $eta.addClass('is-motoboy');
+        }
+      } catch (eEta) {}
 
       // Ícone dinâmico da modalidade: Motoboy vs Correios
       try {

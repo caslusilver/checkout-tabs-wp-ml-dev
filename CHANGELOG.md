@@ -16,6 +16,13 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
   **Versão sugerida após a mudança**: vX.Y.Z  
   **Descrição**: texto objetivo do que mudou e impacto (pode listar itens separados por ponto e vírgula).
 
+## [v3.2.67] - 2026-01-16
+
+### Changed
+- Ajustes finais de UI/UX (desktop footer do pagamento contido no layout; prazo do Motoboy exibido a partir do label; divisória inferior após quantidade; ícone de frete -20% e alinhamento); link de política de privacidade configurável no admin; cores configuráveis do header do modal (fundo/título/ícone); splash screen opcional configurável (sem CLS, corte seco).
+
+#### Protocol: 03b3ed4
+
 ## [v3.2.66] - 2026-01-16
 
 ### Changed
