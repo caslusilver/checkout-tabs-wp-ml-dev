@@ -2948,15 +2948,17 @@
         buttons: [],
         afterShow: function() {
           state.log('UI        Popup de login aberto (afterShow)', {}, 'UI');
-          
-          var siteKeyFixa = '6LfWXPIqAAAAAF3U6KDkq9WnI1IeYh8uQ1ZvqiPX';
+          var siteKey = (window.cc_params && window.cc_params.recaptcha_site_key) ? String(window.cc_params.recaptcha_site_key) : '';
 
           // Render explícito: SIGNUP (ID unificado g-recaptcha como no exemplo)
           var $signupContainer = $('#g-recaptcha');
+          if (!siteKey) {
+            try { siteKey = String($signupContainer.attr('data-sitekey') || ''); } catch (e0) {}
+          }
           if (typeof grecaptcha !== 'undefined' && $signupContainer.length && !$signupContainer.hasClass('recaptcha-rendered')) {
             try {
               window.__ctwpmlRecaptchaSignupId = grecaptcha.render($signupContainer[0], {
-                sitekey: siteKeyFixa,
+                sitekey: siteKey,
                 callback: window.ctwpmlSignupEnable,
                 'expired-callback': window.ctwpmlSignupDisable,
               });
@@ -2969,10 +2971,13 @@
 
           // Render explícito: LOGIN
           var $loginContainer = $('#g-recaptcha-login');
+          if (!siteKey) {
+            try { siteKey = String($loginContainer.attr('data-sitekey') || ''); } catch (e1) {}
+          }
           if (typeof grecaptcha !== 'undefined' && $loginContainer.length && !$loginContainer.hasClass('recaptcha-rendered')) {
             try {
               window.__ctwpmlRecaptchaLoginId = grecaptcha.render($loginContainer[0], {
-                sitekey: siteKeyFixa,
+                sitekey: siteKey,
                 callback: window.ctwpmlLoginEnable,
                 'expired-callback': window.ctwpmlLoginDisable,
               });

@@ -55,8 +55,14 @@ add_action('wp_footer', function () {
 			<input type="password" id="ctwpml-password" autocomplete="current-password" required>
 
 			<?php
-			// reCAPTCHA v2 no LOGIN (v3.2.6: usando chave fixa do exemplo para máxima compatibilidade)
-			$site_key_login = '6LfWXPIqAAAAAF3U6KDkq9WnI1IeYh8uQ1ZvqiPX';
+			// reCAPTCHA v2 no LOGIN: chave pública por site/ambiente
+			$site_key_login = (string) get_option('checkout_tabs_wp_ml_recaptcha_site_key', '');
+			if ($site_key_login === '') {
+				$login_recaptcha_opts = get_option('login_nocaptcha_options', []);
+				if (is_array($login_recaptcha_opts) && isset($login_recaptcha_opts['site_key'])) {
+					$site_key_login = (string) $login_recaptcha_opts['site_key'];
+				}
+			}
 			
 			if (!empty($site_key_login)) {
 				echo '<div id="ctwpml-recaptcha-login-container" style="margin: 16px 0;">';
@@ -93,8 +99,14 @@ add_action('wp_footer', function () {
 		<input type="email" id="ctwpml-signup-email" required>
 
 		<?php
-		// reCAPTCHA v2 (v3.2.6: usando chave fixa do exemplo para máxima compatibilidade)
-		$site_key = '6LfWXPIqAAAAAF3U6KDkq9WnI1IeYh8uQ1ZvqiPX';
+		// reCAPTCHA v2: chave pública por site/ambiente
+		$site_key = (string) get_option('checkout_tabs_wp_ml_recaptcha_site_key', '');
+		if ($site_key === '') {
+			$login_recaptcha_opts = get_option('login_nocaptcha_options', []);
+			if (is_array($login_recaptcha_opts) && isset($login_recaptcha_opts['site_key'])) {
+				$site_key = (string) $login_recaptcha_opts['site_key'];
+			}
+		}
 		
 		if (!empty($site_key)) {
 			echo '<div id="ctwpml-recaptcha-container" style="margin: 16px 0;">';
@@ -133,8 +145,8 @@ add_action('wp_footer', function () {
 	};
 	// Desabilita botões por padrão (serão habilitados via callback do reCAPTCHA)
 	(function() {
-		var hasSignup = document.getElementById('ctwpml-recaptcha-signup');
-		var hasLogin = document.getElementById('ctwpml-recaptcha-login');
+		var hasSignup = document.getElementById('g-recaptcha');
+		var hasLogin = document.getElementById('g-recaptcha-login');
 		if (hasSignup) {
 			var btnS = document.getElementById('ctwpml-signup-submit');
 			if (btnS) { btnS.disabled = true; btnS.style.opacity = '0.6'; }

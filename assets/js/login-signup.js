@@ -53,14 +53,18 @@
 
     // v3.2.10: Função robusta para renderizar reCAPTCHA do signup
     function renderSignupRecaptchaIfNeeded() {
-      var siteKeyFixa = '6LfWXPIqAAAAAF3U6KDkq9WnI1IeYh8uQ1ZvqiPX';
       var $signupContainer = $('#g-recaptcha');
+      var siteKey = (window.cc_params && window.cc_params.recaptcha_site_key) ? String(window.cc_params.recaptcha_site_key) : '';
+      if (!siteKey) {
+        try { siteKey = String($signupContainer.attr('data-sitekey') || ''); } catch (e) { }
+      }
 
       logCtwpml('Tentando renderizar reCAPTCHA signup', {
         grecaptchaExists: typeof grecaptcha !== 'undefined',
         containerExists: $signupContainer.length > 0,
         alreadyRendered: $signupContainer.hasClass('recaptcha-rendered'),
-        containerVisible: $signupContainer.is(':visible')
+        containerVisible: $signupContainer.is(':visible'),
+        hasSiteKey: !!siteKey
       });
 
       // Se grecaptcha não está disponível, aguardar e tentar novamente
@@ -75,6 +79,16 @@
         return;
       }
 
+      if (!siteKey) {
+        logCtwpml('reCAPTCHA: site key ausente (configure em WooCommerce > Checkout Tabs ML)', {});
+        // Mantém botão desabilitado para evitar submit quebrado (backend exige reCAPTCHA)
+        try {
+          var btnS0 = document.getElementById('ctwpml-signup-submit');
+          if (btnS0) { btnS0.disabled = true; btnS0.style.opacity = '0.6'; }
+        } catch (e0) { }
+        return;
+      }
+
       if ($signupContainer.hasClass('recaptcha-rendered')) {
         logCtwpml('reCAPTCHA signup já renderizado');
         return;
@@ -82,7 +96,7 @@
 
       try {
         window.__ctwpmlRecaptchaSignupId = grecaptcha.render($signupContainer[0], {
-          sitekey: siteKeyFixa,
+          sitekey: siteKey,
           callback: window.ctwpmlSignupEnable,
           'expired-callback': window.ctwpmlSignupDisable,
         });

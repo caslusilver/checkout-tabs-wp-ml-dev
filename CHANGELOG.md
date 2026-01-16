@@ -9,6 +9,13 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 - Criar o repositório: `caslusilver/checkout-tabs-wp-ml-dev`
 - Branch principal do fluxo: `develop`
 
+## [v3.2.71] - 2026-01-16
+
+### Changed
+- reCAPTCHA v2: remove Site Key hardcoded (que causava “domínio inválido” ao instalar em outro site) e passa a usar chave configurável no admin com fallback para “Login No Captcha reCAPTCHA”; JS passa a consumir `cc_params.recaptcha_site_key`/`data-sitekey` e só carrega a API do Google quando houver chave.
+
+#### Protocol: 78d824e
+
 ## [Unreleased]
 
 ### Changed
