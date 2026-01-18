@@ -16,6 +16,13 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
   **Versão sugerida após a mudança**: vX.Y.Z  
   **Descrição**: texto objetivo do que mudou e impacto (pode listar itens separados por ponto e vírgula).
 
+## [v3.2.76] - 2026-01-18
+
+### Changed
+- Auth (modal ML): link “Perdeu a senha?” passa a apontar diretamente para `wp-login.php?action=lostpassword` via `site_url(..., 'login')`; Review (“Revise e confirme”): nome dos produtos na lista vira link para o carrinho (URL dinâmica via `wc_get_cart_url`) para permitir alterar quantidades.
+
+#### Protocol: 02f2f84
+
 ## [v3.2.75] - 2026-01-16
 
 ### Changed

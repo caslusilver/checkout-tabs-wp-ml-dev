@@ -529,6 +529,7 @@
     options = options || {};
     var debugMode = !!(window.cc_params && window.cc_params.debug);
     var pluginUrl = (window.cc_params && window.cc_params.plugin_url) ? String(window.cc_params.plugin_url) : '';
+    var cartUrl = (window.cc_params && window.cc_params.cart_url) ? String(window.cc_params.cart_url) : '';
     var billingIconUrl = options.billingIconUrl || (pluginUrl ? (pluginUrl + 'assets/img/icones/recipt.svg') : 'https://cubensisstore.com.br/wp-content/uploads/2026/01/bill.png');
     var shippingIconUrl = options.shippingIconUrl || (pluginUrl ? (pluginUrl + 'assets/img/icones/gps-1.svg') : 'https://cubensisstore.com.br/wp-content/uploads/2026/01/gps-1.png');
     var paymentIconUrl = options.paymentIconUrl || (pluginUrl ? (pluginUrl + 'assets/img/icones/bank-card.svg') : 'https://cubensisstore.com.br/wp-content/uploads/2026/01/bank-card.png');
@@ -567,7 +568,7 @@
           (thumb ? ('    <img src="' + escapeHtml(thumb) + '" alt="Produto" />') : '') +
           '  </div>' +
           '  <div class="ctwpml-review-product-meta">' +
-          '    <div class="ctwpml-review-product-name">' + escapeHtml(name) + '</div>' +
+          '    <div class="ctwpml-review-product-name">' + (cartUrl ? ('<a class="ctwpml-review-product-link" href="' + escapeHtml(cartUrl) + '">' + escapeHtml(name) + '</a>') : escapeHtml(name)) + '</div>' +
           '    <div class="ctwpml-review-product-qty">Qtd: ' + escapeHtml(String(qty)) + '</div>' +
           '  </div>' +
           '  <div class="ctwpml-review-product-price">' + escapeHtml(price) + '</div>' +

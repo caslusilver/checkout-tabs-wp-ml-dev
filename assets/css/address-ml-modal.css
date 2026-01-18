@@ -1885,6 +1885,15 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
   text-overflow: ellipsis;
 }
 
+.ctwpml-review-product-name .ctwpml-review-product-link {
+  color: inherit;
+  text-decoration: none;
+}
+
+.ctwpml-review-product-name .ctwpml-review-product-link:hover {
+  text-decoration: underline;
+}
+
 .ctwpml-review-product-qty {
   font-size: 12px;
   color: #666;

@@ -52,7 +52,7 @@ add_action('wp_footer', function () {
 						<input type="password" id="ctwpml-login-password" autocomplete="current-password">
 
 						<div class="ctwpml-auth-footer" style="text-align: left; margin: 10px 0 8px;">
-							<a href="<?php echo esc_url(wp_lostpassword_url()); ?>" class="ctwpml-auth-link">Perdeu a senha?</a>
+							<a href="<?php echo esc_url(site_url('wp-login.php?action=lostpassword', 'login')); ?>" class="ctwpml-auth-link">Perdeu a senha?</a>
 						</div>
 					</div>
 
