@@ -16,6 +16,13 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
   **Versão sugerida após a mudança**: vX.Y.Z  
   **Descrição**: texto objetivo do que mudou e impacto (pode listar itens separados por ponto e vírgula).
 
+## [v3.2.78] - 2026-01-19
+
+### Changed
+- Geolocalização (modal): corrige hierarquia/posicionamento visual para replicar o padrão original (CTA secundário separado e centralizado; letras miúdas em bloco próprio abaixo de todos os botões com estilo neutro); reforça centralização do popup (inset completo + `box-sizing: border-box` + margens auto) para evitar deslocamento lateral.
+
+#### Protocol: 60cd458
+
 ## [v3.2.77] - 2026-01-19
 
 ### Changed
