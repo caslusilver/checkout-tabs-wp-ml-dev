@@ -16,6 +16,13 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
   **Versão sugerida após a mudança**: vX.Y.Z  
   **Descrição**: texto objetivo do que mudou e impacto (pode listar itens separados por ponto e vírgula).
 
+## [v3.2.77] - 2026-01-19
+
+### Changed
+- Geolocalização: atualiza o texto do modal para confirmar maioridade (18+) e esclarecer que a localização em tempo real é usada para exibir preços e prazos de entrega mais precisos conforme a região.
+
+#### Protocol: e8fa8d1
+
 ## [v3.2.76] - 2026-01-18
 
 ### Changed
