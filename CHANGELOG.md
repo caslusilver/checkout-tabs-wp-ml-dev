@@ -12,9 +12,16 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 ## [Unreleased]
 
 ### Changed
-- **Versão atual**: v3.2.80  
-  **Versão sugerida após a mudança**: v3.2.81  
-  **Descrição**: Endereço (modal ML): adiciona campo “Bairro” no formulário (abaixo de Complemento) e torna obrigatório quando a API não retornar; preenche automaticamente a partir da consulta de CEP quando disponível e injeta inputs hidden no checkout Woo (`billing_neighborhood` e variações) quando ausentes para garantir validação/submit; Scroll: ajusta health check e trava do scroll no root mode para evitar falhas de rolagem e reduzir falso-negativo do `CHK_SCROLL_ENABLED`.
+- **Versão atual**: vX.Y.Z  
+  **Versão sugerida após a mudança**: vX.Y.Z  
+  **Descrição**: texto objetivo do que mudou e impacto (pode listar itens separados por ponto e vírgula).
+
+## [v3.2.81] - 2026-01-19
+
+### Changed
+- Endereço (modal ML): adiciona campo “Bairro” no formulário (abaixo de Complemento) e torna obrigatório quando a API não retornar; preenche automaticamente a partir da consulta de CEP quando disponível e injeta inputs hidden no checkout Woo (`billing_neighborhood` e variações) quando ausentes para garantir validação/submit; Scroll: ajusta health check e trava do scroll no root mode para evitar falhas de rolagem e reduzir falso-negativo do `CHK_SCROLL_ENABLED`.
+
+#### Protocol: db36978
 
 ## [v3.2.80] - 2026-01-19
 
