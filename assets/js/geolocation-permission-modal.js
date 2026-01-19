@@ -41,23 +41,13 @@
     overlay.innerHTML =
       '' +
       '<div id="ctwpml-geo-modal" role="dialog" aria-modal="true" aria-label="Permissão de localização">' +
-      '  <h2 id="ctwpml-geo-modal-title">Permita que o site utilize sua localização em tempo real</h2>' +
+      '  <h2 id="ctwpml-geo-modal-title">Você confirma ter mais de 18 anos?</h2>' +
       '  <div class="ctwpml-geo-benefits">' +
-      '    <div class="ctwpml-geo-benefit">' +
-      '      <span class="ctwpml-geo-benefit-icon">🏷️</span>' +
-      '      <p class="ctwpml-geo-benefit-text">Exibimos <strong>preços e prazos de frete exatos</strong> para a sua rua automaticamente.</p>' +
-      '    </div>' +
-      '    <div class="ctwpml-geo-benefit">' +
-      '      <span class="ctwpml-geo-benefit-icon">🏍️</span>' +
-      '      <p class="ctwpml-geo-benefit-text">Ative para verificar se você está na área de <strong>entrega em até 40 minutos</strong> via motoboy (SP).</p>' +
-      '    </div>' +
-      '    <div class="ctwpml-geo-benefit">' +
-      '      <span class="ctwpml-geo-benefit-icon">🇧🇷</span>' +
-      '      <p class="ctwpml-geo-benefit-text"><strong>Enviamos com rapidez para todo o Brasil</strong> via transportadora.</p>' +
-      '    </div>' +
+      '    <p class="ctwpml-geo-benefit-text">🔞 Este site é destinado exclusivamente a maiores de idade.</p>' +
       '  </div>' +
-      '  <button id="ctwpml-geo-allow" type="button">Permitir</button>' +
-      '  <button id="ctwpml-geo-later" type="button">Agora não</button>' +
+      '  <button id="ctwpml-geo-allow" type="button">Confirmo ser MAIOR de 18 anos</button>' +
+      '  <button id="ctwpml-geo-later" type="button">Sou MENOR de 18 anos</button>' +
+      '  <small id="ctwpml-geo-fineprint">Ao confirmar, você autoriza o uso da sua localização em tempo real para exibir preços e prazos de entrega mais precisos conforme sua região.</small>' +
       '  <div id="ctwpml-geo-status" aria-live="polite"></div>' +
       '</div>';
 
