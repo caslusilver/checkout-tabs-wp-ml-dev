@@ -12,9 +12,9 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 ## [Unreleased]
 
 ### Changed
-- **Versão atual**: vX.Y.Z  
-  **Versão sugerida após a mudança**: vX.Y.Z  
-  **Descrição**: texto objetivo do que mudou e impacto (pode listar itens separados por ponto e vírgula).
+- **Versão atual**: v3.2.78  
+  **Versão sugerida após a mudança**: v3.2.79  
+  **Descrição**: Checkout (ML): hardening do campo “Bairro” obrigatório — preenche bairro com fallback (endereço salvo → lastCepLookup → freteData → campos Woo), suporta instalações que validam bairro via `billing_address_2`, e aplica re-sync leve após `update_checkout`/pré-submit para evitar limpeza por tema/plugins e reduzir `checkout_error`.
 
 ## [v3.2.78] - 2026-01-19
 
