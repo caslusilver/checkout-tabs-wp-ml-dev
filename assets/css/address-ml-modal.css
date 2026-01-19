@@ -85,6 +85,8 @@ body.ctwpml-ml-only:not(.elementor-editor-active) .e-checkout__container {
   color: #111 !important;
   background: #fff !important;
   border-radius: 3px !important;
+  /* Evita zoom do iOS ao focar inputs (Safari aplica zoom < 16px) */
+  font-size: 16px !important;
 }
 
 .ctwpml-login-banner {

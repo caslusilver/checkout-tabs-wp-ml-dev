@@ -16,6 +16,13 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
   **Versão sugerida após a mudança**: vX.Y.Z  
   **Descrição**: texto objetivo do que mudou e impacto (pode listar itens separados por ponto e vírgula).
 
+## [v3.2.82] - 2026-01-19
+
+### Changed
+- Checkout (ML): valida “Nome completo” exigindo sobrenome (tudo após o 1º espaço) e preenche corretamente `billing_first_name`/`billing_last_name` para evitar erro de “Sobrenome obrigatório”; Mobile: aumenta `font-size` dos inputs do modal para 16px para evitar zoom ao focar (iOS/Safari).
+
+#### Protocol: 6ea13c2
+
 ## [v3.2.81] - 2026-01-19
 
 ### Changed

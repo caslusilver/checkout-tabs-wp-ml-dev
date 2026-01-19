@@ -3279,6 +3279,30 @@
       else $el.removeClass('is-error');
     }
 
+    function ctwpmlNormalizeFullName(fullName) {
+      try {
+        return String(fullName || '')
+          .replace(/\s+/g, ' ')
+          .trim();
+      } catch (e) {
+        return '';
+      }
+    }
+
+    function ctwpmlParseFullName(fullName) {
+      var normalized = ctwpmlNormalizeFullName(fullName);
+      if (!normalized) return { normalized: '', firstName: '', lastName: '', hasSurname: false };
+
+      var firstSpaceIdx = normalized.indexOf(' ');
+      if (firstSpaceIdx === -1) {
+        return { normalized: normalized, firstName: normalized, lastName: '', hasSurname: false };
+      }
+
+      var firstName = normalized.slice(0, firstSpaceIdx).trim();
+      var lastName = normalized.slice(firstSpaceIdx + 1).trim();
+      return { normalized: normalized, firstName: firstName, lastName: lastName, hasSurname: !!lastName };
+    }
+
     function validateForm() {
       clearFormErrors();
       var ok = true;
@@ -3351,6 +3375,15 @@
         setFieldError('#ctwpml-input-nome', true);
         ok = false;
         errors.push('Nome obrigatório');
+      } else {
+        // Woo exige sobrenome em muitos setups. Mantemos um único campo no modal ("Nome completo")
+        // e garantimos que tudo após o 1º espaço seja tratado como sobrenome.
+        var parsedName = ctwpmlParseFullName(name);
+        if (!parsedName.hasSurname) {
+          setFieldError('#ctwpml-input-nome', true);
+          ok = false;
+          errors.push('Sobrenome obrigatório');
+        }
       }
 
       var phone = phoneDigits($('#ctwpml-input-fone').val());
@@ -4643,9 +4676,17 @@
 
       var nome = ($('#ctwpml-input-nome').val() || '').trim();
       if (nome) {
-        var parts = nome.split(' ');
-        $('#billing_first_name').val(parts.shift() || '').trigger('change');
-        $('#billing_last_name').val(parts.join(' ')).trigger('change');
+        var parsed = ctwpmlParseFullName(nome);
+        // Mantém compat: mesmo campo no modal, mas split consistente (tudo após 1º espaço = sobrenome).
+        if (parsed.firstName) $('#billing_first_name').val(parsed.firstName).trigger('change');
+        if (parsed.lastName) $('#billing_last_name').val(parsed.lastName).trigger('change');
+        if (typeof state.checkpoint === 'function') {
+          state.checkpoint('CHK_BILLING_NAME_SPLIT', !!(parsed.firstName && parsed.lastName), {
+            normalized: parsed.normalized,
+            firstName: parsed.firstName,
+            lastName: parsed.lastName,
+          });
+        }
       }
 
       var fone = ($('#ctwpml-input-fone').val() || '').trim();
