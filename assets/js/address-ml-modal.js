@@ -325,10 +325,31 @@
 
       // CHK_SCROLL_ENABLED - Body scroll travado + modal scroll habilitado
       var bodyOverflow = window.getComputedStyle(document.body).overflow;
+      var htmlOverflow = window.getComputedStyle(document.documentElement).overflow;
       var modalBody = document.querySelector('.ctwpml-modal-body');
-      var modalBodyOverflow = modalBody ? window.getComputedStyle(modalBody).overflow : 'not_found';
-      var scrollOk = bodyOverflow === 'hidden' && (modalBodyOverflow === 'auto' || modalBodyOverflow === 'scroll');
-      state.checkpoint('CHK_SCROLL_ENABLED', scrollOk, { bodyOverflow: bodyOverflow, modalBodyOverflow: modalBodyOverflow });
+      var modalBodyOverflow = modalBody ? window.getComputedStyle(modalBody).overflowY : 'not_found';
+      var modalBodyH = modalBody ? (modalBody.clientHeight || 0) : 0;
+      var modalBodySH = modalBody ? (modalBody.scrollHeight || 0) : 0;
+      var modalHasScroll = modalBody ? (modalBodySH > modalBodyH + 2) : false;
+
+      var modalVisibleNow = !!(modalOverlay && window.getComputedStyle(modalOverlay).display !== 'none');
+      // Considera “scroll ok” quando:
+      // - modal está visível (senão não faz sentido falhar), e
+      // - modal-body tem overflowY auto/scroll, e
+      // - o fundo está travado via class OU overflow hidden (html/body) quando fullscreen.
+      var bodyLocked = document.body.classList.contains('ctwpml-ml-open') || bodyOverflow === 'hidden' || htmlOverflow === 'hidden';
+      var scrollOk = !modalVisibleNow ? true : (bodyLocked && (modalBodyOverflow === 'auto' || modalBodyOverflow === 'scroll'));
+
+      state.checkpoint('CHK_SCROLL_ENABLED', scrollOk, {
+        modalVisible: modalVisibleNow,
+        bodyOverflow: bodyOverflow,
+        htmlOverflow: htmlOverflow,
+        bodyLocked: bodyLocked,
+        modalBodyOverflowY: modalBodyOverflow,
+        modalBodyClientHeight: modalBodyH,
+        modalBodyScrollHeight: modalBodySH,
+        modalHasScroll: modalHasScroll,
+      });
 
       // CHK_ELEMENTOR_HIDDEN - Widget do Elementor escondido (se existir)
       var elementorWidget = document.querySelector('.elementor-widget-woocommerce-checkout-page');
@@ -540,6 +561,7 @@
           '        </div>' +
           '        <div class="ctwpml-form-group"><label for="ctwpml-input-numero">Número</label><input id="ctwpml-input-numero" type="text" placeholder="Ex.: 123 ou SN" /></div>' +
           '        <div class="ctwpml-form-group"><label for="ctwpml-input-comp">Complemento (opcional)</label><input id="ctwpml-input-comp" type="text" placeholder="Ex.: Apto 201" maxlength="13" /></div>' +
+          '        <div class="ctwpml-form-group" id="ctwpml-group-bairro"><label for="ctwpml-input-bairro">Bairro</label><input id="ctwpml-input-bairro" type="text" placeholder="Ex.: Centro" autocomplete="address-level3" /></div>' +
           '        <div class="ctwpml-form-group"><label for="ctwpml-input-info">Informações adicionais (opcional)</label><textarea id="ctwpml-input-info" rows="3" placeholder="Ex.: Entre ruas..."></textarea></div>' +
           '        <div class="ctwpml-type-label">Este é o seu trabalho ou sua casa?</div>' +
           '        <div class="ctwpml-type-option" id="ctwpml-type-home" role="button" tabindex="0">' +
@@ -581,6 +603,45 @@
           '  </div>' +
           '</div>'
       );
+    }
+
+    function ensureWooNeighborhoodInputs() {
+      try {
+        var form = document.querySelector('form.checkout, form.woocommerce-checkout');
+        if (!form) return false;
+
+        var ensureHidden = function (id, name) {
+          try {
+            if (form.querySelector('#' + id + ', input[name="' + name + '"]')) return false;
+            var wrap = form.querySelector('.ctwpml-hidden-fields');
+            if (!wrap) {
+              wrap = document.createElement('div');
+              wrap.className = 'ctwpml-hidden-fields';
+              wrap.style.display = 'none';
+              form.appendChild(wrap);
+            }
+            var input = document.createElement('input');
+            input.type = 'hidden';
+            input.id = id;
+            input.name = name;
+            input.value = '';
+            wrap.appendChild(input);
+            return true;
+          } catch (e0) {
+            return false;
+          }
+        };
+
+        // Campo alvo que a validação está exigindo em vários setups.
+        ensureHidden('billing_neighborhood', 'billing_neighborhood');
+        // Variações comuns em plugins/temas.
+        ensureHidden('billing_neighbourhood', 'billing_neighbourhood');
+        ensureHidden('billing_bairro', 'billing_bairro');
+
+        return true;
+      } catch (e1) {
+        return false;
+      }
     }
 
     function showAuthView() {
@@ -2850,6 +2911,8 @@
       }
 
       ensureModal();
+      // Garantir que o checkout Woo tenha um campo de bairro, mesmo quando o tema/plugin não renderiza.
+      try { ensureWooNeighborhoodInputs(); } catch (e0) {}
       refreshFromCheckoutFields();
       restoreStateOnOpen = safeReadModalState();
       
@@ -2857,9 +2920,9 @@
       $('#ctwpml-address-modal-overlay').css('display', 'block');
       try {
         var rootMode = !!document.getElementById('ctwpml-root');
-        // Root mode: não trava o scroll da página (checkout-ml-root.css garante isso)
+        // Root mode: ainda é overlay fullscreen; travar scroll do fundo para evitar conflito com scroll interno.
         if (rootMode) {
-          $('body').addClass('ctwpml-ml-open ctwpml-ml-open--root').css('overflow', '');
+          $('body').addClass('ctwpml-ml-open ctwpml-ml-open--root').css('overflow', 'hidden');
         } else {
           $('body').addClass('ctwpml-ml-open').css('overflow', 'hidden');
         }
@@ -3070,6 +3133,7 @@
       $('#ctwpml-input-rua').val('');
       $('#ctwpml-input-numero').val('');
       $('#ctwpml-input-comp').val('');
+      $('#ctwpml-input-bairro').val('');
       $('#ctwpml-input-info').val('');
       setCepConfirmVisible(false);
       setRuaHint('', false);
@@ -3115,6 +3179,7 @@
       $('#ctwpml-input-rua').val(String(item.address_1 || ''));
       $('#ctwpml-input-numero').val(String(item.number || ''));
       $('#ctwpml-input-comp').val(String(item.complement || ''));
+      $('#ctwpml-input-bairro').val(String(item.neighborhood || ''));
       $('#ctwpml-input-info').val(String(item.extra_info || ''));
       setCepConfirm(String(item.city || ''), String(item.state || ''), String(item.neighborhood || ''));
       
@@ -3131,7 +3196,8 @@
       $('#billing_number').val(item.number || '').trigger('change');
       $('#billing_city').val(item.city || '').trigger('change');
       $('#billing_state').val(item.state || '').trigger('change');
-      $('#billing_neighborhood').val(item.neighborhood || '').trigger('change');
+      try { ensureWooNeighborhoodInputs(); } catch (e0) {}
+      try { if (item.neighborhood) ctwpmlSetNeighborhoodInWoo(String(item.neighborhood)); } catch (e1) {}
 
       // Nome: usar receiver_name do endereço ou nome do checkout
       var first = ($('#billing_first_name').val() || '').trim();
@@ -3231,6 +3297,13 @@
         setRuaHint('Não encontramos Rua/Avenida automaticamente. Preencha manualmente com atenção.', true);
         ok = false;
         errors.push('Rua obrigatória');
+      }
+
+      var bairroUi = ($('#ctwpml-input-bairro').val() || '').trim();
+      if (!bairroUi) {
+        setFieldError('#ctwpml-group-bairro', true);
+        ok = false;
+        errors.push('Bairro obrigatório');
       }
 
       // v3.2.13: Verificar cidade/UF com fallback para lastCepLookup (quando billing_* não existir no DOM)
@@ -3707,8 +3780,13 @@
       var city = '';
       var st = '';
 
+      // Prioridade: input do usuário no modal (campo Bairro).
+      try {
+        neighborhood = ($('#ctwpml-input-bairro').val() || '').trim();
+      } catch (e0) {}
+
       if (webhookData) {
-        neighborhood = webhookData.bairro || webhookData.neighborhood || '';
+        neighborhood = neighborhood || webhookData.bairro || webhookData.neighborhood || '';
         city = webhookData.localidade || webhookData.cidade || webhookData.city || '';
         st = webhookData.uf || webhookData.estado || webhookData.state || '';
       }
@@ -3724,6 +3802,10 @@
       if (!city && $('#billing_city').length) city = ($('#billing_city').val() || '').trim();
       if (!st && $('#billing_state').length) st = ($('#billing_state').val() || '').trim();
       if (!neighborhood && $('#billing_neighborhood').length) neighborhood = ($('#billing_neighborhood').val() || '').trim();
+
+      // Garantir que o Woo tenha o valor no campo (quando existir ou for injetado).
+      try { ensureWooNeighborhoodInputs(); } catch (e1) {}
+      try { if (neighborhood) ctwpmlSetNeighborhoodInWoo(String(neighborhood)); } catch (e2) {}
 
       var address = {
         id: selectedAddressId ? selectedAddressId : '',
@@ -3878,11 +3960,15 @@
       var uf = dados.uf || dados.estado || dados.state || '';
       var bairro = dados.bairro || dados.neighborhood || '';
       setCepConfirm(String(cidade || ''), String(uf || ''), String(bairro || ''));
+      if (bairro) $('#ctwpml-input-bairro').val(String(bairro));
 
       // Preenche campos do checkout também (inclui campos que não existem no modal).
       if (dados.logradouro) $('#billing_address_1').val(String(dados.logradouro)).trigger('change');
       if (dados.numero) $('#billing_number').val(String(dados.numero)).trigger('change');
-      if (dados.bairro) $('#billing_neighborhood').val(String(dados.bairro)).trigger('change');
+      try { ensureWooNeighborhoodInputs(); } catch (e0) {}
+      if (bairro) {
+        try { ctwpmlSetNeighborhoodInWoo(String(bairro)); } catch (e1) {}
+      }
       if (dados.localidade) $('#billing_city').val(String(dados.localidade)).trigger('change');
       if (dados.uf) $('#billing_state').val(String(dados.uf)).trigger('change');
       if (dados.complemento) $('#billing_complemento').val(String(dados.complemento)).trigger('change');
@@ -4058,13 +4144,21 @@
         $('#ctwpml-input-rua').val('');
         $('#ctwpml-input-numero').val('');
         $('#ctwpml-input-comp').val('');
+        $('#ctwpml-input-bairro').val('');
         $('#ctwpml-input-info').val('');
         setCepConfirmVisible(false);
 
         // Checkout fields (limpa tudo exceto o CEP)
+        try { ensureWooNeighborhoodInputs(); } catch (e0) {}
         $('#billing_address_1').val('').trigger('change');
         $('#billing_number').val('').trigger('change');
-        $('#billing_neighborhood').val('').trigger('change');
+        try {
+          var els = ctwpmlFindNeighborhoodFields();
+          for (var i = 0; i < els.length; i++) {
+            var $f = $(els[i]);
+            ctwpmlSetFieldValue($f, '');
+          }
+        } catch (e1) {}
         $('#billing_city').val('').trigger('change');
         $('#billing_state').val('').trigger('change');
         $('#billing_complemento').val('').trigger('change');
@@ -4500,6 +4594,7 @@
     }
 
     function prefillFormFromCheckout() {
+      try { ensureWooNeighborhoodInputs(); } catch (e0) {}
       var cepVal = formatCep($('#billing_postcode').val());
       $('#ctwpml-input-cep').val(cepVal);
       lastCepOnly = cepDigits(cepVal);
@@ -4523,9 +4618,12 @@
       var uf = ($('#billing_state').val() || '').trim();
       var bairro = ($('#billing_neighborhood').val() || '').trim();
       setCepConfirm(cidade, uf, bairro);
+      if (bairro) $('#ctwpml-input-bairro').val(String(bairro));
     }
 
     function applyFormToCheckout() {
+      try { ensureWooNeighborhoodInputs(); } catch (e0) {}
+
       var cepDigits = ($('#ctwpml-input-cep').val() || '').replace(/\D/g, '');
       if (cepDigits) $('#billing_postcode').val(cepDigits).trigger('change');
 
@@ -4537,6 +4635,11 @@
 
       var comp = ($('#ctwpml-input-comp').val() || '').trim();
       if (comp) $('#billing_complemento').val(comp).trigger('change');
+
+      var bairroUi = ($('#ctwpml-input-bairro').val() || '').trim();
+      if (bairroUi) {
+        try { ctwpmlSetNeighborhoodInWoo(String(bairroUi)); } catch (e1) {}
+      }
 
       var nome = ($('#ctwpml-input-nome').val() || '').trim();
       if (nome) {
