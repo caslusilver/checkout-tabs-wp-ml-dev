@@ -7,6 +7,12 @@
    */
   
   function createTelemetryPanel() {
+    try {
+      // Admin-only UI: não exibir painel/botão em usuários finais (mesmo com assets em cache).
+      if (!window.cc_params || !(window.cc_params.is_admin_viewer === 1 || window.cc_params.is_admin_viewer === true || window.cc_params.is_admin_viewer === '1')) {
+        return;
+      }
+    } catch (e0) {}
     if (document.getElementById('ctwpml-telemetry-panel')) return;
     
     var panel = document.createElement('div');

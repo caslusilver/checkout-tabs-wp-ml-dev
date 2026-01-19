@@ -4124,9 +4124,88 @@
       }
     }
 
-    function ctwpmlGetWooNeighborhoodSnapshot() {
-      var out = { neighborhood: null, address_2: null };
+    function ctwpmlDispatchNativeEvent(el, type) {
       try {
+        if (!el || !type) return;
+        var evt = null;
+        try {
+          evt = new Event(type, { bubbles: true });
+        } catch (e0) {
+          // IE/old fallback
+          evt = document.createEvent('Event');
+          evt.initEvent(type, true, true);
+        }
+        el.dispatchEvent(evt);
+      } catch (e1) {}
+    }
+
+    function ctwpmlSetFieldValue($field, value) {
+      try {
+        if (!$field || !$field.length) return false;
+        var el = $field.get(0);
+        if (el) {
+          try { el.value = value; } catch (e0) {}
+          // Eventos nativos (alguns checkouts usam listeners fora do jQuery)
+          ctwpmlDispatchNativeEvent(el, 'input');
+          ctwpmlDispatchNativeEvent(el, 'change');
+        }
+        // Compat jQuery
+        try { $field.val(value).trigger('input').trigger('change'); } catch (e1) {}
+        return true;
+      } catch (e2) {
+        return false;
+      }
+    }
+
+    function ctwpmlFindNeighborhoodFields() {
+      var fields = [];
+      try {
+        var selectors = [
+          '#billing_neighborhood',
+          'input[name="billing_neighborhood"]',
+          'input[name="billing_neighbourhood"]',
+          'input[name="billing_bairro"]',
+          // fallback compat: alguns plugins usam address_2 como bairro
+          '#billing_address_2',
+          'input[name="billing_address_2"]',
+          // shipping (casos onde validação está amarrada no shipping)
+          '#shipping_neighborhood',
+          'input[name="shipping_neighborhood"]',
+          'input[name="shipping_neighbourhood"]',
+          'input[name="shipping_bairro"]',
+        ];
+
+        for (var i = 0; i < selectors.length; i++) {
+          var $f = $(selectors[i]).first();
+          if ($f.length) {
+            var el = $f.get(0);
+            if (el && fields.indexOf(el) === -1) fields.push(el);
+          }
+        }
+      } catch (e0) {}
+      return fields;
+    }
+
+    function ctwpmlSnapshotNeighborhoodFields() {
+      var out = [];
+      try {
+        var els = ctwpmlFindNeighborhoodFields();
+        for (var i = 0; i < els.length; i++) {
+          var el = els[i];
+          out.push({
+            id: el && el.id ? String(el.id) : '',
+            name: el && el.name ? String(el.name) : '',
+            value: el ? ctwpmlNormalizeText(el.value) : '',
+          });
+        }
+      } catch (e0) {}
+      return out;
+    }
+
+    function ctwpmlGetWooNeighborhoodSnapshot() {
+      var out = { neighborhood: null, address_2: null, fields: [] };
+      try {
+        // Preferência: manter os snapshots antigos (para compat com logs existentes)
         var $n = ctwpmlBillingField$('#billing_neighborhood', 'billing_neighborhood');
         out.neighborhood = $n.length ? ctwpmlNormalizeText($n.val()) : null;
       } catch (e0) {}
@@ -4134,14 +4213,27 @@
         var $a2 = ctwpmlBillingField$('#billing_address_2', 'billing_address_2');
         out.address_2 = $a2.length ? ctwpmlNormalizeText($a2.val()) : null;
       } catch (e1) {}
+      try {
+        out.fields = ctwpmlSnapshotNeighborhoodFields();
+      } catch (e2) {}
       return out;
     }
 
     function ctwpmlHasNeighborhoodValue() {
       var snap = ctwpmlGetWooNeighborhoodSnapshot();
-      var a = ctwpmlNormalizeText(snap.neighborhood);
-      var b = ctwpmlNormalizeText(snap.address_2);
-      return (a && a.length > 1) || (b && b.length > 1);
+      try {
+        var a = ctwpmlNormalizeText(snap.neighborhood);
+        var b = ctwpmlNormalizeText(snap.address_2);
+        if ((a && a.length > 1) || (b && b.length > 1)) return true;
+      } catch (e0) {}
+      try {
+        var fields = snap && snap.fields ? snap.fields : [];
+        for (var i = 0; i < fields.length; i++) {
+          var v = ctwpmlNormalizeText(fields[i] && fields[i].value ? fields[i].value : '');
+          if (v && v.length > 1) return true;
+        }
+      } catch (e1) {}
+      return false;
     }
 
     function ctwpmlPickFirstNonEmpty(candidates) {
@@ -4174,6 +4266,11 @@
         var snap = ctwpmlGetWooNeighborhoodSnapshot();
         candidates.push(snap.neighborhood || '');
         candidates.push(snap.address_2 || '');
+        if (snap && snap.fields && snap.fields.length) {
+          for (var i = 0; i < snap.fields.length; i++) {
+            candidates.push((snap.fields[i] && snap.fields[i].value) || '');
+          }
+        }
       } catch (e3) {}
       return ctwpmlPickFirstNonEmpty(candidates);
     }
@@ -4183,16 +4280,32 @@
       var value = ctwpmlNormalizeText(bairro);
       if (!value || value.length <= 1) return { ok: false, reason: 'empty_value', value: value };
 
-      var wrote = { billing_neighborhood: false, billing_address_2: false };
+      var wrote = { billing_neighborhood: false, billing_neighbourhood: false, billing_bairro: false, billing_address_2: false, shipping_neighborhood: false };
 
       // 1) Campo "oficial" (quando existir)
       try {
         var $n = ctwpmlBillingField$('#billing_neighborhood', 'billing_neighborhood');
         if ($n.length) {
-          $n.val(value).trigger('change');
+          ctwpmlSetFieldValue($n, value);
           wrote.billing_neighborhood = true;
         }
       } catch (e0) {}
+
+      // Variações comuns (plugins/temas)
+      try {
+        var $nn = $('input[name="billing_neighbourhood"]').first();
+        if ($nn.length) {
+          ctwpmlSetFieldValue($nn, value);
+          wrote.billing_neighbourhood = true;
+        }
+      } catch (eN0) {}
+      try {
+        var $nb = $('input[name="billing_bairro"]').first();
+        if ($nb.length) {
+          ctwpmlSetFieldValue($nb, value);
+          wrote.billing_bairro = true;
+        }
+      } catch (eN1) {}
 
       // 2) Compat: alguns plugins validam bairro em billing_address_2.
       // Regra anti-conflito: só escreve se estiver vazio OU já igual ao bairro (não sobrescreve complemento real).
@@ -4201,11 +4314,23 @@
         if ($a2.length) {
           var cur = ctwpmlNormalizeText($a2.val());
           if (!cur || cur === value) {
-            $a2.val(value).trigger('change');
+            ctwpmlSetFieldValue($a2, value);
             wrote.billing_address_2 = true;
           }
         }
       } catch (e1) {}
+
+      // 3) Shipping (último recurso): só escreve se existir e estiver vazio (anti-conflito)
+      try {
+        var $sn = $('#shipping_neighborhood, input[name="shipping_neighborhood"], input[name="shipping_neighbourhood"], input[name="shipping_bairro"]').first();
+        if ($sn.length) {
+          var scur = ctwpmlNormalizeText($sn.val());
+          if (!scur || scur === value) {
+            ctwpmlSetFieldValue($sn, value);
+            wrote.shipping_neighborhood = true;
+          }
+        }
+      } catch (e2) {}
 
       return { ok: true, value: value, wrote: wrote };
     }
@@ -5659,7 +5784,21 @@
         }
         if (!ctwpmlHasNeighborhoodValue()) {
           showNotification('Campo \"Bairro\" é obrigatório. Verifique o endereço e tente novamente.', 'error', 5000);
-          if (typeof state.checkpoint === 'function') state.checkpoint('CHK_BILLING_NEIGHBORHOOD_REQUIRED_BLOCK', false, ctwpmlGetWooNeighborhoodSnapshot());
+          if (typeof state.checkpoint === 'function') {
+            var diag = {
+              context: 'pre_submit_block',
+              selectedAddressId: (typeof selectedAddressId !== 'undefined' ? String(selectedAddressId || '') : ''),
+              candidate: cand || '',
+              snapshot: ctwpmlGetWooNeighborhoodSnapshot(),
+            };
+            try {
+              if (typeof lastCepLookup !== 'undefined' && lastCepLookup) diag.lastCepLookup = { bairro: lastCepLookup.bairro || '', neighborhood: lastCepLookup.neighborhood || '' };
+            } catch (eD0) {}
+            try {
+              if (window && window.freteData) diag.freteData = { bairro: window.freteData.bairro || '', neighborhood: window.freteData.neighborhood || '' };
+            } catch (eD1) {}
+            state.checkpoint('CHK_BILLING_NEIGHBORHOOD_REQUIRED_BLOCK', false, diag);
+          }
           return;
         }
       } catch (eN1) {}
@@ -5678,11 +5817,15 @@
           var $err = $('.woocommerce-error, .woocommerce-NoticeGroup-checkout').first();
           var errText = $err.length ? $err.text().trim() : '';
           log('checkout_error recebido', { text: errText });
-          if (typeof state.checkpoint === 'function') state.checkpoint('CHK_CHECKOUT_ERROR', true, {
-            text: errText,
-            hasWooError: document.querySelectorAll('.woocommerce-error').length,
-            hasNoticeGroup: document.querySelectorAll('.woocommerce-NoticeGroup, .woocommerce-NoticeGroup-checkout').length,
-          });
+          if (typeof state.checkpoint === 'function') {
+            var errDiag = {
+              text: errText,
+              hasWooError: document.querySelectorAll('.woocommerce-error').length,
+              hasNoticeGroup: document.querySelectorAll('.woocommerce-NoticeGroup, .woocommerce-NoticeGroup-checkout').length,
+            };
+            try { errDiag.neighborhood = ctwpmlGetWooNeighborhoodSnapshot(); } catch (eN0) {}
+            state.checkpoint('CHK_CHECKOUT_ERROR', true, errDiag);
+          }
 
           // Exibir erro dentro do modal (senão parece que o botão “não funciona”).
           if (!errText) errText = 'Não foi possível finalizar. Verifique os campos obrigatórios e tente novamente.';

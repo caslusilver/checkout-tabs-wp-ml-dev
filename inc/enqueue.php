@@ -154,8 +154,9 @@ add_action('wp_enqueue_scripts', function () {
 		true
 	);
 	
-	// Painel visual de telemetria (apenas se debug estiver ativo)
-	if (checkout_tabs_wp_ml_is_debug_enabled()) {
+	// Painel visual de telemetria (admin-only, apenas se debug estiver ativo).
+	// Telemetria core continua ativa para capturar dados, mas a UI não deve aparecer para usuário final.
+	if (checkout_tabs_wp_ml_is_debug_enabled() && current_user_can('manage_options')) {
 		wp_enqueue_script(
 			'checkout-tabs-wp-ml-telemetry-panel',
 			CHECKOUT_TABS_WP_ML_URL . 'assets/js/telemetry-panel.js',
@@ -271,6 +272,9 @@ add_action('wp_enqueue_scripts', function () {
 	wp_localize_script('checkout-tabs-wp-ml-main', 'cc_params', [
 		// Passar como 1/0 evita ambiguidades (ex.: 'true'/'false') no JS.
 		'debug'      => checkout_tabs_wp_ml_is_debug_enabled() ? 1 : 0,
+		// Admin-only UI: painéis visuais (Ver Logs / Telemetria) apenas para quem pode gerenciar o site.
+		// Mantém captura de logs/telemetria para depuração sem expor UI ao usuário final.
+		'is_admin_viewer' => current_user_can('manage_options') ? 1 : 0,
 		'cta_anim'   => 1,
 		'is_logged_in' => is_user_logged_in() ? 1 : 0,
 		'ml_only'    => $ml_only ? 1 : 0, // Modo ML definitivo (sem abas legadas)

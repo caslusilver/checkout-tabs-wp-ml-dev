@@ -17,6 +17,13 @@
       forceDebug ||
       (state.params && (state.params.debug === true || state.params.debug === 1 || state.params.debug === '1'));
 
+    // Admin-only UI: captura pode ficar ativa para coletar logs (backend/console),
+    // mas o painel visual nunca deve aparecer para usuário final.
+    var isAdminViewer = false;
+    try {
+      isAdminViewer = !!(state.params && (state.params.is_admin_viewer === 1 || state.params.is_admin_viewer === true || state.params.is_admin_viewer === '1'));
+    } catch (e0) {}
+
     state.currentPhase = '';
     state.actionStartTime = 0;
     state.ajaxWebhookStartTime = 0;
@@ -29,6 +36,7 @@
 
     function ensureDebugPanel() {
       if (!debugMode) return;
+      if (!isAdminViewer) return;
       if ($('#debug-panel').length) return;
 
       $('body').append(

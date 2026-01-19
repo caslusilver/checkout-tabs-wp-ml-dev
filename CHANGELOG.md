@@ -16,6 +16,13 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
   **Versão sugerida após a mudança**: vX.Y.Z  
   **Descrição**: texto objetivo do que mudou e impacto (pode listar itens separados por ponto e vírgula).
 
+## [v3.2.80] - 2026-01-19
+
+### Changed
+- Debug/Telemetria: painéis visuais no checkout passam a ser exibidos apenas para administradores (sem expor “Ver Logs”/📊 ao usuário final), mantendo captura/envio de logs; Checkout (ML): reforça hardening do “Bairro” com eventos nativos (`input/change`), detecção de variações de campo (billing_neighbourhood/bairro/shipping_*) e snapshots mais completos quando bloquear no pré-submit ou em `checkout_error`.
+
+#### Protocol: e07dddc
+
 ## [v3.2.79] - 2026-01-19
 
 ### Changed
