@@ -30,6 +30,11 @@ function ctwpml_render_cep_form_shortcode($atts = []): string {
 	$cache_ttl_ms = 30 * 60 * 1000;
 	$request_timeout_ms = 12000;
 
+	// Se o popup estiver desativado no admin, não renderizar ações que possam abrir modais.
+	if (!$geo_enabled) {
+		$fallback = false;
+	}
+
 	$icon_url = $atts['icon_url'] ? esc_url_raw((string) $atts['icon_url']) : '';
 	if ($icon_url === '') {
 		$icon_url = apply_filters(

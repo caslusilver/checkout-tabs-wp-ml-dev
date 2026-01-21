@@ -6,6 +6,7 @@
   var DEBUG = String(PARAMS.debug || '0') === '1';
   var ICON_URL = PARAMS.icon_url || '';
   var DEFAULT_TIMEOUT_MS = Number(PARAMS.request_timeout_ms || 12000);
+  var GEO_ENABLED = String(PARAMS.geo_enabled || '1') === '1';
 
   function log(msg, data) {
     if (!DEBUG) return;
@@ -39,40 +40,22 @@
     return null;
   }
 
-  function extractValues(data) {
-    var out = { shipping: '', deadline: '' };
-    if (!data || typeof data !== 'object') return out;
+  function normalizeApiResponse(data) {
+    // O webhook pode retornar array com 1 item. Manter compatibilidade.
+    if (Array.isArray(data)) return data.length ? data[0] : null;
+    if (data && typeof data === 'object') return data;
+    return null;
+  }
 
-    var candidatesShipping = [
-      'frete', 'valor_frete', 'preco_frete', 'shipping', 'price', 'valor', 'preco', 'valor_total_frete'
-    ];
-    var candidatesDeadline = [
-      'prazo', 'prazo_entrega', 'prazo_dias', 'prazo_entrega_dias', 'delivery', 'delivery_time', 'delivery_days', 'entrega'
-    ];
+  function getRawFromResponse(data) {
+    var normalized = normalizeApiResponse(data);
+    if (!normalized || typeof normalized !== 'object') return null;
+    if (normalized.raw && typeof normalized.raw === 'object') return normalized.raw;
+    return normalized;
+  }
 
-    function pick(obj, keys) {
-      for (var i = 0; i < keys.length; i++) {
-        var key = keys[i];
-        if (obj && Object.prototype.hasOwnProperty.call(obj, key) && obj[key] !== null && obj[key] !== '') {
-          return obj[key];
-        }
-      }
-      return '';
-    }
-
-    var rawShipping = pick(data, candidatesShipping);
-    var rawDeadline = pick(data, candidatesDeadline);
-
-    if (!rawShipping && data.frete && typeof data.frete === 'object') {
-      rawShipping = pick(data.frete, ['valor', 'preco', 'price']);
-    }
-    if (!rawDeadline && data.prazo && typeof data.prazo === 'object') {
-      rawDeadline = pick(data.prazo, ['dias', 'valor', 'min', 'max']);
-    }
-
-    out.shipping = rawShipping !== '' ? String(rawShipping) : '';
-    out.deadline = rawDeadline !== '' ? String(rawDeadline) : '';
-    return out;
+  function isNonEmpty(val) {
+    return val !== null && typeof val !== 'undefined' && String(val).trim() !== '';
   }
 
   function formatBRL(value) {
@@ -85,58 +68,86 @@
     }
   }
 
-  function pickFirst(obj, keys) {
-    if (!obj || typeof obj !== 'object') return '';
+  function pickFirstKey(raw, keys) {
+    if (!raw || typeof raw !== 'object') return '';
     for (var i = 0; i < keys.length; i++) {
       var k = keys[i];
-      if (Object.prototype.hasOwnProperty.call(obj, k) && obj[k] !== null && obj[k] !== '') {
-        return obj[k];
+      if (Object.prototype.hasOwnProperty.call(raw, k) && isNonEmpty(raw[k])) {
+        return raw[k];
       }
     }
     return '';
   }
 
-  function getRawFromResponse(data) {
-    if (!data || typeof data !== 'object') return null;
-    if (data.raw && typeof data.raw === 'object') return data.raw;
-    return data;
+  function formatRange(a, b) {
+    var v1 = isNonEmpty(a) ? String(a).trim() : '';
+    var v2 = isNonEmpty(b) ? String(b).trim() : '';
+    if (v1 && v2) return v1 + ' a ' + v2;
+    return v1 || v2 || '';
   }
 
   function buildMethods(data) {
     var raw = getRawFromResponse(data);
     if (!raw || typeof raw !== 'object') return [];
 
-    var defs = [
-      { type: 'motoboy', labelKey: 'motoboy_ch', priceKey: 'preco_motoboy', deadlineKeys: ['prazo_motoboy'] },
-      { type: 'sedex', labelKey: 'sedex_ch', priceKey: 'preco_sedex', deadlineKeys: ['prazo_sedex', 'prazo_sedex_1', 'prazo_sedex_2'] },
-      { type: 'pacmini', labelKey: 'pacmini_ch', priceKey: 'preco_pac', deadlineKeys: ['prazo_pacmini', 'prazo_pac'] }
-    ];
-
-    var out = [];
-    for (var i = 0; i < defs.length; i++) {
-      var d = defs[i];
-      var label = String(raw[d.labelKey] || '').trim();
-      if (!label) continue; // regra: se *_ch vazio, ocultar
-
-      var priceRaw = raw[d.priceKey];
-      var priceText = '';
-      if (priceRaw !== null && typeof priceRaw !== 'undefined' && String(priceRaw).trim() !== '') {
-        priceText = String(priceRaw);
-        if (priceText.indexOf('R$') === -1) {
-          var n = Number(String(priceRaw).replace(',', '.').replace(/[^\d.]/g, ''));
-          if (isFinite(n)) priceText = formatBRL(n);
-        }
-      }
-
-      var deadlineRaw = pickFirst(raw, d.deadlineKeys);
-      var deadlineText = '';
-      if (deadlineRaw !== null && typeof deadlineRaw !== 'undefined' && String(deadlineRaw).trim() !== '') {
-        deadlineText = String(deadlineRaw);
-      }
-
-      out.push({ type: d.type, label: label, priceText: priceText, deadlineText: deadlineText });
+    function buildPriceText(priceRaw) {
+      if (!isNonEmpty(priceRaw)) return '';
+      var txt = String(priceRaw).trim();
+      if (txt.indexOf('R$') !== -1) return txt;
+      var n = Number(txt.replace(',', '.').replace(/[^\d.]/g, ''));
+      return isFinite(n) ? formatBRL(n) : txt;
     }
 
+    function buildMotoboy() {
+      var label = String(raw.motoboy_ch || '').trim();
+      if (!label) return null;
+      var priceRaw = isNonEmpty(raw.preco_motoboy) ? raw.preco_motoboy
+        : (raw.freteMotoboy && isNonEmpty(raw.freteMotoboy.valor) ? raw.freteMotoboy.valor : raw.motoboy_pro);
+      var deadlineRaw = isNonEmpty(raw.prazo_motoboy) ? raw.prazo_motoboy
+        : (raw.freteMotoboy && isNonEmpty(raw.freteMotoboy.prazo) ? raw.freteMotoboy.prazo : '');
+      return { type: 'motoboy', label: label, priceText: buildPriceText(priceRaw), deadlineText: String(deadlineRaw || '').trim() };
+    }
+
+    function buildSedex() {
+      var label = String(raw.sedex_ch || '').trim();
+      if (!label) return null;
+      var priceRaw = isNonEmpty(raw.preco_sedex) ? raw.preco_sedex
+        : (raw.freteSedex && isNonEmpty(raw.freteSedex.valor) ? raw.freteSedex.valor : raw.sedex_pro);
+      var deadlineText = '';
+      if (isNonEmpty(raw.prazo_sedex_1) || isNonEmpty(raw.prazo_sedex_2)) {
+        deadlineText = formatRange(raw.prazo_sedex_1, raw.prazo_sedex_2);
+      } else if (raw.freteSedex && isNonEmpty(raw.freteSedex.prazo)) {
+        deadlineText = String(raw.freteSedex.prazo).trim();
+      } else if (isNonEmpty(raw.prazo_sedex)) {
+        deadlineText = String(raw.prazo_sedex).trim();
+      }
+      return { type: 'sedex', label: label, priceText: buildPriceText(priceRaw), deadlineText: deadlineText };
+    }
+
+    function buildPacmini() {
+      var label = String(raw.pacmini_ch || '').trim();
+      if (!label) return null;
+      var priceRaw = isNonEmpty(raw.preco_pac) ? raw.preco_pac
+        : (raw.fretePACMini && isNonEmpty(raw.fretePACMini.valor) ? raw.fretePACMini.valor : raw.pacmini_pro);
+      var deadlineText = '';
+      if (isNonEmpty(raw.prazo_pac_1) || isNonEmpty(raw.prazo_pac_2)) {
+        deadlineText = formatRange(raw.prazo_pac_1, raw.prazo_pac_2);
+      } else if (raw.fretePACMini && (isNonEmpty(raw.fretePACMini.PACMINI_1) || isNonEmpty(raw.fretePACMini.PACMINI_2))) {
+        deadlineText = formatRange(raw.fretePACMini.PACMINI_1, raw.fretePACMini.PACMINI_2);
+      } else {
+        var legacy = pickFirstKey(raw, ['prazo_pacmini', 'prazo_pac']);
+        if (isNonEmpty(legacy)) deadlineText = String(legacy).trim();
+      }
+      return { type: 'pacmini', label: label, priceText: buildPriceText(priceRaw), deadlineText: deadlineText };
+    }
+
+    var out = [];
+    var m1 = buildMotoboy();
+    var m2 = buildSedex();
+    var m3 = buildPacmini();
+    if (m1) out.push(m1);
+    if (m2) out.push(m2);
+    if (m3) out.push(m3);
     return out;
   }
 
@@ -189,13 +200,7 @@
       return;
     }
 
-    // Fallback compat: render simples de valores genéricos (sem quebrar payload/contrato)
-    var values = extractValues(data);
-    var html = '';
-    if (values.shipping) html += '<div class="ctwpml-cep-result"><span>Frete</span><strong>' + values.shipping + '</strong></div>';
-    if (values.deadline) html += '<div class="ctwpml-cep-result"><span>Prazo</span><strong>' + values.deadline + '</strong></div>';
-    if (!html) html = '<div class="ctwpml-cep-result-empty">Resposta recebida, mas sem valores reconheciveis.</div>';
-    el.innerHTML = html;
+    el.innerHTML = '<div class="ctwpml-cep-result-empty">Resposta recebida, mas sem fretes disponíveis.</div>';
     el.style.display = 'block';
   }
 
@@ -207,12 +212,13 @@
     link.setAttribute('data-ctwpml-bound', '1');
     link.addEventListener('click', function (e) {
       e.preventDefault();
+      // Se popup estiver desativado, não abrir nada.
+      if (!GEO_ENABLED) return;
       var t0 = Date.now();
       setError($root, '');
 
       var button = $root.querySelector('[data-ctwpml-cep-submit]');
       setButtonState(button, true);
-
       try {
         if (!window.CTWPMLGeo || typeof window.CTWPMLGeo.requestAndFetch !== 'function') {
           setError($root, 'Servico indisponivel. Tente novamente.');

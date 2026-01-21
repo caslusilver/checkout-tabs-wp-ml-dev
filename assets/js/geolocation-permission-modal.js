@@ -148,6 +148,7 @@
 
   window.CTWPMLGeoPrompt = window.CTWPMLGeoPrompt || {};
   window.CTWPMLGeoPrompt.open = function () {
+    // Quando a feature estiver desativada no admin, nenhum popup deve aparecer.
     if (!GEO_ENABLED) return;
     bindEventsOnce();
     showModal();
