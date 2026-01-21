@@ -168,6 +168,11 @@
   }
 
   function init() {
+    if (!GEO_ENABLED) {
+      // Regra absoluta: com pop-up desativado no admin, este script não deve induzir
+      // nenhum fluxo alternativo automaticamente.
+      return;
+    }
     // Telemetria: inicialização do modal de geolocalização
     if (window.CCTelemetry) {
       window.CCTelemetry.track('1.3-geolocation-debug', 'init-start', {

@@ -9,10 +9,17 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 - Criar o repositório: `caslusilver/checkout-tabs-wp-ml-dev`
 - Branch principal do fluxo: `develop`
 
+## [v3.2.84] - 2026-01-21
+
+### Changed
+- pop-up de geolocalização passa a não existir quando desativado no admin (nenhum gatilho automático); consulta de frete via CEP fica 100% user-driven por shortcode; consumer aplica `freteData` (cache/localStorage) e preenche spans dinâmicos; renderização dos métodos de frete abaixo do formulário.
+
+#### Protocol: 2a70469
+
 ## [Unreleased]
 
 ### Changed
-- **Versão atual**: vX.Y.Z  
+- **Versão atual**: v3.2.84  
   **Versão sugerida após a mudança**: vX.Y.Z  
   **Descrição**: texto objetivo do que mudou e impacto (pode listar itens separados por ponto e vírgula).
 
