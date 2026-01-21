@@ -9,6 +9,13 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 - Criar o repositório: `caslusilver/checkout-tabs-wp-ml-dev`
 - Branch principal do fluxo: `develop`
 
+## [v3.2.85] - 2026-01-21
+
+### Changed
+- bump de versão para destravar atualizações via GitUpdater (tag v3.2.84 já existente); mantém shortcode `[ctwpml_cep]` com enqueues locais (CSS/JS) e renderização por método; consumer global reaplica `freteData` (cache/localStorage) e preenche spans dinâmicos; pop-up do plugin nunca abre automaticamente quando o toggle de geolocalização estiver desativado.
+
+#### Protocol: be2d925
+
 ## [v3.2.84] - 2026-01-21
 
 ### Changed
@@ -19,7 +26,7 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 ## [Unreleased]
 
 ### Changed
-- **Versão atual**: v3.2.84  
+- **Versão atual**: v3.2.85  
   **Versão sugerida após a mudança**: vX.Y.Z  
   **Descrição**: texto objetivo do que mudou e impacto (pode listar itens separados por ponto e vírgula).
 

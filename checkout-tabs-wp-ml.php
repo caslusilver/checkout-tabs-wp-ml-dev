@@ -3,7 +3,7 @@
  * Plugin Name: Checkout Tabs WP ML
  * Plugin URI: https://github.com/caslusilver/checkout-tabs-wp-ml-dev
  * Description: Abas no checkout do WooCommerce (checkout clássico) com consulta de frete via webhook e integração em WC_Session.
- * Version: 3.2.84
+ * Version: 3.2.85
  * Author: Lucas Andrade / AI
  * Author URI: https://github.com/caslusilver
  * License: GPL2
@@ -29,6 +29,7 @@ require_once CHECKOUT_TABS_WP_ML_DIR . 'inc/frontend/addresses-api.php';
 require_once CHECKOUT_TABS_WP_ML_DIR . 'inc/frontend/cart-api.php';
 require_once CHECKOUT_TABS_WP_ML_DIR . 'inc/frontend/checkout-blocks-api.php';
 require_once CHECKOUT_TABS_WP_ML_DIR . 'inc/frontend/checkout-ml-shortcode.php';
+require_once CHECKOUT_TABS_WP_ML_DIR . 'inc/frontend/cep-shortcode.php';
 require_once CHECKOUT_TABS_WP_ML_DIR . 'inc/enqueue.php';
 require_once CHECKOUT_TABS_WP_ML_DIR . 'inc/ajax-signup.php';
 require_once CHECKOUT_TABS_WP_ML_DIR . 'inc/ajax-login.php';
@@ -50,6 +51,7 @@ function checkout_tabs_wp_ml_activate(): void {
 		'webhook_url' => 'https://webhook.cubensisstore.com.br/webhook/consulta-frete',
 		'geolocation_webhook_url' => 'https://webhook.cubensisstore.com.br/webhook/geolocalizacao/',
 		'debug'       => 0,
+		'geolocation_enabled' => 1,
 	];
 
 	foreach ($defaults as $key => $value) {

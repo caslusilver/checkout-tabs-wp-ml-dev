@@ -76,62 +76,68 @@
   }
 
   function formatBRL(value) {
-    var n = null;
     try {
-      if (typeof value === 'number') n = value;
-      else if (typeof value === 'string') {
-        var s = value.replace(',', '.').replace(/[^\d.]/g, '');
-        n = s ? parseFloat(s) : null;
-      }
-    } catch (e) { n = null; }
-    if (n === null || isNaN(n)) return '';
-    try {
-      return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-    } catch (e0) {
-      return 'R$ ' + String(n.toFixed(2)).replace('.', ',');
+      var n = typeof value === 'number' ? value : Number(String(value).replace(',', '.').replace(/[^\d.]/g, ''));
+      if (!isFinite(n)) return String(value);
+      return 'R$ ' + n.toFixed(2).replace('.', ',');
+    } catch (e) {
+      return String(value);
     }
   }
 
+  function pickFirst(obj, keys) {
+    if (!obj || typeof obj !== 'object') return '';
+    for (var i = 0; i < keys.length; i++) {
+      var k = keys[i];
+      if (Object.prototype.hasOwnProperty.call(obj, k) && obj[k] !== null && obj[k] !== '') {
+        return obj[k];
+      }
+    }
+    return '';
+  }
+
+  function getRawFromResponse(data) {
+    if (!data || typeof data !== 'object') return null;
+    if (data.raw && typeof data.raw === 'object') return data.raw;
+    return data;
+  }
+
   function buildMethods(data) {
+    var raw = getRawFromResponse(data);
+    if (!raw || typeof raw !== 'object') return [];
+
+    var defs = [
+      { type: 'motoboy', labelKey: 'motoboy_ch', priceKey: 'preco_motoboy', deadlineKeys: ['prazo_motoboy'] },
+      { type: 'sedex', labelKey: 'sedex_ch', priceKey: 'preco_sedex', deadlineKeys: ['prazo_sedex', 'prazo_sedex_1', 'prazo_sedex_2'] },
+      { type: 'pacmini', labelKey: 'pacmini_ch', priceKey: 'preco_pac', deadlineKeys: ['prazo_pacmini', 'prazo_pac'] }
+    ];
+
     var out = [];
-    if (!data || typeof data !== 'object') return out;
+    for (var i = 0; i < defs.length; i++) {
+      var d = defs[i];
+      var label = String(raw[d.labelKey] || '').trim();
+      if (!label) continue; // regra: se *_ch vazio, ocultar
 
-    function add(kind, label, ctxKey, priceKey, prazoKey, extra) {
-      var ctx = (data && data[ctxKey] != null) ? String(data[ctxKey]) : '';
-      var priceRaw = (data && data[priceKey] != null) ? data[priceKey] : '';
-      var prazoRaw = (data && data[prazoKey] != null) ? data[prazoKey] : '';
-      if (!ctx && (priceRaw === '' || priceRaw === null) && !prazoRaw && !extra) return;
-      out.push({
-        kind: kind,
-        label: label,
-        context: ctx,
-        priceText: formatBRL(priceRaw) || (priceRaw !== '' ? String(priceRaw) : ''),
-        prazoText: prazoRaw ? String(prazoRaw) : (extra && extra.prazoText ? String(extra.prazoText) : ''),
-      });
+      var priceRaw = raw[d.priceKey];
+      var priceText = '';
+      if (priceRaw !== null && typeof priceRaw !== 'undefined' && String(priceRaw).trim() !== '') {
+        priceText = String(priceRaw);
+        if (priceText.indexOf('R$') === -1) {
+          var n = Number(String(priceRaw).replace(',', '.').replace(/[^\d.]/g, ''));
+          if (isFinite(n)) priceText = formatBRL(n);
+        }
+      }
+
+      var deadlineRaw = pickFirst(raw, d.deadlineKeys);
+      var deadlineText = '';
+      if (deadlineRaw !== null && typeof deadlineRaw !== 'undefined' && String(deadlineRaw).trim() !== '') {
+        deadlineText = String(deadlineRaw);
+      }
+
+      out.push({ type: d.type, label: label, priceText: priceText, deadlineText: deadlineText });
     }
 
-    // Motoboy
-    var motoboyPrazo = data.prazo_motoboy || (data.freteMotoboy && data.freteMotoboy.prazo) || '';
-    var motoboyPrice = data.preco_motoboy || (data.freteMotoboy && data.freteMotoboy.valor) || '';
-    add('motoboy', 'Motoboy', 'motoboy_ch', 'preco_motoboy', 'prazo_motoboy', { prazoText: motoboyPrazo, priceRaw: motoboyPrice });
-    // Sedex
-    var sedexPrazo = '';
-    if (data.prazo_sedex_1 && data.prazo_sedex_2) sedexPrazo = String(data.prazo_sedex_1) + ' a ' + String(data.prazo_sedex_2);
-    else sedexPrazo = data.prazo_sedex || '';
-    add('sedex', 'Sedex', 'sedex_ch', 'preco_sedex', 'prazo_sedex', { prazoText: sedexPrazo });
-    // PAC Mini
-    var pacPrazo = data.prazo_pacmini || data.prazo_pac || '';
-    add('pacmini', 'PAC Mini', 'pacmini_ch', 'preco_pac', 'prazo_pacmini', { prazoText: pacPrazo });
-
-    // Dedup simples por kind
-    var seen = {};
-    var uniq = [];
-    for (var i = 0; i < out.length; i++) {
-      if (seen[out[i].kind]) continue;
-      seen[out[i].kind] = true;
-      uniq.push(out[i]);
-    }
-    return uniq;
+    return out;
   }
 
   function setButtonState($btn, loading) {
@@ -164,22 +170,31 @@
     var el = $form.querySelector('.ctwpml-cep-results');
     if (!el) return;
     var methods = buildMethods(data);
-    var html = '';
     if (methods && methods.length) {
+      var html2 = '<div class="ctwpml-cep-methods">';
       for (var i = 0; i < methods.length; i++) {
         var m = methods[i];
-        html += '<div class="ctwpml-cep-method">';
-        html += '  <div class="ctwpml-cep-method-top">';
-        html += '    <strong class="ctwpml-cep-method-name">' + String(m.label || '') + '</strong>';
-        if (m.priceText) html += '    <span class="ctwpml-cep-method-price">' + String(m.priceText) + '</span>';
-        html += '  </div>';
-        if (m.prazoText) html += '  <div class="ctwpml-cep-method-prazo">' + String(m.prazoText) + '</div>';
-        if (m.context) html += '  <div class="ctwpml-cep-method-context">' + String(m.context) + '</div>';
-        html += '</div>';
+        html2 += '' +
+          '<div class="ctwpml-cep-method ctwpml-cep-method--' + m.type + '">' +
+          '  <div class="ctwpml-cep-method-top">' +
+          '    <strong class="ctwpml-cep-method-name">' + m.label + '</strong>' +
+          (m.priceText ? ('<span class="ctwpml-cep-method-price">' + m.priceText + '</span>') : '') +
+          '  </div>' +
+          (m.deadlineText ? ('<div class="ctwpml-cep-method-bottom"><span class="ctwpml-cep-method-deadline">Prazo: <strong>' + m.deadlineText + '</strong></span></div>') : '') +
+          '</div>';
       }
-    } else {
-      html = '<div class="ctwpml-cep-result-empty">Nenhuma opcao de frete disponivel para este CEP.</div>';
+      html2 += '</div>';
+      el.innerHTML = html2;
+      el.style.display = 'block';
+      return;
     }
+
+    // Fallback compat: render simples de valores genéricos (sem quebrar payload/contrato)
+    var values = extractValues(data);
+    var html = '';
+    if (values.shipping) html += '<div class="ctwpml-cep-result"><span>Frete</span><strong>' + values.shipping + '</strong></div>';
+    if (values.deadline) html += '<div class="ctwpml-cep-result"><span>Prazo</span><strong>' + values.deadline + '</strong></div>';
+    if (!html) html = '<div class="ctwpml-cep-result-empty">Resposta recebida, mas sem valores reconheciveis.</div>';
     el.innerHTML = html;
     el.style.display = 'block';
   }
@@ -192,12 +207,47 @@
     link.setAttribute('data-ctwpml-bound', '1');
     link.addEventListener('click', function (e) {
       e.preventDefault();
+      var t0 = Date.now();
+      setError($root, '');
+
+      var button = $root.querySelector('[data-ctwpml-cep-submit]');
+      setButtonState(button, true);
+
       try {
-        // Regra: nunca abrir pop-up. Fallback voluntário: pedir geolocalização nativa direto.
-        if (window.CTWPMLGeo && typeof window.CTWPMLGeo.requestAndFetch === 'function') {
-          window.CTWPMLGeo.requestAndFetch().catch(function () { });
+        if (!window.CTWPMLGeo || typeof window.CTWPMLGeo.requestAndFetch !== 'function') {
+          setError($root, 'Servico indisponivel. Tente novamente.');
+          return;
         }
-      } catch (e0) { }
+      } catch (e0) {
+        setError($root, 'Servico indisponivel. Tente novamente.');
+        return;
+      }
+
+      var timeoutId = null;
+      var timedOut = false;
+      var timeoutMs = DEFAULT_TIMEOUT_MS;
+      var timeoutPromise = new Promise(function (_, reject) {
+        timeoutId = setTimeout(function () {
+          timedOut = true;
+          reject(new Error('timeout'));
+        }, timeoutMs);
+      });
+
+      Promise.race([window.CTWPMLGeo.requestAndFetch(), timeoutPromise])
+        .then(function (data) {
+          if (timeoutId) clearTimeout(timeoutId);
+          renderResults($root, data);
+          log('Fallback GEO OK', { ms: Date.now() - t0 });
+        })
+        .catch(function (err) {
+          if (timeoutId) clearTimeout(timeoutId);
+          var msg = timedOut ? 'Tempo esgotado. Tente novamente.' : 'Nao foi possivel obter a localizacao.';
+          setError($root, msg);
+          log('Fallback GEO erro', { error: err && err.message ? err.message : String(err), ms: Date.now() - t0 });
+        })
+        .finally(function () {
+          setButtonState(button, false);
+        });
     });
   }
 

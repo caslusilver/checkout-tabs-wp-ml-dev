@@ -1,19 +1,18 @@
 (function (window) {
   'use strict';
 
+  var PARAMS = window.CTWPMLGeoParams || {};
   var GEO = window.CTWPMLGeo || {};
   var PROMPT_SHOWN_KEY = 'ctwpml_geo_prompt_shown';
+  var GEO_ENABLED = String(PARAMS.geo_enabled || '1') === '1';
+  var DEBUG_GEO = String(PARAMS.debug || '0') === '1';
 
-  var DEBUG_GEO = true; // Forçar debug temporariamente
   function geoLog(msg, data) {
     if (!DEBUG_GEO) return;
     try {
       var prefix = '[CTWPML GEO DEBUG] ';
-      if (data) {
-        console.log(prefix + msg, data);
-      } else {
-        console.log(prefix + msg);
-      }
+      if (data) console.log(prefix + msg, data);
+      else console.log(prefix + msg);
     } catch (e) { }
   }
 
@@ -147,6 +146,12 @@
     });
   }
 
+  window.CTWPMLGeoPrompt = window.CTWPMLGeoPrompt || {};
+  window.CTWPMLGeoPrompt.open = function () {
+    if (!GEO_ENABLED) return;
+    bindEventsOnce();
+    showModal();
+  };
   function shouldShowModalViaPermissionsApi() {
     geoLog('Verificando permissions API...');
 
@@ -169,8 +174,14 @@
 
   function init() {
     if (!GEO_ENABLED) {
-      // Regra absoluta: com pop-up desativado no admin, este script não deve induzir
-      // nenhum fluxo alternativo automaticamente.
+      try {
+        // Quando a geolocalização automática está desativada:
+        // - nunca abrir pop-ups/modais automaticamente
+        // - apenas reaplicar cache existente (se houver)
+        if (typeof GEO.ensureSessionCache === 'function') {
+          GEO.ensureSessionCache();
+        }
+      } catch (e0) { }
       return;
     }
     // Telemetria: inicialização do modal de geolocalização
