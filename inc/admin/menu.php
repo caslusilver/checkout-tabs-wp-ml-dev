@@ -79,6 +79,7 @@ function checkout_tabs_wp_ml_render_admin_page(): void {
 	$geo_webhook_value = esc_url((string) get_option('checkout_tabs_wp_ml_geolocation_webhook_url', function_exists('checkout_tabs_wp_ml_get_geolocation_webhook_url') ? checkout_tabs_wp_ml_get_geolocation_webhook_url() : ''));
 	$debug_enabled = ((int) get_option('checkout_tabs_wp_ml_debug', 0) === 1);
 	$allow_fake_cpf = ((int) get_option('checkout_tabs_wp_ml_allow_fake_cpf', 0) === 1);
+	$geo_enabled = ((int) get_option('checkout_tabs_wp_ml_geolocation_enabled', 1) === 1);
 	$ui_primary = sanitize_hex_color((string) get_option('checkout_tabs_wp_ml_ui_primary', '#0075ff')) ?: '#0075ff';
 	$ui_login_bg = sanitize_hex_color((string) get_option('checkout_tabs_wp_ml_ui_login_bg', '#f5f5f5')) ?: '#f5f5f5';
 	$ui_text = sanitize_hex_color((string) get_option('checkout_tabs_wp_ml_ui_text', '#111111')) ?: '#111111';
@@ -147,6 +148,16 @@ function checkout_tabs_wp_ml_render_admin_page(): void {
 			$geo_webhook_value .
 			'" placeholder="https://..." />';
 		echo '<p class="description">Endpoint externo para geolocalização (latitude/longitude → endereço/CEP/cidade). Usado pelo proxy REST <code>/wp-json/geolocation/v1/send</code>.</p>';
+		echo '</td>';
+		echo '</tr>';
+		echo '<tr>';
+		echo '<th scope="row">Geolocalização automática</th>';
+		echo '<td>';
+		echo '<label>';
+		echo '<input type="checkbox" name="checkout_tabs_wp_ml_geolocation_enabled" value="1" ' . ($geo_enabled ? 'checked' : '') . ' /> ';
+		echo 'Ativar popup de localização em tempo real (recomendado apenas quando necessário)';
+		echo '</label>';
+		echo '<p class="description">Desative para usar o fluxo de CEP manual como padrão e evitar lentidão no carregamento inicial.</p>';
 		echo '</td>';
 		echo '</tr>';
 		echo '<tr>';

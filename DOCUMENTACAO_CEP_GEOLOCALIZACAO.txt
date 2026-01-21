@@ -1,0 +1,89 @@
+DOCUMENTACAO TECNICA - CEP MANUAL E GEOLOCALIZACAO
+
+OBJETIVO
+- Reduzir latencia inicial removendo geolocalizacao automatica quando desejado.
+- Oferecer fluxo manual de CEP com cache, timeout e logs.
+- Manter compatibilidade com o webhook atual (/wp-json/geolocation/v1/send).
+
+CONFIGURACAO NO ADMIN
+Menu: Checkout Tabs ML > Integracoes
+- Geolocalizacao automatica:
+  - Ativo: comportamento atual (popup de permissao de localizacao).
+  - Desativado: nao solicita localizacao automaticamente e exibe formulario de CEP.
+
+FLUXOS
+1) Geo habilitado (padrao)
+   - Modal de permissao de geolocalizacao aparece quando necessario.
+   - Se ja houver cache valido, nao mostra modal e usa dados da sessao.
+
+2) Geo desabilitado (modo CEP)
+   - Modal de CEP aparece automaticamente apenas se nao houver cache.
+   - Usuario informa CEP e dispara consulta.
+   - Link "Nao sabe seu CEP?" aciona o fluxo antigo de geolocalizacao.
+
+SHORTCODE
+[ctwpml_cep]
+Atributos:
+- title: titulo exibido acima do formulario (opcional)
+- fallback: "1" ou "0" para mostrar o link "Nao sabe seu CEP?"
+- icon_url: URL customizada do icone no botao
+
+Exemplo:
+[ctwpml_cep title="Consulte seu frete" fallback="1"]
+
+ENDPOINTS E PAYLOAD
+Endpoint REST:
+- POST /wp-json/geolocation/v1/send
+
+Payload geolocalizacao:
+{
+  "latitude": -23.000000,
+  "longitude": -46.000000,
+  "event": "geolocation",
+  "version": "1.0"
+}
+
+Payload CEP:
+{
+  "cep": "01001000",
+  "event": "CEP",
+  "version": "1.0"
+}
+
+O proxy valida:
+- latitude/longitude OU cep (8 digitos).
+- Repassa o payload ao webhook configurado no admin.
+
+CACHE
+- Cache em sessionStorage (chave: ctwpml_geo_freteData).
+- TTL: 30 minutos.
+- O cache persiste no reload e evita chamadas repetidas.
+
+UI/UX
+- Input de CEP aceita apenas numeros (8 digitos).
+- Botao desabilitado durante consulta (tom acinzentado).
+- Spinner de loading no botao.
+- Resultados exibidos abaixo do formulario (frete e prazo quando disponiveis).
+
+LOGS (DEBUG)
+Ativar "Debug" no admin para logs:
+- Envio de CEP.
+- Resposta da API.
+- Tempo de execucao.
+- Timeout ou erros.
+
+PONTOS DE ATENCAO
+- O webhook externo precisa aceitar o evento "CEP".
+- Em ambientes com cache antigo, o sistema faz compatibilidade automatica.
+- O modal de CEP so abre se nao existir cache valido.
+
+ARQUIVOS PRINCIPAIS
+- inc/settings.php (opcao geolocation_enabled)
+- inc/geolocation/enqueue.php (assets e params)
+- inc/geolocation/rest-proxy.php (suporte a CEP)
+- assets/js/geolocation-client.js (cache + request CEP)
+- assets/js/geolocation-cep-form.js (formulario + logs)
+- assets/js/geolocation-permission-modal.js (toggle de modo)
+- assets/css/geolocation-permission-modal.css (estilos do CEP)
+- inc/frontend/cep-shortcode.php (shortcode)
+

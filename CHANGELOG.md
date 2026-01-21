@@ -9,10 +9,17 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 - Criar o repositório: `caslusilver/checkout-tabs-wp-ml-dev`
 - Branch principal do fluxo: `develop`
 
+## [v3.2.83] - 2026-01-20
+
+### Changed
+- adiciona toggle admin para geolocalização; habilita fluxo de CEP manual com cache e timeout; proxy REST aceita evento CEP; adiciona shortcode `[ctwpml_cep]` e documentação técnica.
+
+#### Protocol: 954980d
+
 ## [Unreleased]
 
 ### Changed
-- **Versão atual**: vX.Y.Z  
+- **Versão atual**: v3.2.83  
   **Versão sugerida após a mudança**: vX.Y.Z  
   **Descrição**: texto objetivo do que mudou e impacto (pode listar itens separados por ponto e vírgula).
 

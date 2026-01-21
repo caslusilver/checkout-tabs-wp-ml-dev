@@ -19,6 +19,10 @@
   }
 
   var CACHE_KEY = 'ctwpml_geo_freteData';
+  var CACHE_TTL_MS = Number(PARAMS.cache_ttl_ms || (30 * 60 * 1000));
+  if (!CACHE_TTL_MS || CACHE_TTL_MS < 0) CACHE_TTL_MS = 30 * 60 * 1000;
+  var REQUEST_TIMEOUT_MS = Number(PARAMS.request_timeout_ms || 12000);
+  if (!REQUEST_TIMEOUT_MS || REQUEST_TIMEOUT_MS < 0) REQUEST_TIMEOUT_MS = 12000;
 
   function safeJsonParse(text) {
     try {
@@ -33,16 +37,31 @@
       if (!window.sessionStorage) return null;
       var raw = sessionStorage.getItem(CACHE_KEY);
       if (!raw) return null;
-      return safeJsonParse(raw);
+      var parsed = safeJsonParse(raw);
+      if (!parsed) return null;
+      if (parsed && parsed.expires_at) {
+        if (Date.now() > parsed.expires_at) {
+          sessionStorage.removeItem(CACHE_KEY);
+          return null;
+        }
+        return parsed;
+      }
+      // Compat: cache antigo sem metadata
+      return { data: parsed, meta: { source: 'legacy' }, expires_at: 0 };
     } catch (e) {
       return null;
     }
   }
 
-  function writeSessionCache(data) {
+  function writeSessionCache(data, meta) {
     try {
       if (!window.sessionStorage) return;
-      sessionStorage.setItem(CACHE_KEY, JSON.stringify(data));
+      var payload = {
+        data: data,
+        meta: meta || {},
+        expires_at: Date.now() + CACHE_TTL_MS
+      };
+      sessionStorage.setItem(CACHE_KEY, JSON.stringify(payload));
     } catch (e) { }
   }
 
@@ -91,22 +110,21 @@
     }
   }
 
-  function fetchProxy(lat, lon) {
-    var payload = {
-      latitude: Number(lat).toFixed(6),
-      longitude: Number(lon).toFixed(6),
-      version: '1.0',
-      event: 'geolocation',
-    };
+  function fetchWithTimeout(url, options, timeoutMs) {
+    var controller = null;
+    var timerId = null;
+    var opts = options || {};
+    var ms = typeof timeoutMs === 'number' ? timeoutMs : 12000;
+    if (typeof AbortController !== 'undefined') {
+      controller = new AbortController();
+      opts.signal = controller.signal;
+      timerId = setTimeout(function () {
+        try { controller.abort(); } catch (e) { }
+      }, ms);
+    }
 
-    var url = getRestUrl();
-    log('fetch ->', url, payload);
-
-    return fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    }).then(function (resp) {
+    return fetch(url, opts).then(function (resp) {
+      if (timerId) clearTimeout(timerId);
       if (!resp.ok) {
         return resp
           .json()
@@ -120,6 +138,36 @@
           });
       }
       return resp.json();
+    }).catch(function (err) {
+      if (timerId) clearTimeout(timerId);
+      throw err;
+    });
+  }
+
+  function fetchProxy(payload) {
+    var url = getRestUrl();
+    log('fetch ->', url, payload);
+    return fetchWithTimeout(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    }, REQUEST_TIMEOUT_MS);
+  }
+
+  function fetchProxyGeo(lat, lon) {
+    return fetchProxy({
+      latitude: Number(lat).toFixed(6),
+      longitude: Number(lon).toFixed(6),
+      version: '1.0',
+      event: 'geolocation',
+    });
+  }
+
+  function fetchProxyCep(cep) {
+    return fetchProxy({
+      cep: String(cep || ''),
+      version: '1.0',
+      event: 'CEP',
     });
   }
 
@@ -143,9 +191,9 @@
 
   function ensureDataFromSessionCache() {
     var cached = readSessionCache();
-    if (!cached) return false;
+    if (!cached || !cached.data) return false;
     log('cache hit (sessionStorage)');
-    persistContract(cached);
+    persistContract(cached.data);
     return true;
   }
 
@@ -158,18 +206,42 @@
         var lat = pos && pos.coords ? pos.coords.latitude : null;
         var lon = pos && pos.coords ? pos.coords.longitude : null;
         if (lat === null || lon === null) throw new Error('Coords inválidas.');
-        return fetchProxy(lat, lon);
+        return fetchProxyGeo(lat, lon);
       })
       .then(function (data) {
-        writeSessionCache(data);
+        writeSessionCache(data, { source: 'geo' });
         persistContract(data);
         return data;
       });
   }
 
+  function normalizeCep(cep) {
+    return String(cep || '').replace(/\D/g, '').slice(0, 8);
+  }
+
+  function requestAndFetchByCep(cep) {
+    var clean = normalizeCep(cep);
+    if (!clean || clean.length !== 8) {
+      return Promise.reject(new Error('CEP inválido.'));
+    }
+    var cached = readSessionCache();
+    if (cached && cached.data && cached.meta && cached.meta.cep === clean) {
+      log('cache hit (CEP)', { cep: clean });
+      persistContract(cached.data);
+      return Promise.resolve(cached.data);
+    }
+    return fetchProxyCep(clean).then(function (data) {
+      writeSessionCache(data, { source: 'cep', cep: clean });
+      persistContract(data);
+      return data;
+    });
+  }
+
   window.CTWPMLGeo = window.CTWPMLGeo || {};
   window.CTWPMLGeo.ensureSessionCache = ensureDataFromSessionCache;
   window.CTWPMLGeo.requestAndFetch = requestAndFetch;
+  window.CTWPMLGeo.requestAndFetchByCep = requestAndFetchByCep;
+  window.CTWPMLGeo.getSessionCache = readSessionCache;
   window.CTWPMLGeo.getRestUrl = getRestUrl;
 })(window);
 

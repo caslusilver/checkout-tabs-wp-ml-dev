@@ -1,10 +1,11 @@
 (function (window) {
   'use strict';
 
+  var PARAMS = window.CTWPMLGeoParams || {};
   var GEO = window.CTWPMLGeo || {};
   var PROMPT_SHOWN_KEY = 'ctwpml_geo_prompt_shown';
-
-  var DEBUG_GEO = true; // Forçar debug temporariamente
+  var GEO_ENABLED = String(PARAMS.geo_enabled || '1') === '1';
+  var DEBUG_GEO = String(PARAMS.debug || '0') === '1';
   function geoLog(msg, data) {
     if (!DEBUG_GEO) return;
     try {
@@ -157,6 +158,12 @@
     });
   }
 
+  window.CTWPMLGeoPrompt = window.CTWPMLGeoPrompt || {};
+  window.CTWPMLGeoPrompt.open = function () {
+    bindEventsOnce();
+    showModal();
+  };
+
   function shouldShowModalViaPermissionsApi() {
     geoLog('Verificando permissions API...');
 
@@ -178,6 +185,19 @@
   }
 
   function init() {
+    if (!GEO_ENABLED) {
+      var hasCache = false;
+      try {
+        if (typeof GEO.ensureSessionCache === 'function') {
+          hasCache = GEO.ensureSessionCache();
+        }
+      } catch (e0) { }
+      if (!hasCache && window.CTWPMLCepForm && typeof window.CTWPMLCepForm.openModal === 'function') {
+        window.CTWPMLCepForm.openModal();
+      }
+      return;
+    }
+
     // Telemetria: inicialização do modal de geolocalização
     if (window.CCTelemetry) {
       window.CCTelemetry.track('1.3-geolocation-debug', 'init-start', {

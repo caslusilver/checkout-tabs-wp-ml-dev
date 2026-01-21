@@ -24,10 +24,21 @@ function checkout_tabs_wp_ml_handle_geolocation_proxy_request(WP_REST_Request $r
 		return new WP_Error('bad_request', 'Payload inválido ou ausente.', ['status' => 400]);
 	}
 
+	$event = isset($payload['event']) ? strtolower(trim((string) $payload['event'])) : '';
 	$lat = $payload['latitude'] ?? null;
 	$lng = $payload['longitude'] ?? null;
-	if ($lat === null || $lng === null || !is_numeric($lat) || !is_numeric($lng)) {
-		return new WP_Error('bad_request', 'Payload inválido (latitude/longitude).', ['status' => 400]);
+	$cep = isset($payload['cep']) ? preg_replace('/\D/', '', (string) $payload['cep']) : '';
+	$has_geo = ($lat !== null && $lng !== null && is_numeric($lat) && is_numeric($lng));
+	$has_cep = ($cep !== '' && strlen($cep) === 8);
+
+	if (!$has_geo && !$has_cep) {
+		return new WP_Error('bad_request', 'Payload inválido (latitude/longitude ou CEP).', ['status' => 400]);
+	}
+	if ($has_cep && ($event === 'cep' || $event === 'geolocation_cep' || $event === '')) {
+		$payload['event'] = 'CEP';
+	}
+	if ($has_cep) {
+		$payload['cep'] = $cep;
 	}
 
 	$args = [
@@ -99,15 +110,22 @@ add_action('rest_api_init', function () {
 		'permission_callback' => '__return_true',
 		'args'                => [
 			'latitude'  => [
-				'required'          => true,
+				'required'          => false,
 				'validate_callback' => static function ($param) {
 					return is_numeric($param);
 				},
 			],
 			'longitude' => [
-				'required'          => true,
+				'required'          => false,
 				'validate_callback' => static function ($param) {
 					return is_numeric($param);
+				},
+			],
+			'cep'       => [
+				'required'          => false,
+				'validate_callback' => static function ($param) {
+					$cep = preg_replace('/\D/', '', (string) $param);
+					return strlen($cep) === 8;
 				},
 			],
 			'version'   => [
