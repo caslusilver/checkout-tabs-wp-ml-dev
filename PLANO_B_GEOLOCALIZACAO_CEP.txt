@@ -1,0 +1,90 @@
+PLANO DE ACAO - AJUSTES, BACKUP E NOVA ESTRATEGIA DE LOCALIZACAO / CEP
+
+OBJETIVO FINAL
+- Reduzir latencia e travamentos iniciais do site.
+- Tornar o calculo de frete mais previsivel, rapido e controlavel.
+- Manter compatibilidade total com o backend existente.
+- Criar uma base flexivel, observavel e documentada para evolucao.
+
+ETAPA 1 - Plano B (documentacao em TXT)
+- Criar este arquivo como Plano B.
+- Manter decisoes tecnicas e UX validadas.
+- Garantir retorno rapido em caso de instabilidade da nova implementacao.
+
+ETAPA 2 - Backup de codigo (controle de versao)
+- Atualizar branch main com a versao atual (pull).
+- Criar commit estavel do estado atual (sem refatoracao).
+- Merge/commit direto na main apenas como backup funcional.
+- Objetivo: rollback imediato se necessario.
+
+ETAPA 3 - Controle administrativo da geolocalizacao
+- Adicionar opcao no admin do plugin para ativar/desativar geolocalizacao.
+- Opcao persistida no banco.
+- Facilmente alternavel para testes de performance.
+- Quando desativada: nao solicitar localizacao automaticamente.
+
+ETAPA 4 - Pivot da estrategia: Geolocalizacao -> CEP manual
+- Quando geolocalizacao estiver desativada:
+  - Exibir formulario manual de CEP.
+  - Campo de input para CEP.
+  - Botao "Consultar frete".
+- Enviar evento "CEP" para o mesmo webhook de geolocalizacao existente.
+- Backend usa a mesma resposta para resolver endereco/frete/prazos.
+- Fluxo interno permanece o mesmo (muda apenas a origem do dado).
+
+ETAPA 5 - Shortcode reutilizavel
+- Criar shortcode para inserir formulario de CEP em qualquer pagina.
+- Exibir logo abaixo:
+  - Valores de frete.
+  - Prazo retornado pela API.
+- Shortcode independente do checkout.
+
+ETAPA 6 - UX e comportamento do formulario
+- Campo de CEP:
+  - Placeholder: "Digite aqui seu CEP".
+  - Aceitar apenas numeros.
+  - Teclado numerico no mobile.
+  - Validacao de formato de CEP brasileiro.
+  - Stroke: 1px solid #BBBBBB.
+  - Border-radius: 5px.
+  - Campo e botao na mesma linha.
+- Botao:
+  - Texto: "Consultar frete".
+  - Icone SVG no botao (customizavel).
+  - Icone opcional e reutilizavel, incluido na base do plugin.
+
+ETAPA 7 - Feedback visual e performance
+- Implementar animacao de loading (spinner) durante a consulta.
+- Bloquear envios simultaneos.
+- Timeout de seguranca para evitar travamentos.
+- Botao em estado desabilitado (cinza) enquanto aguarda resposta.
+- Persistir valores da consulta na sessao por 30 min.
+- Manter cache em reload e evitar chamadas externas repetidas.
+
+ETAPA 8 - Fallback: "Nao sabe seu CEP?"
+- Texto abaixo do formulario: "Nao sabe seu CEP?"
+- Ao clicar:
+  - Acionar o fluxo antigo de geolocalizacao.
+  - Reutilizar permissoes, logica e webhook.
+- Garantir acessibilidade sem duplicar logica.
+
+ETAPA 9 - Logs e debug
+- Logs de debug para:
+  - Envio de CEP.
+  - Resposta da API.
+  - Tempo de execucao.
+  - Timeouts.
+- Logs permitem validacao de eficacia e base para otimizacoes futuras.
+
+ETAPA 10 - Documentacao final
+- Criar documentacao tecnica da funcionalidade:
+  - Como funciona.
+  - Como configurar no admin.
+  - Como usar o shortcode.
+  - Fluxos de fallback.
+  - Pontos de atencao.
+
+NOTAS DE SEGURANCA E ROLLBACK
+- Nenhuma refatoracao no backup (Etapa 2).
+- Qualquer ajuste deve ser incremental e validado por logs.
+- Manter compatibilidade total com o backend existente.
