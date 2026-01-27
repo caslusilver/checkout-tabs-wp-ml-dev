@@ -592,6 +592,10 @@
           '            <input id="ctwpml-input-cpf" type="text" placeholder="000.000.000-00" inputmode="numeric" autocomplete="off" />' +
           '            <div class="ctwpml-inline-hint" id="ctwpml-cpf-hint" style="display:none;">Este CPF é fictício e serve apenas para identificar seus pedidos. Guarde este número caso precise retirar encomendas nos Correios.</div>' +
           '          </div>' +
+          '          <div class="ctwpml-form-group" id="ctwpml-group-email">' +
+          '            <label for="ctwpml-input-email">E-mail</label>' +
+          '            <input id="ctwpml-input-email" type="email" placeholder="seu@email.com" autocomplete="email" />' +
+          '          </div>' +
           '          <a href="#" class="ctwpml-delete-link" id="ctwpml-delete-address" style="display:none;">Excluir endereço</a>' +
           '        </div>' +
           '      </div>' +
@@ -3135,6 +3139,13 @@
       var first = ($('#billing_first_name').val() || '').trim();
       var last = ($('#billing_last_name').val() || '').trim();
       $('#ctwpml-input-nome').val((first + ' ' + last).trim());
+      var emailCheckout = ($('#billing_email').val() || '').trim();
+      if (!emailCheckout) {
+        try {
+          emailCheckout = (state.params && state.params.user_email) ? String(state.params.user_email).trim() : '';
+        } catch (e0) {}
+      }
+      if (emailCheckout) $('#ctwpml-input-email').val(emailCheckout);
       $('#ctwpml-input-fone').val(formatPhone((($('#billing_cellphone').val() || '') || '').trim()));
       syncLoginBanner();
       syncCpfUiFromCheckout();
@@ -3296,6 +3307,12 @@
       return { normalized: normalized, firstName: firstName, lastName: lastName, hasSurname: !!lastName };
     }
 
+    function ctwpmlIsValidEmail(email) {
+      var v = (email || '').toString().trim().toLowerCase();
+      if (!v) return false;
+      return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+    }
+
     function validateForm() {
       clearFormErrors();
       var ok = true;
@@ -3392,6 +3409,13 @@
         setFieldError('#ctwpml-group-cpf', true);
         ok = false;
         errors.push('CPF inválido');
+      }
+
+      var email = ($('#ctwpml-input-email').val() || '').trim();
+      if (!ctwpmlIsValidEmail(email)) {
+        setFieldError('#ctwpml-group-email', true);
+        ok = false;
+        errors.push('E-mail inválido');
       }
 
       if (errors.length > 0) {
@@ -4677,6 +4701,12 @@
         }
       }
 
+      var email = ($('#ctwpml-input-email').val() || '').trim();
+      if (email) {
+        var $email = ctwpmlBillingField$('#billing_email', 'billing_email');
+        if ($email.length) ctwpmlSetFieldValue($email, email);
+      }
+
       var fone = ($('#ctwpml-input-fone').val() || '').trim();
       if (fone) $('#billing_cellphone').val(phoneDigits(fone)).trigger('change');
 
@@ -4700,6 +4730,7 @@
     }
 
     // Bindings
+    state.ctaManual = true;
     state.log('INIT      Address modal: bind de eventos registrado (delegado)', {}, 'INIT');
 
     $(document).on('click', '#ctwpml-open-address-modal', function (e) {
@@ -5851,6 +5882,7 @@
     // Tela 4 (Revise e confirme): confirmar compra
     $(document).on('click', '#ctwpml-review-confirm, #ctwpml-review-confirm-sticky', function (e) {
       e.preventDefault();
+      try { e.stopImmediatePropagation(); } catch (e0) {}
 
       var log = function (msg, data) {
         try {
@@ -5888,12 +5920,16 @@
 
       function getBillingEmail() {
         try {
-          var email = ($('#billing_email').val() || '').trim().toLowerCase();
-          if (email) return email;
+          var localEmail = ($('#ctwpml-input-email').val() || '').trim().toLowerCase();
+          if (localEmail) return localEmail;
         } catch (e0) {}
         try {
-          return (state.params && state.params.user_email) ? String(state.params.user_email).trim().toLowerCase() : '';
+          var email = ($('#billing_email').val() || '').trim().toLowerCase();
+          if (email) return email;
         } catch (e1) {}
+        try {
+          return (state.params && state.params.user_email) ? String(state.params.user_email).trim().toLowerCase() : '';
+        } catch (e2) {}
         return '';
       }
 
@@ -6001,6 +6037,11 @@
       } catch (eN1) {}
 
       // Evita duplo clique.
+      try {
+        if (window.CTWPMLCtaAnim && typeof window.CTWPMLCtaAnim.start === 'function') {
+          window.CTWPMLCtaAnim.start($('#ctwpml-review-confirm, #ctwpml-review-confirm-sticky'));
+        }
+      } catch (eA0) {}
       $('#ctwpml-review-confirm, #ctwpml-review-confirm-sticky').prop('disabled', true).css('opacity', '0.7');
 
       // Se o Woo emitir erro, reabilita CTA e loga.

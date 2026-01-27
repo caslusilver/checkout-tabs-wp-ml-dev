@@ -248,10 +248,22 @@
   white-space: nowrap;
 }
 
+/* Elementor override (shortcode) - aplicar somente no shortcode */
+.ctwpml-cep-shortcode .ctwpml-cep-button {
+  background: var(--ctwpml-geo-ml-blue) !important;
+  color: #fff !important;
+}
+
 .ctwpml-cep-button.is-disabled,
 .ctwpml-cep-button[disabled] {
   background: #9aa3af;
   cursor: not-allowed;
+}
+
+.ctwpml-cep-shortcode .ctwpml-cep-button.is-disabled,
+.ctwpml-cep-shortcode .ctwpml-cep-button[disabled] {
+  background: #9aa3af !important;
+  color: #fff !important;
 }
 
 .ctwpml-cep-button-icon img {
@@ -272,6 +284,11 @@
 
 .ctwpml-cep-button.is-loading .ctwpml-cep-spinner {
   display: inline-block;
+}
+
+.ctwpml-cep-shortcode .ctwpml-cep-button.is-loading {
+  background: var(--ctwpml-geo-ml-blue) !important;
+  color: #fff !important;
 }
 
 .ctwpml-cep-error {

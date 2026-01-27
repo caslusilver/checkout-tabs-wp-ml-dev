@@ -12,9 +12,16 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 ## [Unreleased]
 
 ### Changed
-- **Versão atual**: v3.2.87  
+- **Versão atual**: v3.2.88  
   **Versão sugerida após a mudança**: vX.Y.Z  
   **Descrição**: texto objetivo do que mudou e impacto (pode listar itens separados por ponto e vírgula).
+
+## [v3.2.88] - 2026-01-27
+
+### Changed
+- correções pós-implementação: botão do shortcode CEP resistente a override do Elementor; modal de geolocalização fecha ao negar permissão; e-mail obrigatório no formulário ML e bloqueio de avanço sem e-mail válido; overlay verde com barra de progresso e bloqueio total em erro crítico.
+
+#### Protocol: 642b99b
 
 ## [v3.2.87] - 2026-01-27
 

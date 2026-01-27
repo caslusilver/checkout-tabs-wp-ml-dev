@@ -82,6 +82,40 @@
     overlayShownAt: 0,
   };
 
+  var progress = {
+    timer: null,
+    startedAt: 0,
+    percent: 0,
+  };
+
+  function setOverlayProgress(pct) {
+    var $ov = $('#' + OVERLAY_ID);
+    if (!$ov.length) return;
+    var safePct = Math.max(0, Math.min(100, Math.round(pct)));
+    progress.percent = safePct;
+    $ov.find('.ctwpml-success-progress-bar').css('width', safePct + '%');
+    $ov.find('.ctwpml-success-progress-percent').text(safePct + '%');
+  }
+
+  function stopOverlayProgress() {
+    if (progress.timer) {
+      clearInterval(progress.timer);
+      progress.timer = null;
+    }
+  }
+
+  function startOverlayProgress() {
+    stopOverlayProgress();
+    progress.startedAt = Date.now();
+    setOverlayProgress(10);
+    progress.timer = setInterval(function () {
+      var elapsed = Date.now() - progress.startedAt;
+      var pct = 10 + (elapsed / 30000) * 80; // 10% -> 90% em ~30s
+      if (pct > 90) pct = 90;
+      setOverlayProgress(pct);
+    }, 500);
+  }
+
   function msSinceClick() {
     return anim.clickAt ? (Date.now() - anim.clickAt) : null;
   }
@@ -101,6 +135,7 @@
     anim.checkoutXhrStartAt = 0;
     anim.checkoutXhrEndAt = 0;
     anim.overlayShownAt = 0;
+    stopOverlayProgress();
     $(SELECTOR).removeClass(CLS_LOADING + ' ' + CLS_SUCCESS + ' ' + CLS_EXPAND);
     hideOverlay();
   }
@@ -113,6 +148,10 @@
       '  <div class="ctwpml-success-message">' +
       '    <h1>Pedido Confirmado!</h1>' +
       '    <p>Você será redirecionado para efetuar o pagamento...</p>' +
+      '    <div class="ctwpml-success-progress" aria-hidden="true">' +
+      '      <div class="ctwpml-success-progress-bar" style="width:10%"></div>' +
+      '    </div>' +
+      '    <div class="ctwpml-success-progress-text">Aguarde, estamos concluindo o seu pedido <span class="ctwpml-success-progress-percent">10%</span></div>' +
       '  </div>' +
       '</div>'
     );
@@ -128,6 +167,7 @@
     }
     $ov.addClass(OVERLAY_VISIBLE);
     anim.overlayShownAt = Date.now();
+    startOverlayProgress();
     var afterClick = msSinceClick();
     var isLoading = $(SELECTOR).hasClass(CLS_LOADING);
     var isSuccess = $(SELECTOR).hasClass(CLS_SUCCESS);
@@ -142,6 +182,7 @@
   function hideOverlay() {
     var $ov = $('#' + OVERLAY_ID);
     if (!$ov.length) return;
+    stopOverlayProgress();
     $ov.removeClass(OVERLAY_VISIBLE);
   }
 
@@ -185,6 +226,8 @@
   $(document).on('click', SELECTOR, function () {
     try {
       var $btn = $(this);
+      var s = getState();
+      if (s && s.ctaManual === true) return;
       if ($btn.is(':disabled')) return;
       if ($btn.hasClass(CLS_LOADING) || $btn.hasClass(CLS_SUCCESS)) return;
       startAnimation($btn);
@@ -268,5 +311,25 @@
       }
     } catch (e) { }
   });
+
+  try {
+    window.addEventListener('pagehide', function () {
+      setOverlayProgress(100);
+      stopOverlayProgress();
+    });
+    window.addEventListener('beforeunload', function () {
+      setOverlayProgress(100);
+      stopOverlayProgress();
+    });
+  } catch (e0) {}
+
+  window.CTWPMLCtaAnim = window.CTWPMLCtaAnim || {};
+  window.CTWPMLCtaAnim.start = function (btn) {
+    try {
+      var $btn = btn && btn.jquery ? btn : $(btn);
+      startAnimation($btn && $btn.length ? $btn : null);
+    } catch (e) {}
+  };
+  window.CTWPMLCtaAnim.reset = resetCtas;
 })(window);
 

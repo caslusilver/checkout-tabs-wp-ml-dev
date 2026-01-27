@@ -135,8 +135,21 @@
             });
           }
           
-          var msg = (err && err.message) || 'Não foi possível obter sua localização.';
-          setStatus(msg);
+          var msg = (err && err.message) || '';
+          var denied = false;
+          try {
+            if (err && typeof err.code !== 'undefined' && Number(err.code) === 1) denied = true;
+          } catch (e0) {}
+          if (!denied) {
+            denied = (msg || '').toLowerCase().indexOf('denied') !== -1 || (msg || '').toLowerCase().indexOf('permiss') !== -1;
+          }
+          if (denied) {
+            setStatus('');
+            setButtonsDisabled(false);
+            closeModal();
+            return;
+          }
+          setStatus(msg || 'Não foi possível obter sua localização.');
           setButtonsDisabled(false);
         });
     });
