@@ -289,6 +289,34 @@
   color: var(--ctwpml-geo-text-dark);
 }
 
+.ctwpml-cep-table-wrapper {
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 8px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.ctwpml-cep-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.ctwpml-cep-table th {
+  text-align: left;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ctwpml-geo-text-dark);
+  padding: 10px 12px;
+  background: rgba(0, 0, 0, 0.03);
+}
+
+.ctwpml-cep-table td {
+  padding: 10px 12px;
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+  font-size: 13px;
+  color: var(--ctwpml-geo-text-dark);
+}
+
 .ctwpml-cep-methods {
   display: flex;
   flex-direction: column;

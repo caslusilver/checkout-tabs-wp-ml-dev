@@ -15,6 +15,10 @@ const CTWPML_ADDRESSES_META_KEY = 'ctwpml_saved_addresses';
 const CTWPML_ADDRESS_PAYLOAD_META_KEY = 'ctwpml_address_payload';
 const CTWPML_SELECTED_ADDRESS_ID_META_KEY = 'ctwpml_selected_address_id';
 const CTWPML_ADDRESS_PAYLOAD_BY_ADDRESS_META_KEY = 'ctwpml_address_payload_by_address';
+const CTWPML_GUEST_ADDRESSES_SESSION_KEY = 'ctwpml_guest_addresses';
+const CTWPML_GUEST_SELECTED_ADDRESS_ID_SESSION_KEY = 'ctwpml_guest_selected_address_id';
+const CTWPML_GUEST_ADDRESS_PAYLOAD_MAP_SESSION_KEY = 'ctwpml_guest_address_payload_by_address';
+const CTWPML_GUEST_CONTACT_META_SESSION_KEY = 'ctwpml_guest_contact_meta';
 
 /**
  * Normaliza o payload do webhook:
@@ -41,6 +45,127 @@ function ctwpml_address_payload_map_get(int $user_id): array {
 
 function ctwpml_address_payload_map_set(int $user_id, array $map): void {
 	update_user_meta($user_id, CTWPML_ADDRESS_PAYLOAD_BY_ADDRESS_META_KEY, $map);
+}
+
+function ctwpml_get_wc_session() {
+	if (!function_exists('WC') || !WC()) {
+		return null;
+	}
+	return WC()->session ?: null;
+}
+
+function ctwpml_guest_session_get(string $key, $default = null) {
+	$session = ctwpml_get_wc_session();
+	if (!$session) {
+		return $default;
+	}
+	$val = $session->get($key);
+	return $val !== null ? $val : $default;
+}
+
+function ctwpml_guest_session_set(string $key, $value): void {
+	$session = ctwpml_get_wc_session();
+	if (!$session) {
+		return;
+	}
+	$session->set($key, $value);
+}
+
+function ctwpml_guest_addresses_get_all(): array {
+	$raw = ctwpml_guest_session_get(CTWPML_GUEST_ADDRESSES_SESSION_KEY, []);
+	return is_array($raw) ? $raw : [];
+}
+
+function ctwpml_guest_addresses_save_all(array $items): void {
+	$items = array_slice($items, 0, 30);
+	ctwpml_guest_session_set(CTWPML_GUEST_ADDRESSES_SESSION_KEY, $items);
+}
+
+function ctwpml_guest_get_selected_id(): string {
+	$raw = ctwpml_guest_session_get(CTWPML_GUEST_SELECTED_ADDRESS_ID_SESSION_KEY, '');
+	return is_string($raw) ? $raw : '';
+}
+
+function ctwpml_guest_set_selected_id(string $address_id): void {
+	ctwpml_guest_session_set(CTWPML_GUEST_SELECTED_ADDRESS_ID_SESSION_KEY, $address_id);
+}
+
+function ctwpml_guest_address_payload_map_get(): array {
+	$raw = ctwpml_guest_session_get(CTWPML_GUEST_ADDRESS_PAYLOAD_MAP_SESSION_KEY, []);
+	return is_array($raw) ? $raw : [];
+}
+
+function ctwpml_guest_address_payload_map_set(array $map): void {
+	ctwpml_guest_session_set(CTWPML_GUEST_ADDRESS_PAYLOAD_MAP_SESSION_KEY, $map);
+}
+
+function ctwpml_guest_contact_meta_get(): array {
+	$raw = ctwpml_guest_session_get(CTWPML_GUEST_CONTACT_META_SESSION_KEY, []);
+	return is_array($raw) ? $raw : [];
+}
+
+function ctwpml_guest_contact_meta_set(array $meta): void {
+	ctwpml_guest_session_set(CTWPML_GUEST_CONTACT_META_SESSION_KEY, $meta);
+}
+
+function ctwpml_guest_clear_session(): void {
+	ctwpml_guest_session_set(CTWPML_GUEST_ADDRESSES_SESSION_KEY, []);
+	ctwpml_guest_session_set(CTWPML_GUEST_SELECTED_ADDRESS_ID_SESSION_KEY, '');
+	ctwpml_guest_session_set(CTWPML_GUEST_ADDRESS_PAYLOAD_MAP_SESSION_KEY, []);
+	ctwpml_guest_session_set(CTWPML_GUEST_CONTACT_META_SESSION_KEY, []);
+}
+
+function ctwpml_migrate_guest_data_to_user(int $user_id): void {
+	if ($user_id <= 0) {
+		return;
+	}
+	$guest_items = ctwpml_guest_addresses_get_all();
+	$guest_selected = ctwpml_guest_get_selected_id();
+	$guest_payload_map = ctwpml_guest_address_payload_map_get();
+	$guest_contact = ctwpml_guest_contact_meta_get();
+
+	if (!empty($guest_items)) {
+		$existing = ctwpml_addresses_get_all($user_id);
+		$seen = [];
+		foreach ($existing as $it) {
+			if (!is_array($it)) {
+				continue;
+			}
+			$seen[ctwpml_addresses_fingerprint($it)] = true;
+		}
+		foreach ($guest_items as $it) {
+			if (!is_array($it)) {
+				continue;
+			}
+			$fp = ctwpml_addresses_fingerprint($it);
+			if (isset($seen[$fp])) {
+				continue;
+			}
+			$existing[] = $it;
+			$seen[$fp] = true;
+		}
+		ctwpml_addresses_save_all($user_id, $existing);
+		if ($guest_selected !== '') {
+			ctwpml_addresses_set_selected_id($user_id, $guest_selected);
+		}
+	}
+
+	if (!empty($guest_payload_map)) {
+		$map = ctwpml_address_payload_map_get($user_id);
+		foreach ($guest_payload_map as $address_id => $payload) {
+			if (!isset($map[$address_id]) && is_array($payload)) {
+				$map[$address_id] = $payload;
+			}
+		}
+		ctwpml_address_payload_map_set($user_id, $map);
+	}
+
+	if (!empty($guest_contact)) {
+		$is_admin = current_user_can('manage_woocommerce');
+		ctwpml_apply_contact_meta_to_user($user_id, $guest_contact, $is_admin);
+	}
+
+	ctwpml_guest_clear_session();
 }
 
 function ctwpml_addresses_get_all(int $user_id): array {
@@ -73,7 +198,7 @@ function ctwpml_addresses_set_selected_id(int $user_id, string $address_id): voi
 }
 
 function ctwpml_addresses_resolve_selected_id(int $user_id, array $items): string {
-	$selected = ctwpml_addresses_get_selected_id($user_id);
+	$selected = $user_id > 0 ? ctwpml_addresses_get_selected_id($user_id) : ctwpml_guest_get_selected_id();
 	if ($selected !== '') {
 		foreach ($items as $it) {
 			if (is_array($it) && isset($it['id']) && (string) $it['id'] === $selected) {
@@ -261,11 +386,11 @@ function ctwpml_sync_webhook_shipping_session_from_address_payload(int $user_id,
 		return ['ok' => false, 'reason' => 'no_address_id', 'values' => []];
 	}
 
-	$map = ctwpml_address_payload_map_get($user_id);
+	$map = $user_id > 0 ? ctwpml_address_payload_map_get($user_id) : ctwpml_guest_address_payload_map_get();
 	$payload = isset($map[$address_id]) && is_array($map[$address_id]) ? $map[$address_id] : null;
 
 	// Fallback: payload global (legado)
-	if (empty($payload) || !is_array($payload)) {
+	if (($user_id > 0) && (empty($payload) || !is_array($payload))) {
 		$legacy = get_user_meta($user_id, CTWPML_ADDRESS_PAYLOAD_META_KEY, true);
 		if (is_array($legacy) && !empty($legacy)) {
 			$payload = $legacy;
@@ -305,40 +430,66 @@ function ctwpml_sync_webhook_shipping_session_from_address_payload(int $user_id,
 	];
 }
 
-add_action('wp_ajax_ctwpml_get_addresses', function () {
-	if (!is_user_logged_in()) {
-		wp_send_json_error('Usuário não autenticado.');
-	}
-
+function ctwpml_handle_get_addresses(): void {
 	check_ajax_referer('ctwpml_addresses', '_ajax_nonce');
 
-	$user_id = get_current_user_id();
-	$items = ctwpml_addresses_get_all($user_id);
-	$selected_id = ctwpml_addresses_resolve_selected_id($user_id, $items);
-	if ($selected_id !== '') {
-		ctwpml_addresses_set_selected_id($user_id, $selected_id);
+	if (is_user_logged_in()) {
+		$user_id = get_current_user_id();
+		$items = ctwpml_addresses_get_all($user_id);
+		$selected_id = ctwpml_addresses_resolve_selected_id($user_id, $items);
+		if ($selected_id !== '') {
+			ctwpml_addresses_set_selected_id($user_id, $selected_id);
+		}
+		wp_send_json_success([
+			'items' => $items,
+			'selected_address_id' => $selected_id,
+		]);
+		return;
 	}
 
+	$items = ctwpml_guest_addresses_get_all();
+	$selected_id = ctwpml_addresses_resolve_selected_id(0, $items);
+	if ($selected_id !== '') {
+		ctwpml_guest_set_selected_id($selected_id);
+	}
 	wp_send_json_success([
 		'items' => $items,
 		'selected_address_id' => $selected_id,
 	]);
-});
+}
 
-add_action('wp_ajax_ctwpml_set_selected_address', function (): void {
-	if (!is_user_logged_in()) {
-		wp_send_json_error('Usuário não autenticado.');
-	}
+add_action('wp_ajax_ctwpml_get_addresses', 'ctwpml_handle_get_addresses');
+add_action('wp_ajax_nopriv_ctwpml_get_addresses', 'ctwpml_handle_get_addresses');
 
+function ctwpml_handle_set_selected_address(): void {
 	check_ajax_referer('ctwpml_addresses', '_ajax_nonce');
 
-	$user_id = get_current_user_id();
 	$id = isset($_POST['id']) ? sanitize_text_field((string) wp_unslash($_POST['id'])) : '';
 	if ($id === '') {
 		wp_send_json_error('ID inválido.');
 	}
 
-	$items = ctwpml_addresses_get_all($user_id);
+	if (is_user_logged_in()) {
+		$user_id = get_current_user_id();
+		$items = ctwpml_addresses_get_all($user_id);
+		$found = false;
+		foreach ($items as $it) {
+			if (is_array($it) && isset($it['id']) && (string) $it['id'] === $id) {
+				$found = true;
+				break;
+			}
+		}
+		if (!$found) {
+			wp_send_json_error('Endereço não encontrado.');
+		}
+		ctwpml_addresses_set_selected_id($user_id, $id);
+		wp_send_json_success([
+			'selected_address_id' => $id,
+		]);
+		return;
+	}
+
+	$items = ctwpml_guest_addresses_get_all();
 	$found = false;
 	foreach ($items as $it) {
 		if (is_array($it) && isset($it['id']) && (string) $it['id'] === $id) {
@@ -349,22 +500,19 @@ add_action('wp_ajax_ctwpml_set_selected_address', function (): void {
 	if (!$found) {
 		wp_send_json_error('Endereço não encontrado.');
 	}
-
-	ctwpml_addresses_set_selected_id($user_id, $id);
-
+	ctwpml_guest_set_selected_id($id);
 	wp_send_json_success([
 		'selected_address_id' => $id,
 	]);
-});
+}
+
+add_action('wp_ajax_ctwpml_set_selected_address', 'ctwpml_handle_set_selected_address');
+add_action('wp_ajax_nopriv_ctwpml_set_selected_address', 'ctwpml_handle_set_selected_address');
 
 add_action('wp_ajax_ctwpml_save_address', function () {
-	if (!is_user_logged_in()) {
-		wp_send_json_error('Usuário não autenticado.');
-	}
-
 	check_ajax_referer('ctwpml_addresses', '_ajax_nonce');
 
-	$user_id = get_current_user_id();
+	$user_id = is_user_logged_in() ? get_current_user_id() : 0;
 
 	$payload = isset($_POST['address']) && is_array($_POST['address']) ? (array) $_POST['address'] : [];
 	$item = ctwpml_addresses_sanitize_item($payload);
@@ -379,7 +527,7 @@ add_action('wp_ajax_ctwpml_save_address', function () {
 		wp_send_json_error('Cidade e UF são obrigatórios.');
 	}
 
-	$items = ctwpml_addresses_get_all($user_id);
+	$items = $user_id > 0 ? ctwpml_addresses_get_all($user_id) : ctwpml_guest_addresses_get_all();
 
 	$is_update = false;
 	if ($item['id'] !== '') {
@@ -419,33 +567,40 @@ add_action('wp_ajax_ctwpml_save_address', function () {
 		array_unshift($items, $item);
 	}
 
-	ctwpml_addresses_save_all($user_id, $items);
-	// Após salvar (criar/atualizar), este endereço vira o selecionado.
-	if (!empty($item['id'])) {
-		ctwpml_addresses_set_selected_id($user_id, (string) $item['id']);
+	if ($user_id > 0) {
+		ctwpml_addresses_save_all($user_id, $items);
+		// Após salvar (criar/atualizar), este endereço vira o selecionado.
+		if (!empty($item['id'])) {
+			ctwpml_addresses_set_selected_id($user_id, (string) $item['id']);
+		}
+	} else {
+		ctwpml_guest_addresses_save_all($items);
+		if (!empty($item['id'])) {
+			ctwpml_guest_set_selected_id((string) $item['id']);
+		}
 	}
 
 	wp_send_json_success([
 		'item'  => $item,
-		'items' => ctwpml_addresses_get_all($user_id),
+		'items' => $user_id > 0 ? ctwpml_addresses_get_all($user_id) : ctwpml_guest_addresses_get_all(),
 		'selected_address_id' => (string) ($item['id'] ?? ''),
 	]);
 });
 
-add_action('wp_ajax_ctwpml_delete_address', function () {
-	if (!is_user_logged_in()) {
-		wp_send_json_error('Usuário não autenticado.');
-	}
+add_action('wp_ajax_nopriv_ctwpml_save_address', function () {
+	do_action('wp_ajax_ctwpml_save_address');
+});
 
+add_action('wp_ajax_ctwpml_delete_address', function () {
 	check_ajax_referer('ctwpml_addresses', '_ajax_nonce');
 
-	$user_id = get_current_user_id();
+	$user_id = is_user_logged_in() ? get_current_user_id() : 0;
 	$id = isset($_POST['id']) ? sanitize_text_field((string) wp_unslash($_POST['id'])) : '';
 	if ($id === '') {
 		wp_send_json_error('ID inválido.');
 	}
 
-	$items = ctwpml_addresses_get_all($user_id);
+	$items = $user_id > 0 ? ctwpml_addresses_get_all($user_id) : ctwpml_guest_addresses_get_all();
 	$out = [];
 	$deleted = false;
 	foreach ($items as $it) {
@@ -455,20 +610,38 @@ add_action('wp_ajax_ctwpml_delete_address', function () {
 		}
 		$out[] = $it;
 	}
-	ctwpml_addresses_save_all($user_id, $out);
+	if ($user_id > 0) {
+		ctwpml_addresses_save_all($user_id, $out);
+		// Se deletou o selecionado, move seleção para o primeiro restante (ou limpa)
+		$current_selected = ctwpml_addresses_get_selected_id($user_id);
+		if ($deleted && $current_selected !== '' && $current_selected === $id) {
+			$new_selected = ctwpml_addresses_resolve_selected_id($user_id, $out);
+			ctwpml_addresses_set_selected_id($user_id, $new_selected);
+		}
+		wp_send_json_success([
+			'deleted' => $deleted,
+			'items'   => ctwpml_addresses_get_all($user_id),
+			'selected_address_id' => ctwpml_addresses_get_selected_id($user_id),
+		]);
+		return;
+	}
 
-	// Se deletou o selecionado, move seleção para o primeiro restante (ou limpa)
-	$current_selected = ctwpml_addresses_get_selected_id($user_id);
+	ctwpml_guest_addresses_save_all($out);
+	$current_selected = ctwpml_guest_get_selected_id();
 	if ($deleted && $current_selected !== '' && $current_selected === $id) {
-		$new_selected = ctwpml_addresses_resolve_selected_id($user_id, $out);
-		ctwpml_addresses_set_selected_id($user_id, $new_selected);
+		$new_selected = ctwpml_addresses_resolve_selected_id(0, $out);
+		ctwpml_guest_set_selected_id($new_selected);
 	}
 
 	wp_send_json_success([
 		'deleted' => $deleted,
-		'items'   => ctwpml_addresses_get_all($user_id),
-		'selected_address_id' => ctwpml_addresses_get_selected_id($user_id),
+		'items'   => ctwpml_guest_addresses_get_all(),
+		'selected_address_id' => ctwpml_guest_get_selected_id(),
 	]);
+});
+
+add_action('wp_ajax_nopriv_ctwpml_delete_address', function () {
+	do_action('wp_ajax_ctwpml_delete_address');
 });
 
 /**
@@ -485,16 +658,9 @@ add_action('wp_ajax_ctwpml_save_address_payload', function () {
 		error_log('[CTWPML] save_address_payload - INICIANDO');
 	}
 
-	if (!is_user_logged_in()) {
-		if ($is_debug) {
-			error_log('[CTWPML] save_address_payload - ERRO: Usuário não logado');
-		}
-		wp_send_json_error('Usuário não autenticado.');
-	}
-
 	check_ajax_referer('ctwpml_address_payload', '_ajax_nonce');
 
-	$user_id = get_current_user_id();
+	$user_id = is_user_logged_in() ? get_current_user_id() : 0;
 
 	if ($is_debug) {
 		error_log('[CTWPML] save_address_payload - User ID: ' . $user_id);
@@ -566,12 +732,19 @@ add_action('wp_ajax_ctwpml_save_address_payload', function () {
 	];
 
 	// Salva por endereço
-	$map = ctwpml_address_payload_map_get($user_id);
-	$map[$address_id] = $blob;
-	ctwpml_address_payload_map_set($user_id, $map);
+	if ($user_id > 0) {
+		$map = ctwpml_address_payload_map_get($user_id);
+		$map[$address_id] = $blob;
+		ctwpml_address_payload_map_set($user_id, $map);
 
-	// Compatibilidade: mantém último payload global também (para fallback/migração)
-	$result = update_user_meta($user_id, CTWPML_ADDRESS_PAYLOAD_META_KEY, $blob);
+		// Compatibilidade: mantém último payload global também (para fallback/migração)
+		$result = update_user_meta($user_id, CTWPML_ADDRESS_PAYLOAD_META_KEY, $blob);
+	} else {
+		$map = ctwpml_guest_address_payload_map_get();
+		$map[$address_id] = $blob;
+		ctwpml_guest_address_payload_map_set($map);
+		$result = true;
+	}
 
 	if ($is_debug) {
 		error_log('[CTWPML] save_address_payload - update_user_meta(last) result: ' . ($result ? 'OK' : 'FALHOU'));
@@ -579,15 +752,17 @@ add_action('wp_ajax_ctwpml_save_address_payload', function () {
 		error_log('[CTWPML] save_address_payload - Meta key (by address): ' . CTWPML_ADDRESS_PAYLOAD_BY_ADDRESS_META_KEY);
 		
 		// Verificar se foi salvo corretamente
-		$saved = get_user_meta($user_id, CTWPML_ADDRESS_PAYLOAD_META_KEY, true);
-		error_log('[CTWPML] save_address_payload - Verificação pós-save: ' . (is_array($saved) ? 'ARRAY com ' . count($saved) . ' keys' : 'NAO_ARRAY'));
-		if (is_array($saved) && isset($saved['raw']) && is_array($saved['raw'])) {
-			error_log('[CTWPML] save_address_payload - raw keys salvos: ' . print_r(array_keys($saved['raw']), true));
-		}
-		$saved_map = get_user_meta($user_id, CTWPML_ADDRESS_PAYLOAD_BY_ADDRESS_META_KEY, true);
-		error_log('[CTWPML] save_address_payload - Verificação pós-save (map): ' . (is_array($saved_map) ? 'OK keys=' . count($saved_map) : 'NAO_ARRAY'));
-		if (is_array($saved_map) && isset($saved_map[$address_id])) {
-			error_log('[CTWPML] save_address_payload - Map contém address_id=' . $address_id);
+		if ($user_id > 0) {
+			$saved = get_user_meta($user_id, CTWPML_ADDRESS_PAYLOAD_META_KEY, true);
+			error_log('[CTWPML] save_address_payload - Verificação pós-save: ' . (is_array($saved) ? 'ARRAY com ' . count($saved) . ' keys' : 'NAO_ARRAY'));
+			if (is_array($saved) && isset($saved['raw']) && is_array($saved['raw'])) {
+				error_log('[CTWPML] save_address_payload - raw keys salvos: ' . print_r(array_keys($saved['raw']), true));
+			}
+			$saved_map = get_user_meta($user_id, CTWPML_ADDRESS_PAYLOAD_BY_ADDRESS_META_KEY, true);
+			error_log('[CTWPML] save_address_payload - Verificação pós-save (map): ' . (is_array($saved_map) ? 'OK keys=' . count($saved_map) : 'NAO_ARRAY'));
+			if (is_array($saved_map) && isset($saved_map[$address_id])) {
+				error_log('[CTWPML] save_address_payload - Map contém address_id=' . $address_id);
+			}
 		}
 	}
 
@@ -599,28 +774,24 @@ add_action('wp_ajax_ctwpml_save_address_payload', function () {
 	]);
 });
 
+add_action('wp_ajax_nopriv_ctwpml_save_address_payload', function () {
+	do_action('wp_ajax_ctwpml_save_address_payload');
+});
+
 /**
  * Endpoint AJAX para recuperar opções de frete do payload salvo.
  * Usado pela tela "Escolha quando sua compra chegará".
  */
-add_action('wp_ajax_ctwpml_get_shipping_options', function () {
+function ctwpml_handle_get_shipping_options() {
 	$is_debug = function_exists('checkout_tabs_wp_ml_is_debug_enabled') && checkout_tabs_wp_ml_is_debug_enabled();
 
 	if ($is_debug) {
 		error_log('[CTWPML] get_shipping_options - INICIANDO');
 	}
 
-	if (!is_user_logged_in()) {
-		if ($is_debug) {
-			error_log('[CTWPML] get_shipping_options - ERRO: Usuário não logado');
-		}
-		wp_send_json_error(['message' => 'Usuário não autenticado.']);
-		return;
-	}
-
 	check_ajax_referer('ctwpml_shipping_options', '_ajax_nonce');
 
-	$user_id = get_current_user_id();
+	$user_id = is_user_logged_in() ? get_current_user_id() : 0;
 
 	$address_id = isset($_POST['address_id']) ? sanitize_text_field((string) wp_unslash($_POST['address_id'])) : '';
 	if ($address_id === '') {
@@ -636,11 +807,11 @@ add_action('wp_ajax_ctwpml_get_shipping_options', function () {
 		error_log('[CTWPML] get_shipping_options - Address ID: ' . $address_id);
 	}
 
-	$map = ctwpml_address_payload_map_get($user_id);
+	$map = $user_id > 0 ? ctwpml_address_payload_map_get($user_id) : ctwpml_guest_address_payload_map_get();
 	$payload = isset($map[$address_id]) && is_array($map[$address_id]) ? $map[$address_id] : null;
 
 	// Migração/fallback: se não existe para este address_id mas existe o antigo global, copia uma vez.
-	if (empty($payload) || !is_array($payload)) {
+	if (($user_id > 0) && (empty($payload) || !is_array($payload))) {
 		$legacy = get_user_meta($user_id, CTWPML_ADDRESS_PAYLOAD_META_KEY, true);
 		if (is_array($legacy) && !empty($legacy)) {
 			$map[$address_id] = $legacy;
@@ -761,25 +932,20 @@ add_action('wp_ajax_ctwpml_get_shipping_options', function () {
 		'captured_at' => $payload['captured_at'] ?? '',
 		'address_id'  => $address_id,
 	]);
-});
+}
+
+add_action('wp_ajax_ctwpml_get_shipping_options', 'ctwpml_handle_get_shipping_options');
+add_action('wp_ajax_nopriv_ctwpml_get_shipping_options', 'ctwpml_handle_get_shipping_options');
 
 /**
  * Endpoint AJAX para definir o método de frete selecionado.
  * Salva na sessão do WooCommerce e força recálculo.
  */
-add_action('wp_ajax_ctwpml_set_shipping_method', function () {
+function ctwpml_handle_set_shipping_method() {
 	$is_debug = function_exists('checkout_tabs_wp_ml_is_debug_enabled') && checkout_tabs_wp_ml_is_debug_enabled();
 
 	if ($is_debug) {
 		error_log('[CTWPML] set_shipping_method - INICIANDO');
-	}
-
-	if (!is_user_logged_in()) {
-		if ($is_debug) {
-			error_log('[CTWPML] set_shipping_method - ERRO: Usuário não logado');
-		}
-		wp_send_json_error(['message' => 'Usuário não autenticado.']);
-		return;
 	}
 
 	check_ajax_referer('ctwpml_set_shipping', '_ajax_nonce');
@@ -851,10 +1017,10 @@ add_action('wp_ajax_ctwpml_set_shipping_method', function () {
 		return;
 	}
 
-	$user_id = get_current_user_id();
+	$user_id = is_user_logged_in() ? get_current_user_id() : 0;
 	if ($address_id === '') {
 		// Fallback: usa o endereço selecionado persistido no user_meta.
-		$address_id = ctwpml_addresses_get_selected_id($user_id);
+		$address_id = $user_id > 0 ? ctwpml_addresses_get_selected_id($user_id) : ctwpml_guest_get_selected_id();
 	}
 
 	// 0) Sincroniza webhook_shipping na sessão ANTES do cálculo de rates/totals.
@@ -1060,15 +1226,89 @@ add_action('wp_ajax_ctwpml_set_shipping_method', function () {
 	}
 
 	wp_send_json_success($response);
-});
+}
+
+add_action('wp_ajax_ctwpml_set_shipping_method', 'ctwpml_handle_set_shipping_method');
+add_action('wp_ajax_nopriv_ctwpml_set_shipping_method', 'ctwpml_handle_set_shipping_method');
+
+function ctwpml_apply_contact_meta_to_user(int $user_id, array $input, bool $is_admin = false): array {
+	$whatsapp = isset($input['whatsapp']) ? sanitize_text_field((string) $input['whatsapp']) : '';
+	$phone_full = isset($input['phone_full']) ? sanitize_text_field((string) $input['phone_full']) : '';
+	$country_code = isset($input['country_code']) ? sanitize_text_field((string) $input['country_code']) : '';
+	$dial_code = isset($input['dial_code']) ? sanitize_text_field((string) $input['dial_code']) : '';
+	$cpf = isset($input['cpf']) ? sanitize_text_field((string) $input['cpf']) : '';
+
+	$updated = false;
+
+	if (!empty($whatsapp)) {
+		$whatsapp_digits = preg_replace('/\D/', '', $whatsapp);
+		if (strlen($whatsapp_digits) >= 8 && strlen($whatsapp_digits) <= 15) {
+			update_user_meta($user_id, '_ctwpml_whatsapp', $whatsapp_digits);
+			update_user_meta($user_id, 'billing_cellphone', $whatsapp_digits);
+			$updated = true;
+		}
+	}
+
+	if (!empty($phone_full)) {
+		$pf = trim((string) $phone_full);
+		$pf = preg_replace('/[^\d\+]+/', '', $pf);
+		$pf_digits = preg_replace('/\D+/', '', $pf);
+		if ($pf_digits !== '' && strlen($pf_digits) >= 8 && strlen($pf_digits) <= 15) {
+			$pf = '+' . $pf_digits;
+			update_user_meta($user_id, '_ctwpml_phone_full', $pf);
+			$updated = true;
+		}
+	}
+	if (!empty($country_code)) {
+		$cc = strtoupper(preg_replace('/[^A-Za-z]/', '', (string) $country_code));
+		if ($cc !== '' && strlen($cc) <= 3) {
+			update_user_meta($user_id, '_ctwpml_country_code', $cc);
+			$updated = true;
+		}
+	}
+	if (!empty($dial_code)) {
+		$dc = preg_replace('/[^\d\+]+/', '', (string) $dial_code);
+		$dc_digits = preg_replace('/\D+/', '', $dc);
+		if ($dc_digits !== '' && strlen($dc_digits) <= 4) {
+			update_user_meta($user_id, '_ctwpml_dial_code', '+' . $dc_digits);
+			$updated = true;
+		}
+	}
+
+	$cpf_locked = get_user_meta($user_id, '_ctwpml_cpf_locked', true);
+	if (!empty($cpf) && (!$cpf_locked || $is_admin)) {
+		$cpf_digits = preg_replace('/\D/', '', $cpf);
+		if (strlen($cpf_digits) === 11) {
+			update_user_meta($user_id, '_ctwpml_cpf', $cpf_digits);
+			update_user_meta($user_id, 'billing_cpf', $cpf_digits);
+			if (!$cpf_locked) {
+				update_user_meta($user_id, '_ctwpml_cpf_locked', '1');
+				$cpf_locked = '1';
+			}
+			$updated = true;
+		}
+	}
+
+	return [
+		'updated' => $updated,
+		'cpf_locked' => (bool) $cpf_locked,
+	];
+}
 
 // Obter dados de contato (WhatsApp e CPF) do usuário
 add_action('wp_ajax_ctwpml_get_contact_meta', function (): void {
 	error_log('[CTWPML] get_contact_meta - INICIANDO');
 
 	if (!is_user_logged_in()) {
-		error_log('[CTWPML] get_contact_meta - ERRO: Usuário não logado');
-		wp_send_json_error(['message' => 'Usuário não autenticado']);
+		$guest = ctwpml_guest_contact_meta_get();
+		wp_send_json_success([
+			'whatsapp' => $guest['whatsapp'] ?? '',
+			'phone_full' => $guest['phone_full'] ?? '',
+			'country_code' => $guest['country_code'] ?? '',
+			'dial_code' => $guest['dial_code'] ?? '',
+			'cpf' => $guest['cpf'] ?? '',
+			'cpf_locked' => false,
+		]);
 		return;
 	}
 
@@ -1127,104 +1367,48 @@ add_action('wp_ajax_ctwpml_save_contact_meta', function (): void {
 	error_log('[CTWPML] save_contact_meta - INICIANDO');
 
 	if (!is_user_logged_in()) {
-		error_log('[CTWPML] save_contact_meta - ERRO: Usuário não logado');
-		wp_send_json_error(['message' => 'Usuário não autenticado']);
+		$guest = [
+			'whatsapp' => isset($_POST['whatsapp']) ? sanitize_text_field((string) $_POST['whatsapp']) : '',
+			'phone_full' => isset($_POST['phone_full']) ? sanitize_text_field((string) $_POST['phone_full']) : '',
+			'country_code' => isset($_POST['country_code']) ? sanitize_text_field((string) $_POST['country_code']) : '',
+			'dial_code' => isset($_POST['dial_code']) ? sanitize_text_field((string) $_POST['dial_code']) : '',
+			'cpf' => isset($_POST['cpf']) ? sanitize_text_field((string) $_POST['cpf']) : '',
+		];
+		ctwpml_guest_contact_meta_set($guest);
+		wp_send_json_success([
+			'message' => 'Dados processados',
+			'updated' => true,
+			'cpf_locked' => false,
+		]);
 		return;
 	}
 
 	$user_id = get_current_user_id();
 	error_log('[CTWPML] save_contact_meta - User ID: ' . $user_id);
 
-	$whatsapp = isset($_POST['whatsapp']) ? sanitize_text_field((string) $_POST['whatsapp']) : '';
-	$phone_full = isset($_POST['phone_full']) ? sanitize_text_field((string) $_POST['phone_full']) : '';
-	$country_code = isset($_POST['country_code']) ? sanitize_text_field((string) $_POST['country_code']) : '';
-	$dial_code = isset($_POST['dial_code']) ? sanitize_text_field((string) $_POST['dial_code']) : '';
-	$cpf = isset($_POST['cpf']) ? sanitize_text_field((string) $_POST['cpf']) : '';
-
-	error_log('[CTWPML] save_contact_meta - WhatsApp recebido: ' . $whatsapp);
-	error_log('[CTWPML] save_contact_meta - phone_full recebido: ' . $phone_full);
-	error_log('[CTWPML] save_contact_meta - country_code recebido: ' . $country_code);
-	error_log('[CTWPML] save_contact_meta - dial_code recebido: ' . $dial_code);
-	error_log('[CTWPML] save_contact_meta - CPF recebido: ' . $cpf);
-
-	$updated = false;
-
-	// Salvar WhatsApp
-	if (!empty($whatsapp)) {
-		$whatsapp_digits = preg_replace('/\D/', '', $whatsapp);
-		// v2.0 [2.3]: permitir internacional (E.164 tem até 15 dígitos)
-		if (strlen($whatsapp_digits) >= 8 && strlen($whatsapp_digits) <= 15) {
-			update_user_meta($user_id, '_ctwpml_whatsapp', $whatsapp_digits);
-			update_user_meta($user_id, 'billing_cellphone', $whatsapp_digits);
-			error_log('[CTWPML] save_contact_meta - WhatsApp salvo: ' . $whatsapp_digits);
-			$updated = true;
-		} else {
-			error_log('[CTWPML] save_contact_meta - WhatsApp inválido: ' . $whatsapp_digits);
-		}
-	}
-
-	// v2.0 [2.3]: Salvar telefone completo (E.164) e metadados (opcionais)
-	if (!empty($phone_full)) {
-		$pf = trim((string) $phone_full);
-		// Normaliza: mantém apenas + e dígitos
-		$pf = preg_replace('/[^\d\+]+/', '', $pf);
-		$pf_digits = preg_replace('/\D+/', '', $pf);
-		if ($pf_digits !== '' && strlen($pf_digits) >= 8 && strlen($pf_digits) <= 15) {
-			$pf = '+' . $pf_digits;
-			update_user_meta($user_id, '_ctwpml_phone_full', $pf);
-			error_log('[CTWPML] save_contact_meta - phone_full salvo: ' . $pf);
-			$updated = true;
-		} else {
-			error_log('[CTWPML] save_contact_meta - phone_full inválido: ' . $pf);
-		}
-	}
-	if (!empty($country_code)) {
-		$cc = strtoupper(preg_replace('/[^A-Za-z]/', '', (string) $country_code));
-		if ($cc !== '' && strlen($cc) <= 3) {
-			update_user_meta($user_id, '_ctwpml_country_code', $cc);
-			$updated = true;
-		}
-	}
-	if (!empty($dial_code)) {
-		$dc = preg_replace('/[^\d\+]+/', '', (string) $dial_code);
-		$dc_digits = preg_replace('/\D+/', '', $dc);
-		if ($dc_digits !== '' && strlen($dc_digits) <= 4) {
-			update_user_meta($user_id, '_ctwpml_dial_code', '+' . $dc_digits);
-			$updated = true;
-		}
-	}
-
-	// CPF: verificar se já está travado
-	$cpf_locked = get_user_meta($user_id, '_ctwpml_cpf_locked', true);
+	$payload = [
+		'whatsapp' => isset($_POST['whatsapp']) ? sanitize_text_field((string) $_POST['whatsapp']) : '',
+		'phone_full' => isset($_POST['phone_full']) ? sanitize_text_field((string) $_POST['phone_full']) : '',
+		'country_code' => isset($_POST['country_code']) ? sanitize_text_field((string) $_POST['country_code']) : '',
+		'dial_code' => isset($_POST['dial_code']) ? sanitize_text_field((string) $_POST['dial_code']) : '',
+		'cpf' => isset($_POST['cpf']) ? sanitize_text_field((string) $_POST['cpf']) : '',
+	];
 	$is_admin = current_user_can('manage_woocommerce');
-
-	if (!empty($cpf) && (!$cpf_locked || $is_admin)) {
-		$cpf_digits = preg_replace('/\D/', '', $cpf);
-		if (strlen($cpf_digits) === 11) {
-			update_user_meta($user_id, '_ctwpml_cpf', $cpf_digits);
-			update_user_meta($user_id, 'billing_cpf', $cpf_digits);
-			
-			if (!$cpf_locked) {
-				update_user_meta($user_id, '_ctwpml_cpf_locked', '1');
-				$cpf_locked = '1';
-				error_log('[CTWPML] save_contact_meta - CPF salvo e travado: ' . $cpf_digits);
-			} else {
-				error_log('[CTWPML] save_contact_meta - CPF atualizado por admin: ' . $cpf_digits);
-			}
-			$updated = true;
-		} else {
-			error_log('[CTWPML] save_contact_meta - CPF inválido: ' . $cpf_digits);
-		}
-	} elseif (!empty($cpf) && $cpf_locked && !$is_admin) {
-		error_log('[CTWPML] save_contact_meta - Tentativa de alterar CPF travado negada');
-		// Não retornamos erro aqui para não travar o salvamento do endereço que vem depois
-	}
+	$res = ctwpml_apply_contact_meta_to_user($user_id, $payload, $is_admin);
 
 	wp_send_json_success([
 		'message' => 'Dados processados',
-		'updated' => $updated,
-		'cpf_locked' => (bool) $cpf_locked
+		'updated' => (bool) $res['updated'],
+		'cpf_locked' => (bool) $res['cpf_locked'],
 	]);
+});
+
+add_action('wp_ajax_nopriv_ctwpml_get_contact_meta', function () {
+	do_action('wp_ajax_ctwpml_get_contact_meta');
+});
+
+add_action('wp_ajax_nopriv_ctwpml_save_contact_meta', function () {
+	do_action('wp_ajax_ctwpml_save_contact_meta');
 });
 
 

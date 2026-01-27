@@ -12,9 +12,16 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 ## [Unreleased]
 
 ### Changed
-- **Versão atual**: v3.2.86  
+- **Versão atual**: v3.2.87  
   **Versão sugerida após a mudança**: vX.Y.Z  
   **Descrição**: texto objetivo do que mudou e impacto (pode listar itens separados por ponto e vírgula).
+
+## [v3.2.87] - 2026-01-27
+
+### Changed
+- checkout com login tardio: sessão guest para endereços/contato/frete, validação de e-mail no CTA e migração após login/criação; shortcode CEP com proxy dedicado, tabela de resultados e botão “Calcular”; toggle admin para geolocalização e endpoint REST de CEP; documentos de intenção técnica da etapa 1 e 2 adicionados na raiz.
+
+#### Protocol: 7ccaf4b
 
 ## [v3.2.86] - 2026-01-21
 

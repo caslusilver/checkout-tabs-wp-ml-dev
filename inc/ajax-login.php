@@ -87,6 +87,10 @@ function checkout_tabs_wp_ml_ajax_login(): void {
 		return;
 	}
 
+	if ($user instanceof WP_User && function_exists('ctwpml_migrate_guest_data_to_user')) {
+		ctwpml_migrate_guest_data_to_user((int) $user->ID);
+	}
+
 	wp_send_json_success([
 		'message' => 'Login realizado com sucesso.',
 		'user_email' => $user->user_email,

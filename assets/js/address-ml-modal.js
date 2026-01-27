@@ -250,10 +250,10 @@
         if (typeof state.checkpoint === 'function') state.checkpoint('CHK_VIEW_RESTORE', true, { restored: false, reason: 'no_state' });
         return;
       }
-      // Só tenta restaurar se estivermos na página de checkout (form do Woo presente) e logado.
+      // Só tenta restaurar se estivermos na página de checkout (form do Woo presente).
       var hasCheckoutForm = !!document.querySelector('form.checkout, form.woocommerce-checkout');
-      if (!hasCheckoutForm || !isLoggedIn()) {
-        if (typeof state.checkpoint === 'function') state.checkpoint('CHK_VIEW_RESTORE', false, { restored: false, reason: 'not_checkout_or_not_logged', hasCheckoutForm: hasCheckoutForm, isLoggedIn: isLoggedIn() });
+      if (!hasCheckoutForm) {
+        if (typeof state.checkpoint === 'function') state.checkpoint('CHK_VIEW_RESTORE', false, { restored: false, reason: 'not_checkout', hasCheckoutForm: hasCheckoutForm });
         return;
       }
       restoreStateOnOpen = s;
@@ -644,9 +644,16 @@
       }
     }
 
-    function showAuthView() {
+    function showAuthView(opts) {
+      opts = opts || {};
       currentView = 'auth';
-      try { persistModalState({ view: 'auth' }); } catch (e0) {}
+      try {
+        if (opts.preserveView) {
+          persistModalState({ view: String(opts.returnView || 'review'), pendingAuth: true });
+        } else {
+          persistModalState({ view: 'auth' });
+        }
+      } catch (e0) {}
       $('#ctwpml-modal-title').text('Entrar');
       $('#ctwpml-view-initial').hide();
       $('#ctwpml-view-list').hide();
@@ -2427,7 +2434,6 @@
     }
 
     function loadContactMeta(callback) {
-      if (!isLoggedIn()) return;
 
       state.log('UI        Carregando dados de contato do perfil...', {}, 'UI');
 
@@ -2515,11 +2521,6 @@
       } else {
         opts = optionsOrCallback && typeof optionsOrCallback === 'object' ? optionsOrCallback : {};
         callback = typeof maybeCallback === 'function' ? maybeCallback : null;
-      }
-
-      if (!isLoggedIn()) {
-        if (callback) callback();
-        return;
       }
 
       // v2.0 [2.3] (novo formato): o valor fonte da verdade é #ctwpml-phone-full
@@ -2901,14 +2902,6 @@
     function openModal() {
       state.log('UI        [DEBUG] openModal() chamado', { isLoggedIn: isLoggedIn() }, 'UI');
       console.log('[CTWPML][DEBUG] openModal() - isLoggedIn:', isLoggedIn());
-
-      if (!isLoggedIn()) {
-        ensureModal();
-        $('#ctwpml-address-modal-overlay').show();
-        try { $('body').addClass('ctwpml-ml-open').css('overflow', 'hidden'); } catch (e0) {}
-        showAuthView();
-        return;
-      }
 
       ensureModal();
       // Garantir que o checkout Woo tenha um campo de bairro, mesmo quando o tema/plugin não renderiza.
@@ -4114,11 +4107,6 @@
         });
         return;
       }
-      if (!isLoggedIn()) {
-        log('persistAddressPayload() - ABORTADO: usuário não logado');
-        return;
-      }
-
       var normalized = normalizeApiPayload(raw);
 
       // DEBUG: Mostrar campos de frete especificamente
@@ -4704,7 +4692,6 @@
     }
 
     function ensureEntryPointButton() {
-      if (!isLoggedIn()) return;
       if (!$('#tab-cep').length) return;
       if ($('#ctwpml-open-address-modal').length) return;
       $('#tab-cep').prepend(
@@ -5897,6 +5884,72 @@
         showNotification('Selecione uma forma de pagamento para continuar.', 'error', 3500);
         if (typeof state.checkpoint === 'function') state.checkpoint('CHK_CTA_SUBMIT', false, { reason: 'no_gateway' });
         return;
+      }
+
+      function getBillingEmail() {
+        try {
+          var email = ($('#billing_email').val() || '').trim().toLowerCase();
+          if (email) return email;
+        } catch (e0) {}
+        try {
+          return (state.params && state.params.user_email) ? String(state.params.user_email).trim().toLowerCase() : '';
+        } catch (e1) {}
+        return '';
+      }
+
+      function isValidEmail(email) {
+        return !!(email && email.indexOf('@') > 0 && email.indexOf('.') > 0);
+      }
+
+      if (!isLoggedIn()) {
+        if (!state.skipAuthCheckOnce) {
+          var emailToCheck = getBillingEmail();
+          if (!isValidEmail(emailToCheck)) {
+            showNotification('Informe um e-mail válido para continuar.', 'error', 4000);
+            var $emailBox = $('#ctwpml-review-errors');
+            if ($emailBox.length) {
+              $emailBox.text('Informe um e-mail válido para continuar.').show();
+            }
+            return;
+          }
+          if (!state.params || !state.params.ajax_url || !state.params.check_email_nonce) {
+            showNotification('Não foi possível validar o e-mail. Recarregue a página.', 'error', 4000);
+            return;
+          }
+
+          var $ctaAuth = $('#ctwpml-review-confirm, #ctwpml-review-confirm-sticky');
+          $ctaAuth.prop('disabled', true).css('opacity', '0.7');
+          showModalSpinner();
+          $.ajax({
+            url: state.params.ajax_url,
+            type: 'POST',
+            dataType: 'json',
+            data: {
+              action: 'ctwpml_check_email',
+              _ajax_nonce: state.params.check_email_nonce,
+              email: emailToCheck,
+            },
+            success: function (resp) {
+              hideModalSpinner();
+              $ctaAuth.prop('disabled', false).css('opacity', '');
+              if (resp && resp.success && resp.data && resp.data.exists) {
+                showAuthView({ preserveView: true, returnView: 'review' });
+                return;
+              }
+              state.skipAuthCheckOnce = true;
+              setTimeout(function () {
+                $ctaAuth.first().trigger('click');
+              }, 50);
+            },
+            error: function () {
+              hideModalSpinner();
+              $ctaAuth.prop('disabled', false).css('opacity', '');
+              showNotification('Não foi possível validar o e-mail. Tente novamente.', 'error', 4000);
+            },
+          });
+          return;
+        }
+        state.skipAuthCheckOnce = false;
       }
 
       // v2.0 [2.2]: overlay de preparação ao tentar finalizar compra (intenção de compra).

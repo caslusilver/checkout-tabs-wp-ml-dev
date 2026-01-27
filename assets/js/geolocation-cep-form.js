@@ -41,6 +41,7 @@
   }
 
   function normalizeApiResponse(data) {
+    if (data && data.data) data = data.data;
     // O webhook pode retornar array com 1 item. Manter compatibilidade.
     if (Array.isArray(data)) return data.length ? data[0] : null;
     if (data && typeof data === 'object') return data;
@@ -182,19 +183,30 @@
     if (!el) return;
     var methods = buildMethods(data);
     if (methods && methods.length) {
-      var html2 = '<div class="ctwpml-cep-methods">';
+      var html2 = '' +
+        '<div class="ctwpml-cep-table-wrapper">' +
+        '<table class="ctwpml-cep-table" role="table">' +
+        '  <thead>' +
+        '    <tr>' +
+        '      <th>Método</th>' +
+        '      <th>Prazo</th>' +
+        '      <th>Preço</th>' +
+        '    </tr>' +
+        '  </thead>' +
+        '  <tbody>';
       for (var i = 0; i < methods.length; i++) {
         var m = methods[i];
         html2 += '' +
-          '<div class="ctwpml-cep-method ctwpml-cep-method--' + m.type + '">' +
-          '  <div class="ctwpml-cep-method-top">' +
-          '    <strong class="ctwpml-cep-method-name">' + m.label + '</strong>' +
-          (m.priceText ? ('<span class="ctwpml-cep-method-price">' + m.priceText + '</span>') : '') +
-          '  </div>' +
-          (m.deadlineText ? ('<div class="ctwpml-cep-method-bottom"><span class="ctwpml-cep-method-deadline">Prazo: <strong>' + m.deadlineText + '</strong></span></div>') : '') +
-          '</div>';
+          '<tr class="ctwpml-cep-row-method ctwpml-cep-row-method--' + m.type + '">' +
+          '  <td>' + m.label + '</td>' +
+          '  <td>' + (m.deadlineText || '—') + '</td>' +
+          '  <td>' + (m.priceText || '—') + '</td>' +
+          '</tr>';
       }
-      html2 += '</div>';
+      html2 += '' +
+        '  </tbody>' +
+        '</table>' +
+        '</div>';
       el.innerHTML = html2;
       el.style.display = 'block';
       return;
@@ -325,7 +337,7 @@
     }
 
     button.setAttribute('data-original-text', button.querySelector('.ctwpml-cep-button-text').textContent || 'Consultar frete');
-    button.setAttribute('data-loading-text', 'Consultando...');
+    button.setAttribute('data-loading-text', 'Calculando...');
 
     input.addEventListener('input', function () {
       var clean = normalizeCep(input.value);

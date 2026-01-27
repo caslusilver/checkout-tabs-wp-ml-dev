@@ -39,11 +39,23 @@
     }
   }
 
-  function writeSessionCache(data) {
+  function normalizeCachePayload(payload) {
+    if (!payload) return null;
+    if (payload && typeof payload === 'object' && typeof payload.data !== 'undefined') {
+      return payload;
+    }
+    return { data: payload, meta: {}, storedAt: Date.now() };
+  }
+
+  function writeSessionCache(payload) {
     try {
       if (!window.sessionStorage) return;
-      sessionStorage.setItem(CACHE_KEY, JSON.stringify(data));
+      sessionStorage.setItem(CACHE_KEY, JSON.stringify(payload));
     } catch (e) { }
+  }
+
+  function getSessionCache() {
+    return normalizeCachePayload(readSessionCache());
   }
 
   function persistContract(data) {
@@ -142,16 +154,16 @@
   }
 
   function ensureDataFromSessionCache() {
-    var cached = readSessionCache();
-    if (!cached) return false;
+    var cached = getSessionCache();
+    if (!cached || !cached.data) return false;
     log('cache hit (sessionStorage)');
-    persistContract(cached);
+    persistContract(cached.data);
     return true;
   }
 
   function requestAndFetch() {
     // Garantir 1 chamada por sessão
-    if (ensureDataFromSessionCache()) return Promise.resolve(readSessionCache());
+    if (ensureDataFromSessionCache()) return Promise.resolve(getSessionCache());
 
     return requestCoords()
       .then(function (pos) {
@@ -161,15 +173,77 @@
         return fetchProxy(lat, lon);
       })
       .then(function (data) {
-        writeSessionCache(data);
+        var payload = { data: data, meta: { event: 'geolocation' }, storedAt: Date.now() };
+        writeSessionCache(payload);
         persistContract(data);
-        return data;
+        return payload;
       });
+  }
+
+  function getCepRestUrl() {
+    try {
+      var cepParams = window.CTWPMLCepParams || {};
+      if (cepParams && typeof cepParams.rest_url === 'string' && cepParams.rest_url) {
+        return cepParams.rest_url;
+      }
+    } catch (e) { }
+    return getRestUrl();
+  }
+
+  function fetchProxyByCep(cep) {
+    var payload = {
+      cep: String(cep || ''),
+      version: '1.0',
+      event: 'cep',
+    };
+
+    var url = getCepRestUrl();
+    log('fetch(cep) ->', url, payload);
+
+    return fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    }).then(function (resp) {
+      if (!resp.ok) {
+        return resp
+          .json()
+          .then(function (err) {
+            throw new Error((err && err.message) || 'Erro no proxy CEP');
+          })
+          .catch(function () {
+            return resp.text().then(function (txt) {
+              throw new Error(txt || 'Erro no proxy CEP');
+            });
+          });
+      }
+      return resp.json();
+    });
+  }
+
+  function requestAndFetchByCep(cep) {
+    var clean = String(cep || '').replace(/\D/g, '').slice(0, 8);
+    if (clean.length !== 8) return Promise.reject(new Error('CEP inválido.'));
+
+    var cached = getSessionCache();
+    if (cached && cached.meta && cached.meta.cep === clean && cached.data) {
+      persistContract(cached.data);
+      return Promise.resolve(cached);
+    }
+
+    return fetchProxyByCep(clean).then(function (data) {
+      var payload = { data: data, meta: { event: 'cep', cep: clean }, storedAt: Date.now() };
+      writeSessionCache(payload);
+      persistContract(data);
+      return payload;
+    });
   }
 
   window.CTWPMLGeo = window.CTWPMLGeo || {};
   window.CTWPMLGeo.ensureSessionCache = ensureDataFromSessionCache;
   window.CTWPMLGeo.requestAndFetch = requestAndFetch;
+  window.CTWPMLGeo.requestAndFetchByCep = requestAndFetchByCep;
+  window.CTWPMLGeo.getSessionCache = getSessionCache;
   window.CTWPMLGeo.getRestUrl = getRestUrl;
 })(window);
 

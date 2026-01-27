@@ -1,0 +1,84 @@
+DOCUMENTO DE INTENCAO TECNICA
+PLANO DE MELHORIA PROGRESSIVA DO CHECKOUT E CONSULTA DE FRETE
+ETAPA 1 — LOGIN TARDIO + LOADING STATES CONSISTENTES
+
+VERSAO / RELEASE
+- Esta etapa deve gerar uma nova versao (commit/tag/release).
+- Esta etapa e aditiva e nao remove funcionalidades existentes.
+
+CONTEXTO E PREMISSAS
+- O checkout atualmente exige login antes de abrir o modal de frete, o que cria friccao.
+- A etapa 1 remove a obrigatoriedade de login no inicio e desloca a validacao para a confirmacao do pedido.
+- O comportamento atual deve ser preservado para usuarios logados.
+- Toda alteracao deve ser protegida por toggles quando possivel.
+- Os dados preenchidos nao podem ser perdidos em nenhum fluxo.
+
+OBJETIVO PRINCIPAL
+- Permitir que o usuario nao logado inicie e avance no checkout normalmente.
+- Solicitar login apenas no momento da finalizacao do pedido (quando aplicavel).
+- Uniformizar feedback visual de carregamento em transicoes lentas.
+
+LOGS ANALISADOS (REFERENCIA)
+- Arquivos:
+  - C:\Users\Dell\Downloads\logs de contexto atual para avaliacao de velocidade entre as abas redes moveisi.txt
+  - C:\Users\Dell\Downloads\logs de contexto atual para avaliacao de velocidade entre as abas wifi.txt
+- Observacao: ambos os arquivos possuem o mesmo conteudo e tempos.
+
+TRECHOS RELEVANTES (EXCERTOS)
+[20:20:47] UI openModal() chamado Total time = 2808ms
+[20:20:48] UI PREPARE Preparacao inicial falhou (seguindo sem bloquear) Total time = 3659ms
+[20:21:08] UI loadAddresses() - iniciando AJAX Total time = 2379ms
+[20:21:10] UI loadAddresses() - resposta recebida Total time = 4634ms
+[20:21:11] SHIPPING showShippingPlaceholder() - INICIANDO
+[20:21:15] SHIPPING showShippingPlaceholder() - Opcoes encontradas: 2
+[20:21:26] CTA wc-ajax=checkout iniciado
+[20:21:35] CTA wc-ajax=checkout finalizado
+
+CONCLUSOES A PARTIR DOS LOGS
+- Transicoes iniciais e carregamento de enderecos chegam a 2.8s–4.6s.
+- Carregamento de frete pode levar ~3–4s.
+- Finalizacao (wc-ajax=checkout) pode durar ~8–9s.
+- Ha momentos com latencia suficiente para causar cliques repetidos e ansiedade.
+
+DEFINICAO DE LIMIARES (BASEADO EM LOGS)
+- Loading simples: 1200ms a 3000ms.
+- Loading complexo: acima de 3000ms ou quando ha validacao critica (checkout/finalizacao).
+- Estes valores devem ser revisados ao final da etapa com novos logs.
+
+ESCOPO FUNCIONAL — LOGIN
+1) Remover obrigatoriedade de login para iniciar o checkout.
+2) Usuario nao logado pode:
+   - Acessar o carrinho e abrir o modal.
+   - Preencher dados pessoais e endereco.
+   - Avancar entre etapas.
+3) Campo e-mail:
+   - Obrigatorio para nao logados.
+   - Pre-preenchido para logados.
+4) Validacao ao confirmar pedido:
+   - Se email nao existir: criar conta automaticamente, associar pedido, salvar dados.
+   - Se email existir: exibir tela de login existente e, apos sucesso, associar pedido e persistir dados.
+
+PERSISTENCIA DE DADOS
+- Para usuarios nao logados, dados sao mantidos em sessao (WooCommerce/sessionStorage).
+- Apos login/criacao de conta, dados sao migrados para user_meta.
+- Nenhuma informacao preenchida deve ser perdida durante transicoes.
+
+LOADING STATES E FEEDBACK VISUAL
+- Nunca deixar a tela em branco sem feedback.
+- Spinner simples (azul) para transicoes curtas.
+- Overlay completo com mensagem “Preparando tudo para a sua compra” para operacoes longas.
+- Bloquear cliques durante operacoes async.
+
+CRITERIOS DE VALIDACAO
+- Usuario nao logado completa todas as etapas sem ser interrompido por login.
+- Login so aparece na confirmacao do pedido quando necessario.
+- Dados pessoais e endereco persistem apos login/criacao de conta.
+- Spinners aparecem em todos os pontos com latencia significativa.
+- Nenhuma regressao para usuarios logados.
+
+ROLLBACK
+- Todas as alteracoes devem ser aditivas e protegidas por toggles quando possivel.
+- Em caso de problema, desativar a etapa via toggle e publicar release de rollback.
+
+REFERENCIA CANONICA
+- Este documento e imutavel apos criado.
