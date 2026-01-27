@@ -1307,6 +1307,7 @@ add_action('wp_ajax_ctwpml_get_contact_meta', function (): void {
 			'country_code' => $guest['country_code'] ?? '',
 			'dial_code' => $guest['dial_code'] ?? '',
 			'cpf' => $guest['cpf'] ?? '',
+			'email' => $guest['email'] ?? '',
 			'cpf_locked' => false,
 		]);
 		return;
@@ -1344,6 +1345,13 @@ add_action('wp_ajax_ctwpml_get_contact_meta', function (): void {
 	}
 	
 	$cpf_locked = get_user_meta($user_id, '_ctwpml_cpf_locked', true);
+	$email = get_user_meta($user_id, 'billing_email', true);
+	if (empty($email)) {
+		$user = get_userdata($user_id);
+		if ($user && !empty($user->user_email)) {
+			$email = (string) $user->user_email;
+		}
+	}
 
 	error_log('[CTWPML] get_contact_meta - WhatsApp: ' . $whatsapp);
 	error_log('[CTWPML] get_contact_meta - phone_full: ' . $phone_full);
@@ -1358,6 +1366,7 @@ add_action('wp_ajax_ctwpml_get_contact_meta', function (): void {
 		'country_code' => $country_code ?: '',
 		'dial_code' => $dial_code ?: '',
 		'cpf' => $cpf ?: '',
+		'email' => $email ? sanitize_email((string) $email) : '',
 		'cpf_locked' => (bool) $cpf_locked,
 	]);
 });
@@ -1367,12 +1376,17 @@ add_action('wp_ajax_ctwpml_save_contact_meta', function (): void {
 	error_log('[CTWPML] save_contact_meta - INICIANDO');
 
 	if (!is_user_logged_in()) {
+		$email = isset($_POST['email']) ? sanitize_email((string) $_POST['email']) : '';
+		if (!empty($email) && !is_email($email)) {
+			$email = '';
+		}
 		$guest = [
 			'whatsapp' => isset($_POST['whatsapp']) ? sanitize_text_field((string) $_POST['whatsapp']) : '',
 			'phone_full' => isset($_POST['phone_full']) ? sanitize_text_field((string) $_POST['phone_full']) : '',
 			'country_code' => isset($_POST['country_code']) ? sanitize_text_field((string) $_POST['country_code']) : '',
 			'dial_code' => isset($_POST['dial_code']) ? sanitize_text_field((string) $_POST['dial_code']) : '',
 			'cpf' => isset($_POST['cpf']) ? sanitize_text_field((string) $_POST['cpf']) : '',
+			'email' => $email,
 		];
 		ctwpml_guest_contact_meta_set($guest);
 		wp_send_json_success([

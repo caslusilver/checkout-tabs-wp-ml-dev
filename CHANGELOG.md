@@ -12,9 +12,16 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 ## [Unreleased]
 
 ### Changed
-- **Versão atual**: v3.2.88  
+- **Versão atual**: v3.2.89  
   **Versão sugerida após a mudança**: vX.Y.Z  
   **Descrição**: texto objetivo do que mudou e impacto (pode listar itens separados por ponto e vírgula).
+
+## [v3.2.89] - 2026-01-27
+
+### Changed
+- persistência de e-mail/contato para guest antes do place_order; confirmação obrigatória de e-mail e bloqueio de avanço sem validação; restauração de contato/e-mail após checkout_error com checkpoints adicionais.
+
+#### Protocol: 3ab51ad
 
 ## [v3.2.88] - 2026-01-27
 

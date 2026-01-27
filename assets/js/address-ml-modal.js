@@ -2489,6 +2489,28 @@
                 $('#ctwpml-generate-cpf-modal').hide();
               }
             }
+            var email = '';
+            try {
+              email = response && response.data && response.data.email ? String(response.data.email).trim() : '';
+            } catch (eEmail) {}
+            if (email) {
+              try {
+                if (!($('#ctwpml-input-email').val() || '').trim()) {
+                  $('#ctwpml-input-email').val(email);
+                }
+                var $billingEmail = ctwpmlBillingField$('#billing_email', 'billing_email');
+                if ($billingEmail.length && !($billingEmail.val() || '').trim()) {
+                  ctwpmlSetFieldValue($billingEmail, email);
+                }
+                if (typeof state.checkpoint === 'function') {
+                  state.checkpoint('CHK_CONTACT_EMAIL_RESTORE', true, { hasEmail: true });
+                }
+              } catch (eEmail2) {}
+            } else {
+              if (typeof state.checkpoint === 'function') {
+                state.checkpoint('CHK_CONTACT_EMAIL_RESTORE', false, { hasEmail: false });
+              }
+            }
             if (typeof callback === 'function') {
               try {
                 callback(response.data);
@@ -2545,14 +2567,20 @@
       }
       var cpfRaw = $('#ctwpml-input-cpf').val() || '';
       var cpfDigits = cpfDigitsOnly(cpfRaw); // Remove formatação
+      var emailInput = ($('#ctwpml-input-email').val() || '').trim();
+      var emailToSave = ctwpmlIsValidEmail(emailInput) ? emailInput : '';
 
       state.log('UI        Salvando dados de contato', { 
         whatsapp: whatsappDigits, 
         phone_full: phoneFull,
         country_code: countryCode,
         dial_code: dialCode,
-        cpf: cpfDigits 
+        cpf: cpfDigits,
+        email_present: !!emailToSave
       }, 'UI');
+      if (typeof state.checkpoint === 'function') {
+        state.checkpoint('CHK_CONTACT_META_SAVE_ATTEMPT', true, { hasEmail: !!emailToSave });
+      }
 
       var spinnerManagedByCaller = !!(opts && opts.spinnerManagedByCaller);
       if (!spinnerManagedByCaller) ctwpmlSpinnerAcquire('save_contact_meta');
@@ -2567,6 +2595,7 @@
           country_code: countryCode,
           dial_code: dialCode,
           cpf: cpfDigits,
+          email: emailToSave,
         },
         success: function (response) {
           if (response && response.success) {
@@ -2574,6 +2603,9 @@
             if (response.data && response.data.cpf_locked) {
               $('#ctwpml-input-cpf').prop('readonly', true);
               $('#ctwpml-generate-cpf-modal').hide();
+            }
+            if (typeof state.checkpoint === 'function') {
+              state.checkpoint('CHK_CONTACT_META_SAVE_OK', true, { hasEmail: !!emailToSave });
             }
             // Feedback de sucesso para contato (somente quando não for fluxo de salvar endereço)
             if (!opts || !opts.silent) {
@@ -2583,6 +2615,9 @@
             var errorMsg = (response && response.data && response.data.message) || 'Erro ao salvar dados de contato';
             showNotification(errorMsg, 'error', 3000);
             state.log('UI        Erro ao salvar dados de contato', response, 'UI');
+            if (typeof state.checkpoint === 'function') {
+              state.checkpoint('CHK_CONTACT_META_SAVE_FAIL', false, { hasEmail: !!emailToSave, reason: 'server_error' });
+            }
           }
           if (callback) callback(response);
         },
@@ -2593,6 +2628,9 @@
             responseText: xhr.responseText 
           }, 'UI');
           showNotification('Erro ao salvar dados. Tente novamente.', 'error', 3000);
+          if (typeof state.checkpoint === 'function') {
+            state.checkpoint('CHK_CONTACT_META_SAVE_FAIL', false, { hasEmail: !!emailToSave, reason: 'ajax_error', status: status });
+          }
           if (callback) callback();
         },
         complete: function () {
@@ -4655,6 +4693,13 @@
       var first = ($('#billing_first_name').val() || '').trim();
       var last = ($('#billing_last_name').val() || '').trim();
       $('#ctwpml-input-nome').val((first + ' ' + last).trim());
+      var emailCheckout = ($('#billing_email').val() || '').trim();
+      if (!emailCheckout) {
+        try {
+          emailCheckout = (state.params && state.params.user_email) ? String(state.params.user_email).trim() : '';
+        } catch (e0) {}
+      }
+      if (emailCheckout) $('#ctwpml-input-email').val(emailCheckout);
       $('#ctwpml-input-fone').val(formatPhone((($('#billing_cellphone').val() || '') || '').trim()));
       syncCpfUiFromCheckout();
 
@@ -5934,22 +5979,83 @@
       }
 
       function isValidEmail(email) {
-        return !!(email && email.indexOf('@') > 0 && email.indexOf('.') > 0);
+        try {
+          return ctwpmlIsValidEmail(email);
+        } catch (e0) {
+          return !!(email && email.indexOf('@') > 0 && email.indexOf('.') > 0);
+        }
+      }
+
+      function ensureGuestEmailConfirmed(email) {
+        var normalized = (email || '').toString().trim().toLowerCase();
+        if (!normalized) return false;
+        if (state.confirmedEmailValue && state.confirmedEmailValue === normalized) {
+          return true;
+        }
+        var ok = window.confirm('Confirme se este e-mail está correto: ' + normalized);
+        if (!ok) {
+          showNotification('Confirme o e-mail para continuar.', 'error', 3500);
+          if (typeof state.checkpoint === 'function') {
+            state.checkpoint('CHK_EMAIL_CONFIRM', false, { email: normalized });
+          }
+          return false;
+        }
+        state.confirmedEmailValue = normalized;
+        if (typeof state.checkpoint === 'function') {
+          state.checkpoint('CHK_EMAIL_CONFIRM', true, { email: normalized });
+        }
+        return true;
+      }
+
+      function persistContactMetaBeforeCheckout(done) {
+        try { showModalSpinner(); } catch (e0) {}
+        saveContactMeta({ silent: true, spinnerManagedByCaller: true }, function (response) {
+          try { hideModalSpinner(); } catch (e1) {}
+          if (!response || !response.success) {
+            showNotification('Não foi possível salvar seus dados. Tente novamente.', 'error', 4000);
+            if (typeof state.checkpoint === 'function') {
+              state.checkpoint('CHK_CONTACT_META_PERSIST_BEFORE_ORDER', false, {});
+            }
+            if (typeof done === 'function') done(false);
+            return;
+          }
+          if (typeof state.checkpoint === 'function') {
+            state.checkpoint('CHK_CONTACT_META_PERSIST_BEFORE_ORDER', true, {});
+          }
+          if (typeof done === 'function') done(true);
+        });
       }
 
       if (!isLoggedIn()) {
-        if (!state.skipAuthCheckOnce) {
-          var emailToCheck = getBillingEmail();
-          if (!isValidEmail(emailToCheck)) {
-            showNotification('Informe um e-mail válido para continuar.', 'error', 4000);
-            var $emailBox = $('#ctwpml-review-errors');
-            if ($emailBox.length) {
-              $emailBox.text('Informe um e-mail válido para continuar.').show();
-            }
-            return;
+        var emailToConfirm = getBillingEmail();
+        if (!isValidEmail(emailToConfirm)) {
+          showNotification('Informe um e-mail válido para continuar.', 'error', 4000);
+          var $emailBox0 = $('#ctwpml-review-errors');
+          if ($emailBox0.length) {
+            $emailBox0.text('Informe um e-mail válido para continuar.').show();
           }
+          if (typeof state.checkpoint === 'function') {
+            state.checkpoint('CHK_EMAIL_REQUIRED_BLOCK', false, { reason: 'invalid_or_empty' });
+          }
+          return;
+        }
+        if (!ensureGuestEmailConfirmed(emailToConfirm)) {
+          if (typeof state.checkpoint === 'function') {
+            state.checkpoint('CHK_EMAIL_REQUIRED_BLOCK', false, { reason: 'not_confirmed' });
+          }
+          return;
+        }
+        try {
+          var $billingEmailSync = ctwpmlBillingField$('#billing_email', 'billing_email');
+          if ($billingEmailSync.length) ctwpmlSetFieldValue($billingEmailSync, emailToConfirm);
+        } catch (eSync0) {}
+        if (!state.skipAuthCheckOnce) {
+          var emailToCheck = emailToConfirm;
           if (!state.params || !state.params.ajax_url || !state.params.check_email_nonce) {
             showNotification('Não foi possível validar o e-mail. Recarregue a página.', 'error', 4000);
+            if (typeof state.checkpoint === 'function') {
+              state.checkpoint('CHK_EMAIL_REQUIRED_BLOCK', false, { reason: 'missing_nonce' });
+            }
             return;
           }
 
@@ -5986,8 +6092,16 @@
           return;
         }
         state.skipAuthCheckOnce = false;
+        persistContactMetaBeforeCheckout(function (ok) {
+          if (!ok) return;
+          proceedToCheckoutSubmit();
+        });
+        return;
       }
 
+      proceedToCheckoutSubmit();
+
+      function proceedToCheckoutSubmit() {
       // v2.0 [2.2]: overlay de preparação ao tentar finalizar compra (intenção de compra).
       // Importante: só mostra após validar termos + gateway para não “piscar” com erro imediato.
       var prep = window.CTWPMLPrepare || null;
@@ -6081,6 +6195,18 @@
               } catch (e3) {}
             }
           }
+          try {
+            loadContactMeta(function (meta) {
+              var email = meta && meta.email ? String(meta.email).trim() : '';
+              if (typeof state.checkpoint === 'function') {
+                state.checkpoint('CHK_CONTACT_RESTORE_AFTER_ERROR', true, { hasEmail: !!email });
+              }
+            });
+          } catch (eR0) {
+            if (typeof state.checkpoint === 'function') {
+              state.checkpoint('CHK_CONTACT_RESTORE_AFTER_ERROR', false, { error: String(eR0) });
+            }
+          }
         } catch (_) {}
       });
 
@@ -6126,6 +6252,7 @@
       // Fallback: jQuery submit
       $('form.checkout, form.woocommerce-checkout').first().trigger('submit');
       log('CTA submit via jQuery trigger(submit)');
+      }
     });
 
     // Checkout Woo: sucesso (AJAX) -> limpar estado do modal e evitar restore em nova compra
@@ -6175,6 +6302,18 @@
           formDirty = true;
           if (state && typeof state.checkpoint === 'function') {
             state.checkpoint('CHK_FORM_DIRTY_ON', true, { fieldId: String(this && this.id ? this.id : '') });
+          }
+        }
+      } catch (e0) {}
+    });
+
+    $(document).on('input change', '#ctwpml-input-email, #billing_email', function () {
+      try {
+        var current = (($(this).val() || '') + '').trim().toLowerCase();
+        if (state.confirmedEmailValue && current !== state.confirmedEmailValue) {
+          state.confirmedEmailValue = '';
+          if (typeof state.checkpoint === 'function') {
+            state.checkpoint('CHK_EMAIL_CONFIRM_RESET', true, { reason: 'email_changed' });
           }
         }
       } catch (e0) {}
