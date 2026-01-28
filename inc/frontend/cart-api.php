@@ -10,15 +10,19 @@ if (!defined('ABSPATH')) {
  * Motivação: evitar dependência do DOM do tema/checkout para extrair imagens.
  * Responde apenas para usuários logados (mesma regra do fluxo de endereços).
  */
-add_action('wp_ajax_ctwpml_get_cart_thumbs', function (): void {
-	if (!is_user_logged_in()) {
-		wp_send_json_error(['message' => 'Usuário não logado'], 401);
-	}
-
+function ctwpml_handle_get_cart_thumbs(): void {
 	check_ajax_referer('ctwpml_cart_thumbs', '_ajax_nonce');
 
-	if (!function_exists('WC') || !WC()->cart) {
+	if (!function_exists('WC') || !WC()) {
 		wp_send_json_error(['message' => 'WooCommerce indisponível'], 500);
+	}
+
+	if (function_exists('wc_load_cart')) {
+		wc_load_cart();
+	}
+
+	if (!WC()->cart) {
+		wp_send_json_error(['message' => 'Carrinho indisponível'], 500);
 	}
 
 	$thumb_urls = [];
@@ -73,5 +77,8 @@ add_action('wp_ajax_ctwpml_get_cart_thumbs', function (): void {
 		'total' => html_entity_decode(wp_strip_all_tags(WC()->cart->get_total()), ENT_QUOTES, 'UTF-8'),
 		'items' => $items,
 	]);
-});
+}
+
+add_action('wp_ajax_ctwpml_get_cart_thumbs', 'ctwpml_handle_get_cart_thumbs');
+add_action('wp_ajax_nopriv_ctwpml_get_cart_thumbs', 'ctwpml_handle_get_cart_thumbs');
 

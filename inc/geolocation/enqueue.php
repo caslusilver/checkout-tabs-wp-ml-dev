@@ -18,67 +18,52 @@ add_action('wp_enqueue_scripts', function () {
 		? checkout_tabs_wp_ml_is_geolocation_enabled()
 		: true;
 
-	wp_enqueue_style(
-		'checkout-tabs-wp-ml-geolocation-permission-modal',
-		CHECKOUT_TABS_WP_ML_URL . 'assets/css/geolocation-permission-modal.css',
-		[],
-		$version
-	);
-
+	// Sempre carregar o consumer (preenche spans a partir do cache/localStorage).
+	// Regra: nunca dispara consulta automática; apenas aplica dados se já existirem.
 	wp_enqueue_script(
-		'checkout-tabs-wp-ml-geolocation-client',
-		CHECKOUT_TABS_WP_ML_URL . 'assets/js/geolocation-client.js',
+		'checkout-tabs-wp-ml-frete-data-consumer',
+		CHECKOUT_TABS_WP_ML_URL . 'assets/js/frete-data-consumer.js',
 		[],
 		$version,
 		true
 	);
-
-	$modal_deps = ['checkout-tabs-wp-ml-geolocation-client'];
 
 	$rest_url = function_exists('get_rest_url') ? get_rest_url(null, 'geolocation/v1/send') : '';
 	$debug = function_exists('checkout_tabs_wp_ml_is_debug_enabled') && checkout_tabs_wp_ml_is_debug_enabled() ? 1 : 0;
 
-	wp_localize_script('checkout-tabs-wp-ml-geolocation-client', 'CTWPMLGeoParams', [
-		'rest_url' => (string) $rest_url,
-		'debug'    => $debug,
-		'geo_enabled' => $geo_enabled ? 1 : 0,
-		'cache_ttl_ms' => 30 * 60 * 1000,
-		'request_timeout_ms' => 12000,
-	]);
-
-	// CEP manual (modal) - carregado quando geolocalização automática estiver desativada.
-	if (!$geo_enabled) {
+	// Geolocalização (popup) só existe quando explicitamente habilitada.
+	// Quando desativada no admin: NÃO enfileira popup, NÃO abre automaticamente, NÃO solicita permissão.
+	if ($geo_enabled) {
+		wp_enqueue_style(
+			'checkout-tabs-wp-ml-geolocation-permission-modal',
+			CHECKOUT_TABS_WP_ML_URL . 'assets/css/geolocation-permission-modal.css',
+			[],
+			$version
+		);
 		wp_enqueue_script(
-			'checkout-tabs-wp-ml-geolocation-cep-form',
-			CHECKOUT_TABS_WP_ML_URL . 'assets/js/geolocation-cep-form.js',
+			'checkout-tabs-wp-ml-geolocation-client',
+			CHECKOUT_TABS_WP_ML_URL . 'assets/js/geolocation-client.js',
+			[],
+			$version,
+			true
+		);
+
+		wp_localize_script('checkout-tabs-wp-ml-geolocation-client', 'CTWPMLGeoParams', [
+			'rest_url' => (string) $rest_url,
+			'debug'    => $debug,
+			'geo_enabled' => 1,
+			'cache_ttl_ms' => 30 * 60 * 1000,
+			'request_timeout_ms' => 12000,
+		]);
+
+		wp_enqueue_script(
+			'checkout-tabs-wp-ml-geolocation-permission-modal',
+			CHECKOUT_TABS_WP_ML_URL . 'assets/js/geolocation-permission-modal.js',
 			['checkout-tabs-wp-ml-geolocation-client'],
 			$version,
 			true
 		);
-		$modal_deps[] = 'checkout-tabs-wp-ml-geolocation-cep-form';
-
-		$icon_url = apply_filters(
-			'checkout_tabs_wp_ml_cep_button_icon_url',
-			CHECKOUT_TABS_WP_ML_URL . 'assets/img/icones/delivery-truck-bolt.svg'
-		);
-
-		wp_localize_script('checkout-tabs-wp-ml-geolocation-cep-form', 'CTWPMLCepParams', [
-			'rest_url' => (string) $rest_url,
-			'debug' => $debug,
-			'geo_enabled' => $geo_enabled ? 1 : 0,
-			'icon_url' => (string) $icon_url,
-			'cache_ttl_ms' => 30 * 60 * 1000,
-			'request_timeout_ms' => 12000,
-		]);
 	}
-
-	wp_enqueue_script(
-		'checkout-tabs-wp-ml-geolocation-permission-modal',
-		CHECKOUT_TABS_WP_ML_URL . 'assets/js/geolocation-permission-modal.js',
-		$modal_deps,
-		$version,
-		true
-	);
 });
 
 

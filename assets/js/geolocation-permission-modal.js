@@ -6,15 +6,13 @@
   var PROMPT_SHOWN_KEY = 'ctwpml_geo_prompt_shown';
   var GEO_ENABLED = String(PARAMS.geo_enabled || '1') === '1';
   var DEBUG_GEO = String(PARAMS.debug || '0') === '1';
+
   function geoLog(msg, data) {
     if (!DEBUG_GEO) return;
     try {
       var prefix = '[CTWPML GEO DEBUG] ';
-      if (data) {
-        console.log(prefix + msg, data);
-      } else {
-        console.log(prefix + msg);
-      }
+      if (data) console.log(prefix + msg, data);
+      else console.log(prefix + msg);
     } catch (e) { }
   }
 
@@ -42,23 +40,13 @@
     overlay.innerHTML =
       '' +
       '<div id="ctwpml-geo-modal" role="dialog" aria-modal="true" aria-label="Permissão de localização">' +
-      '  <h2 id="ctwpml-geo-modal-title">Permita que o site utilize sua localização em tempo real</h2>' +
+      '  <h2 id="ctwpml-geo-modal-title">Você confirma ter mais de 18 anos?</h2>' +
       '  <div class="ctwpml-geo-benefits">' +
-      '    <div class="ctwpml-geo-benefit">' +
-      '      <span class="ctwpml-geo-benefit-icon">🏷️</span>' +
-      '      <p class="ctwpml-geo-benefit-text">Exibimos <strong>preços e prazos de frete exatos</strong> para a sua rua automaticamente.</p>' +
-      '    </div>' +
-      '    <div class="ctwpml-geo-benefit">' +
-      '      <span class="ctwpml-geo-benefit-icon">🏍️</span>' +
-      '      <p class="ctwpml-geo-benefit-text">Ative para verificar se você está na área de <strong>entrega em até 40 minutos</strong> via motoboy (SP).</p>' +
-      '    </div>' +
-      '    <div class="ctwpml-geo-benefit">' +
-      '      <span class="ctwpml-geo-benefit-icon">🇧🇷</span>' +
-      '      <p class="ctwpml-geo-benefit-text"><strong>Enviamos com rapidez para todo o Brasil</strong> via transportadora.</p>' +
-      '    </div>' +
+      '    <p class="ctwpml-geo-benefit-text">🔞 Este site é destinado exclusivamente a maiores de idade.</p>' +
       '  </div>' +
-      '  <button id="ctwpml-geo-allow" type="button">Permitir</button>' +
-      '  <button id="ctwpml-geo-later" type="button">Agora não</button>' +
+      '  <button id="ctwpml-geo-allow" type="button">Confirmo ser MAIOR de 18 anos</button>' +
+      '  <button id="ctwpml-geo-later" type="button">Sou MENOR de 18 anos</button>' +
+      '  <small id="ctwpml-geo-fineprint">Ao confirmar, você autoriza o uso da sua localização em tempo real para exibir preços e prazos de entrega mais precisos conforme sua região.</small>' +
       '  <div id="ctwpml-geo-status" aria-live="polite"></div>' +
       '</div>';
 
@@ -147,8 +135,21 @@
             });
           }
           
-          var msg = (err && err.message) || 'Não foi possível obter sua localização.';
-          setStatus(msg);
+          var msg = (err && err.message) || '';
+          var denied = false;
+          try {
+            if (err && typeof err.code !== 'undefined' && Number(err.code) === 1) denied = true;
+          } catch (e0) {}
+          if (!denied) {
+            denied = (msg || '').toLowerCase().indexOf('denied') !== -1 || (msg || '').toLowerCase().indexOf('permiss') !== -1;
+          }
+          if (denied) {
+            setStatus('');
+            setButtonsDisabled(false);
+            closeModal();
+            return;
+          }
+          setStatus(msg || 'Não foi possível obter sua localização.');
           setButtonsDisabled(false);
         });
     });
@@ -160,10 +161,11 @@
 
   window.CTWPMLGeoPrompt = window.CTWPMLGeoPrompt || {};
   window.CTWPMLGeoPrompt.open = function () {
+    // Quando a feature estiver desativada no admin, nenhum popup deve aparecer.
+    if (!GEO_ENABLED) return;
     bindEventsOnce();
     showModal();
   };
-
   function shouldShowModalViaPermissionsApi() {
     geoLog('Verificando permissions API...');
 
@@ -186,18 +188,16 @@
 
   function init() {
     if (!GEO_ENABLED) {
-      var hasCache = false;
       try {
+        // Quando a geolocalização automática está desativada:
+        // - nunca abrir pop-ups/modais automaticamente
+        // - apenas reaplicar cache existente (se houver)
         if (typeof GEO.ensureSessionCache === 'function') {
-          hasCache = GEO.ensureSessionCache();
+          GEO.ensureSessionCache();
         }
       } catch (e0) { }
-      if (!hasCache && window.CTWPMLCepForm && typeof window.CTWPMLCepForm.openModal === 'function') {
-        window.CTWPMLCepForm.openModal();
-      }
       return;
     }
-
     // Telemetria: inicialização do modal de geolocalização
     if (window.CCTelemetry) {
       window.CCTelemetry.track('1.3-geolocation-debug', 'init-start', {

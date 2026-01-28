@@ -1,0 +1,125 @@
+DOCUMENTO DE INTENCAO TECNICA
+PLANO DE MELHORIA PROGRESSIVA DO CHECKOUT E CONSULTA DE FRETE
+ETAPA 2 — CONSULTA MANUAL DE CEP + TOGGLE GEOLOCALIZACAO
+
+VERSAO / RELEASE
+- Esta etapa deve gerar uma nova versao (commit/tag/release).
+- Esta etapa e aditiva e nao remove funcionalidades existentes.
+
+OBJETIVO PRINCIPAL
+- Reduzir desconfiança eliminando o pedido de geolocalizacao automatica.
+- Permitir consulta de frete via CEP (shortcode).
+- Reutilizar a mesma API de frete, alterando apenas o evento.
+
+TOGGLE ADMINISTRATIVO (ROLLOUT/ROLLBACK)
+- Criar um toggle no painel administrativo para:
+  - Ativar/desativar o popup de geolocalizacao e confirmacao.
+  - Quando desativado, o fluxo depende apenas do formulario de CEP.
+- Deve permitir rollback imediato sem alterar codigo.
+
+SHORTCODE DE CEP (REUTILIZAVEL)
+- Formulario simples:
+  - Campo: “Digite aqui o seu CEP”
+  - Botao: “Calcular”
+- Layout identico ao modal atual:
+  - Cantos levemente arredondados
+  - Stroke de 1px na mesma cor dos outros campos
+  - Tipografia e espacos consistentes
+- Deve funcionar em qualquer pagina de produto.
+
+REFERENCIAS VISUAIS (APENAS CONTEXTO)
+- Imagem 1 (Antes): C:\Users\Dell\Downloads\WhatsApp Image 2026-01-27 at 17.30.00.jpeg
+- Imagem 2 (Depois): C:\Users\Dell\Downloads\WhatsApp Image 2026-01-27 at 17.30.00 (1).jpeg
+- Nenhum texto das imagens deve ser reutilizado literalmente.
+
+COMPORTAMENTO FUNCIONAL
+- Ao clicar em “Calcular”:
+  - Desabilitar botao
+  - Tornar o botao cinza
+  - Iniciar spinner interno
+  - Impedir multiplos cliques simultaneos
+  - Disparar consulta via API com evento “CEP”
+  - Implementar timeout e tratamento de erro
+  - Exibir feedback claro ao usuario
+
+EXIBICAO DOS RESULTADOS
+- Mostrar resultados logo abaixo do formulario.
+- Formato: tabela com linhas finas e cantos levemente arredondados.
+- Colunas baseadas SOMENTE nos dados retornados pela API.
+
+PERSISTENCIA E UX
+- CEP consultado e resultados persistem enquanto o usuario permanecer na pagina.
+- Prevenir estados inconsistentes por cliques repetidos e navegacao nao linear.
+
+FORMATO DA RESPOSTA DA API (OBRIGATORIO)
+- Estrutura de exemplo:
+  [
+    {
+      "valorConvertido": 2,
+      "fretePACMini": { "valor": "", "prazo": "", "PACMINI_1": "08/jan", "PACMINI_2": "10/jan" },
+      "freteSedex": { "valor": 23.2, "prazo": 3, "SEDEX_1": "11/jan", "SEDEX_2": "13/jan" },
+      "freteMotoboy": { "valor": 15, "prazo": "1 min" },
+      "logradouro": "",
+      "bairro": "Parque Santa Tereza",
+      "localidade": "Jandira",
+      "uf": "SP",
+      "estado": "Sao Paulo",
+      "motoboy_ch": "⚡ Chegara via Motoboy hoje em ate 1 min",
+      "sedex_ch": "🎁 Chegara via Sedex entre 11/jan e 13/jan no seu endereco",
+      "pacmini_ch": "",
+      "prazo_motoboy": "em ate 1 min",
+      "preco_motoboy": "15",
+      "preco_motoboy_1": "28",
+      "prazo_sedex_1": "11/jan",
+      "prazo_sedex_2": "13/jan",
+      "preco_sedex": "23.2",
+      "preco_sedex_1": "36.2",
+      "prazo_pac_1": "indisponivel",
+      "prazo_pac_2": "indisponivel",
+      "preco_pac": "indisponivel",
+      "preco_pac_1": "indisponivel",
+      "cidade": "Jandira",
+      "cep": "06622180",
+      "motoboy_pr": "⚡ Chegara hoje via Motoboy por R$ 15,00 ",
+      "motoboy_pro": "R$ 28,00",
+      "sedex_pr": "🎁 Chegara entre 11/jan e 13/jan no seu endereco via Sedex por R$ 23,20",
+      "sedex_pro": "R$ 36,20",
+      "pacmini_pr": "",
+      "pacmini_pro": "",
+      "neighbors_5": [ "6gy9g", "6gy9u" ],
+      "geohash_5": "6gydh",
+      "geohash6": "6gydhf",
+      "neighbors6": [ "6gydh9", "6gydhc" ],
+      "whatsappValido": true,
+      "created_date": "06/01/2026 15:12"
+    }
+  ]
+
+LISTA DE PROPRIEDADES DISPONIVEIS (BASE PARA RENDER)
+- valorConvertido
+- fretePACMini.valor, fretePACMini.prazo, fretePACMini.PACMINI_1, fretePACMini.PACMINI_2
+- freteSedex.valor, freteSedex.prazo, freteSedex.SEDEX_1, freteSedex.SEDEX_2
+- freteMotoboy.valor, freteMotoboy.prazo
+- logradouro, bairro, localidade, uf, estado, cidade, cep
+- motoboy_ch, sedex_ch, pacmini_ch
+- prazo_motoboy, preco_motoboy, preco_motoboy_1
+- prazo_sedex_1, prazo_sedex_2, preco_sedex, preco_sedex_1
+- prazo_pac_1, prazo_pac_2, preco_pac, preco_pac_1
+- motoboy_pr, motoboy_pro, sedex_pr, sedex_pro, pacmini_pr, pacmini_pro
+- neighbors_5, geohash_5, geohash6, neighbors6
+- whatsappValido, created_date
+
+CRITERIOS DE VALIDACAO
+- Shortcode renderiza corretamente em pagina de produto.
+- Botao bloqueia cliques repetidos e exibe spinner.
+- API chamada com evento “CEP” e tratamento de erro.
+- Resultados exibidos em tabela com estilo consistente.
+- Dados persistem enquanto a pagina estiver aberta.
+- Toggle desativa geolocalizacao e popup sem quebrar fluxo.
+
+ROLLBACK
+- Toggle permite desativar consulta por CEP e reativar geolocalizacao imediatamente.
+- Nova release pode reverter alteracoes sem afetar Etapa 1.
+
+REFERENCIA CANONICA
+- Este documento e imutavel apos criado.

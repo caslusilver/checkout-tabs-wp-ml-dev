@@ -250,10 +250,10 @@
         if (typeof state.checkpoint === 'function') state.checkpoint('CHK_VIEW_RESTORE', true, { restored: false, reason: 'no_state' });
         return;
       }
-      // Só tenta restaurar se estivermos na página de checkout (form do Woo presente) e logado.
+      // Só tenta restaurar se estivermos na página de checkout (form do Woo presente).
       var hasCheckoutForm = !!document.querySelector('form.checkout, form.woocommerce-checkout');
-      if (!hasCheckoutForm || !isLoggedIn()) {
-        if (typeof state.checkpoint === 'function') state.checkpoint('CHK_VIEW_RESTORE', false, { restored: false, reason: 'not_checkout_or_not_logged', hasCheckoutForm: hasCheckoutForm, isLoggedIn: isLoggedIn() });
+      if (!hasCheckoutForm) {
+        if (typeof state.checkpoint === 'function') state.checkpoint('CHK_VIEW_RESTORE', false, { restored: false, reason: 'not_checkout', hasCheckoutForm: hasCheckoutForm });
         return;
       }
       restoreStateOnOpen = s;
@@ -325,10 +325,31 @@
 
       // CHK_SCROLL_ENABLED - Body scroll travado + modal scroll habilitado
       var bodyOverflow = window.getComputedStyle(document.body).overflow;
+      var htmlOverflow = window.getComputedStyle(document.documentElement).overflow;
       var modalBody = document.querySelector('.ctwpml-modal-body');
-      var modalBodyOverflow = modalBody ? window.getComputedStyle(modalBody).overflow : 'not_found';
-      var scrollOk = bodyOverflow === 'hidden' && (modalBodyOverflow === 'auto' || modalBodyOverflow === 'scroll');
-      state.checkpoint('CHK_SCROLL_ENABLED', scrollOk, { bodyOverflow: bodyOverflow, modalBodyOverflow: modalBodyOverflow });
+      var modalBodyOverflow = modalBody ? window.getComputedStyle(modalBody).overflowY : 'not_found';
+      var modalBodyH = modalBody ? (modalBody.clientHeight || 0) : 0;
+      var modalBodySH = modalBody ? (modalBody.scrollHeight || 0) : 0;
+      var modalHasScroll = modalBody ? (modalBodySH > modalBodyH + 2) : false;
+
+      var modalVisibleNow = !!(modalOverlay && window.getComputedStyle(modalOverlay).display !== 'none');
+      // Considera “scroll ok” quando:
+      // - modal está visível (senão não faz sentido falhar), e
+      // - modal-body tem overflowY auto/scroll, e
+      // - o fundo está travado via class OU overflow hidden (html/body) quando fullscreen.
+      var bodyLocked = document.body.classList.contains('ctwpml-ml-open') || bodyOverflow === 'hidden' || htmlOverflow === 'hidden';
+      var scrollOk = !modalVisibleNow ? true : (bodyLocked && (modalBodyOverflow === 'auto' || modalBodyOverflow === 'scroll'));
+
+      state.checkpoint('CHK_SCROLL_ENABLED', scrollOk, {
+        modalVisible: modalVisibleNow,
+        bodyOverflow: bodyOverflow,
+        htmlOverflow: htmlOverflow,
+        bodyLocked: bodyLocked,
+        modalBodyOverflowY: modalBodyOverflow,
+        modalBodyClientHeight: modalBodyH,
+        modalBodyScrollHeight: modalBodySH,
+        modalHasScroll: modalHasScroll,
+      });
 
       // CHK_ELEMENTOR_HIDDEN - Widget do Elementor escondido (se existir)
       var elementorWidget = document.querySelector('.elementor-widget-woocommerce-checkout-page');
@@ -540,6 +561,7 @@
           '        </div>' +
           '        <div class="ctwpml-form-group"><label for="ctwpml-input-numero">Número</label><input id="ctwpml-input-numero" type="text" placeholder="Ex.: 123 ou SN" /></div>' +
           '        <div class="ctwpml-form-group"><label for="ctwpml-input-comp">Complemento (opcional)</label><input id="ctwpml-input-comp" type="text" placeholder="Ex.: Apto 201" maxlength="13" /></div>' +
+          '        <div class="ctwpml-form-group" id="ctwpml-group-bairro"><label for="ctwpml-input-bairro">Bairro</label><input id="ctwpml-input-bairro" type="text" placeholder="Ex.: Centro" autocomplete="address-level3" /></div>' +
           '        <div class="ctwpml-form-group"><label for="ctwpml-input-info">Informações adicionais (opcional)</label><textarea id="ctwpml-input-info" rows="3" placeholder="Ex.: Entre ruas..."></textarea></div>' +
           '        <div class="ctwpml-type-label">Este é o seu trabalho ou sua casa?</div>' +
           '        <div class="ctwpml-type-option" id="ctwpml-type-home" role="button" tabindex="0">' +
@@ -570,6 +592,10 @@
           '            <input id="ctwpml-input-cpf" type="text" placeholder="000.000.000-00" inputmode="numeric" autocomplete="off" />' +
           '            <div class="ctwpml-inline-hint" id="ctwpml-cpf-hint" style="display:none;">Este CPF é fictício e serve apenas para identificar seus pedidos. Guarde este número caso precise retirar encomendas nos Correios.</div>' +
           '          </div>' +
+          '          <div class="ctwpml-form-group" id="ctwpml-group-email">' +
+          '            <label for="ctwpml-input-email">E-mail</label>' +
+          '            <input id="ctwpml-input-email" type="email" placeholder="seu@email.com" autocomplete="email" />' +
+          '          </div>' +
           '          <a href="#" class="ctwpml-delete-link" id="ctwpml-delete-address" style="display:none;">Excluir endereço</a>' +
           '        </div>' +
           '      </div>' +
@@ -583,9 +609,55 @@
       );
     }
 
-    function showAuthView() {
+    function ensureWooNeighborhoodInputs() {
+      try {
+        var form = document.querySelector('form.checkout, form.woocommerce-checkout');
+        if (!form) return false;
+
+        var ensureHidden = function (id, name) {
+          try {
+            if (form.querySelector('#' + id + ', input[name="' + name + '"]')) return false;
+            var wrap = form.querySelector('.ctwpml-hidden-fields');
+            if (!wrap) {
+              wrap = document.createElement('div');
+              wrap.className = 'ctwpml-hidden-fields';
+              wrap.style.display = 'none';
+              form.appendChild(wrap);
+            }
+            var input = document.createElement('input');
+            input.type = 'hidden';
+            input.id = id;
+            input.name = name;
+            input.value = '';
+            wrap.appendChild(input);
+            return true;
+          } catch (e0) {
+            return false;
+          }
+        };
+
+        // Campo alvo que a validação está exigindo em vários setups.
+        ensureHidden('billing_neighborhood', 'billing_neighborhood');
+        // Variações comuns em plugins/temas.
+        ensureHidden('billing_neighbourhood', 'billing_neighbourhood');
+        ensureHidden('billing_bairro', 'billing_bairro');
+
+        return true;
+      } catch (e1) {
+        return false;
+      }
+    }
+
+    function showAuthView(opts) {
+      opts = opts || {};
       currentView = 'auth';
-      try { persistModalState({ view: 'auth' }); } catch (e0) {}
+      try {
+        if (opts.preserveView) {
+          persistModalState({ view: String(opts.returnView || 'review'), pendingAuth: true });
+        } else {
+          persistModalState({ view: 'auth' });
+        }
+      } catch (e0) {}
       $('#ctwpml-modal-title').text('Entrar');
       $('#ctwpml-view-initial').hide();
       $('#ctwpml-view-list').hide();
@@ -2231,6 +2303,7 @@
               } catch (e9) {}
             }, 400);
           } catch (e8) {}
+
         };
 
         if (woo && typeof woo.getCartThumbs === 'function') {
@@ -2366,7 +2439,6 @@
     }
 
     function loadContactMeta(callback) {
-      if (!isLoggedIn()) return;
 
       state.log('UI        Carregando dados de contato do perfil...', {}, 'UI');
 
@@ -2418,6 +2490,28 @@
                 $('#ctwpml-generate-cpf-modal').hide();
               }
             }
+            var email = '';
+            try {
+              email = response && response.data && response.data.email ? String(response.data.email).trim() : '';
+            } catch (eEmail) {}
+            if (email) {
+              try {
+                if (!($('#ctwpml-input-email').val() || '').trim()) {
+                  $('#ctwpml-input-email').val(email);
+                }
+                var $billingEmail = ctwpmlBillingField$('#billing_email', 'billing_email');
+                if ($billingEmail.length && !($billingEmail.val() || '').trim()) {
+                  ctwpmlSetFieldValue($billingEmail, email);
+                }
+                if (typeof state.checkpoint === 'function') {
+                  state.checkpoint('CHK_CONTACT_EMAIL_RESTORE', true, { hasEmail: true });
+                }
+              } catch (eEmail2) {}
+            } else {
+              if (typeof state.checkpoint === 'function') {
+                state.checkpoint('CHK_CONTACT_EMAIL_RESTORE', false, { hasEmail: false });
+              }
+            }
             if (typeof callback === 'function') {
               try {
                 callback(response.data);
@@ -2456,11 +2550,6 @@
         callback = typeof maybeCallback === 'function' ? maybeCallback : null;
       }
 
-      if (!isLoggedIn()) {
-        if (callback) callback();
-        return;
-      }
-
       // v2.0 [2.3] (novo formato): o valor fonte da verdade é #ctwpml-phone-full
       var phoneFull = '';
       var countryCode = '';
@@ -2479,14 +2568,20 @@
       }
       var cpfRaw = $('#ctwpml-input-cpf').val() || '';
       var cpfDigits = cpfDigitsOnly(cpfRaw); // Remove formatação
+      var emailInput = ($('#ctwpml-input-email').val() || '').trim();
+      var emailToSave = ctwpmlIsValidEmail(emailInput) ? emailInput : '';
 
       state.log('UI        Salvando dados de contato', { 
         whatsapp: whatsappDigits, 
         phone_full: phoneFull,
         country_code: countryCode,
         dial_code: dialCode,
-        cpf: cpfDigits 
+        cpf: cpfDigits,
+        email_present: !!emailToSave
       }, 'UI');
+      if (typeof state.checkpoint === 'function') {
+        state.checkpoint('CHK_CONTACT_META_SAVE_ATTEMPT', true, { hasEmail: !!emailToSave });
+      }
 
       var spinnerManagedByCaller = !!(opts && opts.spinnerManagedByCaller);
       if (!spinnerManagedByCaller) ctwpmlSpinnerAcquire('save_contact_meta');
@@ -2501,6 +2596,7 @@
           country_code: countryCode,
           dial_code: dialCode,
           cpf: cpfDigits,
+          email: emailToSave,
         },
         success: function (response) {
           if (response && response.success) {
@@ -2508,6 +2604,9 @@
             if (response.data && response.data.cpf_locked) {
               $('#ctwpml-input-cpf').prop('readonly', true);
               $('#ctwpml-generate-cpf-modal').hide();
+            }
+            if (typeof state.checkpoint === 'function') {
+              state.checkpoint('CHK_CONTACT_META_SAVE_OK', true, { hasEmail: !!emailToSave });
             }
             // Feedback de sucesso para contato (somente quando não for fluxo de salvar endereço)
             if (!opts || !opts.silent) {
@@ -2517,6 +2616,9 @@
             var errorMsg = (response && response.data && response.data.message) || 'Erro ao salvar dados de contato';
             showNotification(errorMsg, 'error', 3000);
             state.log('UI        Erro ao salvar dados de contato', response, 'UI');
+            if (typeof state.checkpoint === 'function') {
+              state.checkpoint('CHK_CONTACT_META_SAVE_FAIL', false, { hasEmail: !!emailToSave, reason: 'server_error' });
+            }
           }
           if (callback) callback(response);
         },
@@ -2527,6 +2629,9 @@
             responseText: xhr.responseText 
           }, 'UI');
           showNotification('Erro ao salvar dados. Tente novamente.', 'error', 3000);
+          if (typeof state.checkpoint === 'function') {
+            state.checkpoint('CHK_CONTACT_META_SAVE_FAIL', false, { hasEmail: !!emailToSave, reason: 'ajax_error', status: status });
+          }
           if (callback) callback();
         },
         complete: function () {
@@ -2841,15 +2946,9 @@
       state.log('UI        [DEBUG] openModal() chamado', { isLoggedIn: isLoggedIn() }, 'UI');
       console.log('[CTWPML][DEBUG] openModal() - isLoggedIn:', isLoggedIn());
 
-      if (!isLoggedIn()) {
-        ensureModal();
-        $('#ctwpml-address-modal-overlay').show();
-        try { $('body').addClass('ctwpml-ml-open').css('overflow', 'hidden'); } catch (e0) {}
-        showAuthView();
-        return;
-      }
-
       ensureModal();
+      // Garantir que o checkout Woo tenha um campo de bairro, mesmo quando o tema/plugin não renderiza.
+      try { ensureWooNeighborhoodInputs(); } catch (e0) {}
       refreshFromCheckoutFields();
       restoreStateOnOpen = safeReadModalState();
       
@@ -2857,9 +2956,9 @@
       $('#ctwpml-address-modal-overlay').css('display', 'block');
       try {
         var rootMode = !!document.getElementById('ctwpml-root');
-        // Root mode: não trava o scroll da página (checkout-ml-root.css garante isso)
+        // Root mode: ainda é overlay fullscreen; travar scroll do fundo para evitar conflito com scroll interno.
         if (rootMode) {
-          $('body').addClass('ctwpml-ml-open ctwpml-ml-open--root').css('overflow', '');
+          $('body').addClass('ctwpml-ml-open ctwpml-ml-open--root').css('overflow', 'hidden');
         } else {
           $('body').addClass('ctwpml-ml-open').css('overflow', 'hidden');
         }
@@ -3070,6 +3169,7 @@
       $('#ctwpml-input-rua').val('');
       $('#ctwpml-input-numero').val('');
       $('#ctwpml-input-comp').val('');
+      $('#ctwpml-input-bairro').val('');
       $('#ctwpml-input-info').val('');
       setCepConfirmVisible(false);
       setRuaHint('', false);
@@ -3078,6 +3178,13 @@
       var first = ($('#billing_first_name').val() || '').trim();
       var last = ($('#billing_last_name').val() || '').trim();
       $('#ctwpml-input-nome').val((first + ' ' + last).trim());
+      var emailCheckout = ($('#billing_email').val() || '').trim();
+      if (!emailCheckout) {
+        try {
+          emailCheckout = (state.params && state.params.user_email) ? String(state.params.user_email).trim() : '';
+        } catch (e0) {}
+      }
+      if (emailCheckout) $('#ctwpml-input-email').val(emailCheckout);
       $('#ctwpml-input-fone').val(formatPhone((($('#billing_cellphone').val() || '') || '').trim()));
       syncLoginBanner();
       syncCpfUiFromCheckout();
@@ -3115,6 +3222,7 @@
       $('#ctwpml-input-rua').val(String(item.address_1 || ''));
       $('#ctwpml-input-numero').val(String(item.number || ''));
       $('#ctwpml-input-comp').val(String(item.complement || ''));
+      $('#ctwpml-input-bairro').val(String(item.neighborhood || ''));
       $('#ctwpml-input-info').val(String(item.extra_info || ''));
       setCepConfirm(String(item.city || ''), String(item.state || ''), String(item.neighborhood || ''));
       
@@ -3131,7 +3239,8 @@
       $('#billing_number').val(item.number || '').trigger('change');
       $('#billing_city').val(item.city || '').trigger('change');
       $('#billing_state').val(item.state || '').trigger('change');
-      $('#billing_neighborhood').val(item.neighborhood || '').trigger('change');
+      try { ensureWooNeighborhoodInputs(); } catch (e0) {}
+      try { if (item.neighborhood) ctwpmlSetNeighborhoodInWoo(String(item.neighborhood)); } catch (e1) {}
 
       // Nome: usar receiver_name do endereço ou nome do checkout
       var first = ($('#billing_first_name').val() || '').trim();
@@ -3213,6 +3322,57 @@
       else $el.removeClass('is-error');
     }
 
+    function ctwpmlNormalizeFullName(fullName) {
+      try {
+        return String(fullName || '')
+          .replace(/\s+/g, ' ')
+          .trim();
+      } catch (e) {
+        return '';
+      }
+    }
+
+    function ctwpmlParseFullName(fullName) {
+      var normalized = ctwpmlNormalizeFullName(fullName);
+      if (!normalized) return { normalized: '', firstName: '', lastName: '', hasSurname: false };
+
+      var firstSpaceIdx = normalized.indexOf(' ');
+      if (firstSpaceIdx === -1) {
+        return { normalized: normalized, firstName: normalized, lastName: '', hasSurname: false };
+      }
+
+      var firstName = normalized.slice(0, firstSpaceIdx).trim();
+      var lastName = normalized.slice(firstSpaceIdx + 1).trim();
+      return { normalized: normalized, firstName: firstName, lastName: lastName, hasSurname: !!lastName };
+    }
+
+    function ctwpmlIsValidEmail(email) {
+      var v = (email || '').toString().trim().toLowerCase();
+      if (!v) return false;
+      return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+    }
+
+    function ctwpmlConfirmGuestEmail(email, context) {
+      var normalized = (email || '').toString().trim().toLowerCase();
+      if (!normalized) return false;
+      if (state.confirmedEmailValue && state.confirmedEmailValue === normalized) {
+        return true;
+      }
+      var ok = window.confirm('Confirme se este e-mail está correto: ' + normalized);
+      if (!ok) {
+        showNotification('Confirme o e-mail para continuar.', 'error', 3500);
+        if (typeof state.checkpoint === 'function') {
+          state.checkpoint('CHK_EMAIL_CONFIRM', false, { email: normalized, context: String(context || '') });
+        }
+        return false;
+      }
+      state.confirmedEmailValue = normalized;
+      if (typeof state.checkpoint === 'function') {
+        state.checkpoint('CHK_EMAIL_CONFIRM', true, { email: normalized, context: String(context || '') });
+      }
+      return true;
+    }
+
     function validateForm() {
       clearFormErrors();
       var ok = true;
@@ -3231,6 +3391,13 @@
         setRuaHint('Não encontramos Rua/Avenida automaticamente. Preencha manualmente com atenção.', true);
         ok = false;
         errors.push('Rua obrigatória');
+      }
+
+      var bairroUi = ($('#ctwpml-input-bairro').val() || '').trim();
+      if (!bairroUi) {
+        setFieldError('#ctwpml-group-bairro', true);
+        ok = false;
+        errors.push('Bairro obrigatório');
       }
 
       // v3.2.13: Verificar cidade/UF com fallback para lastCepLookup (quando billing_* não existir no DOM)
@@ -3278,6 +3445,15 @@
         setFieldError('#ctwpml-input-nome', true);
         ok = false;
         errors.push('Nome obrigatório');
+      } else {
+        // Woo exige sobrenome em muitos setups. Mantemos um único campo no modal ("Nome completo")
+        // e garantimos que tudo após o 1º espaço seja tratado como sobrenome.
+        var parsedName = ctwpmlParseFullName(name);
+        if (!parsedName.hasSurname) {
+          setFieldError('#ctwpml-input-nome', true);
+          ok = false;
+          errors.push('Sobrenome obrigatório');
+        }
       }
 
       var phone = phoneDigits($('#ctwpml-input-fone').val());
@@ -3293,6 +3469,13 @@
         setFieldError('#ctwpml-group-cpf', true);
         ok = false;
         errors.push('CPF inválido');
+      }
+
+      var email = ($('#ctwpml-input-email').val() || '').trim();
+      if (!ctwpmlIsValidEmail(email)) {
+        setFieldError('#ctwpml-group-email', true);
+        ok = false;
+        errors.push('E-mail inválido');
       }
 
       if (errors.length > 0) {
@@ -3707,8 +3890,13 @@
       var city = '';
       var st = '';
 
+      // Prioridade: input do usuário no modal (campo Bairro).
+      try {
+        neighborhood = ($('#ctwpml-input-bairro').val() || '').trim();
+      } catch (e0) {}
+
       if (webhookData) {
-        neighborhood = webhookData.bairro || webhookData.neighborhood || '';
+        neighborhood = neighborhood || webhookData.bairro || webhookData.neighborhood || '';
         city = webhookData.localidade || webhookData.cidade || webhookData.city || '';
         st = webhookData.uf || webhookData.estado || webhookData.state || '';
       }
@@ -3724,6 +3912,10 @@
       if (!city && $('#billing_city').length) city = ($('#billing_city').val() || '').trim();
       if (!st && $('#billing_state').length) st = ($('#billing_state').val() || '').trim();
       if (!neighborhood && $('#billing_neighborhood').length) neighborhood = ($('#billing_neighborhood').val() || '').trim();
+
+      // Garantir que o Woo tenha o valor no campo (quando existir ou for injetado).
+      try { ensureWooNeighborhoodInputs(); } catch (e1) {}
+      try { if (neighborhood) ctwpmlSetNeighborhoodInWoo(String(neighborhood)); } catch (e2) {}
 
       var address = {
         id: selectedAddressId ? selectedAddressId : '',
@@ -3878,11 +4070,15 @@
       var uf = dados.uf || dados.estado || dados.state || '';
       var bairro = dados.bairro || dados.neighborhood || '';
       setCepConfirm(String(cidade || ''), String(uf || ''), String(bairro || ''));
+      if (bairro) $('#ctwpml-input-bairro').val(String(bairro));
 
       // Preenche campos do checkout também (inclui campos que não existem no modal).
       if (dados.logradouro) $('#billing_address_1').val(String(dados.logradouro)).trigger('change');
       if (dados.numero) $('#billing_number').val(String(dados.numero)).trigger('change');
-      if (dados.bairro) $('#billing_neighborhood').val(String(dados.bairro)).trigger('change');
+      try { ensureWooNeighborhoodInputs(); } catch (e0) {}
+      if (bairro) {
+        try { ctwpmlSetNeighborhoodInWoo(String(bairro)); } catch (e1) {}
+      }
       if (dados.localidade) $('#billing_city').val(String(dados.localidade)).trigger('change');
       if (dados.uf) $('#billing_state').val(String(dados.uf)).trigger('change');
       if (dados.complemento) $('#billing_complemento').val(String(dados.complemento)).trigger('change');
@@ -3995,11 +4191,6 @@
         });
         return;
       }
-      if (!isLoggedIn()) {
-        log('persistAddressPayload() - ABORTADO: usuário não logado');
-        return;
-      }
-
       var normalized = normalizeApiPayload(raw);
 
       // DEBUG: Mostrar campos de frete especificamente
@@ -4058,13 +4249,21 @@
         $('#ctwpml-input-rua').val('');
         $('#ctwpml-input-numero').val('');
         $('#ctwpml-input-comp').val('');
+        $('#ctwpml-input-bairro').val('');
         $('#ctwpml-input-info').val('');
         setCepConfirmVisible(false);
 
         // Checkout fields (limpa tudo exceto o CEP)
+        try { ensureWooNeighborhoodInputs(); } catch (e0) {}
         $('#billing_address_1').val('').trigger('change');
         $('#billing_number').val('').trigger('change');
-        $('#billing_neighborhood').val('').trigger('change');
+        try {
+          var els = ctwpmlFindNeighborhoodFields();
+          for (var i = 0; i < els.length; i++) {
+            var $f = $(els[i]);
+            ctwpmlSetFieldValue($f, '');
+          }
+        } catch (e1) {}
         $('#billing_city').val('').trigger('change');
         $('#billing_state').val('').trigger('change');
         $('#billing_complemento').val('').trigger('change');
@@ -4116,6 +4315,257 @@
       return $();
     }
 
+    function ctwpmlNormalizeText(val) {
+      try {
+        return String(val || '').trim();
+      } catch (e) {
+        return '';
+      }
+    }
+
+    function ctwpmlDispatchNativeEvent(el, type) {
+      try {
+        if (!el || !type) return;
+        var evt = null;
+        try {
+          evt = new Event(type, { bubbles: true });
+        } catch (e0) {
+          // IE/old fallback
+          evt = document.createEvent('Event');
+          evt.initEvent(type, true, true);
+        }
+        el.dispatchEvent(evt);
+      } catch (e1) {}
+    }
+
+    function ctwpmlSetFieldValue($field, value) {
+      try {
+        if (!$field || !$field.length) return false;
+        var el = $field.get(0);
+        if (el) {
+          try { el.value = value; } catch (e0) {}
+          // Eventos nativos (alguns checkouts usam listeners fora do jQuery)
+          ctwpmlDispatchNativeEvent(el, 'input');
+          ctwpmlDispatchNativeEvent(el, 'change');
+        }
+        // Compat jQuery
+        try { $field.val(value).trigger('input').trigger('change'); } catch (e1) {}
+        return true;
+      } catch (e2) {
+        return false;
+      }
+    }
+
+    function ctwpmlFindNeighborhoodFields() {
+      var fields = [];
+      try {
+        var selectors = [
+          '#billing_neighborhood',
+          'input[name="billing_neighborhood"]',
+          'input[name="billing_neighbourhood"]',
+          'input[name="billing_bairro"]',
+          // fallback compat: alguns plugins usam address_2 como bairro
+          '#billing_address_2',
+          'input[name="billing_address_2"]',
+          // shipping (casos onde validação está amarrada no shipping)
+          '#shipping_neighborhood',
+          'input[name="shipping_neighborhood"]',
+          'input[name="shipping_neighbourhood"]',
+          'input[name="shipping_bairro"]',
+        ];
+
+        for (var i = 0; i < selectors.length; i++) {
+          var $f = $(selectors[i]).first();
+          if ($f.length) {
+            var el = $f.get(0);
+            if (el && fields.indexOf(el) === -1) fields.push(el);
+          }
+        }
+      } catch (e0) {}
+      return fields;
+    }
+
+    function ctwpmlSnapshotNeighborhoodFields() {
+      var out = [];
+      try {
+        var els = ctwpmlFindNeighborhoodFields();
+        for (var i = 0; i < els.length; i++) {
+          var el = els[i];
+          out.push({
+            id: el && el.id ? String(el.id) : '',
+            name: el && el.name ? String(el.name) : '',
+            value: el ? ctwpmlNormalizeText(el.value) : '',
+          });
+        }
+      } catch (e0) {}
+      return out;
+    }
+
+    function ctwpmlGetWooNeighborhoodSnapshot() {
+      var out = { neighborhood: null, address_2: null, fields: [] };
+      try {
+        // Preferência: manter os snapshots antigos (para compat com logs existentes)
+        var $n = ctwpmlBillingField$('#billing_neighborhood', 'billing_neighborhood');
+        out.neighborhood = $n.length ? ctwpmlNormalizeText($n.val()) : null;
+      } catch (e0) {}
+      try {
+        var $a2 = ctwpmlBillingField$('#billing_address_2', 'billing_address_2');
+        out.address_2 = $a2.length ? ctwpmlNormalizeText($a2.val()) : null;
+      } catch (e1) {}
+      try {
+        out.fields = ctwpmlSnapshotNeighborhoodFields();
+      } catch (e2) {}
+      return out;
+    }
+
+    function ctwpmlHasNeighborhoodValue() {
+      var snap = ctwpmlGetWooNeighborhoodSnapshot();
+      try {
+        var a = ctwpmlNormalizeText(snap.neighborhood);
+        var b = ctwpmlNormalizeText(snap.address_2);
+        if ((a && a.length > 1) || (b && b.length > 1)) return true;
+      } catch (e0) {}
+      try {
+        var fields = snap && snap.fields ? snap.fields : [];
+        for (var i = 0; i < fields.length; i++) {
+          var v = ctwpmlNormalizeText(fields[i] && fields[i].value ? fields[i].value : '');
+          if (v && v.length > 1) return true;
+        }
+      } catch (e1) {}
+      return false;
+    }
+
+    function ctwpmlPickFirstNonEmpty(candidates) {
+      try {
+        for (var i = 0; i < candidates.length; i++) {
+          var v = ctwpmlNormalizeText(candidates[i]);
+          if (v && v.length > 1) return v;
+        }
+      } catch (e) {}
+      return '';
+    }
+
+    function ctwpmlResolveNeighborhoodCandidate(it) {
+      // Fonte preferencial: endereço salvo; fallback: lastCepLookup; fallback: freteData; fallback: campos Woo já preenchidos.
+      var candidates = [];
+      try {
+        candidates.push(it && (it.neighborhood || it.bairro) ? (it.neighborhood || it.bairro) : '');
+      } catch (e0) {}
+      try {
+        if (typeof lastCepLookup !== 'undefined' && lastCepLookup) {
+          candidates.push(lastCepLookup.bairro || lastCepLookup.neighborhood || '');
+        }
+      } catch (e1) {}
+      try {
+        if (window && window.freteData) {
+          candidates.push(window.freteData.bairro || window.freteData.neighborhood || '');
+        }
+      } catch (e2) {}
+      try {
+        var snap = ctwpmlGetWooNeighborhoodSnapshot();
+        candidates.push(snap.neighborhood || '');
+        candidates.push(snap.address_2 || '');
+        if (snap && snap.fields && snap.fields.length) {
+          for (var i = 0; i < snap.fields.length; i++) {
+            candidates.push((snap.fields[i] && snap.fields[i].value) || '');
+          }
+        }
+      } catch (e3) {}
+      return ctwpmlPickFirstNonEmpty(candidates);
+    }
+
+    function ctwpmlSetNeighborhoodInWoo(bairro, opts) {
+      opts = opts || {};
+      var value = ctwpmlNormalizeText(bairro);
+      if (!value || value.length <= 1) return { ok: false, reason: 'empty_value', value: value };
+
+      var wrote = { billing_neighborhood: false, billing_neighbourhood: false, billing_bairro: false, billing_address_2: false, shipping_neighborhood: false };
+
+      // 1) Campo "oficial" (quando existir)
+      try {
+        var $n = ctwpmlBillingField$('#billing_neighborhood', 'billing_neighborhood');
+        if ($n.length) {
+          ctwpmlSetFieldValue($n, value);
+          wrote.billing_neighborhood = true;
+        }
+      } catch (e0) {}
+
+      // Variações comuns (plugins/temas)
+      try {
+        var $nn = $('input[name="billing_neighbourhood"]').first();
+        if ($nn.length) {
+          ctwpmlSetFieldValue($nn, value);
+          wrote.billing_neighbourhood = true;
+        }
+      } catch (eN0) {}
+      try {
+        var $nb = $('input[name="billing_bairro"]').first();
+        if ($nb.length) {
+          ctwpmlSetFieldValue($nb, value);
+          wrote.billing_bairro = true;
+        }
+      } catch (eN1) {}
+
+      // 2) Compat: alguns plugins validam bairro em billing_address_2.
+      // Regra anti-conflito: só escreve se estiver vazio OU já igual ao bairro (não sobrescreve complemento real).
+      try {
+        var $a2 = ctwpmlBillingField$('#billing_address_2', 'billing_address_2');
+        if ($a2.length) {
+          var cur = ctwpmlNormalizeText($a2.val());
+          if (!cur || cur === value) {
+            ctwpmlSetFieldValue($a2, value);
+            wrote.billing_address_2 = true;
+          }
+        }
+      } catch (e1) {}
+
+      // 3) Shipping (último recurso): só escreve se existir e estiver vazio (anti-conflito)
+      try {
+        var $sn = $('#shipping_neighborhood, input[name="shipping_neighborhood"], input[name="shipping_neighbourhood"], input[name="shipping_bairro"]').first();
+        if ($sn.length) {
+          var scur = ctwpmlNormalizeText($sn.val());
+          if (!scur || scur === value) {
+            ctwpmlSetFieldValue($sn, value);
+            wrote.shipping_neighborhood = true;
+          }
+        }
+      } catch (e2) {}
+
+      return { ok: true, value: value, wrote: wrote };
+    }
+
+    var ctwpmlNeighborhoodResync = {};
+    function ctwpmlScheduleNeighborhoodResync(expectedBairro, key) {
+      var value = ctwpmlNormalizeText(expectedBairro);
+      if (!value || value.length <= 1) return;
+      key = String(key || 'default');
+
+      // Guard: no máximo 2 tentativas por key (evita loop/conflito).
+      if (!ctwpmlNeighborhoodResync[key]) ctwpmlNeighborhoodResync[key] = { attempts: 0 };
+
+      var attempt = function (ms) {
+        setTimeout(function () {
+          try {
+            if (!ctwpmlNeighborhoodResync[key] || ctwpmlNeighborhoodResync[key].attempts >= 2) return;
+            if (ctwpmlHasNeighborhoodValue()) return;
+            ctwpmlNeighborhoodResync[key].attempts += 1;
+            ctwpmlSetNeighborhoodInWoo(value);
+            if (state && typeof state.checkpoint === 'function') {
+              state.checkpoint('CHK_BILLING_NEIGHBORHOOD_RESYNC', true, { key: key, ms: ms, value: value, attempts: ctwpmlNeighborhoodResync[key].attempts });
+            }
+          } catch (e0) {}
+        }, ms);
+      };
+
+      attempt(250);
+      attempt(800);
+
+      // cleanup best-effort
+      setTimeout(function () {
+        try { delete ctwpmlNeighborhoodResync[key]; } catch (e0) {}
+      }, 2500);
+    }
+
     function ctwpmlSnapshotBillingFields() {
       var snap = {};
       try {
@@ -4124,6 +4574,7 @@
           ['billing_address_1', 'billing_address_1'],
           ['billing_number', 'billing_number'],
           ['billing_neighborhood', 'billing_neighborhood'],
+          ['billing_address_2', 'billing_address_2'],
           ['billing_city', 'billing_city'],
           ['billing_state', 'billing_state'],
         ];
@@ -4157,12 +4608,14 @@
       var cidade = String(it.city || '');
       var uf = String(it.state || '');
       var comp = String(it.complement || '');
+      var bairroExpected = ctwpmlResolveNeighborhoodCandidate(it);
 
       var found = {
         billing_postcode: !!ctwpmlBillingField$('#billing_postcode', 'billing_postcode').length,
         billing_address_1: !!ctwpmlBillingField$('#billing_address_1', 'billing_address_1').length,
         billing_number: !!ctwpmlBillingField$('#billing_number', 'billing_number').length,
         billing_neighborhood: !!ctwpmlBillingField$('#billing_neighborhood', 'billing_neighborhood').length,
+        billing_address_2: !!ctwpmlBillingField$('#billing_address_2', 'billing_address_2').length,
         billing_city: !!ctwpmlBillingField$('#billing_city', 'billing_city').length,
         billing_state: !!ctwpmlBillingField$('#billing_state', 'billing_state').length,
       };
@@ -4172,7 +4625,7 @@
         state.checkpoint('CHK_BILLING_SYNC_ATTEMPT', true, {
           context: context,
           addressId: String(addressId),
-          item: { cep: cep, address_1: rua, number: numero, neighborhood: bairro, city: cidade, state: uf },
+          item: { cep: cep, address_1: rua, number: numero, neighborhood: bairro, neighborhood_expected: bairroExpected, city: cidade, state: uf },
           found: found,
           before: before,
         });
@@ -4192,8 +4645,9 @@
         var $num = ctwpmlBillingField$('#billing_number', 'billing_number');
         if ($num.length) $num.val(numero).trigger('change');
 
-        var $neigh = ctwpmlBillingField$('#billing_neighborhood', 'billing_neighborhood');
-        if ($neigh.length) $neigh.val(bairro).trigger('change');
+        // Bairro: robusto (endereço salvo + fallbacks) + compat com plugins que usam billing_address_2.
+        // Regra: nunca sobrescrever com vazio.
+        if (bairroExpected) ctwpmlSetNeighborhoodInWoo(bairroExpected);
 
         var $city = ctwpmlBillingField$('#billing_city', 'billing_city');
         if ($city.length) $city.val(cidade).trigger('change');
@@ -4207,6 +4661,11 @@
 
         try { refreshFromCheckoutFields(); } catch (e2) {}
         try { $(document.body).trigger('update_checkout'); } catch (e3) {}
+
+        // Re-sync leve: alguns temas/plugins limpam bairro após update_checkout.
+        try {
+          ctwpmlScheduleNeighborhoodResync(bairroExpected, 'billing_sync:' + String(addressId) + ':' + String(context) + ':' + String(cep));
+        } catch (e4) {}
       } finally {
         setTimeout(function () { suppressBillingCepClearOnce = false; }, 0);
       }
@@ -4240,6 +4699,7 @@
     }
 
     function prefillFormFromCheckout() {
+      try { ensureWooNeighborhoodInputs(); } catch (e0) {}
       var cepVal = formatCep($('#billing_postcode').val());
       $('#ctwpml-input-cep').val(cepVal);
       lastCepOnly = cepDigits(cepVal);
@@ -4255,6 +4715,13 @@
       var first = ($('#billing_first_name').val() || '').trim();
       var last = ($('#billing_last_name').val() || '').trim();
       $('#ctwpml-input-nome').val((first + ' ' + last).trim());
+      var emailCheckout = ($('#billing_email').val() || '').trim();
+      if (!emailCheckout) {
+        try {
+          emailCheckout = (state.params && state.params.user_email) ? String(state.params.user_email).trim() : '';
+        } catch (e0) {}
+      }
+      if (emailCheckout) $('#ctwpml-input-email').val(emailCheckout);
       $('#ctwpml-input-fone').val(formatPhone((($('#billing_cellphone').val() || '') || '').trim()));
       syncCpfUiFromCheckout();
 
@@ -4263,9 +4730,12 @@
       var uf = ($('#billing_state').val() || '').trim();
       var bairro = ($('#billing_neighborhood').val() || '').trim();
       setCepConfirm(cidade, uf, bairro);
+      if (bairro) $('#ctwpml-input-bairro').val(String(bairro));
     }
 
     function applyFormToCheckout() {
+      try { ensureWooNeighborhoodInputs(); } catch (e0) {}
+
       var cepDigits = ($('#ctwpml-input-cep').val() || '').replace(/\D/g, '');
       if (cepDigits) $('#billing_postcode').val(cepDigits).trigger('change');
 
@@ -4278,11 +4748,30 @@
       var comp = ($('#ctwpml-input-comp').val() || '').trim();
       if (comp) $('#billing_complemento').val(comp).trigger('change');
 
+      var bairroUi = ($('#ctwpml-input-bairro').val() || '').trim();
+      if (bairroUi) {
+        try { ctwpmlSetNeighborhoodInWoo(String(bairroUi)); } catch (e1) {}
+      }
+
       var nome = ($('#ctwpml-input-nome').val() || '').trim();
       if (nome) {
-        var parts = nome.split(' ');
-        $('#billing_first_name').val(parts.shift() || '').trigger('change');
-        $('#billing_last_name').val(parts.join(' ')).trigger('change');
+        var parsed = ctwpmlParseFullName(nome);
+        // Mantém compat: mesmo campo no modal, mas split consistente (tudo após 1º espaço = sobrenome).
+        if (parsed.firstName) $('#billing_first_name').val(parsed.firstName).trigger('change');
+        if (parsed.lastName) $('#billing_last_name').val(parsed.lastName).trigger('change');
+        if (typeof state.checkpoint === 'function') {
+          state.checkpoint('CHK_BILLING_NAME_SPLIT', !!(parsed.firstName && parsed.lastName), {
+            normalized: parsed.normalized,
+            firstName: parsed.firstName,
+            lastName: parsed.lastName,
+          });
+        }
+      }
+
+      var email = ($('#ctwpml-input-email').val() || '').trim();
+      if (email) {
+        var $email = ctwpmlBillingField$('#billing_email', 'billing_email');
+        if ($email.length) ctwpmlSetFieldValue($email, email);
       }
 
       var fone = ($('#ctwpml-input-fone').val() || '').trim();
@@ -4300,7 +4789,6 @@
     }
 
     function ensureEntryPointButton() {
-      if (!isLoggedIn()) return;
       if (!$('#tab-cep').length) return;
       if ($('#ctwpml-open-address-modal').length) return;
       $('#tab-cep').prepend(
@@ -4309,6 +4797,7 @@
     }
 
     // Bindings
+    state.ctaManual = true;
     state.log('INIT      Address modal: bind de eventos registrado (delegado)', {}, 'INIT');
 
     $(document).on('click', '#ctwpml-open-address-modal', function (e) {
@@ -4558,6 +5047,17 @@
         if (!validateForm()) {
           state.log('ERROR     validateForm falhou (não salvou)', {}, 'ERROR');
           return;
+        }
+        if (!isLoggedIn()) {
+          var emailSave = ($('#ctwpml-input-email').val() || '').trim().toLowerCase();
+          if (!ctwpmlIsValidEmail(emailSave)) {
+            setFieldError('#ctwpml-group-email', true);
+            showNotification('Informe um e-mail válido para continuar.', 'error', 3500);
+            return;
+          }
+          if (!ctwpmlConfirmGuestEmail(emailSave, 'save_address')) {
+            return;
+          }
         }
         applyFormToCheckout();
         // Spinner deve persistir até confirmação + retorno para lista (evita confusão/janela sem bloqueio).
@@ -5460,6 +5960,7 @@
     // Tela 4 (Revise e confirme): confirmar compra
     $(document).on('click', '#ctwpml-review-confirm, #ctwpml-review-confirm-sticky', function (e) {
       e.preventDefault();
+      try { e.stopImmediatePropagation(); } catch (e0) {}
 
       var log = function (msg, data) {
         try {
@@ -5495,6 +5996,118 @@
         return;
       }
 
+      function getBillingEmail() {
+        try {
+          var localEmail = ($('#ctwpml-input-email').val() || '').trim().toLowerCase();
+          if (localEmail) return localEmail;
+        } catch (e0) {}
+        try {
+          var email = ($('#billing_email').val() || '').trim().toLowerCase();
+          if (email) return email;
+        } catch (e1) {}
+        try {
+          return (state.params && state.params.user_email) ? String(state.params.user_email).trim().toLowerCase() : '';
+        } catch (e2) {}
+        return '';
+      }
+
+      function isValidEmail(email) {
+        try {
+          return ctwpmlIsValidEmail(email);
+        } catch (e0) {
+          return !!(email && email.indexOf('@') > 0 && email.indexOf('.') > 0);
+        }
+      }
+
+      function persistContactMetaBeforeCheckout(done) {
+        try { showModalSpinner(); } catch (e0) {}
+        saveContactMeta({ silent: true, spinnerManagedByCaller: true }, function (response) {
+          try { hideModalSpinner(); } catch (e1) {}
+          if (!response || !response.success) {
+            showNotification('Não foi possível salvar seus dados. Tente novamente.', 'error', 4000);
+            if (typeof state.checkpoint === 'function') {
+              state.checkpoint('CHK_CONTACT_META_PERSIST_BEFORE_ORDER', false, {});
+            }
+            if (typeof done === 'function') done(false);
+            return;
+          }
+          if (typeof state.checkpoint === 'function') {
+            state.checkpoint('CHK_CONTACT_META_PERSIST_BEFORE_ORDER', true, {});
+          }
+          if (typeof done === 'function') done(true);
+        });
+      }
+
+      if (!isLoggedIn()) {
+        var emailToConfirm = getBillingEmail();
+        if (!isValidEmail(emailToConfirm)) {
+          showNotification('Informe um e-mail válido para continuar.', 'error', 4000);
+          var $emailBox0 = $('#ctwpml-review-errors');
+          if ($emailBox0.length) {
+            $emailBox0.text('Informe um e-mail válido para continuar.').show();
+          }
+          if (typeof state.checkpoint === 'function') {
+            state.checkpoint('CHK_EMAIL_REQUIRED_BLOCK', false, { reason: 'invalid_or_empty' });
+          }
+          return;
+        }
+        try {
+          var $billingEmailSync = ctwpmlBillingField$('#billing_email', 'billing_email');
+          if ($billingEmailSync.length) ctwpmlSetFieldValue($billingEmailSync, emailToConfirm);
+        } catch (eSync0) {}
+        if (!state.skipAuthCheckOnce) {
+          var emailToCheck = emailToConfirm;
+          if (!state.params || !state.params.ajax_url || !state.params.check_email_nonce) {
+            showNotification('Não foi possível validar o e-mail. Recarregue a página.', 'error', 4000);
+            if (typeof state.checkpoint === 'function') {
+              state.checkpoint('CHK_EMAIL_REQUIRED_BLOCK', false, { reason: 'missing_nonce' });
+            }
+            return;
+          }
+
+          var $ctaAuth = $('#ctwpml-review-confirm, #ctwpml-review-confirm-sticky');
+          $ctaAuth.prop('disabled', true).css('opacity', '0.7');
+          showModalSpinner();
+          $.ajax({
+            url: state.params.ajax_url,
+            type: 'POST',
+            dataType: 'json',
+            data: {
+              action: 'ctwpml_check_email',
+              _ajax_nonce: state.params.check_email_nonce,
+              email: emailToCheck,
+            },
+            success: function (resp) {
+              hideModalSpinner();
+              $ctaAuth.prop('disabled', false).css('opacity', '');
+              if (resp && resp.success && resp.data && resp.data.exists) {
+                showAuthView({ preserveView: true, returnView: 'review' });
+                return;
+              }
+              state.skipAuthCheckOnce = true;
+              setTimeout(function () {
+                $ctaAuth.first().trigger('click');
+              }, 50);
+            },
+            error: function () {
+              hideModalSpinner();
+              $ctaAuth.prop('disabled', false).css('opacity', '');
+              showNotification('Não foi possível validar o e-mail. Tente novamente.', 'error', 4000);
+            },
+          });
+          return;
+        }
+        state.skipAuthCheckOnce = false;
+        persistContactMetaBeforeCheckout(function (ok) {
+          if (!ok) return;
+          proceedToCheckoutSubmit();
+        });
+        return;
+      }
+
+      proceedToCheckoutSubmit();
+
+      function proceedToCheckoutSubmit() {
       // v2.0 [2.2]: overlay de preparação ao tentar finalizar compra (intenção de compra).
       // Importante: só mostra após validar termos + gateway para não “piscar” com erro imediato.
       var prep = window.CTWPMLPrepare || null;
@@ -5509,7 +6122,46 @@
       }
       log('CTA click: iniciando finalização', { overlayShown: false, gateway: woo.getSelectedGatewayId ? woo.getSelectedGatewayId() : '' });
 
+      // Hardening: evita checkout_error por "Bairro obrigatório" quando o Woo/tema limpa ou valida em outro campo.
+      // Regra: tenta preencher automaticamente; se ainda estiver vazio, bloqueia o submit com mensagem clara.
+      try {
+        if (!ctwpmlHasNeighborhoodValue()) {
+          var cand = '';
+          try {
+            // Preferir endereço selecionado (se houver) para obter bairro; fallback resolve via lastCepLookup/freteData/campos Woo.
+            cand = ctwpmlResolveNeighborhoodCandidate(typeof selectedAddressId !== 'undefined' && selectedAddressId ? getAddressById(selectedAddressId) : null);
+          } catch (eN0) {
+            cand = ctwpmlResolveNeighborhoodCandidate(null);
+          }
+          if (cand) ctwpmlSetNeighborhoodInWoo(cand);
+        }
+        if (!ctwpmlHasNeighborhoodValue()) {
+          showNotification('Campo \"Bairro\" é obrigatório. Verifique o endereço e tente novamente.', 'error', 5000);
+          if (typeof state.checkpoint === 'function') {
+            var diag = {
+              context: 'pre_submit_block',
+              selectedAddressId: (typeof selectedAddressId !== 'undefined' ? String(selectedAddressId || '') : ''),
+              candidate: cand || '',
+              snapshot: ctwpmlGetWooNeighborhoodSnapshot(),
+            };
+            try {
+              if (typeof lastCepLookup !== 'undefined' && lastCepLookup) diag.lastCepLookup = { bairro: lastCepLookup.bairro || '', neighborhood: lastCepLookup.neighborhood || '' };
+            } catch (eD0) {}
+            try {
+              if (window && window.freteData) diag.freteData = { bairro: window.freteData.bairro || '', neighborhood: window.freteData.neighborhood || '' };
+            } catch (eD1) {}
+            state.checkpoint('CHK_BILLING_NEIGHBORHOOD_REQUIRED_BLOCK', false, diag);
+          }
+          return;
+        }
+      } catch (eN1) {}
+
       // Evita duplo clique.
+      try {
+        if (window.CTWPMLCtaAnim && typeof window.CTWPMLCtaAnim.start === 'function') {
+          window.CTWPMLCtaAnim.start($('#ctwpml-review-confirm, #ctwpml-review-confirm-sticky'));
+        }
+      } catch (eA0) {}
       $('#ctwpml-review-confirm, #ctwpml-review-confirm-sticky').prop('disabled', true).css('opacity', '0.7');
 
       // Se o Woo emitir erro, reabilita CTA e loga.
@@ -5523,11 +6175,15 @@
           var $err = $('.woocommerce-error, .woocommerce-NoticeGroup-checkout').first();
           var errText = $err.length ? $err.text().trim() : '';
           log('checkout_error recebido', { text: errText });
-          if (typeof state.checkpoint === 'function') state.checkpoint('CHK_CHECKOUT_ERROR', true, {
-            text: errText,
-            hasWooError: document.querySelectorAll('.woocommerce-error').length,
-            hasNoticeGroup: document.querySelectorAll('.woocommerce-NoticeGroup, .woocommerce-NoticeGroup-checkout').length,
-          });
+          if (typeof state.checkpoint === 'function') {
+            var errDiag = {
+              text: errText,
+              hasWooError: document.querySelectorAll('.woocommerce-error').length,
+              hasNoticeGroup: document.querySelectorAll('.woocommerce-NoticeGroup, .woocommerce-NoticeGroup-checkout').length,
+            };
+            try { errDiag.neighborhood = ctwpmlGetWooNeighborhoodSnapshot(); } catch (eN0) {}
+            state.checkpoint('CHK_CHECKOUT_ERROR', true, errDiag);
+          }
 
           // Exibir erro dentro do modal (senão parece que o botão “não funciona”).
           if (!errText) errText = 'Não foi possível finalizar. Verifique os campos obrigatórios e tente novamente.';
@@ -5543,6 +6199,18 @@
                 var top = $box.position().top;
                 $modalBody.animate({ scrollTop: $modalBody.scrollTop() + top - 16 }, 250);
               } catch (e3) {}
+            }
+          }
+          try {
+            loadContactMeta(function (meta) {
+              var email = meta && meta.email ? String(meta.email).trim() : '';
+              if (typeof state.checkpoint === 'function') {
+                state.checkpoint('CHK_CONTACT_RESTORE_AFTER_ERROR', true, { hasEmail: !!email });
+              }
+            });
+          } catch (eR0) {
+            if (typeof state.checkpoint === 'function') {
+              state.checkpoint('CHK_CONTACT_RESTORE_AFTER_ERROR', false, { error: String(eR0) });
             }
           }
         } catch (_) {}
@@ -5590,6 +6258,7 @@
       // Fallback: jQuery submit
       $('form.checkout, form.woocommerce-checkout').first().trigger('submit');
       log('CTA submit via jQuery trigger(submit)');
+      }
     });
 
     // Checkout Woo: sucesso (AJAX) -> limpar estado do modal e evitar restore em nova compra
@@ -5639,6 +6308,18 @@
           formDirty = true;
           if (state && typeof state.checkpoint === 'function') {
             state.checkpoint('CHK_FORM_DIRTY_ON', true, { fieldId: String(this && this.id ? this.id : '') });
+          }
+        }
+      } catch (e0) {}
+    });
+
+    $(document).on('input change', '#ctwpml-input-email, #billing_email', function () {
+      try {
+        var current = (($(this).val() || '') + '').trim().toLowerCase();
+        if (state.confirmedEmailValue && current !== state.confirmedEmailValue) {
+          state.confirmedEmailValue = '';
+          if (typeof state.checkpoint === 'function') {
+            state.checkpoint('CHK_EMAIL_CONFIRM_RESET', true, { reason: 'email_changed' });
           }
         }
       } catch (e0) {}

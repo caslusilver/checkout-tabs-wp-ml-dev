@@ -22,11 +22,19 @@ function ctwpml_render_cep_form_shortcode($atts = []): string {
 	$fallback = ((string) $atts['fallback'] !== '0');
 
 	$version = function_exists('checkout_tabs_wp_ml_get_version') ? checkout_tabs_wp_ml_get_version() : '0.0.0';
-	$rest_url = function_exists('get_rest_url') ? get_rest_url(null, 'geolocation/v1/send') : '';
+	$rest_url_geo = function_exists('get_rest_url') ? get_rest_url(null, 'geolocation/v1/send') : '';
+	$rest_url_cep = function_exists('get_rest_url') ? get_rest_url(null, 'geolocation/v1/cep') : '';
 	$debug = function_exists('checkout_tabs_wp_ml_is_debug_enabled') && checkout_tabs_wp_ml_is_debug_enabled() ? 1 : 0;
 	$geo_enabled = function_exists('checkout_tabs_wp_ml_is_geolocation_enabled')
 		? checkout_tabs_wp_ml_is_geolocation_enabled()
 		: true;
+	$cache_ttl_ms = 30 * 60 * 1000;
+	$request_timeout_ms = 12000;
+
+	// Se o popup estiver desativado no admin, não renderizar ações que possam abrir modais.
+	if (!$geo_enabled) {
+		$fallback = false;
+	}
 
 	$icon_url = $atts['icon_url'] ? esc_url_raw((string) $atts['icon_url']) : '';
 	if ($icon_url === '') {
@@ -54,20 +62,30 @@ function ctwpml_render_cep_form_shortcode($atts = []): string {
 			true
 		);
 	}
+	if (!wp_style_is('checkout-tabs-wp-ml-geolocation-permission-modal', 'enqueued')) {
+		wp_enqueue_style(
+			'checkout-tabs-wp-ml-geolocation-permission-modal',
+			CHECKOUT_TABS_WP_ML_URL . 'assets/css/geolocation-permission-modal.css',
+			[],
+			$version
+		);
+	}
 
 	wp_localize_script('checkout-tabs-wp-ml-geolocation-client', 'CTWPMLGeoParams', [
-		'rest_url' => (string) $rest_url,
+		'rest_url' => (string) $rest_url_geo,
 		'debug'    => $debug,
 		'geo_enabled' => $geo_enabled ? 1 : 0,
+		'cache_ttl_ms' => $cache_ttl_ms,
+		'request_timeout_ms' => $request_timeout_ms,
 	]);
 
 	wp_localize_script('checkout-tabs-wp-ml-geolocation-cep-form', 'CTWPMLCepParams', [
-		'rest_url' => (string) $rest_url,
+		'rest_url' => (string) $rest_url_cep,
 		'debug' => $debug,
 		'geo_enabled' => $geo_enabled ? 1 : 0,
 		'icon_url' => (string) $icon_url,
-		'cache_ttl_ms' => 30 * 60 * 1000,
-		'request_timeout_ms' => 12000,
+		'cache_ttl_ms' => $cache_ttl_ms,
+		'request_timeout_ms' => $request_timeout_ms,
 	]);
 
 	$out = '';
@@ -77,10 +95,10 @@ function ctwpml_render_cep_form_shortcode($atts = []): string {
 	}
 	$out .= '<form class="ctwpml-cep-form" data-ctwpml-cep-form="1">';
 	$out .= '  <div class="ctwpml-cep-row">';
-	$out .= '    <input class="ctwpml-cep-input" data-ctwpml-cep-input="1" type="text" inputmode="numeric" placeholder="Digite aqui seu CEP" maxlength="8" pattern="[0-9]*" />';
+	$out .= '    <input class="ctwpml-cep-input" data-ctwpml-cep-input="1" type="text" inputmode="numeric" placeholder="Digite aqui o seu CEP" maxlength="8" pattern="[0-9]*" />';
 	$out .= '    <button type="submit" class="ctwpml-cep-button" data-ctwpml-cep-submit="1">';
 	$out .= '      <span class="ctwpml-cep-button-icon">' . ($icon_url ? '<img src="' . esc_url($icon_url) . '" alt="" />' : '') . '</span>';
-	$out .= '      <span class="ctwpml-cep-button-text">Consultar frete</span>';
+	$out .= '      <span class="ctwpml-cep-button-text">Calcular</span>';
 	$out .= '      <span class="ctwpml-cep-spinner" aria-hidden="true"></span>';
 	$out .= '    </button>';
 	$out .= '  </div>';

@@ -123,6 +123,10 @@ function ctwpml_ajax_auth_email(): void {
 	wp_set_current_user($user->ID);
 	wp_set_auth_cookie($user->ID, true);
 
+	if (function_exists('ctwpml_migrate_guest_data_to_user')) {
+		ctwpml_migrate_guest_data_to_user((int) $user->ID);
+	}
+
 	if ($is_debug_enabled) {
 		error_log('[CTWPML] auth_email - Login OK: user_id=' . $user->ID . ' is_new=' . ($is_new ? '1' : '0'));
 	}

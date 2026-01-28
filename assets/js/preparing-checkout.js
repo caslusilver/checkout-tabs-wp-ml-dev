@@ -138,9 +138,7 @@
           return;
         }
         if (!isLoggedIn()) {
-          log('prepareForPurchaseIntent: usuário não logado (adiado)');
-          resolve({ ok: false, needsLogin: true });
-          return;
+          log('prepareForPurchaseIntent: usuário não logado (seguindo)');
         }
         if (!window.cc_params || !window.cc_params.ajax_url) {
           log('prepareForPurchaseIntent: cc_params indisponível', { hasCcParams: !!window.cc_params });
@@ -324,17 +322,8 @@
     // Só roda automaticamente se veio do Produto/Carrinho nesta entrada do checkout.
     if (!hasPrepareFlag()) return;
 
-    // Verificar se o usuário está logado ANTES de mostrar o overlay.
-    // Se não estiver logado, não mostra o spinning (o popup de login vai aparecer via modal).
-    if (!isLoggedIn()) {
-      log('Usuário não logado - não mostra overlay (popup de login será exibido pelo modal)');
-      markPrepareDone();
-      // Deixa o modal lidar com o login; não auto-abre aqui.
-      return;
-    }
-
-    // Usuário está logado: mostra overlay, prepara o endereço selecionado, depois abre modal.
-    log('Usuário logado - iniciando preparação do checkout');
+    // Usuário pode estar logado ou não: mostrar overlay e preparar endereço.
+    log('Iniciando preparação do checkout');
     showOverlay();
 
     ajaxPost({ action: 'ctwpml_get_addresses', _ajax_nonce: window.cc_params.addresses_nonce })

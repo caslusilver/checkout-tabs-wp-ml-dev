@@ -19,9 +19,108 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 ## [Unreleased]
 
 ### Changed
-- **Versão atual**: v3.2.83  
-  **Versão sugerida após a mudança**: vX.Y.Z  
-  **Descrição**: texto objetivo do que mudou e impacto (pode listar itens separados por ponto e vírgula).
+- **Versão atual**: v3.2.91  
+  **Versão sugerida após a mudança**: v3.2.92  
+  **Descrição**: sem mudanças pendentes.
+
+## [v3.2.91] - 2026-01-28
+
+### Changed
+- corrige assinatura do hook woocommerce_checkout_customer_id para evitar fatal no wc-ajax=checkout; adiciona logs de debug quando checkout não é passado ou e-mail inválido.
+- publicação estável de segurança na main; rollback completo da v3.2.92.
+
+#### Protocol: ef8a6f4
+
+## [v3.2.90] - 2026-01-27
+
+### Changed
+- cart_thumbs liberado para guest com carga do carrinho em AJAX; confirmação de e-mail movida para salvar endereço (guest) e removida do CTA de confirmação; validação reforçada no save de endereço.
+
+#### Protocol: 1920a08
+
+## [v3.2.89] - 2026-01-27
+
+### Changed
+- persistência de e-mail/contato para guest antes do place_order; confirmação obrigatória de e-mail e bloqueio de avanço sem validação; restauração de contato/e-mail após checkout_error com checkpoints adicionais.
+
+#### Protocol: 3ab51ad
+
+## [v3.2.88] - 2026-01-27
+
+### Changed
+- correções pós-implementação: botão do shortcode CEP resistente a override do Elementor; modal de geolocalização fecha ao negar permissão; e-mail obrigatório no formulário ML e bloqueio de avanço sem e-mail válido; overlay verde com barra de progresso e bloqueio total em erro crítico.
+
+#### Protocol: 642b99b
+
+## [v3.2.87] - 2026-01-27
+
+### Changed
+- checkout com login tardio: sessão guest para endereços/contato/frete, validação de e-mail no CTA e migração após login/criação; shortcode CEP com proxy dedicado, tabela de resultados e botão “Calcular”; toggle admin para geolocalização e endpoint REST de CEP; documentos de intenção técnica da etapa 1 e 2 adicionados na raiz.
+
+#### Protocol: 7ccaf4b
+
+## [v3.2.86] - 2026-01-21
+
+### Changed
+- geolocalização (toggle OFF): bloqueia qualquer popup (inclusive abertura manual) e só reaplica cache existente; shortcode `[ctwpml_cep]`: remove link de fallback quando popup estiver OFF e melhora a exibição dos métodos (nome/preço/prazo, incluindo ranges quando disponíveis).
+
+#### Protocol: 989b4be
+
+## [v3.2.85] - 2026-01-21
+
+### Changed
+- bump de versão para destravar atualizações via GitUpdater (tag v3.2.84 já existente); mantém shortcode `[ctwpml_cep]` com enqueues locais (CSS/JS) e renderização por método; consumer global reaplica `freteData` (cache/localStorage) e preenche spans dinâmicos; pop-up do plugin nunca abre automaticamente quando o toggle de geolocalização estiver desativado.
+
+#### Protocol: be2d925
+
+## [v3.2.84] - 2026-01-21
+
+### Changed
+- pop-up de geolocalização passa a não existir quando desativado no admin (nenhum gatilho automático); consulta de frete via CEP fica 100% user-driven por shortcode; consumer aplica `freteData` (cache/localStorage) e preenche spans dinâmicos; renderização dos métodos de frete abaixo do formulário.
+
+#### Protocol: 2a70469
+
+## [v3.2.82] - 2026-01-19
+
+### Changed
+- Checkout (ML): valida “Nome completo” exigindo sobrenome (tudo após o 1º espaço) e preenche corretamente `billing_first_name`/`billing_last_name` para evitar erro de “Sobrenome obrigatório”; Mobile: aumenta `font-size` dos inputs do modal para 16px para evitar zoom ao focar (iOS/Safari).
+
+#### Protocol: 6ea13c2
+
+## [v3.2.81] - 2026-01-19
+
+### Changed
+- Endereço (modal ML): adiciona campo “Bairro” no formulário (abaixo de Complemento) e torna obrigatório quando a API não retornar; preenche automaticamente a partir da consulta de CEP quando disponível e injeta inputs hidden no checkout Woo (`billing_neighborhood` e variações) quando ausentes para garantir validação/submit; Scroll: ajusta health check e trava do scroll no root mode para evitar falhas de rolagem e reduzir falso-negativo do `CHK_SCROLL_ENABLED`.
+
+#### Protocol: db36978
+
+## [v3.2.80] - 2026-01-19
+
+### Changed
+- Debug/Telemetria: painéis visuais no checkout passam a ser exibidos apenas para administradores (sem expor “Ver Logs”/📊 ao usuário final), mantendo captura/envio de logs; Checkout (ML): reforça hardening do “Bairro” com eventos nativos (`input/change`), detecção de variações de campo (billing_neighbourhood/bairro/shipping_*) e snapshots mais completos quando bloquear no pré-submit ou em `checkout_error`.
+
+#### Protocol: e07dddc
+
+## [v3.2.79] - 2026-01-19
+
+### Changed
+- Checkout (ML): hardening do campo “Bairro” obrigatório — preenche bairro com fallback (endereço salvo → lastCepLookup → freteData → campos Woo), suporta instalações que validam bairro via `billing_address_2`, e aplica re-sync leve após `update_checkout`/pré-submit para evitar limpeza por tema/plugins e reduzir `checkout_error`.
+
+#### Protocol: 2e5f627
+
+## [v3.2.78] - 2026-01-19
+
+### Changed
+- Geolocalização (modal): corrige hierarquia/posicionamento visual para replicar o padrão original (CTA secundário separado e centralizado; letras miúdas em bloco próprio abaixo de todos os botões com estilo neutro); reforça centralização do popup (inset completo + `box-sizing: border-box` + margens auto) para evitar deslocamento lateral.
+
+#### Protocol: 60cd458
+
+## [v3.2.77] - 2026-01-19
+
+### Changed
+- Geolocalização: atualiza o texto do modal para confirmar maioridade (18+) e esclarecer que a localização em tempo real é usada para exibir preços e prazos de entrega mais precisos conforme a região.
+
+#### Protocol: e8fa8d1
 
 ## [v3.2.76] - 2026-01-18
 

@@ -6,6 +6,7 @@
   var DEBUG = String(PARAMS.debug || '0') === '1';
   var ICON_URL = PARAMS.icon_url || '';
   var DEFAULT_TIMEOUT_MS = Number(PARAMS.request_timeout_ms || 12000);
+  var GEO_ENABLED = String(PARAMS.geo_enabled || '1') === '1';
 
   function log(msg, data) {
     if (!DEBUG) return;
@@ -39,39 +40,115 @@
     return null;
   }
 
-  function extractValues(data) {
-    var out = { shipping: '', deadline: '' };
-    if (!data || typeof data !== 'object') return out;
+  function normalizeApiResponse(data) {
+    if (data && data.data) data = data.data;
+    // O webhook pode retornar array com 1 item. Manter compatibilidade.
+    if (Array.isArray(data)) return data.length ? data[0] : null;
+    if (data && typeof data === 'object') return data;
+    return null;
+  }
 
-    var candidatesShipping = [
-      'frete', 'valor_frete', 'preco_frete', 'shipping', 'price', 'valor', 'preco', 'valor_total_frete'
-    ];
-    var candidatesDeadline = [
-      'prazo', 'prazo_entrega', 'prazo_dias', 'prazo_entrega_dias', 'delivery', 'delivery_time', 'delivery_days', 'entrega'
-    ];
+  function getRawFromResponse(data) {
+    var normalized = normalizeApiResponse(data);
+    if (!normalized || typeof normalized !== 'object') return null;
+    if (normalized.raw && typeof normalized.raw === 'object') return normalized.raw;
+    return normalized;
+  }
 
-    function pick(obj, keys) {
-      for (var i = 0; i < keys.length; i++) {
-        var key = keys[i];
-        if (obj && Object.prototype.hasOwnProperty.call(obj, key) && obj[key] !== null && obj[key] !== '') {
-          return obj[key];
-        }
+  function isNonEmpty(val) {
+    return val !== null && typeof val !== 'undefined' && String(val).trim() !== '';
+  }
+
+  function formatBRL(value) {
+    try {
+      var n = typeof value === 'number' ? value : Number(String(value).replace(',', '.').replace(/[^\d.]/g, ''));
+      if (!isFinite(n)) return String(value);
+      return 'R$ ' + n.toFixed(2).replace('.', ',');
+    } catch (e) {
+      return String(value);
+    }
+  }
+
+  function pickFirstKey(raw, keys) {
+    if (!raw || typeof raw !== 'object') return '';
+    for (var i = 0; i < keys.length; i++) {
+      var k = keys[i];
+      if (Object.prototype.hasOwnProperty.call(raw, k) && isNonEmpty(raw[k])) {
+        return raw[k];
       }
-      return '';
+    }
+    return '';
+  }
+
+  function formatRange(a, b) {
+    var v1 = isNonEmpty(a) ? String(a).trim() : '';
+    var v2 = isNonEmpty(b) ? String(b).trim() : '';
+    if (v1 && v2) return v1 + ' a ' + v2;
+    return v1 || v2 || '';
+  }
+
+  function buildMethods(data) {
+    var raw = getRawFromResponse(data);
+    if (!raw || typeof raw !== 'object') return [];
+
+    function buildPriceText(priceRaw) {
+      if (!isNonEmpty(priceRaw)) return '';
+      var txt = String(priceRaw).trim();
+      if (txt.indexOf('R$') !== -1) return txt;
+      var n = Number(txt.replace(',', '.').replace(/[^\d.]/g, ''));
+      return isFinite(n) ? formatBRL(n) : txt;
     }
 
-    var rawShipping = pick(data, candidatesShipping);
-    var rawDeadline = pick(data, candidatesDeadline);
-
-    if (!rawShipping && data.frete && typeof data.frete === 'object') {
-      rawShipping = pick(data.frete, ['valor', 'preco', 'price']);
+    function buildMotoboy() {
+      var label = String(raw.motoboy_ch || '').trim();
+      if (!label) return null;
+      var priceRaw = isNonEmpty(raw.preco_motoboy) ? raw.preco_motoboy
+        : (raw.freteMotoboy && isNonEmpty(raw.freteMotoboy.valor) ? raw.freteMotoboy.valor : raw.motoboy_pro);
+      var deadlineRaw = isNonEmpty(raw.prazo_motoboy) ? raw.prazo_motoboy
+        : (raw.freteMotoboy && isNonEmpty(raw.freteMotoboy.prazo) ? raw.freteMotoboy.prazo : '');
+      return { type: 'motoboy', label: label, priceText: buildPriceText(priceRaw), deadlineText: String(deadlineRaw || '').trim() };
     }
-    if (!rawDeadline && data.prazo && typeof data.prazo === 'object') {
-      rawDeadline = pick(data.prazo, ['dias', 'valor', 'min', 'max']);
+
+    function buildSedex() {
+      var label = String(raw.sedex_ch || '').trim();
+      if (!label) return null;
+      var priceRaw = isNonEmpty(raw.preco_sedex) ? raw.preco_sedex
+        : (raw.freteSedex && isNonEmpty(raw.freteSedex.valor) ? raw.freteSedex.valor : raw.sedex_pro);
+      var deadlineText = '';
+      if (isNonEmpty(raw.prazo_sedex_1) || isNonEmpty(raw.prazo_sedex_2)) {
+        deadlineText = formatRange(raw.prazo_sedex_1, raw.prazo_sedex_2);
+      } else if (raw.freteSedex && isNonEmpty(raw.freteSedex.prazo)) {
+        deadlineText = String(raw.freteSedex.prazo).trim();
+      } else if (isNonEmpty(raw.prazo_sedex)) {
+        deadlineText = String(raw.prazo_sedex).trim();
+      }
+      return { type: 'sedex', label: label, priceText: buildPriceText(priceRaw), deadlineText: deadlineText };
     }
 
-    out.shipping = rawShipping !== '' ? String(rawShipping) : '';
-    out.deadline = rawDeadline !== '' ? String(rawDeadline) : '';
+    function buildPacmini() {
+      var label = String(raw.pacmini_ch || '').trim();
+      if (!label) return null;
+      var priceRaw = isNonEmpty(raw.preco_pac) ? raw.preco_pac
+        : (raw.fretePACMini && isNonEmpty(raw.fretePACMini.valor) ? raw.fretePACMini.valor : raw.pacmini_pro);
+      var deadlineText = '';
+      if (isNonEmpty(raw.prazo_pac_1) || isNonEmpty(raw.prazo_pac_2)) {
+        deadlineText = formatRange(raw.prazo_pac_1, raw.prazo_pac_2);
+      } else if (raw.fretePACMini && (isNonEmpty(raw.fretePACMini.PACMINI_1) || isNonEmpty(raw.fretePACMini.PACMINI_2))) {
+        deadlineText = formatRange(raw.fretePACMini.PACMINI_1, raw.fretePACMini.PACMINI_2);
+      } else {
+        var legacy = pickFirstKey(raw, ['prazo_pacmini', 'prazo_pac']);
+        if (isNonEmpty(legacy)) deadlineText = String(legacy).trim();
+      }
+      return { type: 'pacmini', label: label, priceText: buildPriceText(priceRaw), deadlineText: deadlineText };
+    }
+
+    var out = [];
+    var m1 = buildMotoboy();
+    var m2 = buildSedex();
+    var m3 = buildPacmini();
+    if (m1) out.push(m1);
+    if (m2) out.push(m2);
+    if (m3) out.push(m3);
     return out;
   }
 
@@ -104,18 +181,38 @@
     if (!$form) return;
     var el = $form.querySelector('.ctwpml-cep-results');
     if (!el) return;
-    var values = extractValues(data);
-    var html = '';
-    if (values.shipping) {
-      html += '<div class="ctwpml-cep-result"><span>Frete</span><strong>' + values.shipping + '</strong></div>';
+    var methods = buildMethods(data);
+    if (methods && methods.length) {
+      var html2 = '' +
+        '<div class="ctwpml-cep-table-wrapper">' +
+        '<table class="ctwpml-cep-table" role="table">' +
+        '  <thead>' +
+        '    <tr>' +
+        '      <th>Método</th>' +
+        '      <th>Prazo</th>' +
+        '      <th>Preço</th>' +
+        '    </tr>' +
+        '  </thead>' +
+        '  <tbody>';
+      for (var i = 0; i < methods.length; i++) {
+        var m = methods[i];
+        html2 += '' +
+          '<tr class="ctwpml-cep-row-method ctwpml-cep-row-method--' + m.type + '">' +
+          '  <td>' + m.label + '</td>' +
+          '  <td>' + (m.deadlineText || '—') + '</td>' +
+          '  <td>' + (m.priceText || '—') + '</td>' +
+          '</tr>';
+      }
+      html2 += '' +
+        '  </tbody>' +
+        '</table>' +
+        '</div>';
+      el.innerHTML = html2;
+      el.style.display = 'block';
+      return;
     }
-    if (values.deadline) {
-      html += '<div class="ctwpml-cep-result"><span>Prazo</span><strong>' + values.deadline + '</strong></div>';
-    }
-    if (!html) {
-      html = '<div class="ctwpml-cep-result-empty">Resposta recebida, mas sem valores reconheciveis.</div>';
-    }
-    el.innerHTML = html;
+
+    el.innerHTML = '<div class="ctwpml-cep-result-empty">Resposta recebida, mas sem fretes disponíveis.</div>';
     el.style.display = 'block';
   }
 
@@ -127,11 +224,48 @@
     link.setAttribute('data-ctwpml-bound', '1');
     link.addEventListener('click', function (e) {
       e.preventDefault();
+      // Se popup estiver desativado, não abrir nada.
+      if (!GEO_ENABLED) return;
+      var t0 = Date.now();
+      setError($root, '');
+
+      var button = $root.querySelector('[data-ctwpml-cep-submit]');
+      setButtonState(button, true);
       try {
-        if (window.CTWPMLGeoPrompt && typeof window.CTWPMLGeoPrompt.open === 'function') {
-          window.CTWPMLGeoPrompt.open();
+        if (!window.CTWPMLGeo || typeof window.CTWPMLGeo.requestAndFetch !== 'function') {
+          setError($root, 'Servico indisponivel. Tente novamente.');
+          return;
         }
-      } catch (e0) { }
+      } catch (e0) {
+        setError($root, 'Servico indisponivel. Tente novamente.');
+        return;
+      }
+
+      var timeoutId = null;
+      var timedOut = false;
+      var timeoutMs = DEFAULT_TIMEOUT_MS;
+      var timeoutPromise = new Promise(function (_, reject) {
+        timeoutId = setTimeout(function () {
+          timedOut = true;
+          reject(new Error('timeout'));
+        }, timeoutMs);
+      });
+
+      Promise.race([window.CTWPMLGeo.requestAndFetch(), timeoutPromise])
+        .then(function (data) {
+          if (timeoutId) clearTimeout(timeoutId);
+          renderResults($root, data);
+          log('Fallback GEO OK', { ms: Date.now() - t0 });
+        })
+        .catch(function (err) {
+          if (timeoutId) clearTimeout(timeoutId);
+          var msg = timedOut ? 'Tempo esgotado. Tente novamente.' : 'Nao foi possivel obter a localizacao.';
+          setError($root, msg);
+          log('Fallback GEO erro', { error: err && err.message ? err.message : String(err), ms: Date.now() - t0 });
+        })
+        .finally(function () {
+          setButtonState(button, false);
+        });
     });
   }
 
@@ -203,7 +337,7 @@
     }
 
     button.setAttribute('data-original-text', button.querySelector('.ctwpml-cep-button-text').textContent || 'Consultar frete');
-    button.setAttribute('data-loading-text', 'Consultando...');
+    button.setAttribute('data-loading-text', 'Calculando...');
 
     input.addEventListener('input', function () {
       var clean = normalizeCep(input.value);
@@ -233,52 +367,6 @@
     bindFallbackLink($form);
   }
 
-  function ensureModal() {
-    var overlay = document.getElementById('ctwpml-cep-modal-overlay');
-    if (overlay) return overlay;
-
-    overlay = document.createElement('div');
-    overlay.id = 'ctwpml-cep-modal-overlay';
-    overlay.innerHTML =
-      '' +
-      '<div id="ctwpml-cep-modal" role="dialog" aria-modal="true" aria-label="Consulta de CEP">' +
-      '  <h2 id="ctwpml-cep-modal-title">Consulte o frete pelo CEP</h2>' +
-      '  <form class="ctwpml-cep-form" data-ctwpml-cep-form="1">' +
-      '    <div class="ctwpml-cep-row">' +
-      '      <input class="ctwpml-cep-input" data-ctwpml-cep-input="1" type="text" inputmode="numeric" placeholder="Digite aqui seu CEP" maxlength="8" pattern="[0-9]*" />' +
-      '      <button type="submit" class="ctwpml-cep-button" data-ctwpml-cep-submit="1">' +
-      '        <span class="ctwpml-cep-button-icon">' + (ICON_URL ? '<img src="' + ICON_URL + '" alt="" />' : '') + '</span>' +
-      '        <span class="ctwpml-cep-button-text">Consultar frete</span>' +
-      '        <span class="ctwpml-cep-spinner" aria-hidden="true"></span>' +
-      '      </button>' +
-      '    </div>' +
-      '    <div class="ctwpml-cep-error" role="alert" aria-live="polite"></div>' +
-      '    <div class="ctwpml-cep-results" aria-live="polite"></div>' +
-      '    <a href="#" class="ctwpml-cep-fallback" data-ctwpml-cep-fallback="1">Nao sabe seu CEP?</a>' +
-      '  </form>' +
-      '</div>';
-
-    document.body.appendChild(overlay);
-    bindForm(overlay.querySelector('.ctwpml-cep-form'));
-    return overlay;
-  }
-
-  function openModal() {
-    var overlay = ensureModal();
-    if (!overlay) return;
-    overlay.style.display = 'flex';
-    try {
-      var input = overlay.querySelector('[data-ctwpml-cep-input]');
-      if (input) input.focus();
-    } catch (e) { }
-  }
-
-  function closeModal() {
-    var overlay = document.getElementById('ctwpml-cep-modal-overlay');
-    if (!overlay) return;
-    overlay.style.display = 'none';
-  }
-
   function bindAll() {
     var forms = document.querySelectorAll('[data-ctwpml-cep-form]');
     for (var i = 0; i < forms.length; i++) {
@@ -288,8 +376,6 @@
 
   window.CTWPMLCepForm = window.CTWPMLCepForm || {};
   window.CTWPMLCepForm.bindAll = bindAll;
-  window.CTWPMLCepForm.openModal = openModal;
-  window.CTWPMLCepForm.closeModal = closeModal;
   window.CTWPMLCepForm.requestCep = requestCep;
   window.CTWPMLCepForm.normalizeCep = normalizeCep;
 
