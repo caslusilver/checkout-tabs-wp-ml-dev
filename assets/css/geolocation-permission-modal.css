@@ -220,6 +220,7 @@
   display: flex;
   gap: 10px;
   align-items: center;
+  flex-wrap: nowrap;
 }
 
 .ctwpml-cep-input {
@@ -245,6 +246,12 @@
   font-size: 14px;
   font-weight: 700;
   cursor: pointer;
+  white-space: nowrap;
+}
+
+.ctwpml-cep-button-icon,
+.ctwpml-cep-button-text {
+  flex: 0 0 auto;
   white-space: nowrap;
 }
 

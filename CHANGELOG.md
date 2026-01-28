@@ -23,10 +23,17 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
 #### Protocol: 20f9a96
 
+## [v3.2.94] - 2026-01-27
+
+### Changed
+- remove criação forçada de usuário novo no frontend (delegado ao Woo); instrumenta latência pós-login com checkpoints; mantém botão de CEP em linha única no mobile (ícone + texto).
+
+#### Protocol: 52ec438
+
 ## [Unreleased]
 
 ### Changed
-- **Versão atual**: v3.2.93  
+- **Versão atual**: v3.2.94  
   **Versão sugerida após a mudança**: vX.Y.Z  
   **Descrição**: texto objetivo do que mudou e impacto (pode listar itens separados por ponto e vírgula).
 

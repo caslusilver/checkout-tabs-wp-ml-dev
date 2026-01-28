@@ -2298,6 +2298,16 @@
                   } catch (eR0) {}
                 }, 120);
               }
+              if (authResumeContext.resumeStartTs) {
+                var endAt = Date.now();
+                if (typeof state.checkpoint === 'function') {
+                  state.checkpoint('CHK_AUTH_RESUME_REVIEW_RENDERED', true, {
+                    deltaMs: endAt - authResumeContext.resumeStartTs,
+                    openModalMs: authResumeContext.openModalAt ? (authResumeContext.openModalAt - authResumeContext.resumeStartTs) : null,
+                    loadAddressesMs: authResumeContext.loadAddressesEndAt ? (authResumeContext.loadAddressesEndAt - authResumeContext.resumeStartTs) : null,
+                  });
+                }
+              }
               clearAuthResumeSnapshot();
               authResumeContext = null;
             }
@@ -3006,6 +3016,16 @@
       if (resumeSnapshot) authResumeContext = resumeSnapshot;
       state.log('UI        [DEBUG] openModal() chamado', { isLoggedIn: isLoggedIn(), resumeAfterAuth: !!resumeSnapshot }, 'UI');
       console.log('[CTWPML][DEBUG] openModal() - isLoggedIn:', isLoggedIn(), 'resumeAfterAuth:', !!resumeSnapshot);
+      try {
+        if (resumeSnapshot && resumeSnapshot.resumeStartTs) {
+          resumeSnapshot.openModalAt = Date.now();
+          if (typeof state.checkpoint === 'function') {
+            state.checkpoint('CHK_AUTH_RESUME_OPEN_MODAL', true, {
+              deltaMs: resumeSnapshot.openModalAt - resumeSnapshot.resumeStartTs,
+            });
+          }
+        }
+      } catch (eR0) {}
 
       ensureModal();
       // Garantir que o checkout Woo tenha um campo de bairro, mesmo quando o tema/plugin não renderiza.
@@ -3119,11 +3139,33 @@
       // Mostrar spinner enquanto carrega endereços
       showModalSpinner();
 
+      try {
+        if (authResumeContext && authResumeContext.resumeStartTs) {
+          authResumeContext.loadAddressesStartAt = Date.now();
+          if (typeof state.checkpoint === 'function') {
+            state.checkpoint('CHK_AUTH_RESUME_LOAD_ADDRESSES_START', true, {
+              deltaMs: authResumeContext.loadAddressesStartAt - authResumeContext.resumeStartTs,
+            });
+          }
+        }
+      } catch (eR1) {}
+
       loadAddresses(function () {
         hideModalSpinner();
         var items = dedupeAddresses(addressesCache);
         state.log('UI        [DEBUG] openModal() - loadAddresses callback', { itemsLength: items.length, selectedAddressId: selectedAddressId }, 'UI');
         console.log('[CTWPML][DEBUG] openModal() - loadAddresses callback - items:', items.length, 'selectedAddressId:', selectedAddressId);
+        try {
+          if (authResumeContext && authResumeContext.resumeStartTs) {
+            authResumeContext.loadAddressesEndAt = Date.now();
+            if (typeof state.checkpoint === 'function') {
+              state.checkpoint('CHK_AUTH_RESUME_LOAD_ADDRESSES_END', true, {
+                deltaMs: authResumeContext.loadAddressesEndAt - authResumeContext.resumeStartTs,
+                durationMs: authResumeContext.loadAddressesEndAt - (authResumeContext.loadAddressesStartAt || authResumeContext.resumeStartTs),
+              });
+            }
+          }
+        } catch (eR2) {}
 
         if (!items.length) {
           // Se não houver endereços, vai direto pro formulário (fluxo atual).
@@ -6119,95 +6161,6 @@
         });
       }
 
-      function getCheckoutForm() {
-        try {
-          return document.querySelector('form.checkout, form.woocommerce-checkout');
-        } catch (e) {
-          return null;
-        }
-      }
-
-      function setCreateAccountFlag(enabled) {
-        var form = getCheckoutForm();
-        if (!form) return false;
-        var field = form.querySelector('input[name="createaccount"]');
-        if (!field) {
-          field = document.createElement('input');
-          field.type = 'hidden';
-          field.name = 'createaccount';
-          form.appendChild(field);
-        }
-        field.value = enabled ? '1' : '0';
-        return true;
-      }
-
-      function generateTempPassword() {
-        var chars = 'abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#';
-        var out = '';
-        for (var i = 0; i < 14; i++) {
-          out += chars.charAt(Math.floor(Math.random() * chars.length));
-        }
-        return out;
-      }
-
-      function ensureAccountUsername(email) {
-        if (!state.params || state.params.registration_generate_username === 1) return true;
-        var form = getCheckoutForm();
-        if (!form) return false;
-        var field = form.querySelector('input[name="account_username"]');
-        if (!field) {
-          field = document.createElement('input');
-          field.type = 'hidden';
-          field.name = 'account_username';
-          form.appendChild(field);
-        }
-        if (!field.value) {
-          var base = String(email || '').split('@')[0] || 'user';
-          field.value = base.replace(/[^\w\-\.]/g, '').slice(0, 40);
-        }
-        return true;
-      }
-
-      function ensureAccountPassword() {
-        if (!state.params || state.params.registration_generate_password === 1) return true;
-        var form = getCheckoutForm();
-        if (!form) return false;
-        var field = form.querySelector('input[name="account_password"]');
-        if (!field) {
-          field = document.createElement('input');
-          field.type = 'hidden';
-          field.name = 'account_password';
-          form.appendChild(field);
-        }
-        if (!field.value) field.value = generateTempPassword();
-        return true;
-      }
-
-      function prepareAutoAccountCreation(email) {
-        if (!state.params || state.params.registration_enabled !== 1) {
-          if (typeof state.checkpoint === 'function') {
-            state.checkpoint('CHK_ACCOUNT_CREATE_PREPARE', false, { reason: 'registration_disabled' });
-          }
-          return false;
-        }
-        if (!setCreateAccountFlag(true)) {
-          if (typeof state.checkpoint === 'function') {
-            state.checkpoint('CHK_ACCOUNT_CREATE_PREPARE', false, { reason: 'missing_checkout_form' });
-          }
-          return false;
-        }
-        if (!ensureAccountUsername(email) || !ensureAccountPassword()) {
-          if (typeof state.checkpoint === 'function') {
-            state.checkpoint('CHK_ACCOUNT_CREATE_PREPARE', false, { reason: 'account_fields_failed' });
-          }
-          return false;
-        }
-        if (typeof state.checkpoint === 'function') {
-          state.checkpoint('CHK_ACCOUNT_CREATE_PREPARE', true, { email: String(email || '') });
-        }
-        return true;
-      }
-
       if (!isLoggedIn()) {
         var emailToConfirm = getBillingEmail();
         if (!isValidEmail(emailToConfirm)) {
@@ -6251,7 +6204,6 @@
               hideModalSpinner();
               $ctaAuth.prop('disabled', false).css('opacity', '');
               if (resp && resp.success && resp.data && resp.data.exists) {
-                setCreateAccountFlag(false);
                 try {
                   var termsChecked = $('.ctwpml-review-terms-checkbox').first().is(':checked');
                   var addressSnapshot = null;
@@ -6267,6 +6219,7 @@
                     autoSubmit: !!termsChecked,
                     addressSnapshot: addressSnapshot,
                     resumeAfterAuth: true,
+                    resumeStartTs: Date.now(),
                   });
                   if (typeof state.checkpoint === 'function') {
                     state.checkpoint('CHK_AUTH_RESUME_SNAPSHOT', true, { view: currentView || 'review', termsChecked: !!termsChecked });
@@ -6277,10 +6230,6 @@
                   }
                 }
                 showAuthView({ preserveView: true, returnView: 'review' });
-                return;
-              }
-              if (!prepareAutoAccountCreation(emailToCheck)) {
-                showNotification('Não foi possível criar sua conta automaticamente. Verifique sua configuração e tente novamente.', 'error', 4500);
                 return;
               }
               state.skipAuthCheckOnce = true;
@@ -6690,7 +6639,11 @@
         snapshot.view = (snapshot.view || 'review');
         snapshot.resumeAfterAuth = true;
         if (typeof state.checkpoint === 'function') {
-          state.checkpoint('CHK_AUTH_RESUME_READY', true, { view: snapshot.view, autoSubmit: !!snapshot.autoSubmit });
+          state.checkpoint('CHK_AUTH_RESUME_READY', true, {
+            view: snapshot.view,
+            autoSubmit: !!snapshot.autoSubmit,
+            deltaMs: snapshot.resumeStartTs ? (Date.now() - snapshot.resumeStartTs) : null,
+          });
         }
         openModal({ skipLoadAddresses: true, resumeSnapshot: snapshot });
         return true;
