@@ -9,19 +9,20 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 - Criar o repositório: `caslusilver/checkout-tabs-wp-ml-dev`
 - Branch principal do fluxo: `develop`
 
-## [v3.2.91] - 2026-01-28
-
-### Changed
-- corrige assinatura do hook woocommerce_checkout_customer_id para evitar fatal no wc-ajax=checkout; adiciona logs de debug quando checkout não é passado ou e-mail inválido.
-
-#### Protocol: ef8a6f4
-
 ## [Unreleased]
 
 ### Changed
 - **Versão atual**: v3.2.91  
-  **Versão sugerida após a mudança**: vX.Y.Z  
-  **Descrição**: texto objetivo do que mudou e impacto (pode listar itens separados por ponto e vírgula).
+  **Versão sugerida após a mudança**: v3.2.92  
+  **Descrição**: sem mudanças pendentes.
+
+## [v3.2.91] - 2026-01-28
+
+### Changed
+- corrige assinatura do hook woocommerce_checkout_customer_id para evitar fatal no wc-ajax=checkout; adiciona logs de debug quando checkout não é passado ou e-mail inválido.
+- publicação estável de segurança na main; rollback completo da v3.2.92.
+
+#### Protocol: ef8a6f4
 
 ## [v3.2.90] - 2026-01-27
 

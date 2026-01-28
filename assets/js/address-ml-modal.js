@@ -2303,6 +2303,7 @@
               } catch (e9) {}
             }, 400);
           } catch (e8) {}
+
         };
 
         if (woo && typeof woo.getCartThumbs === 'function') {
