@@ -157,8 +157,39 @@
     // =========================================================
     var CTWPML_MODAL_STATE_KEY = 'ctwpml_ml_modal_state_v1';
     var CTWPML_ORDER_COMPLETED_KEY = 'ctwpml_ml_order_completed_v1';
+    var CTWPML_AUTH_RESUME_KEY = 'ctwpml_auth_resume_v1';
     var CTWPML_ORDER_COMPLETED_TTL_MS = 5 * 60 * 1000;
     var restoreStateOnOpen = null;
+    var authResumeContext = null;
+
+    function readAuthResumeSnapshot() {
+      try {
+        if (!window.sessionStorage) return null;
+        var raw = window.sessionStorage.getItem(CTWPML_AUTH_RESUME_KEY);
+        if (!raw) return null;
+        var obj = JSON.parse(raw);
+        if (!obj || typeof obj !== 'object') return null;
+        return obj;
+      } catch (e) {
+        return null;
+      }
+    }
+
+    function clearAuthResumeSnapshot() {
+      try {
+        if (!window.sessionStorage) return;
+        window.sessionStorage.removeItem(CTWPML_AUTH_RESUME_KEY);
+      } catch (e) {}
+    }
+
+    function saveAuthResumeSnapshot(payload) {
+      try {
+        if (!window.sessionStorage) return;
+        var base = payload && typeof payload === 'object' ? payload : {};
+        base.ts = Date.now();
+        window.sessionStorage.setItem(CTWPML_AUTH_RESUME_KEY, JSON.stringify(base));
+      } catch (e) {}
+    }
 
     function safeReadModalState() {
       try {
@@ -232,6 +263,7 @@
         selectedAddressId: (typeof patch.selectedAddressId !== 'undefined') ? patch.selectedAddressId : (selectedAddressId || prev.selectedAddressId || ''),
         selectedShipping: (typeof patch.selectedShipping !== 'undefined') ? patch.selectedShipping : (state.selectedShipping || prev.selectedShipping || null),
         selectedPaymentMethod: (typeof patch.selectedPaymentMethod !== 'undefined') ? patch.selectedPaymentMethod : (state.selectedPaymentMethod || prev.selectedPaymentMethod || ''),
+        pendingAuth: (typeof patch.pendingAuth === 'boolean') ? patch.pendingAuth : !!prev.pendingAuth,
         ts: Date.now(),
       };
       safeWriteModalState(next);
@@ -2248,6 +2280,32 @@
           fillReviewShippingDetails();
           bindReviewStickyFooter();
           ctwpmlInitReviewTermsState();
+          try {
+            if (authResumeContext && authResumeContext.resumeAfterAuth) {
+              var resumeTerms = !!authResumeContext.termsChecked;
+              if (resumeTerms) {
+                $('.ctwpml-review-terms-checkbox').prop('checked', true);
+                ctwpmlSyncWooTerms(true);
+                ctwpmlSetReviewCtaEnabled(true);
+              }
+              if (typeof state.checkpoint === 'function') {
+                state.checkpoint('CHK_AUTH_RESUME_APPLIED', true, { termsChecked: resumeTerms, autoSubmit: !!authResumeContext.autoSubmit });
+              }
+              if (authResumeContext.autoSubmit && resumeTerms) {
+                setTimeout(function () {
+                  try {
+                    $('#ctwpml-review-confirm').first().trigger('click');
+                  } catch (eR0) {}
+                }, 120);
+              }
+              clearAuthResumeSnapshot();
+              authResumeContext = null;
+            }
+          } catch (eAR) {
+            if (typeof state.checkpoint === 'function') {
+              state.checkpoint('CHK_AUTH_RESUME_APPLIED', false, { error: String(eAR || '') });
+            }
+          }
           // Cupons aplicados: render imediato (sem depender de updated_checkout)
           try {
             var cps0 = woo && woo.readCoupons ? (woo.readCoupons() || []) : [];
@@ -2942,15 +3000,18 @@
       }
     }
 
-    function openModal() {
-      state.log('UI        [DEBUG] openModal() chamado', { isLoggedIn: isLoggedIn() }, 'UI');
-      console.log('[CTWPML][DEBUG] openModal() - isLoggedIn:', isLoggedIn());
+    function openModal(opts) {
+      opts = opts || {};
+      var resumeSnapshot = opts && opts.resumeSnapshot ? opts.resumeSnapshot : null;
+      if (resumeSnapshot) authResumeContext = resumeSnapshot;
+      state.log('UI        [DEBUG] openModal() chamado', { isLoggedIn: isLoggedIn(), resumeAfterAuth: !!resumeSnapshot }, 'UI');
+      console.log('[CTWPML][DEBUG] openModal() - isLoggedIn:', isLoggedIn(), 'resumeAfterAuth:', !!resumeSnapshot);
 
       ensureModal();
       // Garantir que o checkout Woo tenha um campo de bairro, mesmo quando o tema/plugin não renderiza.
       try { ensureWooNeighborhoodInputs(); } catch (e0) {}
       refreshFromCheckoutFields();
-      restoreStateOnOpen = safeReadModalState();
+      restoreStateOnOpen = resumeSnapshot || safeReadModalState();
       
       // Modo fullscreen: mostrar componente inline e esconder abas antigas
       $('#ctwpml-address-modal-overlay').css('display', 'block');
@@ -2963,6 +3024,9 @@
           $('body').addClass('ctwpml-ml-open').css('overflow', 'hidden');
         }
       } catch (e) {}
+      if (resumeSnapshot && resumeSnapshot.view) {
+        currentView = String(resumeSnapshot.view);
+      }
       // Marcar modal como "aberto" para restaurar após reload.
       persistModalState({ open: true, view: currentView || 'list' });
       // Compatibilidade: se existir root das abas antigas (modo não-ML), esconda.
@@ -2980,27 +3044,7 @@
         checkGateways();
       }, 500); // Aguarda render inicial
       
-      // Mostrar spinner enquanto carrega endereços
-      showModalSpinner();
-      
-      loadAddresses(function () {
-        hideModalSpinner();
-        var items = dedupeAddresses(addressesCache);
-        state.log('UI        [DEBUG] openModal() - loadAddresses callback', { itemsLength: items.length, selectedAddressId: selectedAddressId }, 'UI');
-        console.log('[CTWPML][DEBUG] openModal() - loadAddresses callback - items:', items.length, 'selectedAddressId:', selectedAddressId);
-
-        if (!items.length) {
-          // Se não houver endereços, vai direto pro formulário (fluxo atual).
-          console.log('[CTWPML][DEBUG] openModal() - sem endereços, mostrando formulário');
-          showFormForNewAddress();
-          return;
-        }
-        if (!selectedAddressId) {
-          selectedAddressId = items[0].id;
-          console.log('[CTWPML][DEBUG] openModal() - selectedAddressId definido para:', selectedAddressId);
-        }
-
-        // Aplicar restore (view + seleção) se houver.
+      function restoreAndShow() {
         var restored = false;
         var targetView = 'initial';
         try {
@@ -3049,13 +3093,50 @@
         if (targetView === 'review') return showReviewConfirmScreen();
         if (targetView === 'form') return showFormForNewAddress();
         if (targetView === 'list') {
-      showList();
+          showList();
           renderAddressList();
           return;
         }
 
         console.log('[CTWPML][DEBUG] openModal() - chamando showInitial()');
         showInitial();
+      }
+
+      if (resumeSnapshot && resumeSnapshot.addressSnapshot) {
+        try {
+          addressesCache = [resumeSnapshot.addressSnapshot];
+          addressesCacheTimestamp = Date.now();
+        } catch (eS0) {}
+      }
+      if (resumeSnapshot && resumeSnapshot.selectedAddressId) {
+        selectedAddressId = resumeSnapshot.selectedAddressId;
+      }
+      if (opts && opts.skipLoadAddresses && resumeSnapshot) {
+        hideModalSpinner();
+        return restoreAndShow();
+      }
+
+      // Mostrar spinner enquanto carrega endereços
+      showModalSpinner();
+
+      loadAddresses(function () {
+        hideModalSpinner();
+        var items = dedupeAddresses(addressesCache);
+        state.log('UI        [DEBUG] openModal() - loadAddresses callback', { itemsLength: items.length, selectedAddressId: selectedAddressId }, 'UI');
+        console.log('[CTWPML][DEBUG] openModal() - loadAddresses callback - items:', items.length, 'selectedAddressId:', selectedAddressId);
+
+        if (!items.length) {
+          // Se não houver endereços, vai direto pro formulário (fluxo atual).
+          console.log('[CTWPML][DEBUG] openModal() - sem endereços, mostrando formulário');
+          showFormForNewAddress();
+          return;
+        }
+        if (!selectedAddressId) {
+          selectedAddressId = items[0].id;
+          console.log('[CTWPML][DEBUG] openModal() - selectedAddressId definido para:', selectedAddressId);
+        }
+
+        restoreAndShow();
       });
     }
 
@@ -6081,6 +6162,30 @@
               hideModalSpinner();
               $ctaAuth.prop('disabled', false).css('opacity', '');
               if (resp && resp.success && resp.data && resp.data.exists) {
+                try {
+                  var termsChecked = $('.ctwpml-review-terms-checkbox').first().is(':checked');
+                  var addressSnapshot = null;
+                  try {
+                    if (selectedAddressId) addressSnapshot = getAddressById(selectedAddressId) || null;
+                  } catch (eA0) {}
+                  saveAuthResumeSnapshot({
+                    view: currentView || 'review',
+                    selectedAddressId: selectedAddressId || '',
+                    selectedShipping: state.selectedShipping || null,
+                    selectedPaymentMethod: state.selectedPaymentMethod || '',
+                    termsChecked: !!termsChecked,
+                    autoSubmit: !!termsChecked,
+                    addressSnapshot: addressSnapshot,
+                    resumeAfterAuth: true,
+                  });
+                  if (typeof state.checkpoint === 'function') {
+                    state.checkpoint('CHK_AUTH_RESUME_SNAPSHOT', true, { view: currentView || 'review', termsChecked: !!termsChecked });
+                  }
+                } catch (eSnap) {
+                  if (typeof state.checkpoint === 'function') {
+                    state.checkpoint('CHK_AUTH_RESUME_SNAPSHOT', false, { error: String(eSnap || '') });
+                  }
+                }
                 showAuthView({ preserveView: true, returnView: 'review' });
                 return;
               }
@@ -6482,6 +6587,27 @@
       if ($('#ctwpml-open-address-modal').length || tries > 20) clearInterval(t);
     }, 500);
 
+    function resumeAfterAuthIfNeeded() {
+      try {
+        var snapshot = readAuthResumeSnapshot();
+        if (!snapshot) return false;
+        if (!isLoggedIn()) return false;
+        snapshot.open = true;
+        snapshot.view = (snapshot.view || 'review');
+        snapshot.resumeAfterAuth = true;
+        if (typeof state.checkpoint === 'function') {
+          state.checkpoint('CHK_AUTH_RESUME_READY', true, { view: snapshot.view, autoSubmit: !!snapshot.autoSubmit });
+        }
+        openModal({ skipLoadAddresses: true, resumeSnapshot: snapshot });
+        return true;
+      } catch (e0) {
+        if (typeof state.checkpoint === 'function') {
+          state.checkpoint('CHK_AUTH_RESUME_READY', false, { error: String(e0 || '') });
+        }
+        return false;
+      }
+    }
+
     // NOVO: iniciar fluxo automaticamente ao entrar no /checkout.
     // - logado: abre modal ML
     // - deslogado: abre view auth dentro do modal ML (sem Fancybox)
@@ -6489,6 +6615,7 @@
       console.log('[CTWPML][DEBUG] setTimeout 800ms - auto abertura do modal');
       console.log('[CTWPML][DEBUG] setTimeout - isLoggedIn:', isLoggedIn());
       try {
+        if (resumeAfterAuthIfNeeded()) return;
         console.log('[CTWPML][DEBUG] setTimeout - chamando openModal() (auth dentro do modal)');
         openModal();
       } catch (e) {

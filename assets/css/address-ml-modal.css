@@ -916,7 +916,7 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
   outline: none !important;
   color: #000 !important;
   height: 100%;
-  border-left: 1px solid #eee !important;
+  border-left: 0 !important;
   margin: 0 !important;
 }
 

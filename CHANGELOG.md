@@ -9,12 +9,19 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 - Criar o repositório: `caslusilver/checkout-tabs-wp-ml-dev`
 - Branch principal do fluxo: `develop`
 
+## [v3.2.92] - 2026-01-27
+
+### Changed
+- retoma fluxo pós-login com snapshot do estado no Review (sem regressão de etapa) e auto-resumo da confirmação; bloqueia auto-abertura do modal após login; remove contorno interno no campo de número do WhatsApp; plano v3.2.92 em txt.
+
+#### Protocol: 0d2ad29
+
 ## [Unreleased]
 
 ### Changed
-- **Versão atual**: v3.2.91  
-  **Versão sugerida após a mudança**: v3.2.92  
-  **Descrição**: sem mudanças pendentes.
+- **Versão atual**: v3.2.92  
+  **Versão sugerida após a mudança**: vX.Y.Z  
+  **Descrição**: texto objetivo do que mudou e impacto (pode listar itens separados por ponto e vírgula).
 
 ## [v3.2.91] - 2026-01-28
 

@@ -37,6 +37,15 @@
   var SS_KEY_ENTER = 'ctwpml_prepare_on_checkout';
   var SS_KEY_DONE = 'ctwpml_prepare_done_for_checkout_entry';
   var SS_KEY_LAST_ADDR = 'ctwpml_prepare_last_address_id';
+  var SS_KEY_AUTH_RESUME = 'ctwpml_auth_resume_v1';
+
+  function hasAuthResumeSnapshot() {
+    try {
+      return !!(window.sessionStorage && window.sessionStorage.getItem(SS_KEY_AUTH_RESUME));
+    } catch (e) {
+      return false;
+    }
+  }
 
   function setPrepareFlag() {
     try {
@@ -302,6 +311,10 @@
 
   function autoOpenAddressModal() {
     try {
+      if (hasAuthResumeSnapshot()) {
+        log('Auto-abrir modal ignorado (auth resume pendente)');
+        return false;
+      }
       if (window.CCCheckoutTabsState && typeof window.CCCheckoutTabsState.openAddressModal === 'function') {
         log('Auto-abrindo modal via CCCheckoutTabsState.openAddressModal()');
         window.CCCheckoutTabsState.openAddressModal();
