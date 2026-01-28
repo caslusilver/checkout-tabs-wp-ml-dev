@@ -16,10 +16,17 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
 #### Protocol: 0d2ad29
 
+## [v3.2.93] - 2026-01-27
+
+### Changed
+- criação automática de conta no checkout via flags do Woo (quando e-mail não existe); manutenção do fluxo pós-login sem reinício; ajuste do SVG do botão de CEP; layout mobile do botão de CEP em linha única.
+
+#### Protocol: 20f9a96
+
 ## [Unreleased]
 
 ### Changed
-- **Versão atual**: v3.2.92  
+- **Versão atual**: v3.2.93  
   **Versão sugerida após a mudança**: vX.Y.Z  
   **Descrição**: texto objetivo do que mudou e impacto (pode listar itens separados por ponto e vírgula).
 

@@ -268,6 +268,10 @@ add_action('wp_enqueue_scripts', function () {
 			$recaptcha_site_key = (string) $login_recaptcha_opts['site_key'];
 		}
 	}
+	$registration_enabled = ((string) get_option('woocommerce_enable_myaccount_registration', 'no') === 'yes');
+	$guest_checkout_enabled = ((string) get_option('woocommerce_enable_guest_checkout', 'no') === 'yes');
+	$registration_generate_password = ((string) get_option('woocommerce_registration_generate_password', 'yes') === 'yes');
+	$registration_generate_username = ((string) get_option('woocommerce_registration_generate_username', 'yes') === 'yes');
 
 	wp_localize_script('checkout-tabs-wp-ml-main', 'cc_params', [
 		// Passar como 1/0 evita ambiguidades (ex.: 'true'/'false') no JS.
@@ -277,6 +281,10 @@ add_action('wp_enqueue_scripts', function () {
 		'is_admin_viewer' => current_user_can('manage_options') ? 1 : 0,
 		'cta_anim'   => 1,
 		'is_logged_in' => is_user_logged_in() ? 1 : 0,
+		'registration_enabled' => $registration_enabled ? 1 : 0,
+		'guest_checkout_enabled' => $guest_checkout_enabled ? 1 : 0,
+		'registration_generate_password' => $registration_generate_password ? 1 : 0,
+		'registration_generate_username' => $registration_generate_username ? 1 : 0,
 		'ml_only'    => $ml_only ? 1 : 0, // Modo ML definitivo (sem abas legadas)
 		'ajax_url'   => admin_url('admin-ajax.php'),
 		'nonce'      => wp_create_nonce('store_webhook_shipping'),

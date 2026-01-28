@@ -6119,6 +6119,95 @@
         });
       }
 
+      function getCheckoutForm() {
+        try {
+          return document.querySelector('form.checkout, form.woocommerce-checkout');
+        } catch (e) {
+          return null;
+        }
+      }
+
+      function setCreateAccountFlag(enabled) {
+        var form = getCheckoutForm();
+        if (!form) return false;
+        var field = form.querySelector('input[name="createaccount"]');
+        if (!field) {
+          field = document.createElement('input');
+          field.type = 'hidden';
+          field.name = 'createaccount';
+          form.appendChild(field);
+        }
+        field.value = enabled ? '1' : '0';
+        return true;
+      }
+
+      function generateTempPassword() {
+        var chars = 'abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#';
+        var out = '';
+        for (var i = 0; i < 14; i++) {
+          out += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        return out;
+      }
+
+      function ensureAccountUsername(email) {
+        if (!state.params || state.params.registration_generate_username === 1) return true;
+        var form = getCheckoutForm();
+        if (!form) return false;
+        var field = form.querySelector('input[name="account_username"]');
+        if (!field) {
+          field = document.createElement('input');
+          field.type = 'hidden';
+          field.name = 'account_username';
+          form.appendChild(field);
+        }
+        if (!field.value) {
+          var base = String(email || '').split('@')[0] || 'user';
+          field.value = base.replace(/[^\w\-\.]/g, '').slice(0, 40);
+        }
+        return true;
+      }
+
+      function ensureAccountPassword() {
+        if (!state.params || state.params.registration_generate_password === 1) return true;
+        var form = getCheckoutForm();
+        if (!form) return false;
+        var field = form.querySelector('input[name="account_password"]');
+        if (!field) {
+          field = document.createElement('input');
+          field.type = 'hidden';
+          field.name = 'account_password';
+          form.appendChild(field);
+        }
+        if (!field.value) field.value = generateTempPassword();
+        return true;
+      }
+
+      function prepareAutoAccountCreation(email) {
+        if (!state.params || state.params.registration_enabled !== 1) {
+          if (typeof state.checkpoint === 'function') {
+            state.checkpoint('CHK_ACCOUNT_CREATE_PREPARE', false, { reason: 'registration_disabled' });
+          }
+          return false;
+        }
+        if (!setCreateAccountFlag(true)) {
+          if (typeof state.checkpoint === 'function') {
+            state.checkpoint('CHK_ACCOUNT_CREATE_PREPARE', false, { reason: 'missing_checkout_form' });
+          }
+          return false;
+        }
+        if (!ensureAccountUsername(email) || !ensureAccountPassword()) {
+          if (typeof state.checkpoint === 'function') {
+            state.checkpoint('CHK_ACCOUNT_CREATE_PREPARE', false, { reason: 'account_fields_failed' });
+          }
+          return false;
+        }
+        if (typeof state.checkpoint === 'function') {
+          state.checkpoint('CHK_ACCOUNT_CREATE_PREPARE', true, { email: String(email || '') });
+        }
+        return true;
+      }
+
       if (!isLoggedIn()) {
         var emailToConfirm = getBillingEmail();
         if (!isValidEmail(emailToConfirm)) {
@@ -6162,6 +6251,7 @@
               hideModalSpinner();
               $ctaAuth.prop('disabled', false).css('opacity', '');
               if (resp && resp.success && resp.data && resp.data.exists) {
+                setCreateAccountFlag(false);
                 try {
                   var termsChecked = $('.ctwpml-review-terms-checkbox').first().is(':checked');
                   var addressSnapshot = null;
@@ -6187,6 +6277,10 @@
                   }
                 }
                 showAuthView({ preserveView: true, returnView: 'review' });
+                return;
+              }
+              if (!prepareAutoAccountCreation(emailToCheck)) {
+                showNotification('Não foi possível criar sua conta automaticamente. Verifique sua configuração e tente novamente.', 'error', 4500);
                 return;
               }
               state.skipAuthCheckOnce = true;

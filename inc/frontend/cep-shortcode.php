@@ -40,7 +40,7 @@ function ctwpml_render_cep_form_shortcode($atts = []): string {
 	if ($icon_url === '') {
 		$icon_url = apply_filters(
 			'checkout_tabs_wp_ml_cep_button_icon_url',
-			CHECKOUT_TABS_WP_ML_URL . 'assets/img/icones/delivery-truck-bolt.svg'
+			CHECKOUT_TABS_WP_ML_URL . 'assets/img/icones/delivery-truck-speed.svg'
 		);
 	}
 
