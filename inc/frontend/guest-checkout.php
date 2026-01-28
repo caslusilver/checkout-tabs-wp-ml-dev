@@ -32,17 +32,25 @@ add_action('woocommerce_after_checkout_validation', function ($data, $errors): v
 	}
 }, 10, 2);
 
-add_filter('woocommerce_checkout_customer_id', function ($customer_id, $checkout) {
+add_filter('woocommerce_checkout_customer_id', function ($customer_id, $checkout = null) {
+	if (!$checkout) {
+		error_log('[CTWPML] guest-checkout: checkout arg ausente em woocommerce_checkout_customer_id');
+	}
 	if ($customer_id) {
 		return $customer_id;
 	}
 	if (is_user_logged_in()) {
 		return $customer_id;
 	}
+	if (!$checkout || !method_exists($checkout, 'get_value')) {
+		error_log('[CTWPML] guest-checkout: checkout inválido em woocommerce_checkout_customer_id');
+		return $customer_id;
+	}
 	$email = $checkout && method_exists($checkout, 'get_value')
 		? sanitize_email((string) $checkout->get_value('billing_email'))
 		: '';
 	if (!$email || !is_email($email)) {
+		error_log('[CTWPML] guest-checkout: email inválido/ausente em woocommerce_checkout_customer_id');
 		return $customer_id;
 	}
 	if (email_exists($email)) {
