@@ -9,10 +9,17 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 - Criar o repositório: `caslusilver/checkout-tabs-wp-ml-dev`
 - Branch principal do fluxo: `develop`
 
+## [v3.2.90] - 2026-01-27
+
+### Changed
+- cart_thumbs liberado para guest com carga do carrinho em AJAX; confirmação de e-mail movida para salvar endereço (guest) e removida do CTA de confirmação; validação reforçada no save de endereço.
+
+#### Protocol: 1920a08
+
 ## [Unreleased]
 
 ### Changed
-- **Versão atual**: v3.2.89  
+- **Versão atual**: v3.2.90  
   **Versão sugerida após a mudança**: vX.Y.Z  
   **Descrição**: texto objetivo do que mudou e impacto (pode listar itens separados por ponto e vírgula).
 

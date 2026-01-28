@@ -3351,6 +3351,27 @@
       return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
     }
 
+    function ctwpmlConfirmGuestEmail(email, context) {
+      var normalized = (email || '').toString().trim().toLowerCase();
+      if (!normalized) return false;
+      if (state.confirmedEmailValue && state.confirmedEmailValue === normalized) {
+        return true;
+      }
+      var ok = window.confirm('Confirme se este e-mail está correto: ' + normalized);
+      if (!ok) {
+        showNotification('Confirme o e-mail para continuar.', 'error', 3500);
+        if (typeof state.checkpoint === 'function') {
+          state.checkpoint('CHK_EMAIL_CONFIRM', false, { email: normalized, context: String(context || '') });
+        }
+        return false;
+      }
+      state.confirmedEmailValue = normalized;
+      if (typeof state.checkpoint === 'function') {
+        state.checkpoint('CHK_EMAIL_CONFIRM', true, { email: normalized, context: String(context || '') });
+      }
+      return true;
+    }
+
     function validateForm() {
       clearFormErrors();
       var ok = true;
@@ -5026,6 +5047,17 @@
           state.log('ERROR     validateForm falhou (não salvou)', {}, 'ERROR');
           return;
         }
+        if (!isLoggedIn()) {
+          var emailSave = ($('#ctwpml-input-email').val() || '').trim().toLowerCase();
+          if (!ctwpmlIsValidEmail(emailSave)) {
+            setFieldError('#ctwpml-group-email', true);
+            showNotification('Informe um e-mail válido para continuar.', 'error', 3500);
+            return;
+          }
+          if (!ctwpmlConfirmGuestEmail(emailSave, 'save_address')) {
+            return;
+          }
+        }
         applyFormToCheckout();
         // Spinner deve persistir até confirmação + retorno para lista (evita confusão/janela sem bloqueio).
         ctwpmlSpinnerAcquire('primary_save_click');
@@ -5986,27 +6018,6 @@
         }
       }
 
-      function ensureGuestEmailConfirmed(email) {
-        var normalized = (email || '').toString().trim().toLowerCase();
-        if (!normalized) return false;
-        if (state.confirmedEmailValue && state.confirmedEmailValue === normalized) {
-          return true;
-        }
-        var ok = window.confirm('Confirme se este e-mail está correto: ' + normalized);
-        if (!ok) {
-          showNotification('Confirme o e-mail para continuar.', 'error', 3500);
-          if (typeof state.checkpoint === 'function') {
-            state.checkpoint('CHK_EMAIL_CONFIRM', false, { email: normalized });
-          }
-          return false;
-        }
-        state.confirmedEmailValue = normalized;
-        if (typeof state.checkpoint === 'function') {
-          state.checkpoint('CHK_EMAIL_CONFIRM', true, { email: normalized });
-        }
-        return true;
-      }
-
       function persistContactMetaBeforeCheckout(done) {
         try { showModalSpinner(); } catch (e0) {}
         saveContactMeta({ silent: true, spinnerManagedByCaller: true }, function (response) {
@@ -6036,12 +6047,6 @@
           }
           if (typeof state.checkpoint === 'function') {
             state.checkpoint('CHK_EMAIL_REQUIRED_BLOCK', false, { reason: 'invalid_or_empty' });
-          }
-          return;
-        }
-        if (!ensureGuestEmailConfirmed(emailToConfirm)) {
-          if (typeof state.checkpoint === 'function') {
-            state.checkpoint('CHK_EMAIL_REQUIRED_BLOCK', false, { reason: 'not_confirmed' });
           }
           return;
         }
