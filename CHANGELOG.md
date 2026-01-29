@@ -30,10 +30,17 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
 #### Protocol: 52ec438
 
+## [v3.2.95] - 2026-01-27
+
+### Changed
+- sincroniza billing_phone/billing_cellphone no submit e reforça applyFormToCheckout antes do place_order para permitir criação automática de conta pelo Woo.
+
+#### Protocol: 52ec438
+
 ## [Unreleased]
 
 ### Changed
-- **Versão atual**: v3.2.94  
+- **Versão atual**: v3.2.95  
   **Versão sugerida após a mudança**: vX.Y.Z  
   **Descrição**: texto objetivo do que mudou e impacto (pode listar itens separados por ponto e vírgula).
 

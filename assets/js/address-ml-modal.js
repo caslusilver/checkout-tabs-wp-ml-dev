@@ -4897,6 +4897,24 @@
         if ($email.length) ctwpmlSetFieldValue($email, email);
       }
 
+      // Telefone: manter compatibilidade com billing_phone e billing_cellphone.
+      try {
+        var phoneFull = ($('#ctwpml-phone-full').val() || '').toString();
+        var phoneValue = '';
+        if (phoneFull) {
+          phoneValue = phoneFull;
+        } else {
+          var digits = phoneDigits($('#ctwpml-input-fone').val() || '');
+          phoneValue = digits ? digits : '';
+        }
+        if (phoneValue) {
+          var $phone = ctwpmlBillingField$('#billing_phone', 'billing_phone');
+          if ($phone.length) ctwpmlSetFieldValue($phone, phoneValue);
+          var $cell = ctwpmlBillingField$('#billing_cellphone', 'billing_cellphone');
+          if ($cell.length) ctwpmlSetFieldValue($cell, phoneValue);
+        }
+      } catch (eP0) {}
+
       var fone = ($('#ctwpml-input-fone').val() || '').trim();
       if (fone) $('#billing_cellphone').val(phoneDigits(fone)).trigger('change');
 
@@ -6259,6 +6277,8 @@
       // v2.0 [2.2]: overlay de preparação ao tentar finalizar compra (intenção de compra).
       // Importante: só mostra após validar termos + gateway para não “piscar” com erro imediato.
       var prep = window.CTWPMLPrepare || null;
+      // Garantir que o form do Woo tenha os campos sincronizados no submit.
+      try { applyFormToCheckout(); } catch (eSync) {}
       // Garantir que o overlay NÃO apareça ao confirmar compra (cinto de segurança).
       try {
         if (prep && typeof prep.hidePreparingOverlay === 'function') {
