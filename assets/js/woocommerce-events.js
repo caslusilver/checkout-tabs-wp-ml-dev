@@ -104,6 +104,7 @@
       // No ML-only: não mostra overlay global, só marca progresso
       if (mlOnly) {
         state.ajaxWCStartTime = performance.now();
+        $(document.body).trigger('ctwpml_woo_updating');
         return;
       }
 
@@ -165,6 +166,11 @@
       state.updatePlaceOrderButtonState();
       state.renderDuplicateTotal();
     });
+
+    // Expor helper para leitura do estado de update_checkout.
+    state.isUpdateCheckoutInProgress = function () {
+      return !!updateCheckoutInProgress;
+    };
   };
 })(window);
 

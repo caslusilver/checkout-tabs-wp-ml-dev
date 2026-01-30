@@ -54,9 +54,16 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 ## [Unreleased]
 
 ### Changed
-- **Versão atual**: v3.2.102  
+- **Versão atual**: v3.2.103  
   **Versão sugerida após a mudança**: vX.Y.Z  
   **Descrição**: texto objetivo do que mudou e impacto (pode listar itens separados por ponto e vírgula).
+
+## [v3.2.103] - 2026-01-30
+
+### Changed
+- gate forte com spinner e timeout na sincronização de frete/totais antes de avançar e confirmar; revisão bloqueada até Woo confirmar frete aplicado e totais prontos; eventos de update_checkout sinalizados no ML-only e parâmetros de gate configuráveis via `cc_params`.
+
+#### Protocol: c83f385
 
 ## [v3.2.91] - 2026-01-28
 
