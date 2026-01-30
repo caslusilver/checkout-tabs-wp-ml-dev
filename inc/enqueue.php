@@ -268,7 +268,7 @@ add_action('wp_enqueue_scripts', function () {
 			$recaptcha_site_key = (string) $login_recaptcha_opts['site_key'];
 		}
 	}
-	$registration_enabled = ((string) get_option('woocommerce_enable_myaccount_registration', 'no') === 'yes');
+	$registration_enabled = ((string) get_option('woocommerce_enable_signup_and_login_from_checkout', get_option('woocommerce_enable_myaccount_registration', 'no')) === 'yes');
 	$guest_checkout_enabled = ((string) get_option('woocommerce_enable_guest_checkout', 'no') === 'yes');
 	$registration_generate_password = ((string) get_option('woocommerce_registration_generate_password', 'yes') === 'yes');
 	$registration_generate_username = ((string) get_option('woocommerce_registration_generate_username', 'yes') === 'yes');

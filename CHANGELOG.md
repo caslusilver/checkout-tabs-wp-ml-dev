@@ -30,10 +30,17 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
 #### Protocol: 52ec438
 
+## [v3.2.100] - 2026-01-27
+
+### Changed
+- corrige fluxo de criação de conta no checkout ML respeitando o Woo (createaccount e geração automática), evita conflito com guest checkout e reduz bloqueios no CTA.
+
+#### Protocol: a7e70d5
+
 ## [Unreleased]
 
 ### Changed
-- **Versão atual**: v3.2.99  
+- **Versão atual**: v3.2.100  
   **Versão sugerida após a mudança**: vX.Y.Z  
   **Descrição**: texto objetivo do que mudou e impacto (pode listar itens separados por ponto e vírgula).
 

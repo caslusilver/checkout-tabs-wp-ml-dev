@@ -6184,7 +6184,12 @@
       }
 
       function prepareAutoAccountCreation(email) {
-        if (!state.params || state.params.registration_enabled !== 1) {
+        var params = state.params || {};
+        var registrationEnabled = (typeof params.registration_enabled === 'number') ? (params.registration_enabled === 1) : true;
+        var generateUsername = (typeof params.registration_generate_username === 'number') ? (params.registration_generate_username === 1) : true;
+        var generatePassword = (typeof params.registration_generate_password === 'number') ? (params.registration_generate_password === 1) : true;
+
+        if (!registrationEnabled) {
           if (typeof state.checkpoint === 'function') {
             state.checkpoint('CHK_ACCOUNT_CREATE_PREPARE', false, { reason: 'registration_disabled' });
           }
@@ -6196,14 +6201,20 @@
           }
           return false;
         }
-        if (!ensureAccountUsername(email) || !ensureAccountPassword()) {
+        if (!generateUsername && !ensureAccountUsername(email)) {
           if (typeof state.checkpoint === 'function') {
-            state.checkpoint('CHK_ACCOUNT_CREATE_PREPARE', false, { reason: 'account_fields_failed' });
+            state.checkpoint('CHK_ACCOUNT_CREATE_PREPARE', false, { reason: 'account_username_failed' });
+          }
+          return false;
+        }
+        if (!generatePassword && !ensureAccountPassword()) {
+          if (typeof state.checkpoint === 'function') {
+            state.checkpoint('CHK_ACCOUNT_CREATE_PREPARE', false, { reason: 'account_password_failed' });
           }
           return false;
         }
         if (typeof state.checkpoint === 'function') {
-          state.checkpoint('CHK_ACCOUNT_CREATE_PREPARE', true, { email: String(email || '') });
+          state.checkpoint('CHK_ACCOUNT_CREATE_PREPARE', true, { email: String(email || ''), generateUsername: generateUsername, generatePassword: generatePassword });
         }
         return true;
       }
@@ -6280,8 +6291,15 @@
                 return;
               }
               if (!prepareAutoAccountCreation(emailToCheck)) {
-                showNotification('Não foi possível criar sua conta automaticamente. Verifique sua configuração e tente novamente.', 'error', 4500);
-                return;
+                var guestEnabled = state.params && state.params.guest_checkout_enabled === 1;
+                if (!guestEnabled) {
+                  showNotification('Não foi possível criar sua conta automaticamente. Verifique sua configuração e tente novamente.', 'error', 4500);
+                  return;
+                }
+                if (typeof state.checkpoint === 'function') {
+                  state.checkpoint('CHK_ACCOUNT_CREATE_PREPARE', false, { reason: 'guest_fallback_allowed', email: String(emailToCheck || '') });
+                }
+                setCreateAccountFlag(false);
               }
               state.skipAuthCheckOnce = true;
               setTimeout(function () {
