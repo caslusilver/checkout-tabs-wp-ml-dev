@@ -157,8 +157,39 @@
     // =========================================================
     var CTWPML_MODAL_STATE_KEY = 'ctwpml_ml_modal_state_v1';
     var CTWPML_ORDER_COMPLETED_KEY = 'ctwpml_ml_order_completed_v1';
+    var CTWPML_AUTH_RESUME_KEY = 'ctwpml_auth_resume_v1';
     var CTWPML_ORDER_COMPLETED_TTL_MS = 5 * 60 * 1000;
     var restoreStateOnOpen = null;
+    var authResumeContext = null;
+
+    function readAuthResumeSnapshot() {
+      try {
+        if (!window.sessionStorage) return null;
+        var raw = window.sessionStorage.getItem(CTWPML_AUTH_RESUME_KEY);
+        if (!raw) return null;
+        var obj = JSON.parse(raw);
+        if (!obj || typeof obj !== 'object') return null;
+        return obj;
+      } catch (e) {
+        return null;
+      }
+    }
+
+    function clearAuthResumeSnapshot() {
+      try {
+        if (!window.sessionStorage) return;
+        window.sessionStorage.removeItem(CTWPML_AUTH_RESUME_KEY);
+      } catch (e) {}
+    }
+
+    function saveAuthResumeSnapshot(payload) {
+      try {
+        if (!window.sessionStorage) return;
+        var base = payload && typeof payload === 'object' ? payload : {};
+        base.ts = Date.now();
+        window.sessionStorage.setItem(CTWPML_AUTH_RESUME_KEY, JSON.stringify(base));
+      } catch (e) {}
+    }
 
     function safeReadModalState() {
       try {
@@ -232,6 +263,7 @@
         selectedAddressId: (typeof patch.selectedAddressId !== 'undefined') ? patch.selectedAddressId : (selectedAddressId || prev.selectedAddressId || ''),
         selectedShipping: (typeof patch.selectedShipping !== 'undefined') ? patch.selectedShipping : (state.selectedShipping || prev.selectedShipping || null),
         selectedPaymentMethod: (typeof patch.selectedPaymentMethod !== 'undefined') ? patch.selectedPaymentMethod : (state.selectedPaymentMethod || prev.selectedPaymentMethod || ''),
+        pendingAuth: (typeof patch.pendingAuth === 'boolean') ? patch.pendingAuth : !!prev.pendingAuth,
         ts: Date.now(),
       };
       safeWriteModalState(next);
@@ -883,91 +915,144 @@
             }
           } catch (e0xs) {}
 
-          // Observa o que o Woo realmente deixou "checked" após recalcular.
-          var t0 = Date.now();
-          $(document.body).one('updated_checkout', function () {
-            var afterSnap = ctwpmlReadWooShippingDomSnapshot();
-            var applied = afterSnap && afterSnap.checked ? String(afterSnap.checked) : '';
-            var match = !!(applied && requested && applied === requested);
-            log('setShippingMethodInWC() - POST updated_checkout snapshot', {
-              requested: requested,
-              applied: applied,
-              match: match,
-              ms: Date.now() - t0,
-              wooDomAfter: afterSnap,
-              apiAvailableRateIds: resp && resp.data ? (resp.data.available_rate_ids || []) : [],
-            });
-            try {
-              if (state.__ctwpmlLastShippingSet && state.__ctwpmlLastShippingSet.requested === requested) {
-                state.__ctwpmlLastShippingSet.applied = applied;
-                state.__ctwpmlLastShippingSet.match = match;
+          function syncShippingRadioWithRetry(done) {
+            var attempts = 0;
+            var maxAttempts = 3;
+            var delay = 150;
+            var run = function () {
+              attempts += 1;
+              var $input = $('input[name^="shipping_method"][value="' + requested.replace(/"/g, '\\"') + '"]').first();
+              var beforeRadio = ctwpmlReadWooShippingDomSnapshot();
+              var radioOk = false;
+              if ($input.length && !$input.prop('disabled')) {
+                $input.prop('checked', true);
+                try { $input[0].dispatchEvent(new Event('change', { bubbles: true })); } catch (e1) { $input.trigger('change'); }
+                radioOk = true;
               }
-            } catch (e0b) {}
-            try {
-              if (typeof state.checkpoint === 'function') {
-                state.checkpoint('CHK_SHIPPING_SET_APPLIED', match, {
-                  requested: requested,
-                  applied: applied,
-                  ms: Date.now() - t0,
-                  domCount: afterSnap ? afterSnap.count : 0,
-                  apiRequestedExists: resp && resp.data ? resp.data.requested_exists : undefined,
-                  apiAvailableRateIds: resp && resp.data ? (resp.data.available_rate_ids || []) : [],
-                });
-              }
-            } catch (e3) {}
-          });
-
-          // =========================================================
-          // CRÍTICO: o Woo considera o radio shipping_method como fonte de verdade.
-          // Precisamos marcar o input correspondente ANTES do update_checkout,
-          // senão ele pode reverter para o método que estava checked (ex.: flat_rate:1).
-          // =========================================================
-          try {
-            var $input = $('input[name^="shipping_method"][value="' + requested.replace(/"/g, '\\"') + '"]').first();
-            var beforeRadio = ctwpmlReadWooShippingDomSnapshot();
-            var radioOk = false;
-            if ($input.length && !$input.prop('disabled')) {
-              $input.prop('checked', true);
-              // change real para o Woo capturar
-              try { $input[0].dispatchEvent(new Event('change', { bubbles: true })); } catch (e1) { $input.trigger('change'); }
-              radioOk = true;
-            }
-            var afterRadio = ctwpmlReadWooShippingDomSnapshot();
-            log('setShippingMethodInWC() - Radio sync', {
-              requested: requested,
-              found: $input.length,
-              disabled: $input.length ? !!$input.prop('disabled') : null,
-              beforeChecked: beforeRadio ? beforeRadio.checked : '',
-              afterChecked: afterRadio ? afterRadio.checked : '',
-            });
-            if (typeof state.checkpoint === 'function') {
-              state.checkpoint('CHK_SHIPPING_RADIO_SYNC', radioOk && afterRadio && afterRadio.checked === requested, {
+              var afterRadio = ctwpmlReadWooShippingDomSnapshot();
+              log('setShippingMethodInWC() - Radio sync', {
                 requested: requested,
                 found: $input.length,
                 disabled: $input.length ? !!$input.prop('disabled') : null,
                 beforeChecked: beforeRadio ? beforeRadio.checked : '',
                 afterChecked: afterRadio ? afterRadio.checked : '',
+                attempt: attempts,
               });
-            }
-          } catch (e0y) {}
-
-          log('setShippingMethodInWC() - Sucesso! Disparando update_checkout');
-          try {
-            if (typeof state.checkpoint === 'function') {
-              state.checkpoint('CHK_OVERLAY_SOURCES', true, {
-                source: 'set_shipping_method',
-                hasBlockOverlay: document.querySelectorAll('.blockUI.blockOverlay').length,
-                hasBlockMsg: document.querySelectorAll('.blockUI.blockMsg').length,
-                hasNoticeGroup: document.querySelectorAll('.woocommerce-NoticeGroup, .woocommerce-NoticeGroup-checkout').length,
-              });
-            }
-          } catch (e4) {}
-
-          // Trigger update_checkout para atualizar totais
-          $(document.body).trigger('update_checkout');
-          if (typeof callback === 'function') {
-            callback(resp.data);
+              if (typeof state.checkpoint === 'function') {
+                state.checkpoint('CHK_SHIPPING_RADIO_SYNC', radioOk && afterRadio && afterRadio.checked === requested, {
+                  requested: requested,
+                  found: $input.length,
+                  disabled: $input.length ? !!$input.prop('disabled') : null,
+                  beforeChecked: beforeRadio ? beforeRadio.checked : '',
+                  afterChecked: afterRadio ? afterRadio.checked : '',
+                  attempt: attempts,
+                });
+              }
+              if (radioOk && afterRadio && afterRadio.checked === requested) {
+                if (typeof done === 'function') done(true);
+                return;
+              }
+              if (attempts < maxAttempts) {
+                setTimeout(run, delay);
+                return;
+              }
+              if (typeof state.checkpoint === 'function') {
+                state.checkpoint('CHK_SHIPPING_RADIO_SYNC', false, {
+                  requested: requested,
+                  reason: 'input_missing_or_disabled',
+                  attempt: attempts,
+                });
+              }
+              if (typeof done === 'function') done(false);
+            };
+            run();
           }
+
+          syncShippingRadioWithRetry(function (radioOk) {
+            var t0 = Date.now();
+            var retries = 0;
+            var maxRetries = 3;
+            var retryDelay = 200;
+            var snapshotOnce = function (source) {
+              var afterSnap = ctwpmlReadWooShippingDomSnapshot();
+              var applied = afterSnap && afterSnap.checked ? String(afterSnap.checked) : '';
+              var match = !!(applied && requested && applied === requested);
+              log('setShippingMethodInWC() - POST updated_checkout snapshot', {
+                requested: requested,
+                applied: applied,
+                match: match,
+                ms: Date.now() - t0,
+                source: source,
+                wooDomAfter: afterSnap,
+                apiAvailableRateIds: resp && resp.data ? (resp.data.available_rate_ids || []) : [],
+              });
+              try {
+                if (state.__ctwpmlLastShippingSet && state.__ctwpmlLastShippingSet.requested === requested) {
+                  state.__ctwpmlLastShippingSet.applied = applied;
+                  state.__ctwpmlLastShippingSet.match = match;
+                }
+              } catch (e0b) {}
+              if (match) {
+                try {
+                  if (typeof state.checkpoint === 'function') {
+                    state.checkpoint('CHK_SHIPPING_SET_APPLIED', true, {
+                      requested: requested,
+                      applied: applied,
+                      ms: Date.now() - t0,
+                      domCount: afterSnap ? afterSnap.count : 0,
+                      apiRequestedExists: resp && resp.data ? resp.data.requested_exists : undefined,
+                      apiAvailableRateIds: resp && resp.data ? (resp.data.available_rate_ids || []) : [],
+                    });
+                  }
+                } catch (e3) {}
+                $(document.body).off('updated_checkout.ctwpml_shipping_apply');
+                return;
+              }
+              if (retries < maxRetries) {
+                retries += 1;
+                setTimeout(function () {
+                  snapshotOnce('retry_' + retries);
+                }, retryDelay);
+                return;
+              }
+              try {
+                if (typeof state.checkpoint === 'function') {
+                  state.checkpoint('CHK_SHIPPING_SET_APPLIED', false, {
+                    requested: requested,
+                    applied: applied,
+                    reason: radioOk ? 'mismatch_after_retries' : 'radio_sync_failed',
+                    ms: Date.now() - t0,
+                    domCount: afterSnap ? afterSnap.count : 0,
+                    apiRequestedExists: resp && resp.data ? resp.data.requested_exists : undefined,
+                    apiAvailableRateIds: resp && resp.data ? (resp.data.available_rate_ids || []) : [],
+                  });
+                }
+              } catch (e3b) {}
+            };
+
+            $(document.body).off('updated_checkout.ctwpml_shipping_apply');
+            $(document.body).on('updated_checkout.ctwpml_shipping_apply', function () {
+              snapshotOnce('updated_checkout');
+            });
+
+            log('setShippingMethodInWC() - Sucesso! Disparando update_checkout');
+            try {
+              if (typeof state.checkpoint === 'function') {
+                state.checkpoint('CHK_OVERLAY_SOURCES', true, {
+                  source: 'set_shipping_method',
+                  hasBlockOverlay: document.querySelectorAll('.blockUI.blockOverlay').length,
+                  hasBlockMsg: document.querySelectorAll('.blockUI.blockMsg').length,
+                  hasNoticeGroup: document.querySelectorAll('.woocommerce-NoticeGroup, .woocommerce-NoticeGroup-checkout').length,
+                });
+              }
+            } catch (e4) {}
+
+            // Trigger update_checkout para atualizar totais
+            $(document.body).trigger('update_checkout');
+            if (typeof callback === 'function') {
+              callback(resp.data);
+            }
+          });
         },
         error: function (jqXHR, textStatus, errorThrown) {
           log('setShippingMethodInWC() - ERRO AJAX:', { status: jqXHR.status, textStatus: textStatus, error: errorThrown });
@@ -2248,6 +2333,32 @@
           fillReviewShippingDetails();
           bindReviewStickyFooter();
           ctwpmlInitReviewTermsState();
+          try {
+            if (authResumeContext && authResumeContext.resumeAfterAuth) {
+              var resumeTerms = !!authResumeContext.termsChecked;
+              if (resumeTerms) {
+                $('.ctwpml-review-terms-checkbox').prop('checked', true);
+                ctwpmlSyncWooTerms(true);
+                ctwpmlSetReviewCtaEnabled(true);
+              }
+              if (typeof state.checkpoint === 'function') {
+                state.checkpoint('CHK_AUTH_RESUME_APPLIED', true, { termsChecked: resumeTerms, autoSubmit: !!authResumeContext.autoSubmit });
+              }
+              if (authResumeContext.autoSubmit && resumeTerms) {
+                setTimeout(function () {
+                  try {
+                    $('#ctwpml-review-confirm').first().trigger('click');
+                  } catch (eR0) {}
+                }, 120);
+              }
+              clearAuthResumeSnapshot();
+              authResumeContext = null;
+            }
+          } catch (eAR) {
+            if (typeof state.checkpoint === 'function') {
+              state.checkpoint('CHK_AUTH_RESUME_APPLIED', false, { error: String(eAR || '') });
+            }
+          }
           // Cupons aplicados: render imediato (sem depender de updated_checkout)
           try {
             var cps0 = woo && woo.readCoupons ? (woo.readCoupons() || []) : [];
@@ -2942,15 +3053,18 @@
       }
     }
 
-    function openModal() {
-      state.log('UI        [DEBUG] openModal() chamado', { isLoggedIn: isLoggedIn() }, 'UI');
-      console.log('[CTWPML][DEBUG] openModal() - isLoggedIn:', isLoggedIn());
+    function openModal(opts) {
+      opts = opts || {};
+      var resumeSnapshot = opts && opts.resumeSnapshot ? opts.resumeSnapshot : null;
+      if (resumeSnapshot) authResumeContext = resumeSnapshot;
+      state.log('UI        [DEBUG] openModal() chamado', { isLoggedIn: isLoggedIn(), resumeAfterAuth: !!resumeSnapshot }, 'UI');
+      console.log('[CTWPML][DEBUG] openModal() - isLoggedIn:', isLoggedIn(), 'resumeAfterAuth:', !!resumeSnapshot);
 
       ensureModal();
       // Garantir que o checkout Woo tenha um campo de bairro, mesmo quando o tema/plugin não renderiza.
       try { ensureWooNeighborhoodInputs(); } catch (e0) {}
       refreshFromCheckoutFields();
-      restoreStateOnOpen = safeReadModalState();
+      restoreStateOnOpen = resumeSnapshot || safeReadModalState();
       
       // Modo fullscreen: mostrar componente inline e esconder abas antigas
       $('#ctwpml-address-modal-overlay').css('display', 'block');
@@ -2963,6 +3077,9 @@
           $('body').addClass('ctwpml-ml-open').css('overflow', 'hidden');
         }
       } catch (e) {}
+      if (resumeSnapshot && resumeSnapshot.view) {
+        currentView = String(resumeSnapshot.view);
+      }
       // Marcar modal como "aberto" para restaurar após reload.
       persistModalState({ open: true, view: currentView || 'list' });
       // Compatibilidade: se existir root das abas antigas (modo não-ML), esconda.
@@ -2980,27 +3097,7 @@
         checkGateways();
       }, 500); // Aguarda render inicial
       
-      // Mostrar spinner enquanto carrega endereços
-      showModalSpinner();
-      
-      loadAddresses(function () {
-        hideModalSpinner();
-        var items = dedupeAddresses(addressesCache);
-        state.log('UI        [DEBUG] openModal() - loadAddresses callback', { itemsLength: items.length, selectedAddressId: selectedAddressId }, 'UI');
-        console.log('[CTWPML][DEBUG] openModal() - loadAddresses callback - items:', items.length, 'selectedAddressId:', selectedAddressId);
-
-        if (!items.length) {
-          // Se não houver endereços, vai direto pro formulário (fluxo atual).
-          console.log('[CTWPML][DEBUG] openModal() - sem endereços, mostrando formulário');
-          showFormForNewAddress();
-          return;
-        }
-        if (!selectedAddressId) {
-          selectedAddressId = items[0].id;
-          console.log('[CTWPML][DEBUG] openModal() - selectedAddressId definido para:', selectedAddressId);
-        }
-
-        // Aplicar restore (view + seleção) se houver.
+      function restoreAndShow() {
         var restored = false;
         var targetView = 'initial';
         try {
@@ -3049,13 +3146,50 @@
         if (targetView === 'review') return showReviewConfirmScreen();
         if (targetView === 'form') return showFormForNewAddress();
         if (targetView === 'list') {
-      showList();
+          showList();
           renderAddressList();
           return;
         }
 
         console.log('[CTWPML][DEBUG] openModal() - chamando showInitial()');
         showInitial();
+      }
+
+      if (resumeSnapshot && resumeSnapshot.addressSnapshot) {
+        try {
+          addressesCache = [resumeSnapshot.addressSnapshot];
+          addressesCacheTimestamp = Date.now();
+        } catch (eS0) {}
+      }
+      if (resumeSnapshot && resumeSnapshot.selectedAddressId) {
+        selectedAddressId = resumeSnapshot.selectedAddressId;
+      }
+      if (opts && opts.skipLoadAddresses && resumeSnapshot) {
+        hideModalSpinner();
+        return restoreAndShow();
+      }
+
+      // Mostrar spinner enquanto carrega endereços
+      showModalSpinner();
+
+      loadAddresses(function () {
+        hideModalSpinner();
+        var items = dedupeAddresses(addressesCache);
+        state.log('UI        [DEBUG] openModal() - loadAddresses callback', { itemsLength: items.length, selectedAddressId: selectedAddressId }, 'UI');
+        console.log('[CTWPML][DEBUG] openModal() - loadAddresses callback - items:', items.length, 'selectedAddressId:', selectedAddressId);
+
+        if (!items.length) {
+          // Se não houver endereços, vai direto pro formulário (fluxo atual).
+          console.log('[CTWPML][DEBUG] openModal() - sem endereços, mostrando formulário');
+          showFormForNewAddress();
+          return;
+        }
+        if (!selectedAddressId) {
+          selectedAddressId = items[0].id;
+          console.log('[CTWPML][DEBUG] openModal() - selectedAddressId definido para:', selectedAddressId);
+        }
+
+        restoreAndShow();
       });
     }
 
@@ -6038,6 +6172,106 @@
         });
       }
 
+      function getCheckoutForm() {
+        try {
+          return document.querySelector('form.checkout, form.woocommerce-checkout');
+        } catch (e) {
+          return null;
+        }
+      }
+
+      function setCreateAccountFlag(enabled) {
+        var form = getCheckoutForm();
+        if (!form) return false;
+        var field = form.querySelector('input[name="createaccount"]');
+        if (!field) {
+          field = document.createElement('input');
+          field.type = 'hidden';
+          field.name = 'createaccount';
+          form.appendChild(field);
+        }
+        field.value = enabled ? '1' : '0';
+        return true;
+      }
+
+      function generateTempPassword() {
+        var chars = 'abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#';
+        var out = '';
+        for (var i = 0; i < 14; i++) {
+          out += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        return out;
+      }
+
+      function ensureAccountUsername(email) {
+        if (!state.params || state.params.registration_generate_username === 1) return true;
+        var form = getCheckoutForm();
+        if (!form) return false;
+        var field = form.querySelector('input[name="account_username"]');
+        if (!field) {
+          field = document.createElement('input');
+          field.type = 'hidden';
+          field.name = 'account_username';
+          form.appendChild(field);
+        }
+        if (!field.value) {
+          var base = String(email || '').split('@')[0] || 'user';
+          field.value = base.replace(/[^\w\-\.]/g, '').slice(0, 40);
+        }
+        return true;
+      }
+
+      function ensureAccountPassword() {
+        if (!state.params || state.params.registration_generate_password === 1) return true;
+        var form = getCheckoutForm();
+        if (!form) return false;
+        var field = form.querySelector('input[name="account_password"]');
+        if (!field) {
+          field = document.createElement('input');
+          field.type = 'hidden';
+          field.name = 'account_password';
+          form.appendChild(field);
+        }
+        if (!field.value) field.value = generateTempPassword();
+        return true;
+      }
+
+      function prepareAutoAccountCreation(email) {
+        var params = state.params || {};
+        var registrationEnabled = (typeof params.registration_enabled === 'number') ? (params.registration_enabled === 1) : true;
+        var generateUsername = (typeof params.registration_generate_username === 'number') ? (params.registration_generate_username === 1) : true;
+        var generatePassword = (typeof params.registration_generate_password === 'number') ? (params.registration_generate_password === 1) : true;
+
+        if (!registrationEnabled) {
+          if (typeof state.checkpoint === 'function') {
+            state.checkpoint('CHK_ACCOUNT_CREATE_PREPARE', false, { reason: 'registration_disabled' });
+          }
+          return false;
+        }
+        if (!setCreateAccountFlag(true)) {
+          if (typeof state.checkpoint === 'function') {
+            state.checkpoint('CHK_ACCOUNT_CREATE_PREPARE', false, { reason: 'missing_checkout_form' });
+          }
+          return false;
+        }
+        if (!generateUsername && !ensureAccountUsername(email)) {
+          if (typeof state.checkpoint === 'function') {
+            state.checkpoint('CHK_ACCOUNT_CREATE_PREPARE', false, { reason: 'account_username_failed' });
+          }
+          return false;
+        }
+        if (!generatePassword && !ensureAccountPassword()) {
+          if (typeof state.checkpoint === 'function') {
+            state.checkpoint('CHK_ACCOUNT_CREATE_PREPARE', false, { reason: 'account_password_failed' });
+          }
+          return false;
+        }
+        if (typeof state.checkpoint === 'function') {
+          state.checkpoint('CHK_ACCOUNT_CREATE_PREPARE', true, { email: String(email || ''), generateUsername: generateUsername, generatePassword: generatePassword });
+        }
+        return true;
+      }
+
       if (!isLoggedIn()) {
         var emailToConfirm = getBillingEmail();
         if (!isValidEmail(emailToConfirm)) {
@@ -6081,8 +6315,44 @@
               hideModalSpinner();
               $ctaAuth.prop('disabled', false).css('opacity', '');
               if (resp && resp.success && resp.data && resp.data.exists) {
+                setCreateAccountFlag(false);
+                try {
+                  var termsChecked = $('.ctwpml-review-terms-checkbox').first().is(':checked');
+                  var addressSnapshot = null;
+                  try {
+                    if (selectedAddressId) addressSnapshot = getAddressById(selectedAddressId) || null;
+                  } catch (eA0) {}
+                  saveAuthResumeSnapshot({
+                    view: currentView || 'review',
+                    selectedAddressId: selectedAddressId || '',
+                    selectedShipping: state.selectedShipping || null,
+                    selectedPaymentMethod: state.selectedPaymentMethod || '',
+                    termsChecked: !!termsChecked,
+                    autoSubmit: !!termsChecked,
+                    addressSnapshot: addressSnapshot,
+                    resumeAfterAuth: true,
+                  });
+                  if (typeof state.checkpoint === 'function') {
+                    state.checkpoint('CHK_AUTH_RESUME_SNAPSHOT', true, { view: currentView || 'review', termsChecked: !!termsChecked });
+                  }
+                } catch (eSnap) {
+                  if (typeof state.checkpoint === 'function') {
+                    state.checkpoint('CHK_AUTH_RESUME_SNAPSHOT', false, { error: String(eSnap || '') });
+                  }
+                }
                 showAuthView({ preserveView: true, returnView: 'review' });
                 return;
+              }
+              if (!prepareAutoAccountCreation(emailToCheck)) {
+                var guestEnabled = state.params && state.params.guest_checkout_enabled === 1;
+                if (!guestEnabled) {
+                  showNotification('Não foi possível criar sua conta automaticamente. Verifique sua configuração e tente novamente.', 'error', 4500);
+                  return;
+                }
+                if (typeof state.checkpoint === 'function') {
+                  state.checkpoint('CHK_ACCOUNT_CREATE_PREPARE', false, { reason: 'guest_fallback_allowed', email: String(emailToCheck || '') });
+                }
+                setCreateAccountFlag(false);
               }
               state.skipAuthCheckOnce = true;
               setTimeout(function () {
@@ -6482,6 +6752,27 @@
       if ($('#ctwpml-open-address-modal').length || tries > 20) clearInterval(t);
     }, 500);
 
+    function resumeAfterAuthIfNeeded() {
+      try {
+        var snapshot = readAuthResumeSnapshot();
+        if (!snapshot) return false;
+        if (!isLoggedIn()) return false;
+        snapshot.open = true;
+        snapshot.view = (snapshot.view || 'review');
+        snapshot.resumeAfterAuth = true;
+        if (typeof state.checkpoint === 'function') {
+          state.checkpoint('CHK_AUTH_RESUME_READY', true, { view: snapshot.view, autoSubmit: !!snapshot.autoSubmit });
+        }
+        openModal({ skipLoadAddresses: true, resumeSnapshot: snapshot });
+        return true;
+      } catch (e0) {
+        if (typeof state.checkpoint === 'function') {
+          state.checkpoint('CHK_AUTH_RESUME_READY', false, { error: String(e0 || '') });
+        }
+        return false;
+      }
+    }
+
     // NOVO: iniciar fluxo automaticamente ao entrar no /checkout.
     // - logado: abre modal ML
     // - deslogado: abre view auth dentro do modal ML (sem Fancybox)
@@ -6489,6 +6780,7 @@
       console.log('[CTWPML][DEBUG] setTimeout 800ms - auto abertura do modal');
       console.log('[CTWPML][DEBUG] setTimeout - isLoggedIn:', isLoggedIn());
       try {
+        if (resumeAfterAuthIfNeeded()) return;
         console.log('[CTWPML][DEBUG] setTimeout - chamando openModal() (auth dentro do modal)');
         openModal();
       } catch (e) {

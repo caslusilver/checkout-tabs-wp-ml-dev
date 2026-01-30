@@ -405,11 +405,12 @@
 
 @media (max-width: 520px) {
   .ctwpml-cep-row {
-    flex-direction: column;
-    align-items: stretch;
+    flex-direction: row;
+    align-items: center;
   }
   .ctwpml-cep-button {
-    width: 100%;
+    width: auto;
     justify-content: center;
+    white-space: nowrap;
   }
 }

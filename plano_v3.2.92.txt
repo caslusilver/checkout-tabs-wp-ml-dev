@@ -1,0 +1,30 @@
+Plano v3.2.92 - Checkout ML-only
+
+Objetivo
+- Corrigir retomada pós-login sem regressão de etapa.
+- Persistir snapshot do estado antes do login tardio e restaurar após login.
+- Remover contorno interno no campo de número do WhatsApp.
+- Atualizar CHANGELOG.md no bloco [Unreleased].
+
+Arquivos principais
+- assets/js/address-ml-modal.js
+- assets/js/preparing-checkout.js
+- assets/css/address-ml-modal.css
+- CHANGELOG.md
+
+Passos
+1) Fluxo pós-login:
+   - Salvar snapshot antes de abrir a view de auth (view atual, endereço, frete, pagamento, termos).
+   - Após login, retomar no Review usando snapshot e evitar reinício do fluxo.
+   - Aplicar termos e, se válido, retomar a confirmação automaticamente.
+2) Auto-abertura:
+   - Bloquear auto abertura do modal pelo prepare quando houver resume pendente.
+3) UI:
+   - Remover o contorno interno no input de número do WhatsApp.
+4) Changelog:
+   - Preencher [Unreleased] com versão atual 3.2.91, sugerida 3.2.92 e descrição objetiva.
+
+Validação mínima
+- Login tardio com e-mail existente retorna ao Review e finaliza sem regressão.
+- Logs não mostram auto-abertura pós-login.
+- Campo de número do WhatsApp sem contorno interno.

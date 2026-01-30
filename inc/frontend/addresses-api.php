@@ -1148,6 +1148,10 @@ function ctwpml_handle_set_shipping_method() {
 			WC()->cart->set_session();
 			$cart_set_session_called = true;
 		}
+		// Reafirma o método escolhido após recálculo (evita overwrite por hooks/temas).
+		if (WC()->session) {
+			WC()->session->set('chosen_shipping_methods', [$method_id]);
+		}
 		if ($is_debug) {
 			error_log('[CTWPML] set_shipping_method - Carrinho recalculado');
 			error_log('[CTWPML] set_shipping_method - Novo total: ' . WC()->cart->get_total());

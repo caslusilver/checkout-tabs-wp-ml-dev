@@ -42,6 +42,12 @@ add_filter('woocommerce_checkout_customer_id', function ($customer_id, $checkout
 	if (is_user_logged_in()) {
 		return $customer_id;
 	}
+	$guest_enabled = ((string) get_option('woocommerce_enable_guest_checkout', 'no') === 'yes');
+	$createaccount = isset($_POST['createaccount']) ? (string) wp_unslash($_POST['createaccount']) : '';
+	$should_create = (!$guest_enabled) || ($createaccount === '1');
+	if (!$should_create) {
+		return $customer_id;
+	}
 	if (!$checkout || !method_exists($checkout, 'get_value')) {
 		error_log('[CTWPML] guest-checkout: checkout inválido em woocommerce_checkout_customer_id');
 		return $customer_id;

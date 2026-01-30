@@ -9,19 +9,47 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 - Criar o repositório: `caslusilver/checkout-tabs-wp-ml-dev`
 - Branch principal do fluxo: `develop`
 
-## [v3.2.83] - 2026-01-20
+## [v3.2.92] - 2026-01-27
 
 ### Changed
-- adiciona toggle admin para geolocalização; habilita fluxo de CEP manual com cache e timeout; proxy REST aceita evento CEP; adiciona shortcode `[ctwpml_cep]` e documentação técnica.
+- retoma fluxo pós-login com snapshot do estado no Review (sem regressão de etapa) e auto-resumo da confirmação; bloqueia auto-abertura do modal após login; remove contorno interno no campo de número do WhatsApp; plano v3.2.92 em txt.
 
-#### Protocol: 954980d
+#### Protocol: 0d2ad29
+
+## [v3.2.93] - 2026-01-27
+
+### Changed
+- criação automática de conta no checkout via flags do Woo (quando e-mail não existe); manutenção do fluxo pós-login sem reinício; ajuste do SVG do botão de CEP; layout mobile do botão de CEP em linha única.
+
+#### Protocol: 20f9a96
+
+## [v3.2.99] - 2026-01-27
+
+### Changed
+- relançamento estável baseado na v3.2.93 para restabelecer o fluxo mais confiável.
+
+#### Protocol: 52ec438
+
+## [v3.2.100] - 2026-01-27
+
+### Changed
+- corrige fluxo de criação de conta no checkout ML respeitando o Woo (createaccount e geração automática), evita conflito com guest checkout e reduz bloqueios no CTA.
+
+#### Protocol: a7e70d5
+
+## [v3.2.101] - 2026-01-27
+
+### Changed
+- evita fallback de frete com retry do radio sync, revalidação pós-updated_checkout e reforço de sessão do método escolhido.
+
+#### Protocol: f8fe8b7
 
 ## [Unreleased]
 
 ### Changed
-- **Versão atual**: v3.2.91  
-  **Versão sugerida após a mudança**: v3.2.92  
-  **Descrição**: sem mudanças pendentes.
+- **Versão atual**: v3.2.101  
+  **Versão sugerida após a mudança**: vX.Y.Z  
+  **Descrição**: texto objetivo do que mudou e impacto (pode listar itens separados por ponto e vírgula).
 
 ## [v3.2.91] - 2026-01-28
 
@@ -79,6 +107,13 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 - pop-up de geolocalização passa a não existir quando desativado no admin (nenhum gatilho automático); consulta de frete via CEP fica 100% user-driven por shortcode; consumer aplica `freteData` (cache/localStorage) e preenche spans dinâmicos; renderização dos métodos de frete abaixo do formulário.
 
 #### Protocol: 2a70469
+
+## [v3.2.83] - 2026-01-20
+
+### Changed
+- adiciona toggle admin para geolocalização; habilita fluxo de CEP manual com cache e timeout; proxy REST aceita evento CEP; adiciona shortcode `[ctwpml_cep]` e documentação técnica.
+
+#### Protocol: 954980d
 
 ## [v3.2.82] - 2026-01-19
 
