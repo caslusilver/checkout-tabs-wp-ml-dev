@@ -1,0 +1,27 @@
+PLANO v3.2.105 - Gate definitivo e estabilidade de frete
+
+Diagnóstico
+- Gate reiniciava múltiplas vezes com o mesmo método (woo_updating) e mantinha pendingWooUpdate ativo.
+- Mesmo com frete aplicado e totais prontos, o gate não liberava e gerava timeouts.
+
+Objetivo
+- Evitar reentradas do gate (single-flight).
+- Limpar pendingWooUpdate ao receber qualquer updated_checkout.
+- Reduzir reentrância por eventos woo_updating repetidos.
+
+Ajustes propostos
+1) Single-flight do gate
+   - Ignorar ctwpmlReviewGateStart repetido (mesmo método + janela curta).
+   - Atualizar apenas flags, sem reiniciar timer.
+
+2) Limpeza global do pendingWooUpdate
+   - Em updated_checkout/applied_coupon/removed_coupon: sempre setar pendingWooUpdate=false quando gate ativo.
+   - Revalidar totals/applied e re-agendar o gate.
+
+3) Debounce de woo_updating
+   - Evitar múltiplos starts dentro de 800ms para o mesmo método.
+
+Critérios de aceite
+- Sem CHK_REVIEW_GATE_TIMEOUT quando frete aplicado e totals prontos.
+- Gate libera CTA rapidamente após updated_checkout.
+- Não há reentradas excessivas do gate no log.

@@ -54,9 +54,16 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 ## [Unreleased]
 
 ### Changed
-- **Versão atual**: v3.2.104  
+- **Versão atual**: v3.2.105  
   **Versão sugerida após a mudança**: vX.Y.Z  
   **Descrição**: texto objetivo do que mudou e impacto (pode listar itens separados por ponto e vírgula).
+
+## [v3.2.105] - 2026-01-30
+
+### Changed
+- gate com single-flight e limpeza de pendingWooUpdate em qualquer updated_checkout; debounce de eventos woo_updating; preferência por estado aplicado para evitar timeouts.
+
+#### Protocol: efaaa93
 
 ## [v3.2.104] - 2026-01-30
 

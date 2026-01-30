@@ -509,6 +509,9 @@
       onTimeout: null,
       source: '',
       timedOut: false,
+      lastStartAt: 0,
+      lastStartKey: '',
+      lastWooUpdatingAt: 0,
     };
 
     function ctwpmlReviewGateEnsureLoading() {
@@ -669,6 +672,29 @@
       var params = ctwpmlGetReviewGateParams();
       gate.timeoutMs = params.timeoutMs;
       gate.pollMs = params.pollMs;
+      var requestedFromOpts = opts && opts.requestedMethod ? String(opts.requestedMethod || '') : '';
+      var requestedNow = requestedFromOpts || gate.requestedMethod || (state.selectedShipping ? String(state.selectedShipping.methodId || '') : '');
+      var startKey = String(source || '') + ':' + String(requestedNow || '');
+      var now = Date.now();
+
+      // Evita reentradas rápidas do mesmo gate (single-flight).
+      if (gate.active && gate.lastStartKey === startKey && (now - gate.lastStartAt) < 1200) {
+        if (Object.prototype.hasOwnProperty.call(opts || {}, 'pendingWooUpdate')) {
+          gate.pendingWooUpdate = !!opts.pendingWooUpdate;
+        }
+        if (Object.prototype.hasOwnProperty.call(opts || {}, 'pendingShipping')) {
+          gate.pendingShipping = !!opts.pendingShipping;
+        }
+        if (Object.prototype.hasOwnProperty.call(opts || {}, 'appliedMatch')) {
+          gate.appliedMatch = !!opts.appliedMatch;
+        }
+        if (Object.prototype.hasOwnProperty.call(opts || {}, 'totalsReady')) {
+          gate.totalsReady = !!opts.totalsReady;
+        }
+        if (!gate.timer) ctwpmlReviewGateSchedule('start_skip');
+        return;
+      }
+
       gate.source = String(source || gate.source || '');
       if (!gate.active) {
         gate.active = true;
@@ -680,7 +706,9 @@
       if (Object.prototype.hasOwnProperty.call(opts, 'pendingWooUpdate')) gate.pendingWooUpdate = !!opts.pendingWooUpdate;
       if (Object.prototype.hasOwnProperty.call(opts, 'totalsReady')) gate.totalsReady = !!opts.totalsReady;
       if (Object.prototype.hasOwnProperty.call(opts, 'appliedMatch')) gate.appliedMatch = !!opts.appliedMatch;
-      if (opts.requestedMethod) gate.requestedMethod = String(opts.requestedMethod || '');
+      if (requestedNow) gate.requestedMethod = requestedNow;
+      gate.lastStartKey = startKey;
+      gate.lastStartAt = now;
       ctwpmlReviewGateLockSpinner();
       ctwpmlReviewGateEnsureLoading();
       ctwpmlSetReviewCtaEnabled(false);
@@ -2752,10 +2780,13 @@
             ctwpmlSyncWooTerms(checked);
             ctwpmlReviewGateApplyCtaState();
           } catch (e2) {}
-          if (state.__ctwpmlReviewGate && state.__ctwpmlReviewGate.active) {
-            state.__ctwpmlReviewGate.pendingWooUpdate = false;
-            ctwpmlReviewGateSchedule('updated_checkout');
-          }
+        }
+        if (state.__ctwpmlReviewGate && state.__ctwpmlReviewGate.active) {
+          state.__ctwpmlReviewGate.pendingWooUpdate = false;
+          try { ctwpmlUpdateTotalsStateFromWoo('updated_checkout'); } catch (eT0) {}
+          ctwpmlReviewGateMarkTotalsReady('updated_checkout');
+          ctwpmlReviewGateResolveAppliedMatch();
+          ctwpmlReviewGateSchedule('updated_checkout');
         }
       } catch (e) {}
     });
@@ -2764,7 +2795,13 @@
     $(document.body).on('ctwpml_woo_updating', function () {
       try {
         if (currentView !== 'review' && currentView !== 'shipping' && currentView !== 'payment') return;
+        var gate = state.__ctwpmlReviewGate;
+        var now = Date.now();
         var requestedMethod = state.selectedShipping ? String(state.selectedShipping.methodId || '') : '';
+        if (gate && gate.active && gate.requestedMethod === requestedMethod && (now - gate.lastWooUpdatingAt) < 800) {
+          return;
+        }
+        if (gate) gate.lastWooUpdatingAt = now;
         ctwpmlReviewGateStart('woo_updating', {
           pendingWooUpdate: true,
           pendingShipping: !!requestedMethod,
