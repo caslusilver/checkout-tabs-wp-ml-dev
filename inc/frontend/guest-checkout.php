@@ -108,3 +108,19 @@ add_action('woocommerce_checkout_update_user_meta', function ($user_id): void {
 		ctwpml_migrate_guest_data_to_user((int) $user_id);
 	}
 }, 20, 1);
+
+add_action('woocommerce_checkout_process', function (): void {
+	$session = function_exists('ctwpml_get_wc_session') ? ctwpml_get_wc_session() : null;
+	if (!$session) {
+		return;
+	}
+	$selected = (string) $session->get('ctwpml_selected_shipping_method');
+	$chosen = $session->get('chosen_shipping_methods');
+	$applied = '';
+	if (is_array($chosen) && !empty($chosen)) {
+		$applied = (string) $chosen[0];
+	}
+	if ($selected && $applied && $selected !== $applied) {
+		wc_add_notice('Não foi possível aplicar o frete selecionado. Reabra a etapa de entrega e selecione novamente.', 'error');
+	}
+}, 5);

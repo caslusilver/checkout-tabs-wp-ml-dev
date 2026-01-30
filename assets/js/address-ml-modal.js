@@ -846,11 +846,15 @@
           log('setShippingMethodInWC() - Resposta:', resp);
 
           var ok = !!(resp && resp.success);
+          var respData = resp && resp.data ? resp.data : null;
+          var appliedMethod = respData && respData.applied_method ? String(respData.applied_method) : '';
           try {
             if (state.__ctwpmlLastShippingSet && state.__ctwpmlLastShippingSet.requested === requested) {
               state.__ctwpmlLastShippingSet.ok = ok;
-              state.__ctwpmlLastShippingSet.validationSkipped = resp && resp.data ? !!resp.data.validation_skipped : null;
-              state.__ctwpmlLastShippingSet.requestedExists = resp && resp.data ? !!resp.data.requested_exists : null;
+              state.__ctwpmlLastShippingSet.validationSkipped = respData ? !!respData.validation_skipped : null;
+              state.__ctwpmlLastShippingSet.requestedExists = respData ? !!respData.requested_exists : null;
+              state.__ctwpmlLastShippingSet.applied = appliedMethod;
+              state.__ctwpmlLastShippingSet.match = !!(appliedMethod && appliedMethod === requested);
               state.__ctwpmlLastShippingSet.resp = resp;
             }
           } catch (e0a) {}
@@ -871,6 +875,20 @@
                 });
               }
             } catch (e2) {}
+            return;
+          }
+
+          if (appliedMethod && appliedMethod !== requested) {
+            log('setShippingMethodInWC() - Método aplicado diverge do solicitado', { requested: requested, applied: appliedMethod });
+            try {
+              if (typeof state.checkpoint === 'function') {
+                state.checkpoint('CHK_SHIPPING_SET_APPLIED', false, {
+                  requested: requested,
+                  applied: appliedMethod,
+                  reason: 'session_mismatch',
+                });
+              }
+            } catch (e2x) {}
             return;
           }
 

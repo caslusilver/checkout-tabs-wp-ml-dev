@@ -44,10 +44,17 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
 #### Protocol: f8fe8b7
 
+## [v3.2.102] - 2026-01-27
+
+### Changed
+- bloqueia fallback de frete com confirmação server-side do método aplicado e trava checkout quando há mismatch.
+
+#### Protocol: 30fc110
+
 ## [Unreleased]
 
 ### Changed
-- **Versão atual**: v3.2.101  
+- **Versão atual**: v3.2.102  
   **Versão sugerida após a mudança**: vX.Y.Z  
   **Descrição**: texto objetivo do que mudou e impacto (pode listar itens separados por ponto e vírgula).
 

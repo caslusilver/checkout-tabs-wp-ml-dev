@@ -1124,6 +1124,7 @@ function ctwpml_handle_set_shipping_method() {
 	// Salvar na sessão do WooCommerce
 	if (WC()->session) {
 		WC()->session->set('chosen_shipping_methods', [$method_id]);
+		WC()->session->set('ctwpml_selected_shipping_method', $method_id);
 		if ($is_debug) {
 			error_log('[CTWPML] set_shipping_method - Salvo em chosen_shipping_methods: ' . $method_id);
 		}
@@ -1151,6 +1152,7 @@ function ctwpml_handle_set_shipping_method() {
 		// Reafirma o método escolhido após recálculo (evita overwrite por hooks/temas).
 		if (WC()->session) {
 			WC()->session->set('chosen_shipping_methods', [$method_id]);
+			WC()->session->set('ctwpml_selected_shipping_method', $method_id);
 		}
 		if ($is_debug) {
 			error_log('[CTWPML] set_shipping_method - Carrinho recalculado');
@@ -1198,10 +1200,15 @@ function ctwpml_handle_set_shipping_method() {
 	}
 
 	$chosen_methods_raw = (WC()->session) ? WC()->session->get('chosen_shipping_methods') : null;
+	$applied_method = '';
+	if (is_array($chosen_methods_raw) && !empty($chosen_methods_raw)) {
+		$applied_method = (string) $chosen_methods_raw[0];
+	}
 	$web_session = (WC()->session) ? WC()->session->get('webhook_shipping') : null;
 
 	$response = [
 		'chosen_method'       => $method_id,
+		'applied_method'      => $applied_method,
 		'cart_total'          => WC()->cart ? WC()->cart->get_total() : '',
 		'cart_shipping_total' => WC()->cart ? WC()->cart->get_shipping_total() : '',
 	];
