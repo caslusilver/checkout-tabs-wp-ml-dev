@@ -915,91 +915,144 @@
             }
           } catch (e0xs) {}
 
-          // Observa o que o Woo realmente deixou "checked" após recalcular.
-          var t0 = Date.now();
-          $(document.body).one('updated_checkout', function () {
-            var afterSnap = ctwpmlReadWooShippingDomSnapshot();
-            var applied = afterSnap && afterSnap.checked ? String(afterSnap.checked) : '';
-            var match = !!(applied && requested && applied === requested);
-            log('setShippingMethodInWC() - POST updated_checkout snapshot', {
-              requested: requested,
-              applied: applied,
-              match: match,
-              ms: Date.now() - t0,
-              wooDomAfter: afterSnap,
-              apiAvailableRateIds: resp && resp.data ? (resp.data.available_rate_ids || []) : [],
-            });
-            try {
-              if (state.__ctwpmlLastShippingSet && state.__ctwpmlLastShippingSet.requested === requested) {
-                state.__ctwpmlLastShippingSet.applied = applied;
-                state.__ctwpmlLastShippingSet.match = match;
+          function syncShippingRadioWithRetry(done) {
+            var attempts = 0;
+            var maxAttempts = 3;
+            var delay = 150;
+            var run = function () {
+              attempts += 1;
+              var $input = $('input[name^="shipping_method"][value="' + requested.replace(/"/g, '\\"') + '"]').first();
+              var beforeRadio = ctwpmlReadWooShippingDomSnapshot();
+              var radioOk = false;
+              if ($input.length && !$input.prop('disabled')) {
+                $input.prop('checked', true);
+                try { $input[0].dispatchEvent(new Event('change', { bubbles: true })); } catch (e1) { $input.trigger('change'); }
+                radioOk = true;
               }
-            } catch (e0b) {}
-            try {
-              if (typeof state.checkpoint === 'function') {
-                state.checkpoint('CHK_SHIPPING_SET_APPLIED', match, {
-                  requested: requested,
-                  applied: applied,
-                  ms: Date.now() - t0,
-                  domCount: afterSnap ? afterSnap.count : 0,
-                  apiRequestedExists: resp && resp.data ? resp.data.requested_exists : undefined,
-                  apiAvailableRateIds: resp && resp.data ? (resp.data.available_rate_ids || []) : [],
-                });
-              }
-            } catch (e3) {}
-          });
-
-          // =========================================================
-          // CRÍTICO: o Woo considera o radio shipping_method como fonte de verdade.
-          // Precisamos marcar o input correspondente ANTES do update_checkout,
-          // senão ele pode reverter para o método que estava checked (ex.: flat_rate:1).
-          // =========================================================
-          try {
-            var $input = $('input[name^="shipping_method"][value="' + requested.replace(/"/g, '\\"') + '"]').first();
-            var beforeRadio = ctwpmlReadWooShippingDomSnapshot();
-            var radioOk = false;
-            if ($input.length && !$input.prop('disabled')) {
-              $input.prop('checked', true);
-              // change real para o Woo capturar
-              try { $input[0].dispatchEvent(new Event('change', { bubbles: true })); } catch (e1) { $input.trigger('change'); }
-              radioOk = true;
-            }
-            var afterRadio = ctwpmlReadWooShippingDomSnapshot();
-            log('setShippingMethodInWC() - Radio sync', {
-              requested: requested,
-              found: $input.length,
-              disabled: $input.length ? !!$input.prop('disabled') : null,
-              beforeChecked: beforeRadio ? beforeRadio.checked : '',
-              afterChecked: afterRadio ? afterRadio.checked : '',
-            });
-            if (typeof state.checkpoint === 'function') {
-              state.checkpoint('CHK_SHIPPING_RADIO_SYNC', radioOk && afterRadio && afterRadio.checked === requested, {
+              var afterRadio = ctwpmlReadWooShippingDomSnapshot();
+              log('setShippingMethodInWC() - Radio sync', {
                 requested: requested,
                 found: $input.length,
                 disabled: $input.length ? !!$input.prop('disabled') : null,
                 beforeChecked: beforeRadio ? beforeRadio.checked : '',
                 afterChecked: afterRadio ? afterRadio.checked : '',
+                attempt: attempts,
               });
-            }
-          } catch (e0y) {}
-
-          log('setShippingMethodInWC() - Sucesso! Disparando update_checkout');
-          try {
-            if (typeof state.checkpoint === 'function') {
-              state.checkpoint('CHK_OVERLAY_SOURCES', true, {
-                source: 'set_shipping_method',
-                hasBlockOverlay: document.querySelectorAll('.blockUI.blockOverlay').length,
-                hasBlockMsg: document.querySelectorAll('.blockUI.blockMsg').length,
-                hasNoticeGroup: document.querySelectorAll('.woocommerce-NoticeGroup, .woocommerce-NoticeGroup-checkout').length,
-              });
-            }
-          } catch (e4) {}
-
-          // Trigger update_checkout para atualizar totais
-          $(document.body).trigger('update_checkout');
-          if (typeof callback === 'function') {
-            callback(resp.data);
+              if (typeof state.checkpoint === 'function') {
+                state.checkpoint('CHK_SHIPPING_RADIO_SYNC', radioOk && afterRadio && afterRadio.checked === requested, {
+                  requested: requested,
+                  found: $input.length,
+                  disabled: $input.length ? !!$input.prop('disabled') : null,
+                  beforeChecked: beforeRadio ? beforeRadio.checked : '',
+                  afterChecked: afterRadio ? afterRadio.checked : '',
+                  attempt: attempts,
+                });
+              }
+              if (radioOk && afterRadio && afterRadio.checked === requested) {
+                if (typeof done === 'function') done(true);
+                return;
+              }
+              if (attempts < maxAttempts) {
+                setTimeout(run, delay);
+                return;
+              }
+              if (typeof state.checkpoint === 'function') {
+                state.checkpoint('CHK_SHIPPING_RADIO_SYNC', false, {
+                  requested: requested,
+                  reason: 'input_missing_or_disabled',
+                  attempt: attempts,
+                });
+              }
+              if (typeof done === 'function') done(false);
+            };
+            run();
           }
+
+          syncShippingRadioWithRetry(function (radioOk) {
+            var t0 = Date.now();
+            var retries = 0;
+            var maxRetries = 3;
+            var retryDelay = 200;
+            var snapshotOnce = function (source) {
+              var afterSnap = ctwpmlReadWooShippingDomSnapshot();
+              var applied = afterSnap && afterSnap.checked ? String(afterSnap.checked) : '';
+              var match = !!(applied && requested && applied === requested);
+              log('setShippingMethodInWC() - POST updated_checkout snapshot', {
+                requested: requested,
+                applied: applied,
+                match: match,
+                ms: Date.now() - t0,
+                source: source,
+                wooDomAfter: afterSnap,
+                apiAvailableRateIds: resp && resp.data ? (resp.data.available_rate_ids || []) : [],
+              });
+              try {
+                if (state.__ctwpmlLastShippingSet && state.__ctwpmlLastShippingSet.requested === requested) {
+                  state.__ctwpmlLastShippingSet.applied = applied;
+                  state.__ctwpmlLastShippingSet.match = match;
+                }
+              } catch (e0b) {}
+              if (match) {
+                try {
+                  if (typeof state.checkpoint === 'function') {
+                    state.checkpoint('CHK_SHIPPING_SET_APPLIED', true, {
+                      requested: requested,
+                      applied: applied,
+                      ms: Date.now() - t0,
+                      domCount: afterSnap ? afterSnap.count : 0,
+                      apiRequestedExists: resp && resp.data ? resp.data.requested_exists : undefined,
+                      apiAvailableRateIds: resp && resp.data ? (resp.data.available_rate_ids || []) : [],
+                    });
+                  }
+                } catch (e3) {}
+                $(document.body).off('updated_checkout.ctwpml_shipping_apply');
+                return;
+              }
+              if (retries < maxRetries) {
+                retries += 1;
+                setTimeout(function () {
+                  snapshotOnce('retry_' + retries);
+                }, retryDelay);
+                return;
+              }
+              try {
+                if (typeof state.checkpoint === 'function') {
+                  state.checkpoint('CHK_SHIPPING_SET_APPLIED', false, {
+                    requested: requested,
+                    applied: applied,
+                    reason: radioOk ? 'mismatch_after_retries' : 'radio_sync_failed',
+                    ms: Date.now() - t0,
+                    domCount: afterSnap ? afterSnap.count : 0,
+                    apiRequestedExists: resp && resp.data ? resp.data.requested_exists : undefined,
+                    apiAvailableRateIds: resp && resp.data ? (resp.data.available_rate_ids || []) : [],
+                  });
+                }
+              } catch (e3b) {}
+            };
+
+            $(document.body).off('updated_checkout.ctwpml_shipping_apply');
+            $(document.body).on('updated_checkout.ctwpml_shipping_apply', function () {
+              snapshotOnce('updated_checkout');
+            });
+
+            log('setShippingMethodInWC() - Sucesso! Disparando update_checkout');
+            try {
+              if (typeof state.checkpoint === 'function') {
+                state.checkpoint('CHK_OVERLAY_SOURCES', true, {
+                  source: 'set_shipping_method',
+                  hasBlockOverlay: document.querySelectorAll('.blockUI.blockOverlay').length,
+                  hasBlockMsg: document.querySelectorAll('.blockUI.blockMsg').length,
+                  hasNoticeGroup: document.querySelectorAll('.woocommerce-NoticeGroup, .woocommerce-NoticeGroup-checkout').length,
+                });
+              }
+            } catch (e4) {}
+
+            // Trigger update_checkout para atualizar totais
+            $(document.body).trigger('update_checkout');
+            if (typeof callback === 'function') {
+              callback(resp.data);
+            }
+          });
         },
         error: function (jqXHR, textStatus, errorThrown) {
           log('setShippingMethodInWC() - ERRO AJAX:', { status: jqXHR.status, textStatus: textStatus, error: errorThrown });
