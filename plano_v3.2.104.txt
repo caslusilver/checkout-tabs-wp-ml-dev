@@ -1,0 +1,29 @@
+PLANO v3.2.104 - Correção definitiva do 429 e sincronização do gate
+
+Contexto
+- O 429 vem do admin-ajax.php disparado pelo logger remoto em loops de polling do gate.
+- O backend aplica o frete corretamente, mas o gate continua ativo por pendingWooUpdate e reentra em polling/log.
+
+Objetivo
+- Eliminar flood de logs remotos em produção.
+- Garantir que o gate não gere tempestade de requests.
+
+Plano técnico
+1) Logger (assets/js/logger.js)
+   - Enviar logs ao backend apenas para admin (is_admin_viewer).
+   - Implementar throttle por tempo e por chave (mesma mensagem).
+   - Reduzir envio de checkpoint repetitivo durante polling.
+
+2) Gate (assets/js/address-ml-modal.js)
+   - Manter polling, mas evitar que a telemetria remota rode em cada tick.
+   - Encerrar gate assim que totalsReady + appliedMatch + pendingWooUpdate=false.
+   - Se necessário, aumentar poll para 500ms em produção.
+
+3) Validação
+   - DevTools: confirmar queda de POSTs em admin-ajax.php.
+   - Logs: conferir CHK_REVIEW_GATE_READY/timeout sem 429.
+
+Critérios de aceite
+- Nenhum 429 em admin-ajax.php durante seleção de frete.
+- Frete aplicado e gate libera avanço sem loop.
+- Revisão sem “tela branca” e CTA bloqueado apenas até sincronização.
