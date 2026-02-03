@@ -51,10 +51,17 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
 #### Protocol: 30fc110
 
+## [v3.2.106] - 2026-01-30
+
+### Changed
+- validação de nome completo com sobrenome e aviso inline; máscara de telefone BR no formato (XX) X XXXX-XXXX; persistência de dados do formulário no sessionStorage; máscara de CEP no shortcode com botão habilitado apenas em CEP válido; spinner e bloqueio durante consulta de CEP no modal; prazo do shortcode usa frete*.prazo com unidades consistentes.
+
+#### Protocol: 6f5ea0e
+
 ## [Unreleased]
 
 ### Changed
-- **Versão atual**: v3.2.105  
+- **Versão atual**: v3.2.106  
   **Versão sugerida após a mudança**: vX.Y.Z  
   **Descrição**: texto objetivo do que mudou e impacto (pode listar itens separados por ponto e vírgula).
 

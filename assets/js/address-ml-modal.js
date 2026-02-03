@@ -158,6 +158,7 @@
     var CTWPML_MODAL_STATE_KEY = 'ctwpml_ml_modal_state_v1';
     var CTWPML_ORDER_COMPLETED_KEY = 'ctwpml_ml_order_completed_v1';
     var CTWPML_AUTH_RESUME_KEY = 'ctwpml_auth_resume_v1';
+    var CTWPML_FORM_STATE_KEY = 'ctwpml_ml_form_state_v1';
     var CTWPML_ORDER_COMPLETED_TTL_MS = 5 * 60 * 1000;
     var restoreStateOnOpen = null;
     var authResumeContext = null;
@@ -218,6 +219,35 @@
       } catch (e) {}
     }
 
+    function readFormSnapshot() {
+      try {
+        if (!window.sessionStorage) return null;
+        var raw = window.sessionStorage.getItem(CTWPML_FORM_STATE_KEY);
+        if (!raw) return null;
+        var obj = JSON.parse(raw);
+        if (!obj || typeof obj !== 'object') return null;
+        return obj;
+      } catch (e) {
+        return null;
+      }
+    }
+
+    function saveFormSnapshot(payload) {
+      try {
+        if (!window.sessionStorage) return;
+        var base = payload && typeof payload === 'object' ? payload : {};
+        base.ts = Date.now();
+        window.sessionStorage.setItem(CTWPML_FORM_STATE_KEY, JSON.stringify(base));
+      } catch (e) {}
+    }
+
+    function clearFormSnapshot() {
+      try {
+        if (!window.sessionStorage) return;
+        window.sessionStorage.removeItem(CTWPML_FORM_STATE_KEY);
+      } catch (e) {}
+    }
+
     function markOrderCompleted(meta) {
       try {
         if (!window.sessionStorage) return;
@@ -227,6 +257,7 @@
         };
         window.sessionStorage.setItem(CTWPML_ORDER_COMPLETED_KEY, JSON.stringify(payload));
         clearModalState();
+        clearFormSnapshot();
         if (typeof state.checkpoint === 'function') {
           state.checkpoint('CHK_CTA_WC_CHECKOUT_AJAX_COMPLETE', true, {
             source: (meta && meta.source) || 'unknown',
@@ -833,6 +864,10 @@
           '          <label for="ctwpml-input-cep">CEP</label>' +
           '          <input id="ctwpml-input-cep" type="text" placeholder="00000-000" inputmode="numeric" autocomplete="postal-code" />' +
           '          <a class="ctwpml-link-right" href="#" id="ctwpml-nao-sei-cep">Não sei meu CEP</a>' +
+          '          <div class="ctwpml-cep-inline-spinner" id="ctwpml-cep-inline-spinner" style="display:none;margin-top:8px;">' +
+          '            <div class="ctwpml-spinner" style="width:18px;height:18px;border:3px solid rgba(0,117,255,0.2);border-top-color:#0075ff;border-radius:50%;animation:ctwpml-spin 0.8s linear infinite;display:inline-block;vertical-align:middle;"></div>' +
+          '            <span style="margin-left:8px;font-size:12px;color:#555;">Consultando CEP...</span>' +
+          '          </div>' +
           '          <div id="ctwpml-cep-confirm" class="ctwpml-cep-confirm" aria-live="polite">' +
           '            <div class="ctwpml-cep-icon"><img src="' + (window.cc_params && window.cc_params.plugin_url ? window.cc_params.plugin_url : '') + 'assets/img/icones/pin-drop.svg" alt="" width="20" height="20" /></div>' +
           '            <div>' +
@@ -862,7 +897,7 @@
           '        <div class="ctwpml-contact-section">' +
           '          <div class="ctwpml-contact-title">Dados de contato</div>' +
           '          <div class="ctwpml-contact-subtitle">Se houver algum problema no envio, você receberá uma ligação neste número.</div>' +
-          '          <div class="ctwpml-form-group"><label for="ctwpml-input-nome">Nome completo</label><input id="ctwpml-input-nome" type="text" /></div>' +
+          '          <div class="ctwpml-form-group" id="ctwpml-group-nome"><label for="ctwpml-input-nome">Nome completo</label><input id="ctwpml-input-nome" type="text" /><div class="ctwpml-inline-hint" id="ctwpml-nome-hint" style="display:none;"></div></div>' +
           '          <div class="ctwpml-form-group" id="ctwpml-group-phone">' +
           '            <label for="ctwpml-input-fone">Telefone / WhatsApp</label>' +
           '            <div class="ctwpml-phone-wrap" id="ctwpml-phone-wrap">' +
@@ -2932,11 +2967,16 @@
               cpfLocked: cpfLocked 
             }, 'UI');
 
+            var currentPhone = ($('#ctwpml-input-fone').val() || '').trim();
+            var currentPhoneFull = ($('#ctwpml-phone-full').val() || '').trim();
+            var currentCpf = ($('#ctwpml-input-cpf').val() || '').trim();
+            var currentEmail = ($('#ctwpml-input-email').val() || '').trim();
+
             // Telefone (novo formato): se phone_full existir, restaurar país + máscara; senão fallback para whatsapp.
             try {
-              if (window.ctwpmlPhoneWidget && typeof window.ctwpmlPhoneWidget.setPhoneFull === 'function' && phoneFull) {
+              if (!currentPhone && !currentPhoneFull && window.ctwpmlPhoneWidget && typeof window.ctwpmlPhoneWidget.setPhoneFull === 'function' && phoneFull) {
                 window.ctwpmlPhoneWidget.setPhoneFull(String(phoneFull));
-              } else if (whatsapp) {
+              } else if (!currentPhone && whatsapp) {
                 $('#ctwpml-input-fone').val(formatPhone(whatsapp));
                 // Também tenta popular hidden para persistência
                 var digits = phoneDigits(whatsapp);
@@ -2946,10 +2986,10 @@
                 }
               }
             } catch (e0) {
-              if (whatsapp) $('#ctwpml-input-fone').val(formatPhone(whatsapp));
+              if (!currentPhone && whatsapp) $('#ctwpml-input-fone').val(formatPhone(whatsapp));
             }
 
-            if (cpf) {
+            if (cpf && !currentCpf) {
               $('#ctwpml-input-cpf').val(formatCpf(cpf));
               if (cpfLocked) {
                 $('#ctwpml-input-cpf').prop('readonly', true);
@@ -2960,7 +3000,7 @@
             try {
               email = response && response.data && response.data.email ? String(response.data.email).trim() : '';
             } catch (eEmail) {}
-            if (email) {
+            if (email && !currentEmail) {
               try {
                 if (!($('#ctwpml-input-email').val() || '').trim()) {
                   $('#ctwpml-input-email').val(email);
@@ -3129,7 +3169,7 @@
 
         // countryData: ISO2 -> [Nome, DDI, Máscara]
         var countryData = {
-          BR: ['Brasil', '55', '(00) 00000-0000'],
+          BR: ['Brasil', '55', '(00) 0 0000-0000'],
           US: ['Estados Unidos', '1', '(000) 000-0000'],
           PT: ['Portugal', '351', '000 000 000'],
           AO: ['Angola', '244', '000 000 000'],
@@ -3222,6 +3262,7 @@
           if (typeof state.log === 'function') {
             state.log('UI        v2.0 [2.3] Phone accept', { country: countryCode, ddi: ddiStr ? ('+' + ddiStr) : '', digitsLen: digits.length, phone_full: full.slice(0, 8) + '...' }, 'UI');
           }
+          ctwpmlPersistFormSnapshot('phone_accept');
         }
 
         function updateMask(countryCode, isInitCall) {
@@ -3236,7 +3277,7 @@
 
           var maskOpts = { lazy: true };
           if (countryCode === 'BR') {
-            maskOpts.mask = [{ mask: '(00) 0000-0000' }, { mask: '(00) 00000-0000' }];
+            maskOpts.mask = '(00) 0 0000-0000';
           } else {
             maskOpts.mask = maskPattern;
           }
@@ -3247,7 +3288,7 @@
               updateHidden(countryCode, ddi, maskInstance.unmaskedValue);
             });
 
-            if (countryCode === 'BR') inputEl.placeholder = '(11) 99999-9999';
+            if (countryCode === 'BR') inputEl.placeholder = '(11) 9 9999-9999';
             else inputEl.placeholder = String(maskPattern || '').replace(/0/g, '0');
 
             // No modelo, ao trocar país limpa input/hidden (mantém UX consistente)
@@ -3631,6 +3672,7 @@
       syncLoginBanner();
       syncCpfUiFromCheckout();
       initInternationalPhoneInput(); // v2.0 [2.3] (TomSelect + IMask)
+      ctwpmlApplyFormSnapshot(readFormSnapshot());
       loadContactMeta(); // Carregar WhatsApp e CPF salvos
       setFooterVisible(true);
       persistModalState({ view: 'form' });
@@ -3679,6 +3721,7 @@
       syncCpfUiFromCheckout();
       // v3.2.13: Carregar CPF e WhatsApp do perfil (user_meta) para novo endereço
       initInternationalPhoneInput(); // v2.0 [2.3] (TomSelect + IMask)
+      ctwpmlApplyFormSnapshot(readFormSnapshot());
       loadContactMeta();
       setFooterVisible(true);
       persistModalState({ view: 'form' });
@@ -3739,6 +3782,7 @@
       
       // WhatsApp: fonte da verdade é phone_full do perfil; billing_cellphone é fallback.
       initInternationalPhoneInput(); // v2.0 [2.3]
+      ctwpmlApplyFormSnapshot(readFormSnapshot());
 
       // 1) Primeiro tenta perfil (phone_full) para evitar duplicidade de DDI no input.
       loadContactMeta(function (meta) {
@@ -3799,9 +3843,104 @@
       $hint.text(String(message || '')).show();
     }
 
+    function setNomeHint(message, visible) {
+      var $hint = $('#ctwpml-nome-hint');
+      if (!$hint.length) return;
+      if (!visible) {
+        $hint.hide().text('');
+        return;
+      }
+      $hint.text(String(message || '')).show();
+    }
+
+    function setCepConsultLoading(loading) {
+      var $spinner = $('#ctwpml-cep-inline-spinner');
+      if ($spinner.length) {
+        if (loading) $spinner.show();
+        else $spinner.hide();
+      }
+      var $inputs = $('#ctwpml-view-form input, #ctwpml-view-form textarea, #ctwpml-view-form select');
+      var $buttons = $('#ctwpml-btn-primary, #ctwpml-btn-secondary');
+      var $types = $('#ctwpml-view-form .ctwpml-type-option');
+      if (loading) {
+        $inputs.not('#ctwpml-input-cep').prop('disabled', true);
+        $buttons.prop('disabled', true).addClass('is-disabled');
+        $types.addClass('is-disabled');
+      } else {
+        $inputs.prop('disabled', false);
+        $buttons.prop('disabled', false).removeClass('is-disabled');
+        $types.removeClass('is-disabled');
+      }
+    }
+
     function clearFormErrors() {
       $('#ctwpml-view-form .ctwpml-form-group').removeClass('is-error');
       $('#ctwpml-view-form .ctwpml-type-option').removeClass('is-error');
+    }
+
+    var formSnapshotDebounce = null;
+
+    function ctwpmlCollectFormSnapshot() {
+      try {
+        return {
+          addressId: selectedAddressId || null,
+          cep: ($('#ctwpml-input-cep').val() || '').trim(),
+          rua: ($('#ctwpml-input-rua').val() || '').trim(),
+          numero: ($('#ctwpml-input-numero').val() || '').trim(),
+          comp: ($('#ctwpml-input-comp').val() || '').trim(),
+          bairro: ($('#ctwpml-input-bairro').val() || '').trim(),
+          info: ($('#ctwpml-input-info').val() || '').trim(),
+          label: $('#ctwpml-type-home').hasClass('is-active') ? 'Casa' : ($('#ctwpml-type-work').hasClass('is-active') ? 'Trabalho' : ''),
+          nome: ($('#ctwpml-input-nome').val() || '').trim(),
+          email: ($('#ctwpml-input-email').val() || '').trim(),
+          phone: ($('#ctwpml-input-fone').val() || '').trim(),
+          phone_full: ($('#ctwpml-phone-full').val() || '').trim(),
+          cpf: ($('#ctwpml-input-cpf').val() || '').trim(),
+          lastCepOnly: lastCepOnly || '',
+          cepConsultedFor: cepConsultedFor || '',
+        };
+      } catch (e) {
+        return null;
+      }
+    }
+
+    function ctwpmlApplyFormSnapshot(snapshot) {
+      if (!snapshot) return;
+      if (snapshot.addressId && snapshot.addressId !== selectedAddressId) return;
+      if (!snapshot.addressId && selectedAddressId) return;
+
+      if (snapshot.cep) {
+        $('#ctwpml-input-cep').val(formatCep(snapshot.cep));
+        lastCepOnly = cepDigits(snapshot.cep);
+        cepConsultedFor = String(snapshot.cepConsultedFor || '');
+      }
+      if (snapshot.rua) $('#ctwpml-input-rua').val(snapshot.rua);
+      if (snapshot.numero) $('#ctwpml-input-numero').val(snapshot.numero);
+      if (snapshot.comp) $('#ctwpml-input-comp').val(snapshot.comp);
+      if (snapshot.bairro) $('#ctwpml-input-bairro').val(snapshot.bairro);
+      if (snapshot.info) $('#ctwpml-input-info').val(snapshot.info);
+      if (snapshot.label) setTypeSelection(snapshot.label);
+      if (snapshot.nome) $('#ctwpml-input-nome').val(snapshot.nome);
+      if (snapshot.email) $('#ctwpml-input-email').val(snapshot.email);
+      if (snapshot.phone_full) {
+        $('#ctwpml-phone-full').val(snapshot.phone_full);
+      }
+      if (snapshot.phone) {
+        $('#ctwpml-input-fone').val(snapshot.phone);
+      }
+      if (snapshot.cpf) $('#ctwpml-input-cpf').val(snapshot.cpf);
+    }
+
+    function ctwpmlPersistFormSnapshot(reason) {
+      if (currentView !== 'form') return;
+      if (formSnapshotDebounce) clearTimeout(formSnapshotDebounce);
+      formSnapshotDebounce = setTimeout(function () {
+        var snapshot = ctwpmlCollectFormSnapshot();
+        if (snapshot) saveFormSnapshot(snapshot);
+        if (typeof state.checkpoint === 'function') {
+          state.checkpoint('CHK_FORM_SNAPSHOT_SAVE', true, { reason: reason || 'unknown', hasAddressId: !!snapshot && !!snapshot.addressId });
+        }
+      }, 180);
     }
 
     function setFieldError(selectorOrGroupId, isError) {
@@ -3833,6 +3972,24 @@
       var firstName = normalized.slice(0, firstSpaceIdx).trim();
       var lastName = normalized.slice(firstSpaceIdx + 1).trim();
       return { normalized: normalized, firstName: firstName, lastName: lastName, hasSurname: !!lastName };
+    }
+
+    function ctwpmlValidateFullName(showHint) {
+      var raw = ($('#ctwpml-input-nome').val() || '').trim();
+      if (!raw) {
+        setFieldError('#ctwpml-group-nome', true);
+        if (showHint) setNomeHint('Escreva pelo menos seu nome e sobrenome', true);
+        return false;
+      }
+      var parsed = ctwpmlParseFullName(raw);
+      if (!parsed.hasSurname) {
+        setFieldError('#ctwpml-group-nome', true);
+        if (showHint) setNomeHint('Escreva pelo menos seu nome e sobrenome', true);
+        return false;
+      }
+      setFieldError('#ctwpml-group-nome', false);
+      if (showHint) setNomeHint('', false);
+      return true;
     }
 
     function ctwpmlIsValidEmail(email) {
@@ -3929,20 +4086,9 @@
         errors.push('Tipo Casa/Trabalho não selecionado');
       }
 
-      var name = ($('#ctwpml-input-nome').val() || '').trim();
-      if (!name) {
-        setFieldError('#ctwpml-input-nome', true);
+      if (!ctwpmlValidateFullName(true)) {
         ok = false;
-        errors.push('Nome obrigatório');
-      } else {
-        // Woo exige sobrenome em muitos setups. Mantemos um único campo no modal ("Nome completo")
-        // e garantimos que tudo após o 1º espaço seja tratado como sobrenome.
-        var parsedName = ctwpmlParseFullName(name);
-        if (!parsedName.hasSurname) {
-          setFieldError('#ctwpml-input-nome', true);
-          ok = false;
-          errors.push('Sobrenome obrigatório');
-        }
+        errors.push('Nome completo inválido');
       }
 
       var phone = phoneDigits($('#ctwpml-input-fone').val());
@@ -4605,6 +4751,7 @@
       if (typeof state.log === 'function') state.log('WEBHOOK_OUT (ML) [consultaCep] Consulta rápida de CEP...', payload, 'WEBHOOK_OUT');
 
       cepConsultInFlight = true;
+      setCepConsultLoading(true);
       $.ajax({
         url: state.params.webhook_url,
         type: 'POST',
@@ -4616,6 +4763,7 @@
         data: JSON.stringify(payload),
         success: function (data) {
           cepConsultInFlight = false;
+          setCepConsultLoading(false);
           cepConsultedFor = cepOnlyDigits;
           if (typeof state.log === 'function') state.log('WEBHOOK_IN (ML) [consultaCep] Resposta recebida.', data, 'WEBHOOK_IN');
           
@@ -4623,10 +4771,12 @@
           lastCepLookup = normalizeApiPayload(data);
           
           fillFormFromApiData(data);
+          ctwpmlPersistFormSnapshot('cep_lookup');
           // NÃO persiste no perfil aqui — isso será feito no Salvar com evento completo
         },
         error: function (jqXHR, textStatus, errorThrown) {
           cepConsultInFlight = false;
+          setCepConsultLoading(false);
           if (typeof state.log === 'function')
             state.log(
               'WEBHOOK_IN (ML) [consultaCep] Erro (' + textStatus + ').',
@@ -5404,10 +5554,12 @@
     $(document).on('click', '#ctwpml-type-home', function (e) {
       e.preventDefault();
       setTypeSelection('Casa');
+      ctwpmlPersistFormSnapshot('type_home');
     });
     $(document).on('click', '#ctwpml-type-work', function (e) {
       e.preventDefault();
       setTypeSelection('Trabalho');
+      ctwpmlPersistFormSnapshot('type_work');
     });
 
     // CPF (modal): máscara + geração fictícia
@@ -6895,6 +7047,7 @@
       cepDebounceTimer = setTimeout(function () {
       consultCepAndFillForm();
       }, 250);
+      ctwpmlPersistFormSnapshot('cep_input');
     });
 
     // Mobile: ao sair do campo (OK/Next no teclado), dispara consulta se CEP tiver 8 dígitos.
@@ -6906,6 +7059,7 @@
     $(document).on('input change', '#ctwpml-view-form input, #ctwpml-view-form textarea', function (e) {
       $(this).closest('.ctwpml-form-group').removeClass('is-error');
       if ($(this).is('#ctwpml-input-rua')) setRuaHint('', false);
+      if ($(this).is('#ctwpml-input-nome')) setNomeHint('', false);
 
       // Dirty state (somente em interações do usuário; eventos programáticos não contam).
       try {
@@ -6916,6 +7070,15 @@
           }
         }
       } catch (e0) {}
+
+      if (e && e.originalEvent) {
+        ctwpmlPersistFormSnapshot('input_change');
+      }
+    });
+
+    $(document).on('blur', '#ctwpml-input-nome', function () {
+      ctwpmlValidateFullName(true);
+      ctwpmlPersistFormSnapshot('name_blur');
     });
 
     $(document).on('input change', '#ctwpml-input-email, #billing_email', function () {
