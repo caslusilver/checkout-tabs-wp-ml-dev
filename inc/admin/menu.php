@@ -77,7 +77,9 @@ function checkout_tabs_wp_ml_render_admin_page(): void {
 
 	$webhook_value = esc_url((string) get_option('checkout_tabs_wp_ml_webhook_url', checkout_tabs_wp_ml_get_webhook_url()));
 	$geo_webhook_value = esc_url((string) get_option('checkout_tabs_wp_ml_geolocation_webhook_url', function_exists('checkout_tabs_wp_ml_get_geolocation_webhook_url') ? checkout_tabs_wp_ml_get_geolocation_webhook_url() : ''));
+	$packing_panel_webhook_value = esc_url((string) get_option('checkout_tabs_wp_ml_packing_panel_webhook_url', function_exists('checkout_tabs_wp_ml_get_packing_panel_webhook_url') ? checkout_tabs_wp_ml_get_packing_panel_webhook_url() : ''));
 	$debug_enabled = ((int) get_option('checkout_tabs_wp_ml_debug', 0) === 1);
+	$packing_panel_debug_enabled = ((int) get_option('checkout_tabs_wp_ml_packing_panel_debug', 0) === 1);
 	$geo_enabled = ((int) get_option('checkout_tabs_wp_ml_geolocation_enabled', 1) === 1);
 	$allow_fake_cpf = ((int) get_option('checkout_tabs_wp_ml_allow_fake_cpf', 0) === 1);
 	$geo_enabled = ((int) get_option('checkout_tabs_wp_ml_geolocation_enabled', 1) === 1);
@@ -152,6 +154,15 @@ function checkout_tabs_wp_ml_render_admin_page(): void {
 		echo '</td>';
 		echo '</tr>';
 		echo '<tr>';
+		echo '<th scope="row"><label for="checkout_tabs_wp_ml_packing_panel_webhook_url">URL do Webhook (Packing Panel)</label></th>';
+		echo '<td>';
+		echo '<input type="url" class="regular-text" id="checkout_tabs_wp_ml_packing_panel_webhook_url" name="checkout_tabs_wp_ml_packing_panel_webhook_url" value="' .
+			$packing_panel_webhook_value .
+			'" placeholder="https://..." />';
+		echo '<p class="description">Endpoint externo para eventos do painel de empacotamento (aceite/envio).</p>';
+		echo '</td>';
+		echo '</tr>';
+		echo '<tr>';
 		echo '<th scope="row">Geolocalização automática</th>';
 		echo '<td>';
 		echo '<label>';
@@ -169,6 +180,16 @@ function checkout_tabs_wp_ml_render_admin_page(): void {
 		echo ' Exibir opção “Gerar CPF fictício” no popup de cadastro (checkout)';
 		echo '</label>';
 		echo '<p class="description">Use para reduzir objeção de privacidade. O CPF será matematicamente válido e definitivo no perfil.</p>';
+		echo '</td>';
+		echo '</tr>';
+		echo '<tr>';
+		echo '<th scope="row">Debug do Packing Panel</th>';
+		echo '<td>';
+		echo '<label>';
+		echo '<input type="checkbox" name="checkout_tabs_wp_ml_packing_panel_debug" value="1" ' . ($packing_panel_debug_enabled ? 'checked' : '') . ' />';
+		echo ' Ativar painel de debug do packing panel';
+		echo '</label>';
+		echo '<p class="description">Exibe o painel de debug do packing panel no front quando o shortcode estiver presente.</p>';
 		echo '</td>';
 		echo '</tr>';
 		echo '<tr>';

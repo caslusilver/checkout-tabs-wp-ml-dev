@@ -3,7 +3,7 @@
  * Plugin Name: Checkout Tabs WP ML
  * Plugin URI: https://github.com/caslusilver/checkout-tabs-wp-ml-dev
  * Description: Abas no checkout do WooCommerce (checkout clássico) com consulta de frete via webhook e integração em WC_Session.
- * Version: 3.2.106
+ * Version: 3.2.107
  * Author: Lucas Andrade / AI
  * Author URI: https://github.com/caslusilver
  * License: GPL2
@@ -20,6 +20,8 @@ if (!defined('ABSPATH')) {
 define('CHECKOUT_TABS_WP_ML_FILE', __FILE__);
 define('CHECKOUT_TABS_WP_ML_DIR', plugin_dir_path(__FILE__));
 define('CHECKOUT_TABS_WP_ML_URL', plugin_dir_url(__FILE__));
+define('CHECKOUT_TABS_WP_ML_PACKING_PANEL_DIR', CHECKOUT_TABS_WP_ML_DIR . 'packing-panel-woo-dev/');
+define('CHECKOUT_TABS_WP_ML_PACKING_PANEL_URL', CHECKOUT_TABS_WP_ML_URL . 'packing-panel-woo-dev/');
 
 require_once CHECKOUT_TABS_WP_ML_DIR . 'inc/version.php';
 require_once CHECKOUT_TABS_WP_ML_DIR . 'inc/settings.php';
@@ -31,6 +33,7 @@ require_once CHECKOUT_TABS_WP_ML_DIR . 'inc/frontend/cart-api.php';
 require_once CHECKOUT_TABS_WP_ML_DIR . 'inc/frontend/checkout-blocks-api.php';
 require_once CHECKOUT_TABS_WP_ML_DIR . 'inc/frontend/checkout-ml-shortcode.php';
 require_once CHECKOUT_TABS_WP_ML_DIR . 'inc/frontend/cep-shortcode.php';
+require_once CHECKOUT_TABS_WP_ML_DIR . 'inc/packing-panel/bootstrap.php';
 require_once CHECKOUT_TABS_WP_ML_DIR . 'inc/enqueue.php';
 require_once CHECKOUT_TABS_WP_ML_DIR . 'inc/ajax-signup.php';
 require_once CHECKOUT_TABS_WP_ML_DIR . 'inc/ajax-login.php';

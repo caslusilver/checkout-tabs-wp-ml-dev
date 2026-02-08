@@ -65,10 +65,17 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
 #### Protocol: d4f7e81
 
+## [v3.2.107] - 2026-02-03
+
+### Changed
+- integração do packing-panel-woo-dev no plugin principal (bootstrap unificado, filtros de webhook/debug e assets do painel condicionais ao shortcode).
+
+#### Protocol: 4421a5d
+
 ## [Unreleased]
 
 ### Changed
-- **Versão atual**: v3.2.106  
+- **Versão atual**: v3.2.107  
   **Versão sugerida após a mudança**: vX.Y.Z  
   **Descrição**: texto objetivo do que mudou e impacto (pode listar itens separados por ponto e vírgula).
 
