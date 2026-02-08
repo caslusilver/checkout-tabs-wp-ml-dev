@@ -1,0 +1,130 @@
+PLANO DE EXECUCAO - Ajustes de Validacao, Mascara, Persistencia e Prazo (v1)
+
+Objetivo
+- Mapear com clareza os pontos do codigo afetados e definir um plano de execucao seguro,
+  incremental e reversivel para os ajustes solicitados no documento de intencao tecnica.
+
+Escopo
+- Checkout (modal ML) + Shortcode de CEP [ctwpml_cep].
+- Mudancas aditivas/condicionais, sem quebrar fluxos existentes.
+
+=======================================================================
+1) MAPEAMENTO OBRIGATORIO (Arquivos, funcoes, hooks, eventos)
+=======================================================================
+
+1.1 Validacao "Nome Completo"
+- Arquivo: assets/js/address-ml-modal.js
+- Pontos atuais:
+  - Input: "#ctwpml-input-nome" na renderizacao do formulario (HTML do form).
+  - Funcoes: ctwpmlNormalizeFullName(), ctwpmlParseFullName(), validateForm().
+  - Validacao atual: dentro de validateForm() (exige sobrenome).
+- Eventos a adicionar:
+  - blur em #ctwpml-input-nome (mostrar erro com mensagem).
+  - bloqueio de avancar: validateForm() ja bloqueia, mas precisa feedback visual + mensagem.
+
+1.2 Mascara Telefone (BR) "(XX) X XXXX-XXXX"
+- Arquivo: assets/js/address-ml-modal.js
+- Pontos atuais:
+  - Campo: #ctwpml-input-fone e #ctwpml-phone-full.
+  - Widget: initInternationalPhoneInput() com TomSelect + IMask.
+  - Funcoes auxiliares: phoneDigits(), formatPhone() (se existir), setPhoneFull().
+- Ajuste:
+  - Configurar mascara especifica para BR no IMask (DDD + espaco + 9o digito).
+
+1.3 Persistencia de dados apos reload
+- Arquivo: assets/js/address-ml-modal.js
+- Pontos atuais:
+  - sessionStorage: CTWPML_MODAL_STATE_KEY, CTWPML_AUTH_RESUME_KEY.
+  - Funcoes: persistModalState(), restoreStateOnOpen, loadAddresses(), applySelectedAddressToWooFields().
+- Ajuste:
+  - Persistir campos de formulario (nome, email, telefone, cpf, endereco, cep) em storage.
+  - Restaurar no openModal() ou ao exibir formulario.
+
+1.4 Mascara de CEP no shortcode [ctwpml_cep]
+- Arquivo: inc/frontend/cep-shortcode.php
+  - Input: .ctwpml-cep-input com maxlength=8, placeholder atual.
+- Arquivo: assets/js/geolocation-cep-form.js
+  - Funcoes: normalizeCep(), isValidCep(), setButtonState().
+  - Fluxo: bind do submit + leitura do input.
+- Ajuste:
+  - Aplicar mascara XXXXX-XXX no input.
+  - Habilitar botao apenas com CEP valido (8 digitos).
+
+1.5 Spinner e bloqueio durante consulta CEP no formulario de endereco
+- Arquivo: assets/js/address-ml-modal.js
+  - Funcao: consultCepAndFillForm() (consultaCep no webhook).
+  - Flags: cepConsultInFlight, cepConsultedFor.
+  - UI: ctwpml-cep-confirm (confirmacao de cidade/UF).
+- Ajuste:
+  - Exibir spinner local no form e bloquear inputs enquanto cepConsultInFlight = true.
+  - Liberar ao sucesso/erro com mensagem clara.
+
+1.6 Prazo correto no shortcode (usar frete*.prazo)
+- Arquivo: assets/js/geolocation-cep-form.js
+  - buildMotoboy(), buildSedex(), buildPacmini()
+  - Hoje: sedex/pac usam ranges (prazo_*_1/2 e PACMINI_1/2).
+- Ajuste:
+  - Trocar logica para sempre usar fretePACMini.prazo, freteSedex.prazo, freteMotoboy.prazo.
+  - Manter datas apenas para outros textos, nao para a coluna "Prazo".
+
+=======================================================================
+2) PLANO DE EXECUCAO (etapas)
+=======================================================================
+
+ETAPA A - Validacao Nome Completo (UI + mensagem)
+- Adicionar mensagem abaixo do campo "Nome completo".
+- Implementar blur no input para validar:
+  - vazio -> erro + mensagem.
+  - apenas 1 termo -> erro + mensagem "Escreva pelo menos seu nome e sobrenome".
+- Garantir que validateForm() usa a mesma regra e bloqueia avancos.
+
+ETAPA B - Mascara de Telefone BR
+- Ajustar IMask quando pais selecionado = BR:
+  - Formato: (00) 0 0000-0000.
+- Garantir que o valor "phone_full" persista e restaure corretamente.
+
+ETAPA C - Persistencia de dados
+- Criar storage unico (sessionStorage ou localStorage) para dados do form.
+- Salvar no input/change dos campos:
+  - nome, email, telefone, cpf, cep, endereco, numero, complemento, bairro, cidade, uf.
+- Restaurar no openModal() ou ao abrir o formulario.
+
+ETAPA D - Mascara CEP no shortcode
+- Aplicar mascara XXXXX-XXX no input do shortcode.
+- Bloquear submit e botao quando CEP incompleto.
+
+ETAPA E - Spinner e bloqueio no CEP (formulario)
+- Exibir spinner inline durante consultaCep.
+- Bloquear navegacao para proximo campo enquanto aguarda resposta.
+- Remover bloqueio ao sucesso/erro.
+
+ETAPA F - Prazo no shortcode (dias/minutos)
+- Alterar buildMotoboy/buildSedex/buildPacmini:
+  - Prazo = frete*.prazo (texto simples, ex: "8 dias" / "30 minutos").
+- Remover uso de PACMINI_1/2 e SEDEX_1/2 para a coluna "Prazo".
+
+=======================================================================
+3) CRITERIOS DE ACEITE (testes)
+=======================================================================
+1. Nome incompleto -> erro visual + mensagem.
+2. Telefone fora do padrao -> mascara corrige.
+3. Recarregar pagina -> campos restaurados.
+4. Shortcode CEP -> mascara e botao habilitado somente com CEP completo.
+5. CEP no formulario -> spinner + bloqueio ate retorno.
+6. Prazo no shortcode -> usa apenas frete*.prazo.
+7. Fluxo de checkout sem regressao.
+
+=======================================================================
+4) RISCOS E MITIGACOES
+=======================================================================
+- Risco: conflitar com sessionStorage existente.
+  Mitigacao: usar chave dedicada e merge com persistModalState.
+- Risco: mascara de telefone quebrar outros paises.
+  Mitigacao: aplicar formato BR somente quando pais=BR.
+- Risco: regressao no shortcode.
+  Mitigacao: manter fallback para dados existentes quando prazo estiver vazio.
+
+=======================================================================
+5) PROXIMO PASSO
+=======================================================================
+Assim que voce aprovar este plano, inicio a implementacao incremental por etapa.
