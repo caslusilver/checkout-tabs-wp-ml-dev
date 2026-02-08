@@ -27,8 +27,14 @@
     return String(cep || '').replace(/\D/g, '').slice(0, 8);
   }
 
+  function formatCepMask(cep) {
+    var digits = normalizeCep(cep);
+    if (digits.length <= 5) return digits;
+    return digits.slice(0, 5) + '-' + digits.slice(5);
+  }
+
   function isValidCep(cep) {
-    return typeof cep === 'string' && cep.length === 8;
+    return normalizeCep(cep).length === 8;
   }
 
   function getSessionCache() {
@@ -87,6 +93,16 @@
     return v1 || v2 || '';
   }
 
+  function formatPrazo(value, unit) {
+    var raw = isNonEmpty(value) ? String(value).trim() : '';
+    if (!raw) return '';
+    if (/[a-zA-Z]/.test(raw)) return raw;
+    var num = Number(String(raw).replace(',', '.').replace(/[^\d.]/g, ''));
+    if (!isFinite(num)) return raw;
+    if (unit === 'min') return num + (num === 1 ? ' minuto' : ' minutos');
+    return num + (num === 1 ? ' dia' : ' dias');
+  }
+
   function buildMethods(data) {
     var raw = getRawFromResponse(data);
     if (!raw || typeof raw !== 'object') return [];
@@ -106,7 +122,7 @@
         : (raw.freteMotoboy && isNonEmpty(raw.freteMotoboy.valor) ? raw.freteMotoboy.valor : raw.motoboy_pro);
       var deadlineRaw = isNonEmpty(raw.prazo_motoboy) ? raw.prazo_motoboy
         : (raw.freteMotoboy && isNonEmpty(raw.freteMotoboy.prazo) ? raw.freteMotoboy.prazo : '');
-      return { type: 'motoboy', label: label, priceText: buildPriceText(priceRaw), deadlineText: String(deadlineRaw || '').trim() };
+      return { type: 'motoboy', label: label, priceText: buildPriceText(priceRaw), deadlineText: formatPrazo(deadlineRaw, 'min') };
     }
 
     function buildSedex() {
@@ -114,15 +130,8 @@
       if (!label) return null;
       var priceRaw = isNonEmpty(raw.preco_sedex) ? raw.preco_sedex
         : (raw.freteSedex && isNonEmpty(raw.freteSedex.valor) ? raw.freteSedex.valor : raw.sedex_pro);
-      var deadlineText = '';
-      if (isNonEmpty(raw.prazo_sedex_1) || isNonEmpty(raw.prazo_sedex_2)) {
-        deadlineText = formatRange(raw.prazo_sedex_1, raw.prazo_sedex_2);
-      } else if (raw.freteSedex && isNonEmpty(raw.freteSedex.prazo)) {
-        deadlineText = String(raw.freteSedex.prazo).trim();
-      } else if (isNonEmpty(raw.prazo_sedex)) {
-        deadlineText = String(raw.prazo_sedex).trim();
-      }
-      return { type: 'sedex', label: label, priceText: buildPriceText(priceRaw), deadlineText: deadlineText };
+      var deadlineRaw = (raw.freteSedex && isNonEmpty(raw.freteSedex.prazo)) ? raw.freteSedex.prazo : raw.prazo_sedex;
+      return { type: 'sedex', label: label, priceText: buildPriceText(priceRaw), deadlineText: formatPrazo(deadlineRaw, 'dia') };
     }
 
     function buildPacmini() {
@@ -130,16 +139,9 @@
       if (!label) return null;
       var priceRaw = isNonEmpty(raw.preco_pac) ? raw.preco_pac
         : (raw.fretePACMini && isNonEmpty(raw.fretePACMini.valor) ? raw.fretePACMini.valor : raw.pacmini_pro);
-      var deadlineText = '';
-      if (isNonEmpty(raw.prazo_pac_1) || isNonEmpty(raw.prazo_pac_2)) {
-        deadlineText = formatRange(raw.prazo_pac_1, raw.prazo_pac_2);
-      } else if (raw.fretePACMini && (isNonEmpty(raw.fretePACMini.PACMINI_1) || isNonEmpty(raw.fretePACMini.PACMINI_2))) {
-        deadlineText = formatRange(raw.fretePACMini.PACMINI_1, raw.fretePACMini.PACMINI_2);
-      } else {
-        var legacy = pickFirstKey(raw, ['prazo_pacmini', 'prazo_pac']);
-        if (isNonEmpty(legacy)) deadlineText = String(legacy).trim();
-      }
-      return { type: 'pacmini', label: label, priceText: buildPriceText(priceRaw), deadlineText: deadlineText };
+      var legacy = pickFirstKey(raw, ['prazo_pacmini', 'prazo_pac']);
+      var deadlineRaw = (raw.fretePACMini && isNonEmpty(raw.fretePACMini.prazo)) ? raw.fretePACMini.prazo : legacy;
+      return { type: 'pacmini', label: label, priceText: buildPriceText(priceRaw), deadlineText: formatPrazo(deadlineRaw, 'dia') };
     }
 
     var out = [];
@@ -339,19 +341,32 @@
     button.setAttribute('data-original-text', button.querySelector('.ctwpml-cep-button-text').textContent || 'Consultar frete');
     button.setAttribute('data-loading-text', 'Calculando...');
 
+    function syncCepInput() {
+      var masked = formatCepMask(input.value);
+      if (input.value !== masked) input.value = masked;
+      var enabled = isValidCep(input.value);
+      button.disabled = !enabled;
+      if (enabled) button.classList.remove('is-disabled');
+      else button.classList.add('is-disabled');
+    }
+
     input.addEventListener('input', function () {
-      var clean = normalizeCep(input.value);
-      input.value = clean;
+      syncCepInput();
     });
 
     $form.addEventListener('submit', function (e) {
       e.preventDefault();
       if ($form.__ctwpmlSubmitting) return;
+      if (!isValidCep(input.value)) {
+        setError($form, 'Informe um CEP valido.');
+        return;
+      }
       $form.__ctwpmlSubmitting = true;
       requestCep($form, input.value)
         .catch(function () { })
         .finally(function () {
           $form.__ctwpmlSubmitting = false;
+          syncCepInput();
         });
     });
 
@@ -359,12 +374,13 @@
     var cached = getSessionCache();
     if (cached && cached.data) {
       if (cached.meta && cached.meta.cep && !input.value) {
-        input.value = cached.meta.cep;
+        input.value = formatCepMask(cached.meta.cep);
       }
       renderResults($form, cached.data);
     }
 
     bindFallbackLink($form);
+    syncCepInput();
   }
 
   function bindAll() {

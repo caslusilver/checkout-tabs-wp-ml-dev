@@ -95,7 +95,7 @@ function ctwpml_render_cep_form_shortcode($atts = []): string {
 	}
 	$out .= '<form class="ctwpml-cep-form" data-ctwpml-cep-form="1">';
 	$out .= '  <div class="ctwpml-cep-row">';
-	$out .= '    <input class="ctwpml-cep-input" data-ctwpml-cep-input="1" type="text" inputmode="numeric" placeholder="Digite aqui o seu CEP" maxlength="8" pattern="[0-9]*" />';
+	$out .= '    <input class="ctwpml-cep-input" data-ctwpml-cep-input="1" type="text" inputmode="numeric" placeholder="00000-000" maxlength="9" pattern="[0-9-]*" />';
 	$out .= '    <button type="submit" class="ctwpml-cep-button" data-ctwpml-cep-submit="1">';
 	$out .= '      <span class="ctwpml-cep-button-icon">' . ($icon_url ? '<img src="' . esc_url($icon_url) . '" alt="" />' : '') . '</span>';
 	$out .= '      <span class="ctwpml-cep-button-text">Calcular</span>';

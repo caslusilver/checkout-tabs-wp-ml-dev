@@ -306,6 +306,10 @@ add_action('wp_enqueue_scripts', function () {
 		'plugin_url' => CHECKOUT_TABS_WP_ML_URL,
 		'cart_url'   => function_exists('wc_get_cart_url') ? wc_get_cart_url() : '',
 		'privacy_policy_url' => esc_url((string) get_option('checkout_tabs_wp_ml_privacy_policy_url', '')),
+		// Gate de sincronização (frete/revisão) com fallback visual.
+		// Permite ajustar por ambiente sem alterar JS.
+		'review_gate_timeout_ms' => absint(get_option('checkout_tabs_wp_ml_review_gate_timeout_ms', 10000)),
+		'review_gate_poll_ms' => max(50, absint(get_option('checkout_tabs_wp_ml_review_gate_poll_ms', 150))),
 	]);
 
 	// Variáveis de cor do header do modal ML (apenas fundo/título/ícone).

@@ -44,12 +44,54 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
 #### Protocol: f8fe8b7
 
+## [v3.2.102] - 2026-01-27
+
+### Changed
+- bloqueia fallback de frete com confirmação server-side do método aplicado e trava checkout quando há mismatch.
+
+#### Protocol: 30fc110
+
+## [v3.2.106] - 2026-01-30
+
+### Changed
+- validação de nome completo com sobrenome e aviso inline; máscara de telefone BR no formato (XX) X XXXX-XXXX; persistência de dados do formulário no sessionStorage; máscara de CEP no shortcode com botão habilitado apenas em CEP válido; spinner e bloqueio durante consulta de CEP no modal; prazo do shortcode usa frete*.prazo com unidades consistentes.
+
+#### Protocol: 6f5ea0e
+
+## [v3.2.106] - 2026-02-03
+
+### Changed
+- publicação da v3.2.106 na main (release sem alterações adicionais de código).
+
+#### Protocol: d4f7e81
+
 ## [Unreleased]
 
 ### Changed
-- **Versão atual**: v3.2.101  
+- **Versão atual**: v3.2.106  
   **Versão sugerida após a mudança**: vX.Y.Z  
   **Descrição**: texto objetivo do que mudou e impacto (pode listar itens separados por ponto e vírgula).
+
+## [v3.2.105] - 2026-01-30
+
+### Changed
+- gate com single-flight e limpeza de pendingWooUpdate em qualquer updated_checkout; debounce de eventos woo_updating; preferência por estado aplicado para evitar timeouts.
+
+#### Protocol: efaaa93
+
+## [v3.2.104] - 2026-01-30
+
+### Changed
+- redução de flood de logs remotos com throttle e envio restrito a admin; evita 429 em `admin-ajax.php` durante polling do gate.
+
+#### Protocol: 67a5fb5
+
+## [v3.2.103] - 2026-01-30
+
+### Changed
+- gate forte com spinner e timeout na sincronização de frete/totais antes de avançar e confirmar; revisão bloqueada até Woo confirmar frete aplicado e totais prontos; eventos de update_checkout sinalizados no ML-only e parâmetros de gate configuráveis via `cc_params`.
+
+#### Protocol: c83f385
 
 ## [v3.2.91] - 2026-01-28
 

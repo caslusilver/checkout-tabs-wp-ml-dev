@@ -158,6 +158,7 @@
     var CTWPML_MODAL_STATE_KEY = 'ctwpml_ml_modal_state_v1';
     var CTWPML_ORDER_COMPLETED_KEY = 'ctwpml_ml_order_completed_v1';
     var CTWPML_AUTH_RESUME_KEY = 'ctwpml_auth_resume_v1';
+    var CTWPML_FORM_STATE_KEY = 'ctwpml_ml_form_state_v1';
     var CTWPML_ORDER_COMPLETED_TTL_MS = 5 * 60 * 1000;
     var restoreStateOnOpen = null;
     var authResumeContext = null;
@@ -218,6 +219,35 @@
       } catch (e) {}
     }
 
+    function readFormSnapshot() {
+      try {
+        if (!window.sessionStorage) return null;
+        var raw = window.sessionStorage.getItem(CTWPML_FORM_STATE_KEY);
+        if (!raw) return null;
+        var obj = JSON.parse(raw);
+        if (!obj || typeof obj !== 'object') return null;
+        return obj;
+      } catch (e) {
+        return null;
+      }
+    }
+
+    function saveFormSnapshot(payload) {
+      try {
+        if (!window.sessionStorage) return;
+        var base = payload && typeof payload === 'object' ? payload : {};
+        base.ts = Date.now();
+        window.sessionStorage.setItem(CTWPML_FORM_STATE_KEY, JSON.stringify(base));
+      } catch (e) {}
+    }
+
+    function clearFormSnapshot() {
+      try {
+        if (!window.sessionStorage) return;
+        window.sessionStorage.removeItem(CTWPML_FORM_STATE_KEY);
+      } catch (e) {}
+    }
+
     function markOrderCompleted(meta) {
       try {
         if (!window.sessionStorage) return;
@@ -227,6 +257,7 @@
         };
         window.sessionStorage.setItem(CTWPML_ORDER_COMPLETED_KEY, JSON.stringify(payload));
         clearModalState();
+        clearFormSnapshot();
         if (typeof state.checkpoint === 'function') {
           state.checkpoint('CHK_CTA_WC_CHECKOUT_AJAX_COMPLETE', true, {
             source: (meta && meta.source) || 'unknown',
@@ -474,6 +505,261 @@
       } catch (e0) {}
     }
 
+    // =========================================================
+    // GATE de sincronização (frete/totais/review)
+    // =========================================================
+    var ctwpmlReviewGateDefaults = {
+      timeoutMs: 10000,
+      pollMs: 150,
+    };
+
+    function ctwpmlGetReviewGateParams() {
+      var params = state.params || {};
+      var timeoutMs = parseInt(params.review_gate_timeout_ms, 10);
+      var pollMs = parseInt(params.review_gate_poll_ms, 10);
+      return {
+        timeoutMs: (isNaN(timeoutMs) ? ctwpmlReviewGateDefaults.timeoutMs : Math.max(1000, timeoutMs)),
+        pollMs: (isNaN(pollMs) ? ctwpmlReviewGateDefaults.pollMs : Math.max(50, pollMs)),
+      };
+    }
+
+    state.__ctwpmlReviewGate = state.__ctwpmlReviewGate || {
+      active: false,
+      pendingShipping: false,
+      pendingWooUpdate: false,
+      totalsReady: false,
+      appliedMatch: false,
+      startedAt: 0,
+      timeoutMs: ctwpmlReviewGateDefaults.timeoutMs,
+      pollMs: ctwpmlReviewGateDefaults.pollMs,
+      requestedMethod: '',
+      appliedMethod: '',
+      timer: null,
+      spinnerLocked: false,
+      onReady: null,
+      onTimeout: null,
+      source: '',
+      timedOut: false,
+      lastStartAt: 0,
+      lastStartKey: '',
+      lastWooUpdatingAt: 0,
+    };
+
+    function ctwpmlReviewGateEnsureLoading() {
+      if (currentView !== 'review') return;
+      var $view = $('#ctwpml-view-review');
+      if (!$view.length) return;
+      if ($view.find('#ctwpml-review-loading').length) {
+        $view.find('#ctwpml-review-loading').show();
+        return;
+      }
+      if ($view.children().length === 0 || $view.text().trim() === '') {
+        $view.html(
+          '<div id="ctwpml-review-loading" style="padding:30px;text-align:center;color:#666;">' +
+            '<div class="ctwpml-spinner" style="width:40px;height:40px;border:3px solid rgba(0,117,255,0.2);border-top-color:#0075ff;border-radius:50%;animation:ctwpml-spin 0.8s linear infinite;margin:0 auto 16px;"></div>' +
+            '<div>Carregando revisão...</div>' +
+          '</div>'
+        );
+      }
+    }
+
+    function ctwpmlReviewGateLockSpinner() {
+      var gate = state.__ctwpmlReviewGate;
+      if (gate.spinnerLocked) return;
+      gate.spinnerLocked = true;
+      ctwpmlSpinnerAcquire('review_gate');
+    }
+
+    function ctwpmlReviewGateUnlockSpinner() {
+      var gate = state.__ctwpmlReviewGate;
+      if (!gate.spinnerLocked) return;
+      gate.spinnerLocked = false;
+      ctwpmlSpinnerRelease('review_gate');
+    }
+
+    function ctwpmlReviewGateResolveAppliedMatch() {
+      var gate = state.__ctwpmlReviewGate;
+      var requested = gate.requestedMethod || (state.selectedShipping ? String(state.selectedShipping.methodId || '') : '');
+      gate.requestedMethod = requested;
+      if (!requested) {
+        gate.appliedMatch = false;
+        gate.appliedMethod = '';
+        return false;
+      }
+      var applied = '';
+      var last = state.__ctwpmlLastShippingSet || null;
+      if (last && String(last.requested || '') === requested && last.applied) {
+        applied = String(last.applied || '');
+      } else {
+        var snap = ctwpmlReadWooShippingDomSnapshot();
+        applied = snap && snap.checked ? String(snap.checked) : '';
+      }
+      gate.appliedMethod = applied;
+      gate.appliedMatch = !!(applied && applied === requested);
+      if (gate.appliedMatch) gate.pendingShipping = false;
+      return gate.appliedMatch;
+    }
+
+    function ctwpmlReviewGateMarkTotalsReady(source) {
+      var gate = state.__ctwpmlReviewGate;
+      var totals = (state.__ctwpmlTotalsState && state.__ctwpmlTotalsState.totals) ? state.__ctwpmlTotalsState.totals : {};
+      var totalText = totals && totals.totalText ? String(totals.totalText || '').trim() : '';
+      var shippingText = totals && totals.shippingText ? String(totals.shippingText || '').trim() : '';
+      gate.totalsReady = !!(totalText && shippingText);
+      if (typeof state.checkpoint === 'function') {
+        state.checkpoint('CHK_REVIEW_GATE_BLOCK_REASON', true, {
+          source: String(source || ''),
+          totalsReady: gate.totalsReady,
+          totalText: totalText,
+          shippingText: shippingText,
+        });
+      }
+    }
+
+    function ctwpmlReviewGateIsReady() {
+      var gate = state.__ctwpmlReviewGate;
+      return !!(!gate.pendingWooUpdate && !gate.pendingShipping && gate.totalsReady && gate.appliedMatch);
+    }
+
+    function ctwpmlReviewGateApplyCtaState() {
+      var checked = $('.ctwpml-review-terms-checkbox').first().is(':checked');
+      ctwpmlSetReviewCtaEnabled(!!(checked && ctwpmlReviewGateIsReady()));
+    }
+
+    function ctwpmlReviewGateFinish() {
+      var gate = state.__ctwpmlReviewGate;
+      if (!gate.active) return;
+      gate.active = false;
+      gate.pendingWooUpdate = false;
+      gate.pendingShipping = false;
+      gate.timedOut = false;
+      if (gate.timer) clearTimeout(gate.timer);
+      gate.timer = null;
+      ctwpmlReviewGateUnlockSpinner();
+      if (typeof state.checkpoint === 'function') {
+        state.checkpoint('CHK_REVIEW_GATE_READY', true, {
+          requested: gate.requestedMethod,
+          applied: gate.appliedMethod,
+          totalsReady: gate.totalsReady,
+          source: gate.source,
+        });
+      }
+      ctwpmlReviewGateApplyCtaState();
+      if (typeof gate.onReady === 'function') {
+        var cb = gate.onReady;
+        gate.onReady = null;
+        cb();
+      }
+    }
+
+    function ctwpmlReviewGateTimeout(reason) {
+      var gate = state.__ctwpmlReviewGate;
+      if (!gate.active) return;
+      gate.active = false;
+      gate.timedOut = true;
+      if (gate.timer) clearTimeout(gate.timer);
+      gate.timer = null;
+      ctwpmlReviewGateUnlockSpinner();
+      if (typeof state.checkpoint === 'function') {
+        state.checkpoint('CHK_REVIEW_GATE_TIMEOUT', false, {
+          reason: String(reason || 'timeout'),
+          requested: gate.requestedMethod,
+          applied: gate.appliedMethod,
+          pendingShipping: gate.pendingShipping,
+          pendingWooUpdate: gate.pendingWooUpdate,
+          totalsReady: gate.totalsReady,
+          source: gate.source,
+        });
+      }
+      if (currentView === 'review') ctwpmlSetReviewCtaEnabled(false);
+      if (typeof gate.onTimeout === 'function') {
+        var cb = gate.onTimeout;
+        gate.onTimeout = null;
+        cb();
+      }
+    }
+
+    function ctwpmlReviewGateSchedule(source) {
+      var gate = state.__ctwpmlReviewGate;
+      if (!gate.active) return;
+      if (gate.timer) clearTimeout(gate.timer);
+      gate.timer = setTimeout(function () {
+        ctwpmlReviewGateResolveAppliedMatch();
+        ctwpmlReviewGateMarkTotalsReady(source || 'poll');
+        if (ctwpmlReviewGateIsReady()) {
+          ctwpmlReviewGateFinish();
+          return;
+        }
+        if (Date.now() - gate.startedAt > gate.timeoutMs) {
+          ctwpmlReviewGateTimeout('timeout');
+          return;
+        }
+        ctwpmlReviewGateSchedule('poll');
+      }, gate.pollMs);
+    }
+
+    function ctwpmlReviewGateStart(source, opts) {
+      var gate = state.__ctwpmlReviewGate;
+      var params = ctwpmlGetReviewGateParams();
+      gate.timeoutMs = params.timeoutMs;
+      gate.pollMs = params.pollMs;
+      var requestedFromOpts = opts && opts.requestedMethod ? String(opts.requestedMethod || '') : '';
+      var requestedNow = requestedFromOpts || gate.requestedMethod || (state.selectedShipping ? String(state.selectedShipping.methodId || '') : '');
+      var startKey = String(source || '') + ':' + String(requestedNow || '');
+      var now = Date.now();
+
+      // Evita reentradas rápidas do mesmo gate (single-flight).
+      if (gate.active && gate.lastStartKey === startKey && (now - gate.lastStartAt) < 1200) {
+        if (Object.prototype.hasOwnProperty.call(opts || {}, 'pendingWooUpdate')) {
+          gate.pendingWooUpdate = !!opts.pendingWooUpdate;
+        }
+        if (Object.prototype.hasOwnProperty.call(opts || {}, 'pendingShipping')) {
+          gate.pendingShipping = !!opts.pendingShipping;
+        }
+        if (Object.prototype.hasOwnProperty.call(opts || {}, 'appliedMatch')) {
+          gate.appliedMatch = !!opts.appliedMatch;
+        }
+        if (Object.prototype.hasOwnProperty.call(opts || {}, 'totalsReady')) {
+          gate.totalsReady = !!opts.totalsReady;
+        }
+        if (!gate.timer) ctwpmlReviewGateSchedule('start_skip');
+        return;
+      }
+
+      gate.source = String(source || gate.source || '');
+      if (!gate.active) {
+        gate.active = true;
+        gate.startedAt = Date.now();
+        gate.timedOut = false;
+      }
+      opts = opts || {};
+      if (Object.prototype.hasOwnProperty.call(opts, 'pendingShipping')) gate.pendingShipping = !!opts.pendingShipping;
+      if (Object.prototype.hasOwnProperty.call(opts, 'pendingWooUpdate')) gate.pendingWooUpdate = !!opts.pendingWooUpdate;
+      if (Object.prototype.hasOwnProperty.call(opts, 'totalsReady')) gate.totalsReady = !!opts.totalsReady;
+      if (Object.prototype.hasOwnProperty.call(opts, 'appliedMatch')) gate.appliedMatch = !!opts.appliedMatch;
+      if (requestedNow) gate.requestedMethod = requestedNow;
+      gate.lastStartKey = startKey;
+      gate.lastStartAt = now;
+      ctwpmlReviewGateLockSpinner();
+      ctwpmlReviewGateEnsureLoading();
+      ctwpmlSetReviewCtaEnabled(false);
+      if (typeof state.checkpoint === 'function') {
+        state.checkpoint('CHK_REVIEW_GATE_START', true, {
+          source: gate.source,
+          requested: gate.requestedMethod,
+          pendingShipping: gate.pendingShipping,
+          pendingWooUpdate: gate.pendingWooUpdate,
+        });
+      }
+      ctwpmlReviewGateSchedule('start');
+    }
+
+    function ctwpmlReviewGateAttachCallbacks(onReady, onTimeout) {
+      var gate = state.__ctwpmlReviewGate;
+      gate.onReady = typeof onReady === 'function' ? onReady : null;
+      gate.onTimeout = typeof onTimeout === 'function' ? onTimeout : null;
+    }
+
     /**
      * Exibe notificação toast para o usuário
      * @param {string} message - Mensagem a exibir
@@ -578,6 +864,10 @@
           '          <label for="ctwpml-input-cep">CEP</label>' +
           '          <input id="ctwpml-input-cep" type="text" placeholder="00000-000" inputmode="numeric" autocomplete="postal-code" />' +
           '          <a class="ctwpml-link-right" href="#" id="ctwpml-nao-sei-cep">Não sei meu CEP</a>' +
+          '          <div class="ctwpml-cep-inline-spinner" id="ctwpml-cep-inline-spinner" style="display:none;margin-top:8px;">' +
+          '            <div class="ctwpml-spinner" style="width:18px;height:18px;border:3px solid rgba(0,117,255,0.2);border-top-color:#0075ff;border-radius:50%;animation:ctwpml-spin 0.8s linear infinite;display:inline-block;vertical-align:middle;"></div>' +
+          '            <span style="margin-left:8px;font-size:12px;color:#555;">Consultando CEP...</span>' +
+          '          </div>' +
           '          <div id="ctwpml-cep-confirm" class="ctwpml-cep-confirm" aria-live="polite">' +
           '            <div class="ctwpml-cep-icon"><img src="' + (window.cc_params && window.cc_params.plugin_url ? window.cc_params.plugin_url : '') + 'assets/img/icones/pin-drop.svg" alt="" width="20" height="20" /></div>' +
           '            <div>' +
@@ -607,7 +897,7 @@
           '        <div class="ctwpml-contact-section">' +
           '          <div class="ctwpml-contact-title">Dados de contato</div>' +
           '          <div class="ctwpml-contact-subtitle">Se houver algum problema no envio, você receberá uma ligação neste número.</div>' +
-          '          <div class="ctwpml-form-group"><label for="ctwpml-input-nome">Nome completo</label><input id="ctwpml-input-nome" type="text" /></div>' +
+          '          <div class="ctwpml-form-group" id="ctwpml-group-nome"><label for="ctwpml-input-nome">Nome completo</label><input id="ctwpml-input-nome" type="text" /><div class="ctwpml-inline-hint" id="ctwpml-nome-hint" style="display:none;"></div></div>' +
           '          <div class="ctwpml-form-group" id="ctwpml-group-phone">' +
           '            <label for="ctwpml-input-fone">Telefone / WhatsApp</label>' +
           '            <div class="ctwpml-phone-wrap" id="ctwpml-phone-wrap">' +
@@ -822,6 +1112,15 @@
         requestedExists: null,
         ts: Date.now(),
       };
+      if (requested) {
+        ctwpmlReviewGateStart('shipping_set', {
+          pendingShipping: true,
+          pendingWooUpdate: true,
+          totalsReady: false,
+          appliedMatch: false,
+          requestedMethod: requested,
+        });
+      }
       try {
         if (typeof state.checkpoint === 'function') {
           state.checkpoint('CHK_SHIPPING_SET_REQUEST', !!requested, {
@@ -846,11 +1145,15 @@
           log('setShippingMethodInWC() - Resposta:', resp);
 
           var ok = !!(resp && resp.success);
+          var respData = resp && resp.data ? resp.data : null;
+          var appliedMethod = respData && respData.applied_method ? String(respData.applied_method) : '';
           try {
             if (state.__ctwpmlLastShippingSet && state.__ctwpmlLastShippingSet.requested === requested) {
               state.__ctwpmlLastShippingSet.ok = ok;
-              state.__ctwpmlLastShippingSet.validationSkipped = resp && resp.data ? !!resp.data.validation_skipped : null;
-              state.__ctwpmlLastShippingSet.requestedExists = resp && resp.data ? !!resp.data.requested_exists : null;
+              state.__ctwpmlLastShippingSet.validationSkipped = respData ? !!respData.validation_skipped : null;
+              state.__ctwpmlLastShippingSet.requestedExists = respData ? !!respData.requested_exists : null;
+              state.__ctwpmlLastShippingSet.applied = appliedMethod;
+              state.__ctwpmlLastShippingSet.match = !!(appliedMethod && appliedMethod === requested);
               state.__ctwpmlLastShippingSet.resp = resp;
             }
           } catch (e0a) {}
@@ -871,7 +1174,30 @@
                 });
               }
             } catch (e2) {}
+            ctwpmlReviewGateTimeout('set_failed');
             return;
+          }
+
+          if (appliedMethod && appliedMethod !== requested) {
+            log('setShippingMethodInWC() - Método aplicado diverge do solicitado', { requested: requested, applied: appliedMethod });
+            try {
+              if (typeof state.checkpoint === 'function') {
+                state.checkpoint('CHK_SHIPPING_SET_APPLIED', false, {
+                  requested: requested,
+                  applied: appliedMethod,
+                  reason: 'session_mismatch',
+                });
+              }
+            } catch (e2x) {}
+            ctwpmlReviewGateTimeout('session_mismatch');
+            return;
+          }
+          if (appliedMethod && appliedMethod === requested) {
+            ctwpmlReviewGateStart('shipping_set_applied', {
+              pendingShipping: false,
+              appliedMatch: true,
+              requestedMethod: requested,
+            });
           }
 
           // Checkpoint: sync do webhook_shipping no backend (para não remover SEDEX/Motoboy no update_checkout)
@@ -1572,6 +1898,7 @@
           hasDiscount: !!state.__ctwpmlTotalsState.discount.hasDiscount,
         });
       }
+      ctwpmlReviewGateMarkTotalsReady(String(source || 'totals_state_woo'));
     }
 
     function ctwpmlUpdateTotalsStateFromAjax(data, source) {
@@ -2231,11 +2558,11 @@
       var $checks = $('.ctwpml-review-terms-checkbox');
       if (!$checks.length) {
         // Se a tela não tem checkbox, não travamos CTA.
-        ctwpmlSetReviewCtaEnabled(true);
+        ctwpmlSetReviewCtaEnabled(!!ctwpmlReviewGateIsReady());
         return;
       }
       var checked = $checks.first().is(':checked');
-      ctwpmlSetReviewCtaEnabled(checked);
+      ctwpmlReviewGateApplyCtaState();
       ctwpmlSyncWooTerms(checked);
     }
 
@@ -2339,7 +2666,7 @@
               if (resumeTerms) {
                 $('.ctwpml-review-terms-checkbox').prop('checked', true);
                 ctwpmlSyncWooTerms(true);
-                ctwpmlSetReviewCtaEnabled(true);
+                ctwpmlReviewGateApplyCtaState();
               }
               if (typeof state.checkpoint === 'function') {
                 state.checkpoint('CHK_AUTH_RESUME_APPLIED', true, { termsChecked: resumeTerms, autoSubmit: !!authResumeContext.autoSubmit });
@@ -2426,10 +2753,34 @@
         }
       };
 
-      if (woo && typeof woo.ensureBlocks === 'function') {
-        woo.ensureBlocks().then(run).catch(run);
+      var startRender = function () {
+        if (woo && typeof woo.ensureBlocks === 'function') {
+          woo.ensureBlocks().then(run).catch(run);
+        } else {
+          run();
+        }
+      };
+
+      var requestedMethod = state.selectedShipping ? String(state.selectedShipping.methodId || '') : '';
+      var isWooUpdating = typeof state.isUpdateCheckoutInProgress === 'function' ? state.isUpdateCheckoutInProgress() : false;
+      ctwpmlReviewGateStart('review_entry', {
+        pendingWooUpdate: isWooUpdating,
+        pendingShipping: true,
+        totalsReady: false,
+        appliedMatch: false,
+        requestedMethod: requestedMethod,
+      });
+      ctwpmlReviewGateAttachCallbacks(function () {
+        startRender();
+      }, function () {
+        showNotification('O frete está demorando para sincronizar. Revise a entrega e tente novamente.', 'error', 4500);
+      });
+      ctwpmlReviewGateResolveAppliedMatch();
+      ctwpmlReviewGateMarkTotalsReady('review_entry');
+      if (ctwpmlReviewGateIsReady()) {
+        ctwpmlReviewGateFinish();
       } else {
-        run();
+        ctwpmlReviewGateEnsureLoading();
       }
     }
 
@@ -2456,13 +2807,52 @@
         if (currentView === 'payment') applyPaymentAvailabilityAndSync(eventType);
         if (currentView === 'review') {
           syncReviewTotalsFromWoo();
+          ctwpmlReviewGateMarkTotalsReady('updated_checkout');
+          ctwpmlReviewGateResolveAppliedMatch();
           // Re-sincroniza termos (Woo pode re-renderizar o DOM).
           try {
             var checked = $('.ctwpml-review-terms-checkbox').first().is(':checked');
             ctwpmlSyncWooTerms(checked);
-            ctwpmlSetReviewCtaEnabled(checked);
+            ctwpmlReviewGateApplyCtaState();
           } catch (e2) {}
         }
+        if (state.__ctwpmlReviewGate && state.__ctwpmlReviewGate.active) {
+          state.__ctwpmlReviewGate.pendingWooUpdate = false;
+          try { ctwpmlUpdateTotalsStateFromWoo('updated_checkout'); } catch (eT0) {}
+          ctwpmlReviewGateMarkTotalsReady('updated_checkout');
+          ctwpmlReviewGateResolveAppliedMatch();
+          ctwpmlReviewGateSchedule('updated_checkout');
+        }
+      } catch (e) {}
+    });
+
+    // Sinalização do Woo (ML-only): update em progresso / finalizado
+    $(document.body).on('ctwpml_woo_updating', function () {
+      try {
+        if (currentView !== 'review' && currentView !== 'shipping' && currentView !== 'payment') return;
+        var gate = state.__ctwpmlReviewGate;
+        var now = Date.now();
+        var requestedMethod = state.selectedShipping ? String(state.selectedShipping.methodId || '') : '';
+        if (gate && gate.active && gate.requestedMethod === requestedMethod && (now - gate.lastWooUpdatingAt) < 800) {
+          return;
+        }
+        if (gate) gate.lastWooUpdatingAt = now;
+        ctwpmlReviewGateStart('woo_updating', {
+          pendingWooUpdate: true,
+          pendingShipping: !!requestedMethod,
+          requestedMethod: requestedMethod,
+        });
+      } catch (e) {}
+    });
+
+    $(document.body).on('ctwpml_woo_updated', function () {
+      try {
+        if (!state.__ctwpmlReviewGate) return;
+        state.__ctwpmlReviewGate.pendingWooUpdate = false;
+        try { ctwpmlUpdateTotalsStateFromWoo('woo_updated_gate'); } catch (e1) {}
+        ctwpmlReviewGateMarkTotalsReady('woo_updated');
+        ctwpmlReviewGateResolveAppliedMatch();
+        ctwpmlReviewGateSchedule('woo_updated');
       } catch (e) {}
     });
 
@@ -2577,11 +2967,16 @@
               cpfLocked: cpfLocked 
             }, 'UI');
 
+            var currentPhone = ($('#ctwpml-input-fone').val() || '').trim();
+            var currentPhoneFull = ($('#ctwpml-phone-full').val() || '').trim();
+            var currentCpf = ($('#ctwpml-input-cpf').val() || '').trim();
+            var currentEmail = ($('#ctwpml-input-email').val() || '').trim();
+
             // Telefone (novo formato): se phone_full existir, restaurar país + máscara; senão fallback para whatsapp.
             try {
-              if (window.ctwpmlPhoneWidget && typeof window.ctwpmlPhoneWidget.setPhoneFull === 'function' && phoneFull) {
+              if (!currentPhone && !currentPhoneFull && window.ctwpmlPhoneWidget && typeof window.ctwpmlPhoneWidget.setPhoneFull === 'function' && phoneFull) {
                 window.ctwpmlPhoneWidget.setPhoneFull(String(phoneFull));
-              } else if (whatsapp) {
+              } else if (!currentPhone && whatsapp) {
                 $('#ctwpml-input-fone').val(formatPhone(whatsapp));
                 // Também tenta popular hidden para persistência
                 var digits = phoneDigits(whatsapp);
@@ -2591,10 +2986,10 @@
                 }
               }
             } catch (e0) {
-              if (whatsapp) $('#ctwpml-input-fone').val(formatPhone(whatsapp));
+              if (!currentPhone && whatsapp) $('#ctwpml-input-fone').val(formatPhone(whatsapp));
             }
 
-            if (cpf) {
+            if (cpf && !currentCpf) {
               $('#ctwpml-input-cpf').val(formatCpf(cpf));
               if (cpfLocked) {
                 $('#ctwpml-input-cpf').prop('readonly', true);
@@ -2605,7 +3000,7 @@
             try {
               email = response && response.data && response.data.email ? String(response.data.email).trim() : '';
             } catch (eEmail) {}
-            if (email) {
+            if (email && !currentEmail) {
               try {
                 if (!($('#ctwpml-input-email').val() || '').trim()) {
                   $('#ctwpml-input-email').val(email);
@@ -2774,7 +3169,7 @@
 
         // countryData: ISO2 -> [Nome, DDI, Máscara]
         var countryData = {
-          BR: ['Brasil', '55', '(00) 00000-0000'],
+          BR: ['Brasil', '55', '(00) 0 0000-0000'],
           US: ['Estados Unidos', '1', '(000) 000-0000'],
           PT: ['Portugal', '351', '000 000 000'],
           AO: ['Angola', '244', '000 000 000'],
@@ -2867,6 +3262,7 @@
           if (typeof state.log === 'function') {
             state.log('UI        v2.0 [2.3] Phone accept', { country: countryCode, ddi: ddiStr ? ('+' + ddiStr) : '', digitsLen: digits.length, phone_full: full.slice(0, 8) + '...' }, 'UI');
           }
+          ctwpmlPersistFormSnapshot('phone_accept');
         }
 
         function updateMask(countryCode, isInitCall) {
@@ -2881,7 +3277,7 @@
 
           var maskOpts = { lazy: true };
           if (countryCode === 'BR') {
-            maskOpts.mask = [{ mask: '(00) 0000-0000' }, { mask: '(00) 00000-0000' }];
+            maskOpts.mask = '(00) 0 0000-0000';
           } else {
             maskOpts.mask = maskPattern;
           }
@@ -2892,7 +3288,7 @@
               updateHidden(countryCode, ddi, maskInstance.unmaskedValue);
             });
 
-            if (countryCode === 'BR') inputEl.placeholder = '(11) 99999-9999';
+            if (countryCode === 'BR') inputEl.placeholder = '(11) 9 9999-9999';
             else inputEl.placeholder = String(maskPattern || '').replace(/0/g, '0');
 
             // No modelo, ao trocar país limpa input/hidden (mantém UX consistente)
@@ -3276,6 +3672,7 @@
       syncLoginBanner();
       syncCpfUiFromCheckout();
       initInternationalPhoneInput(); // v2.0 [2.3] (TomSelect + IMask)
+      ctwpmlApplyFormSnapshot(readFormSnapshot());
       loadContactMeta(); // Carregar WhatsApp e CPF salvos
       setFooterVisible(true);
       persistModalState({ view: 'form' });
@@ -3324,6 +3721,7 @@
       syncCpfUiFromCheckout();
       // v3.2.13: Carregar CPF e WhatsApp do perfil (user_meta) para novo endereço
       initInternationalPhoneInput(); // v2.0 [2.3] (TomSelect + IMask)
+      ctwpmlApplyFormSnapshot(readFormSnapshot());
       loadContactMeta();
       setFooterVisible(true);
       persistModalState({ view: 'form' });
@@ -3384,6 +3782,7 @@
       
       // WhatsApp: fonte da verdade é phone_full do perfil; billing_cellphone é fallback.
       initInternationalPhoneInput(); // v2.0 [2.3]
+      ctwpmlApplyFormSnapshot(readFormSnapshot());
 
       // 1) Primeiro tenta perfil (phone_full) para evitar duplicidade de DDI no input.
       loadContactMeta(function (meta) {
@@ -3444,9 +3843,104 @@
       $hint.text(String(message || '')).show();
     }
 
+    function setNomeHint(message, visible) {
+      var $hint = $('#ctwpml-nome-hint');
+      if (!$hint.length) return;
+      if (!visible) {
+        $hint.hide().text('');
+        return;
+      }
+      $hint.text(String(message || '')).show();
+    }
+
+    function setCepConsultLoading(loading) {
+      var $spinner = $('#ctwpml-cep-inline-spinner');
+      if ($spinner.length) {
+        if (loading) $spinner.show();
+        else $spinner.hide();
+      }
+      var $inputs = $('#ctwpml-view-form input, #ctwpml-view-form textarea, #ctwpml-view-form select');
+      var $buttons = $('#ctwpml-btn-primary, #ctwpml-btn-secondary');
+      var $types = $('#ctwpml-view-form .ctwpml-type-option');
+      if (loading) {
+        $inputs.not('#ctwpml-input-cep').prop('disabled', true);
+        $buttons.prop('disabled', true).addClass('is-disabled');
+        $types.addClass('is-disabled');
+      } else {
+        $inputs.prop('disabled', false);
+        $buttons.prop('disabled', false).removeClass('is-disabled');
+        $types.removeClass('is-disabled');
+      }
+    }
+
     function clearFormErrors() {
       $('#ctwpml-view-form .ctwpml-form-group').removeClass('is-error');
       $('#ctwpml-view-form .ctwpml-type-option').removeClass('is-error');
+    }
+
+    var formSnapshotDebounce = null;
+
+    function ctwpmlCollectFormSnapshot() {
+      try {
+        return {
+          addressId: selectedAddressId || null,
+          cep: ($('#ctwpml-input-cep').val() || '').trim(),
+          rua: ($('#ctwpml-input-rua').val() || '').trim(),
+          numero: ($('#ctwpml-input-numero').val() || '').trim(),
+          comp: ($('#ctwpml-input-comp').val() || '').trim(),
+          bairro: ($('#ctwpml-input-bairro').val() || '').trim(),
+          info: ($('#ctwpml-input-info').val() || '').trim(),
+          label: $('#ctwpml-type-home').hasClass('is-active') ? 'Casa' : ($('#ctwpml-type-work').hasClass('is-active') ? 'Trabalho' : ''),
+          nome: ($('#ctwpml-input-nome').val() || '').trim(),
+          email: ($('#ctwpml-input-email').val() || '').trim(),
+          phone: ($('#ctwpml-input-fone').val() || '').trim(),
+          phone_full: ($('#ctwpml-phone-full').val() || '').trim(),
+          cpf: ($('#ctwpml-input-cpf').val() || '').trim(),
+          lastCepOnly: lastCepOnly || '',
+          cepConsultedFor: cepConsultedFor || '',
+        };
+      } catch (e) {
+        return null;
+      }
+    }
+
+    function ctwpmlApplyFormSnapshot(snapshot) {
+      if (!snapshot) return;
+      if (snapshot.addressId && snapshot.addressId !== selectedAddressId) return;
+      if (!snapshot.addressId && selectedAddressId) return;
+
+      if (snapshot.cep) {
+        $('#ctwpml-input-cep').val(formatCep(snapshot.cep));
+        lastCepOnly = cepDigits(snapshot.cep);
+        cepConsultedFor = String(snapshot.cepConsultedFor || '');
+      }
+      if (snapshot.rua) $('#ctwpml-input-rua').val(snapshot.rua);
+      if (snapshot.numero) $('#ctwpml-input-numero').val(snapshot.numero);
+      if (snapshot.comp) $('#ctwpml-input-comp').val(snapshot.comp);
+      if (snapshot.bairro) $('#ctwpml-input-bairro').val(snapshot.bairro);
+      if (snapshot.info) $('#ctwpml-input-info').val(snapshot.info);
+      if (snapshot.label) setTypeSelection(snapshot.label);
+      if (snapshot.nome) $('#ctwpml-input-nome').val(snapshot.nome);
+      if (snapshot.email) $('#ctwpml-input-email').val(snapshot.email);
+      if (snapshot.phone_full) {
+        $('#ctwpml-phone-full').val(snapshot.phone_full);
+      }
+      if (snapshot.phone) {
+        $('#ctwpml-input-fone').val(snapshot.phone);
+      }
+      if (snapshot.cpf) $('#ctwpml-input-cpf').val(snapshot.cpf);
+    }
+
+    function ctwpmlPersistFormSnapshot(reason) {
+      if (currentView !== 'form') return;
+      if (formSnapshotDebounce) clearTimeout(formSnapshotDebounce);
+      formSnapshotDebounce = setTimeout(function () {
+        var snapshot = ctwpmlCollectFormSnapshot();
+        if (snapshot) saveFormSnapshot(snapshot);
+        if (typeof state.checkpoint === 'function') {
+          state.checkpoint('CHK_FORM_SNAPSHOT_SAVE', true, { reason: reason || 'unknown', hasAddressId: !!snapshot && !!snapshot.addressId });
+        }
+      }, 180);
     }
 
     function setFieldError(selectorOrGroupId, isError) {
@@ -3478,6 +3972,24 @@
       var firstName = normalized.slice(0, firstSpaceIdx).trim();
       var lastName = normalized.slice(firstSpaceIdx + 1).trim();
       return { normalized: normalized, firstName: firstName, lastName: lastName, hasSurname: !!lastName };
+    }
+
+    function ctwpmlValidateFullName(showHint) {
+      var raw = ($('#ctwpml-input-nome').val() || '').trim();
+      if (!raw) {
+        setFieldError('#ctwpml-group-nome', true);
+        if (showHint) setNomeHint('Escreva pelo menos seu nome e sobrenome', true);
+        return false;
+      }
+      var parsed = ctwpmlParseFullName(raw);
+      if (!parsed.hasSurname) {
+        setFieldError('#ctwpml-group-nome', true);
+        if (showHint) setNomeHint('Escreva pelo menos seu nome e sobrenome', true);
+        return false;
+      }
+      setFieldError('#ctwpml-group-nome', false);
+      if (showHint) setNomeHint('', false);
+      return true;
     }
 
     function ctwpmlIsValidEmail(email) {
@@ -3574,20 +4086,9 @@
         errors.push('Tipo Casa/Trabalho não selecionado');
       }
 
-      var name = ($('#ctwpml-input-nome').val() || '').trim();
-      if (!name) {
-        setFieldError('#ctwpml-input-nome', true);
+      if (!ctwpmlValidateFullName(true)) {
         ok = false;
-        errors.push('Nome obrigatório');
-      } else {
-        // Woo exige sobrenome em muitos setups. Mantemos um único campo no modal ("Nome completo")
-        // e garantimos que tudo após o 1º espaço seja tratado como sobrenome.
-        var parsedName = ctwpmlParseFullName(name);
-        if (!parsedName.hasSurname) {
-          setFieldError('#ctwpml-input-nome', true);
-          ok = false;
-          errors.push('Sobrenome obrigatório');
-        }
+        errors.push('Nome completo inválido');
       }
 
       var phone = phoneDigits($('#ctwpml-input-fone').val());
@@ -4250,6 +4751,7 @@
       if (typeof state.log === 'function') state.log('WEBHOOK_OUT (ML) [consultaCep] Consulta rápida de CEP...', payload, 'WEBHOOK_OUT');
 
       cepConsultInFlight = true;
+      setCepConsultLoading(true);
       $.ajax({
         url: state.params.webhook_url,
         type: 'POST',
@@ -4261,6 +4763,7 @@
         data: JSON.stringify(payload),
         success: function (data) {
           cepConsultInFlight = false;
+          setCepConsultLoading(false);
           cepConsultedFor = cepOnlyDigits;
           if (typeof state.log === 'function') state.log('WEBHOOK_IN (ML) [consultaCep] Resposta recebida.', data, 'WEBHOOK_IN');
           
@@ -4268,10 +4771,12 @@
           lastCepLookup = normalizeApiPayload(data);
           
           fillFormFromApiData(data);
+          ctwpmlPersistFormSnapshot('cep_lookup');
           // NÃO persiste no perfil aqui — isso será feito no Salvar com evento completo
         },
         error: function (jqXHR, textStatus, errorThrown) {
           cepConsultInFlight = false;
+          setCepConsultLoading(false);
           if (typeof state.log === 'function')
             state.log(
               'WEBHOOK_IN (ML) [consultaCep] Erro (' + textStatus + ').',
@@ -5049,10 +5554,12 @@
     $(document).on('click', '#ctwpml-type-home', function (e) {
       e.preventDefault();
       setTypeSelection('Casa');
+      ctwpmlPersistFormSnapshot('type_home');
     });
     $(document).on('click', '#ctwpml-type-work', function (e) {
       e.preventDefault();
       setTypeSelection('Trabalho');
+      ctwpmlPersistFormSnapshot('type_work');
     });
 
     // CPF (modal): máscara + geração fictícia
@@ -5313,6 +5820,13 @@
 
       // Atualizar no WooCommerce (se methodId existir)
       if (methodId) {
+        ctwpmlReviewGateStart('shipping_option_click', {
+          pendingShipping: true,
+          pendingWooUpdate: true,
+          totalsReady: false,
+          appliedMatch: false,
+          requestedMethod: String(methodId || ''),
+        });
         setShippingMethodInWC(methodId);
       }
     });
@@ -5376,7 +5890,7 @@
         $btn.prop('disabled', false).text('Continuar');
       }
 
-      // Bloquear avanço se o Woo NÃO aplicou de fato o método selecionado (evita finalizar com PAC por fallback).
+      // Gate forte: aguardar confirmação do frete + update_checkout + totais antes de avançar.
       try {
         var last = state.__ctwpmlLastShippingSet || null;
         var wooSnap = ctwpmlReadWooShippingDomSnapshot();
@@ -5390,93 +5904,49 @@
           return;
         }
 
-        // Se o Woo está com outro método checked, aguardar aplicação ao invés de pedir "tente novamente"
-        if (wooChecked && String(wooChecked) !== String(selectedMethod)) {
-          log('Aguardando aplicação: Woo checked != UI selected', { selectedMethod: String(selectedMethod), wooChecked: wooChecked, last: last });
-          if (typeof state.checkpoint === 'function') state.checkpoint('CHK_SHIPPING_CONTINUE_BLOCKED', true, { reason: 'woo_mismatch_waiting', selectedMethod: String(selectedMethod), wooChecked: wooChecked, last: last });
-          
-          // Se já está aguardando, não faz nada
-          if (__shippingContinueWaiting) {
-            log('Já aguardando aplicação do frete...');
-            return;
-          }
-          
-          // Mostrar estado de "aguardando" no botão
-          __shippingContinueWaiting = true;
-          $btn.prop('disabled', true).text('Aplicando frete...');
-          
-          // Re-disparar setShippingMethodInWC para garantir que está em andamento
-          setShippingMethodInWC(selectedMethod);
-          
-          // Aguardar updated_checkout e verificar novamente
-          var waitStart = Date.now();
-          var maxWait = 8000; // máximo 8 segundos
-          
-          var checkAndProceed = function() {
-            var newSnap = ctwpmlReadWooShippingDomSnapshot();
-            var newChecked = newSnap && newSnap.checked ? String(newSnap.checked) : '';
-            
-            log('Verificando após updated_checkout:', { newChecked: newChecked, selectedMethod: String(selectedMethod), elapsed: Date.now() - waitStart });
-            
-            if (newChecked === String(selectedMethod)) {
-              // Sucesso! Avançar automaticamente
-              log('Frete aplicado com sucesso, auto-avançando');
-              if (typeof state.checkpoint === 'function') state.checkpoint('CHK_SHIPPING_CONTINUE_ALLOWED', true, { selectedMethod: String(selectedMethod), wooChecked: newChecked, autoAdvance: true });
-              restoreButton();
-              proceedToPayment();
-            } else if (Date.now() - waitStart > maxWait) {
-              // Timeout - restaurar e mostrar erro
-              log('Timeout aguardando aplicação do frete');
-              restoreButton();
-              showNotification('O frete está demorando para aplicar. Tente novamente.', 'error', 4500);
-            }
-            // Se ainda não aplicou e não deu timeout, o próximo updated_checkout vai chamar novamente
-          };
-          
-          // Escutar updated_checkout até aplicar ou timeout
-          var onUpdatedCheckout = function() {
-            if (!__shippingContinueWaiting) return; // já resolvido
-            checkAndProceed();
-          };
-          
-          $(document.body).on('updated_checkout.ctwpml_shipping_wait', onUpdatedCheckout);
-          
-          // Também verificar com polling como fallback (caso updated_checkout não dispare)
-          var pollInterval = setInterval(function() {
-            if (!__shippingContinueWaiting) {
-              clearInterval(pollInterval);
-              $(document.body).off('updated_checkout.ctwpml_shipping_wait');
-              return;
-            }
-            if (Date.now() - waitStart > maxWait) {
-              clearInterval(pollInterval);
-              $(document.body).off('updated_checkout.ctwpml_shipping_wait');
-              restoreButton();
-              showNotification('O frete está demorando para aplicar. Tente novamente.', 'error', 4500);
-              return;
-            }
-            // Verificar DOM periodicamente
-            var pollSnap = ctwpmlReadWooShippingDomSnapshot();
-            var pollChecked = pollSnap && pollSnap.checked ? String(pollSnap.checked) : '';
-            if (pollChecked === String(selectedMethod)) {
-              clearInterval(pollInterval);
-              $(document.body).off('updated_checkout.ctwpml_shipping_wait');
-              log('Frete aplicado (detectado via polling)');
-              if (typeof state.checkpoint === 'function') state.checkpoint('CHK_SHIPPING_CONTINUE_ALLOWED', true, { selectedMethod: String(selectedMethod), wooChecked: pollChecked, autoAdvance: true, viaPolling: true });
-              restoreButton();
-              proceedToPayment();
-            }
-          }, 500);
-          
+        if (__shippingContinueWaiting) {
+          log('Já aguardando aplicação do frete...');
           return;
         }
 
-        if (typeof state.checkpoint === 'function') state.checkpoint('CHK_SHIPPING_CONTINUE_ALLOWED', true, { selectedMethod: String(selectedMethod), wooChecked: wooChecked, last: last });
+        __shippingContinueWaiting = true;
+        $btn.prop('disabled', true).text('Aplicando frete...');
+
+        ctwpmlReviewGateStart('shipping_continue', {
+          pendingShipping: true,
+          pendingWooUpdate: true,
+          totalsReady: false,
+          appliedMatch: false,
+          requestedMethod: String(selectedMethod || ''),
+        });
+
+        ctwpmlReviewGateAttachCallbacks(function () {
+          if (typeof state.checkpoint === 'function') {
+            state.checkpoint('CHK_SHIPPING_CONTINUE_ALLOWED', true, {
+              selectedMethod: String(selectedMethod),
+              wooChecked: String(state.__ctwpmlReviewGate.appliedMethod || ''),
+              autoAdvance: true,
+            });
+          }
+          restoreButton();
+          proceedToPayment();
+        }, function () {
+          restoreButton();
+          showNotification('O frete está demorando para aplicar. Tente novamente.', 'error', 4500);
+        });
+
+        // Re-disparar setShippingMethodInWC para garantir que está em andamento
+        setShippingMethodInWC(selectedMethod);
+
+        ctwpmlReviewGateResolveAppliedMatch();
+        ctwpmlReviewGateMarkTotalsReady('shipping_continue');
+        if (ctwpmlReviewGateIsReady()) {
+          ctwpmlReviewGateFinish();
+        }
+        return;
       } catch (e0) {
         log('Erro ao verificar estado do frete:', e0);
       }
-
-      proceedToPayment();
     });
 
     // Tela 3 (Pagamento): clique em opção de pagamento (Pix, Boleto, Cartão)
@@ -6082,7 +6552,7 @@
         // sync entre os dois checkboxes do modal
         $('.ctwpml-review-terms-checkbox').prop('checked', checked);
         // habilita/desabilita CTA
-        ctwpmlSetReviewCtaEnabled(checked);
+        ctwpmlReviewGateApplyCtaState();
         // sync no Woo (terms + cs_terms_policy_accepted)
         ctwpmlSyncWooTerms(checked);
         // limpa erro se marcou
@@ -6116,6 +6586,23 @@
         }
         if (typeof state.checkpoint === 'function') state.checkpoint('CHK_REVIEW_TERMS_REQUIRED', true, { checked: $terms.length ? true : null });
       } catch (eT) {}
+
+      if (!ctwpmlReviewGateIsReady()) {
+        showNotification('Aguarde a sincronização do frete e totais antes de confirmar.', 'error', 3500);
+        ctwpmlSetReviewCtaEnabled(false);
+        try {
+          if (typeof state.checkpoint === 'function') {
+            state.checkpoint('CHK_REVIEW_GATE_BLOCK_REASON', true, {
+              reason: 'cta_block',
+              pendingShipping: state.__ctwpmlReviewGate ? state.__ctwpmlReviewGate.pendingShipping : null,
+              pendingWooUpdate: state.__ctwpmlReviewGate ? state.__ctwpmlReviewGate.pendingWooUpdate : null,
+              totalsReady: state.__ctwpmlReviewGate ? state.__ctwpmlReviewGate.totalsReady : null,
+              appliedMatch: state.__ctwpmlReviewGate ? state.__ctwpmlReviewGate.appliedMatch : null,
+            });
+          }
+        } catch (eR) {}
+        return;
+      }
 
       var woo = window.CCCheckoutTabs && window.CCCheckoutTabs.WooHost ? window.CCCheckoutTabs.WooHost : null;
       if (!woo || !woo.hasCheckoutForm || !woo.hasCheckoutForm()) {
@@ -6560,6 +7047,7 @@
       cepDebounceTimer = setTimeout(function () {
       consultCepAndFillForm();
       }, 250);
+      ctwpmlPersistFormSnapshot('cep_input');
     });
 
     // Mobile: ao sair do campo (OK/Next no teclado), dispara consulta se CEP tiver 8 dígitos.
@@ -6571,6 +7059,7 @@
     $(document).on('input change', '#ctwpml-view-form input, #ctwpml-view-form textarea', function (e) {
       $(this).closest('.ctwpml-form-group').removeClass('is-error');
       if ($(this).is('#ctwpml-input-rua')) setRuaHint('', false);
+      if ($(this).is('#ctwpml-input-nome')) setNomeHint('', false);
 
       // Dirty state (somente em interações do usuário; eventos programáticos não contam).
       try {
@@ -6581,6 +7070,15 @@
           }
         }
       } catch (e0) {}
+
+      if (e && e.originalEvent) {
+        ctwpmlPersistFormSnapshot('input_change');
+      }
+    });
+
+    $(document).on('blur', '#ctwpml-input-nome', function () {
+      ctwpmlValidateFullName(true);
+      ctwpmlPersistFormSnapshot('name_blur');
     });
 
     $(document).on('input change', '#ctwpml-input-email, #billing_email', function () {
@@ -6691,6 +7189,9 @@
           }, 'UI');
         }
       } catch (e2) {}
+      if (currentView === 'review') {
+        ctwpmlReviewGateMarkTotalsReady(String(source || 'render_totals_ui'));
+      }
     }
 
     $(document).on('focus', '#ctwpml-view-form input, #ctwpml-view-form textarea', function () {

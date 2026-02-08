@@ -24,6 +24,23 @@
       isAdminViewer = !!(state.params && (state.params.is_admin_viewer === 1 || state.params.is_admin_viewer === true || state.params.is_admin_viewer === '1'));
     } catch (e0) {}
 
+    // Evita flood de logs remotos (admin-ajax) em loops de polling.
+    var remoteLogState = {
+      lastSentAt: 0,
+      lastKey: '',
+      lastKeyAt: 0,
+    };
+
+    function canSendRemoteLog(key, minIntervalMs, sameKeyWindowMs) {
+      var now = Date.now();
+      if (minIntervalMs && now - remoteLogState.lastSentAt < minIntervalMs) return false;
+      if (key && key === remoteLogState.lastKey && sameKeyWindowMs && now - remoteLogState.lastKeyAt < sameKeyWindowMs) return false;
+      remoteLogState.lastSentAt = now;
+      remoteLogState.lastKey = key || '';
+      remoteLogState.lastKeyAt = now;
+      return true;
+    }
+
     state.currentPhase = '';
     state.actionStartTime = 0;
     state.ajaxWebhookStartTime = 0;
@@ -137,8 +154,10 @@
         ta.scrollTop(ta[0].scrollHeight);
       }
 
-      // Salva no backend
-      if (state.params && state.params.ajax_url) {
+      // Salva no backend (apenas admin, com throttle)
+      if (isAdminViewer && state.params && state.params.ajax_url) {
+        var key = 'checkpoint:' + String(name || '') + ':' + (ok ? '1' : '0');
+        if (!canSendRemoteLog(key, 1500, 5000)) return;
         var payload = new FormData();
         payload.append('action', 'ctwpml_save_log');
         payload.append('level', ok ? 'info' : 'error');
@@ -220,8 +239,10 @@
         ta.scrollTop(ta[0].scrollHeight);
       }
 
-      // Enviar log ao backend para exibição no admin
-      if (state.params && state.params.ajax_url) {
+      // Enviar log ao backend para exibição no admin (apenas admin, com throttle)
+      if (isAdminViewer && state.params && state.params.ajax_url) {
+        var key = 'log:' + String(phase || '') + ':' + String(message || '');
+        if (!canSendRemoteLog(key, 1000, 4000)) return;
         var payload = new FormData();
         payload.append('action', 'ctwpml_save_log');
         payload.append('level', phase === 'ERROR' ? 'error' : 'info');
