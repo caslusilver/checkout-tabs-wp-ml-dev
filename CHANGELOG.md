@@ -72,17 +72,17 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
 #### Protocol: 4421a5d
 
-## [v3.2.107] - 2026-02-03
+## [v3.2.108] - 2026-02-03
 
 ### Changed
 - debug detalhado do painel de empacotamento (logs JS/PHP e metadados no HTML para rastreamento de execução).
 
-#### Protocol: 81c5c53
+#### Protocol: f4d8912
 
 ## [Unreleased]
 
 ### Changed
-- **Versão atual**: v3.2.107  
+- **Versão atual**: v3.2.108  
   **Versão sugerida após a mudança**: vX.Y.Z  
   **Descrição**: texto objetivo do que mudou e impacto (pode listar itens separados por ponto e vírgula).
 
