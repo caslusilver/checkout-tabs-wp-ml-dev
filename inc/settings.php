@@ -23,6 +23,18 @@ function checkout_tabs_wp_ml_get_webhook_url(): string {
 	return (string) $url;
 }
 
+function checkout_tabs_wp_ml_get_packing_panel_webhook_url(): string {
+	$default = 'https://n8n.cubensisstore.com.br/webhook/atualiza-clf-store';
+	$url = (string) checkout_tabs_wp_ml_get_option('packing_panel_webhook_url', $default);
+	$url = $url !== '' ? $url : $default;
+
+	/**
+	 * Permite sobrescrever por ambiente (dev/test/prod) sem alterar wp_options.
+	 */
+	$url = apply_filters('checkout_tabs_wp_ml_packing_panel_webhook_url', $url);
+	return (string) $url;
+}
+
 function checkout_tabs_wp_ml_get_geolocation_webhook_url(): string {
 	$default = 'https://webhook.cubensisstore.com.br/webhook/geolocalizacao/';
 	$url = (string) checkout_tabs_wp_ml_get_option('geolocation_webhook_url', $default);
@@ -42,6 +54,16 @@ function checkout_tabs_wp_ml_is_debug_enabled(): bool {
 	 * Permite sobrescrever por ambiente (dev/test/prod) sem alterar wp_options.
 	 */
 	$enabled = (bool) apply_filters('checkout_tabs_wp_ml_debug', $enabled);
+	return $enabled;
+}
+
+function checkout_tabs_wp_ml_is_packing_panel_debug_enabled(): bool {
+	$enabled = (int) checkout_tabs_wp_ml_get_option('packing_panel_debug', 0) === 1;
+
+	/**
+	 * Permite sobrescrever por ambiente (dev/test/prod) sem alterar wp_options.
+	 */
+	$enabled = (bool) apply_filters('checkout_tabs_wp_ml_packing_panel_debug', $enabled);
 	return $enabled;
 }
 
@@ -76,7 +98,21 @@ add_action('admin_init', function () {
 		'default'           => 'https://webhook.cubensisstore.com.br/webhook/geolocalizacao/',
 	]);
 
+	register_setting(CHECKOUT_TABS_WP_ML_SETTINGS_GROUP, 'checkout_tabs_wp_ml_packing_panel_webhook_url', [
+		'type'              => 'string',
+		'sanitize_callback' => 'esc_url_raw',
+		'default'           => 'https://n8n.cubensisstore.com.br/webhook/atualiza-clf-store',
+	]);
+
 	register_setting(CHECKOUT_TABS_WP_ML_SETTINGS_GROUP, 'checkout_tabs_wp_ml_debug', [
+		'type'              => 'integer',
+		'sanitize_callback' => static function ($value) {
+			return !empty($value) ? 1 : 0;
+		},
+		'default'           => 0,
+	]);
+
+	register_setting(CHECKOUT_TABS_WP_ML_SETTINGS_GROUP, 'checkout_tabs_wp_ml_packing_panel_debug', [
 		'type'              => 'integer',
 		'sanitize_callback' => static function ($value) {
 			return !empty($value) ? 1 : 0;

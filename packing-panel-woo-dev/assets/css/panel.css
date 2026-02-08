@@ -1,0 +1,818 @@
+/**
+ * CSS do Painel de Empacotamento
+ * Estilos para o painel administrativo
+ */
+
+:root {
+    --cor-primaria: #3a86ff;
+    --cor-sucesso: #38b000;
+    --cor-aviso: #ffbe0b;
+    --cor-erro: #ff006e;
+    --cor-fundo-claro: #f0f0f0;
+    --cor-borda: #ddd;
+    --spacing-small: 8px;
+    --spacing-medium: 16px;
+    --spacing-large: 24px;
+}
+
+.painel-empacotamento {
+    max-width: 900px;
+    margin: var(--spacing-large) auto;
+    padding: var(--spacing-medium);
+    background-color: #fff;
+    border: 1px solid var(--cor-borda);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+    color: #333;
+}
+
+.painel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--cor-borda);
+    padding-bottom: var(--spacing-medium);
+    margin-bottom: var(--spacing-medium);
+}
+
+.painel-header h1 {
+    margin: 0;
+    font-size: 1.8em;
+    color: #000 !important;
+}
+
+.status-info .pendentes {
+    font-weight: bold;
+    color: var(--cor-aviso);
+}
+
+.painel-tabs {
+    display: flex;
+    border-bottom: 1px solid var(--cor-borda);
+    margin-bottom: var(--spacing-medium);
+    gap: var(--spacing-small);
+}
+
+.painel-tabs .tab-button {
+    flex-grow: 1;
+    padding: var(--spacing-small) var(--spacing-medium);
+    border: none;
+    background-color: transparent;
+    cursor: pointer;
+    font-size: 1em;
+    text-align: center;
+    transition: color 0.2s ease, border-bottom-color 0.2s ease;
+    border-bottom: 2px solid transparent;
+    color: #555;
+    outline: none;
+}
+
+.painel-tabs .tab-button:hover {
+    color: #000;
+}
+
+.painel-tabs .tab-button.active {
+    color: var(--cor-primaria);
+    border-bottom-color: var(--cor-primaria);
+    font-weight: bold;
+}
+
+.tab-content {
+    display: none;
+}
+
+.tab-content.active {
+    display: block;
+}
+
+/* --- Motoboy Tab Styles --- */
+#tab-motoboy .motoboy-orders {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--spacing-large);
+}
+
+#tab-motoboy .motoboy-order {
+    border: 1px solid var(--cor-borda);
+    padding: var(--spacing-medium);
+    background-color: var(--cor-fundo-claro);
+    border-radius: 4px;
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-medium);
+    transition: opacity 0.3s ease;
+    opacity: 1;
+}
+
+#tab-motoboy .motoboy-order.removing {
+    opacity: 0;
+}
+
+#tab-motoboy .order-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: var(--spacing-small);
+    border-bottom: 1px dashed var(--cor-borda);
+}
+
+#tab-motoboy .order-header h3 {
+    margin: 0;
+    font-size: 1.5em;
+    color: var(--cor-primaria);
+}
+
+#tab-motoboy h4 {
+    margin-top: 0;
+    margin-bottom: 4px;
+    font-size: 1.1em;
+    color: #444;
+}
+
+#tab-motoboy p,
+#tab-motoboy ul {
+    margin-top: 0;
+    margin-bottom: 0;
+}
+
+#tab-motoboy .metodo-envio {
+    display: inline-block;
+    padding: 4px 8px;
+    font-size: 0.9em;
+    font-weight: bold;
+    color: #fff;
+    border-radius: 3px;
+    text-transform: uppercase;
+    background: var(--cor-erro);
+}
+
+#tab-motoboy .product-list {
+    list-style: none;
+    padding: 0;
+    margin-top: var(--spacing-small);
+    border-top: 1px dashed var(--cor-borda);
+    padding-top: var(--spacing-small);
+}
+
+#tab-motoboy .product-list li {
+    display: flex;
+    align-items: center;
+    margin-bottom: 4px;
+}
+
+#tab-motoboy .product-list li img {
+    width: 48px;
+    height: 48px;
+    object-fit: cover;
+    margin-right: var(--spacing-small);
+    border: 1px solid var(--cor-borda);
+    border-radius: 3px;
+}
+
+#tab-motoboy .product-list li span {
+    flex-grow: 1;
+    font-size: 1.08em;
+}
+
+#tab-motoboy .order-coupons {
+    border-top: 1px dashed var(--cor-borda);
+    padding-top: var(--spacing-small);
+}
+
+#tab-motoboy .order-coupons h4 {
+    margin-top: 0;
+    margin-bottom: 4px;
+}
+
+#tab-motoboy .order-coupons p {
+    font-size: 0.9em;
+    font-weight: bold;
+    color: var(--cor-sucesso);
+}
+
+#tab-motoboy .order-address {
+    /* Standard block layout */
+}
+
+#tab-motoboy .address-to-copy {
+    display: flex;
+    align-items: flex-start;
+    word-break: break-word;
+    margin-bottom: 4px;
+}
+
+#tab-motoboy .address-to-copy p {
+    margin: 0;
+    flex-grow: 1;
+}
+
+#tab-motoboy .cep {
+    margin: 0;
+    font-size: 0.9em;
+    color: #555;
+}
+
+#tab-motoboy .billing-complemento,
+#tab-motoboy .woocommerce-additional-fields__field-wrapper {
+    margin-top: 4px;
+    margin-bottom: 0;
+    font-size: 0.9em;
+    color: #555;
+}
+
+#tab-motoboy .woocommerce-additional-fields__field-wrapper strong {
+    display: block;
+    margin-bottom: 2px;
+    font-size: 1em;
+}
+
+#tab-motoboy .client-name-to-copy,
+#tab-motoboy .whatsapp-to-copy {
+    display: flex;
+    align-items: flex-start;
+    word-break: break-word;
+}
+
+#tab-motoboy .client-name-to-copy p,
+#tab-motoboy .whatsapp-to-copy p {
+    margin: 0;
+    flex-grow: 1;
+}
+
+#tab-motoboy button.copy-button {
+    margin-left: var(--spacing-small);
+    background: none;
+    border: 1px solid var(--cor-borda);
+    color: #555;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 3px;
+    font-size: 0.9em;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+    flex-shrink: 0;
+}
+
+#tab-motoboy button.copy-button .dashicons {
+    font-size: 1em;
+    line-height: 1;
+}
+
+#tab-motoboy button.copy-button:hover {
+    background-color: #eee;
+    border-color: #ccc;
+}
+
+#tab-motoboy button.copy-button:active {
+    background-color: #ccc;
+}
+
+#tab-motoboy button.copy-button.copied {
+    background-color: var(--cor-sucesso);
+    border-color: var(--cor-sucesso);
+    color: #fff;
+}
+
+/* Workflow Area */
+#tab-motoboy .workflow-area {
+    position: relative;
+    overflow: hidden;
+    height: auto;
+    margin-top: var(--spacing-medium);
+    padding-top: var(--spacing-medium);
+    border-top: 1px dashed var(--cor-borda);
+}
+
+#tab-motoboy .workflow-slides {
+    display: flex;
+    width: 200%;
+    transition: transform 0.5s ease-in-out;
+}
+
+#tab-motoboy .workflow-step {
+    width: 50%;
+    flex-shrink: 0;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-small);
+}
+
+#tab-motoboy .workflow-step h4 {
+    margin-bottom: var(--spacing-small);
+}
+
+#tab-motoboy .workflow-step.step-2 label {
+    display: block;
+    margin-top: var(--spacing-small);
+    margin-bottom: 4px;
+    font-weight: bold;
+    font-size: 0.95em;
+    color: #555;
+}
+
+#tab-motoboy .workflow-step.step-2 input[type="text"],
+#tab-motoboy .workflow-step.step-2 input[type="tel"],
+#tab-motoboy .workflow-step.step-2 input[type="number"] {
+    display: block;
+    width: 100%;
+    padding: var(--spacing-small);
+    border: 1px solid var(--cor-borda);
+    border-radius: 4px;
+    box-sizing: border-box;
+    font-size: 1em;
+    margin-bottom: 0;
+}
+
+#tab-motoboy .slide-button {
+    display: block;
+    width: 100%;
+    padding: var(--spacing-medium) var(--spacing-large);
+    border: none;
+    border-radius: 4px;
+    font-size: 1.2em;
+    font-weight: bold;
+    cursor: pointer;
+    color: #fff;
+    text-align: center;
+    transition: background-color 0.3s ease;
+    margin-top: var(--spacing-small);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: var(--spacing-small);
+}
+
+#tab-motoboy .slide-button:hover {
+    opacity: 0.9;
+}
+
+#tab-motoboy .btn-accept-order {
+    background: var(--cor-aviso);
+}
+
+#tab-motoboy .btn-conclude-shipment {
+    background: var(--cor-sucesso);
+}
+
+#tab-motoboy .slide-button .dashicons {
+    font-size: 1.2em;
+    line-height: 1;
+}
+
+#tab-motoboy .workflow-area .loading-indicator {
+    text-align: center;
+    margin-top: var(--spacing-medium);
+    font-weight: bold;
+    color: var(--cor-primaria);
+    display: none;
+}
+
+#tab-motoboy .loading-indicator .spin {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* --- Correios Tab Styles (Carousel) --- */
+#tab-correios .pedidos-carousel-wrapper {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-medium);
+}
+
+#tab-correios .pedidos-carousel {
+    position: relative;
+    min-height: 450px;
+    border: 1px dashed var(--cor-borda);
+    padding: var(--spacing-medium);
+    overflow: hidden;
+}
+
+#tab-correios .pedido-container {
+    position: absolute;
+    top: var(--spacing-medium);
+    left: var(--spacing-medium);
+    width: calc(100% - (var(--spacing-medium) * 2));
+    height: calc(100% - (var(--spacing-medium) * 2));
+    opacity: 0;
+    transition: transform 0.5s ease, opacity 0.5s ease;
+    background-color: #fff;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-small);
+    overflow-y: auto;
+    border-radius: 4px;
+}
+
+#tab-correios .pedido-container.removing {
+    opacity: 0 !important;
+    transition: opacity 0.3s ease;
+}
+
+#tab-correios .pedido-container.current {
+    position: relative;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    padding: var(--spacing-medium);
+    transform: translateX(0);
+    opacity: 1;
+    z-index: 1;
+    box-shadow: 0 0 8px rgba(0, 0, 0, 0.1);
+}
+
+#tab-correios .order-address {
+    /* Standard block layout */
+}
+
+#tab-correios .order-address p {
+    margin-bottom: 4px;
+}
+
+#tab-correios .order-address .cep {
+    margin: 0;
+    font-size: 0.9em;
+    color: #555;
+}
+
+#tab-correios .billing-complemento,
+#tab-correios .woocommerce-additional-fields__field-wrapper {
+    margin-top: 4px;
+    margin-bottom: 0;
+    font-size: 0.9em;
+    color: #555;
+}
+
+#tab-correios .woocommerce-additional-fields__field-wrapper strong {
+    display: block;
+    margin-bottom: 2px;
+    font-size: 1em;
+}
+
+#tab-correios .order-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: var(--spacing-small);
+    border-bottom: 1px dashed var(--cor-borda);
+}
+
+#tab-correios .order-header h3 {
+    margin: 0;
+    font-size: 1.5em;
+    color: var(--cor-primaria);
+}
+
+#tab-correios h4 {
+    margin-top: 0;
+    margin-bottom: 4px;
+    font-size: 1.1em;
+    color: #444;
+}
+
+#tab-correios p,
+#tab-correios ul {
+    margin-top: 0;
+}
+
+#tab-correios .metodo-envio {
+    display: inline-block;
+    padding: 4px 8px;
+    font-size: 0.9em;
+    font-weight: bold;
+    color: #fff;
+    border-radius: 3px;
+    text-transform: uppercase;
+    background: var(--cor-primaria);
+}
+
+#tab-correios .product-list {
+    list-style: none;
+    padding: 0;
+    margin-top: var(--spacing-small);
+    border-top: 1px dashed var(--cor-borda);
+    padding-top: var(--spacing-small);
+}
+
+#tab-correios .product-list li {
+    display: flex;
+    align-items: center;
+    margin-bottom: 4px;
+}
+
+#tab-correios .product-list li img {
+    width: 48px;
+    height: 48px;
+    object-fit: cover;
+    margin-right: var(--spacing-small);
+    border: 1px solid var(--cor-borda);
+    border-radius: 3px;
+}
+
+#tab-correios .product-list li span {
+    flex-grow: 1;
+    font-size: 1.08em;
+}
+
+#tab-correios .order-coupons {
+    border-top: 1px dashed var(--cor-borda);
+    padding-top: var(--spacing-small);
+}
+
+#tab-correios .order-coupons h4 {
+    margin-top: 0;
+    margin-bottom: 4px;
+}
+
+#tab-correios .order-coupons p {
+    font-size: 0.9em;
+    font-weight: bold;
+    color: var(--cor-sucesso);
+}
+
+#tab-correios .carousel-navigation {
+    text-align: center;
+    margin-top: var(--spacing-medium);
+    display: flex;
+    justify-content: center;
+    gap: var(--spacing-medium);
+}
+
+#tab-correios .carousel-navigation button {
+    padding: var(--spacing-small) var(--spacing-medium);
+    cursor: pointer;
+    border: none;
+    background-color: var(--cor-sucesso) !important;
+    color: #000 !important;
+    border-radius: 4px;
+    font-size: 1em;
+    font-weight: bold;
+    transition: background-color 0.2s ease, opacity 0.2s ease;
+}
+
+#tab-correios .carousel-navigation button:hover {
+    opacity: 0.85;
+}
+
+#tab-correios .carousel-navigation button:active {
+    opacity: 0.7;
+}
+
+#tab-correios .carousel-navigation button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    background-color: #ccc !important;
+    color: #666 !important;
+}
+
+/* Conclude Button for Correios */
+#tab-correios .order-actions {
+    margin-top: auto;
+    padding-top: var(--spacing-medium);
+    border-top: 1px dashed var(--cor-borda);
+}
+
+#tab-correios .btn-conclude-shipment-correios {
+    display: block;
+    width: 100%;
+    padding: var(--spacing-medium) var(--spacing-large);
+    border: none;
+    border-radius: 4px;
+    font-size: 1.2em;
+    font-weight: bold;
+    cursor: pointer;
+    color: #fff;
+    text-align: center;
+    transition: background-color 0.3s ease;
+    background: var(--cor-sucesso);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: var(--spacing-small);
+}
+
+#tab-correios .btn-conclude-shipment-correios:hover {
+    opacity: 0.9;
+}
+
+#tab-correios .btn-conclude-shipment-correios .dashicons {
+    font-size: 1.2em;
+    line-height: 1;
+}
+
+#tab-correios .order-actions .loading-indicator {
+    text-align: center;
+    margin-top: var(--spacing-medium);
+    font-weight: bold;
+    color: var(--cor-primaria);
+    display: none;
+}
+
+/* --- General/Utility Styles --- */
+.sem-pedidos,
+.sem-pedidos-global {
+    text-align: center;
+    padding: var(--spacing-large);
+    color: #888;
+    font-style: italic;
+}
+
+/* --- Debug Panel Styles --- */
+#pp-debug-panel {
+    position: fixed;
+    bottom: 16px;
+    right: 16px;
+    width: 280px;
+    max-height: 250px;
+    background: rgba(0, 0, 0, 0.9);
+    color: #fff;
+    font-size: 12px;
+    padding: 8px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.6);
+    z-index: 9999;
+    border-radius: 4px;
+    display: flex;
+    flex-direction: column;
+}
+
+#pp-debug-close {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    background: none;
+    color: #fff;
+    border: none;
+    font-size: 16px;
+    cursor: pointer;
+    line-height: 1;
+    padding: 4px;
+    opacity: 0.8;
+    transition: opacity 0.2s ease;
+}
+
+#pp-debug-close:hover {
+    opacity: 1;
+}
+
+#pp-debug-log {
+    flex-grow: 1;
+    width: 100%;
+    height: 100%;
+    min-height: 80px;
+    background: rgba(255, 255, 255, 0.05);
+    color: #eee;
+    border: 1px solid #555;
+    box-sizing: border-box;
+    resize: vertical;
+    font-size: 11px;
+    line-height: 1.4;
+    margin-bottom: 8px;
+    padding: 4px;
+    overflow-y: scroll;
+    font-family: Consolas, Monaco, 'Andale Mono', 'Ubuntu Mono', monospace;
+}
+
+#pp-debug-copy {
+    display: inline-block;
+    padding: 4px 8px;
+    font-size: 11px;
+    cursor: pointer;
+    background-color: #555;
+    color: #fff;
+    border: none;
+    border-radius: 3px;
+    align-self: flex-end;
+    transition: background-color 0.2s ease;
+}
+
+#pp-debug-copy:hover {
+    background-color: #666;
+}
+
+.order-address > p:not(.cep):not(.billing-complemento):not(.woocommerce-additional-fields__field-wrapper),
+.address-to-copy {
+    font-size: 1.2em;
+}
+
+#tab-motoboy .cep,
+#tab-correios .cep,
+#tab-motoboy .billing-complemento,
+#tab-correios .billing-complemento,
+#tab-motoboy .woocommerce-additional-fields__field-wrapper,
+#tab-correios .woocommerce-additional-fields__field-wrapper {
+    font-size: 0.9em;
+}
+
+#tab-motoboy .woocommerce-additional-fields__field-wrapper strong,
+#tab-correios .woocommerce-additional-fields__field-wrapper strong {
+    font-size: 1em;
+}
+
+/* --- Responsive Adjustments --- */
+@media (max-width: 768px) {
+    .painel-empacotamento {
+        padding: var(--spacing-small);
+    }
+
+    .painel-header {
+        flex-wrap: wrap;
+        gap: var(--spacing-small);
+        justify-content: flex-start;
+    }
+
+    .painel-header h1 {
+        width: 100%;
+        font-size: 1.5em;
+    }
+
+    .status-info {
+        margin-left: auto;
+    }
+
+    .order-client-info p,
+    .status-info .pendentes,
+    #tab-motoboy .client-name-to-copy,
+    #tab-motoboy .whatsapp-to-copy,
+    #tab-motoboy .client-name-to-copy p,
+    #tab-motoboy .whatsapp-to-copy p,
+    #tab-motoboy .address-to-copy,
+    #tab-motoboy .address-to-copy p,
+    #tab-correios .order-address > p:not(.cep):not(.billing-complemento):not(.woocommerce-additional-fields__field-wrapper) {
+        word-break: break-word;
+        white-space: normal;
+    }
+
+    #tab-motoboy .motoboy-order {
+        padding: var(--spacing-small);
+        gap: var(--spacing-small);
+    }
+
+    #tab-motoboy .order-header h3 {
+        font-size: 1.3em;
+    }
+
+    #tab-motoboy h4 {
+        font-size: 1em;
+    }
+
+    #tab-motoboy .slide-button {
+        padding: var(--spacing-small);
+        font-size: 1em;
+    }
+
+    #tab-motoboy button.copy-button {
+        font-size: 0.8em;
+        padding: 3px 6px;
+    }
+
+    #tab-motoboy button.copy-button .dashicons {
+        font-size: 0.9em;
+    }
+
+    #tab-correios .pedidos-carousel {
+        min-height: 350px;
+        padding: var(--spacing-small);
+    }
+
+    #tab-correios .pedido-container.current {
+        padding: var(--spacing-small);
+    }
+
+    #tab-correios .order-header h3 {
+        font-size: 1.3em;
+    }
+
+    #tab-correios h4 {
+        font-size: 1em;
+    }
+
+    #tab-correios .btn-conclude-shipment-correios {
+        padding: var(--spacing-small);
+        font-size: 1em;
+    }
+
+    #tab-correios .carousel-navigation button {
+        font-size: 0.9em;
+        padding: 6px 10px;
+    }
+
+    #pp-debug-panel {
+        width: calc(100% - 32px);
+        left: 16px;
+        right: 16px;
+        bottom: 8px;
+    }
+}
