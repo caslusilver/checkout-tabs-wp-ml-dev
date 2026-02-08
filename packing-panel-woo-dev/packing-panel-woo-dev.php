@@ -47,7 +47,7 @@ add_action('wp_enqueue_scripts', function () {
         return;
     }
 
-    if (!class_exists('PPWOO_Config') || !has_shortcode($post->post_content, PPWOO_Config::SHORTCODE_TAG)) {
+    if (!class_exists('PPWOO_PackingPanel') || !PPWOO_PackingPanel::post_has_shortcode($post)) {
         return;
     }
 

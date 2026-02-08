@@ -79,10 +79,17 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
 #### Protocol: f4d8912
 
+## [v3.2.109] - 2026-02-03
+
+### Changed
+- restaura detecção de shortcode com fallback para Elementor/Gutenberg; assets do painel carregam quando shortcode está em dados do Elementor.
+
+#### Protocol: 26c8050
+
 ## [Unreleased]
 
 ### Changed
-- **Versão atual**: v3.2.108  
+- **Versão atual**: v3.2.109  
   **Versão sugerida após a mudança**: vX.Y.Z  
   **Descrição**: texto objetivo do que mudou e impacto (pode listar itens separados por ponto e vírgula).
 

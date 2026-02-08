@@ -23,6 +23,42 @@ class PPWOO_PackingPanel {
         error_log('[PPWOO] ' . $message . $suffix);
     }
 
+    public static function post_has_shortcode($post): bool {
+        if (!$post || !isset($post->ID)) {
+            return false;
+        }
+
+        $tag = PPWOO_Config::SHORTCODE_TAG;
+        $content = (string) ($post->post_content ?? '');
+
+        if ($content !== '' && has_shortcode($content, $tag)) {
+            return true;
+        }
+
+        if (function_exists('has_blocks') && $content !== '' && has_blocks($content)) {
+            $blocks = parse_blocks($content);
+            foreach ($blocks as $block) {
+                if (!empty($block['innerHTML']) && strpos($block['innerHTML'], '[' . $tag . ']') !== false) {
+                    return true;
+                }
+            }
+        }
+
+        $elementor_data = get_post_meta($post->ID, '_elementor_data', true);
+        if (is_string($elementor_data) && $elementor_data !== '') {
+            if (stripos($elementor_data, '[' . $tag . ']') !== false || stripos($elementor_data, $tag) !== false) {
+                return true;
+            }
+        }
+
+        $meta_flag = get_post_meta($post->ID, '_ppwoo_has_shortcode', true);
+        if ($meta_flag === 'yes') {
+            return true;
+        }
+
+        return false;
+    }
+
     /**
      * Inicializa os hooks principais.
      */
@@ -60,7 +96,7 @@ class PPWOO_PackingPanel {
         global $post;
         
         // Verifica se estamos em uma página singular e se o shortcode está presente
-        if (!is_singular() || !$post || !has_shortcode($post->post_content, PPWOO_Config::SHORTCODE_TAG)) {
+        if (!is_singular() || !self::post_has_shortcode($post)) {
             return;
         }
 
