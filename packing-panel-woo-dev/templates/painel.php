@@ -21,6 +21,7 @@ $total_pending_orders = PPWOO_Orders::get_total_pending_orders();
 if (PPWOO_Config::is_debug()) {
     ?>
     <div id="pp-debug-panel">
+        <div class="pp-debug-meta"><?php esc_html_e('Debug ativo', 'painel-empacotamento'); ?></div>
         <button id="pp-debug-close">×</button>
         <textarea id="pp-debug-log" readonly placeholder="<?php esc_attr_e('Debug Log', 'painel-empacotamento'); ?>"></textarea>
         <button id="pp-debug-copy"><?php esc_html_e('Copiar Log', 'painel-empacotamento'); ?></button>
@@ -29,7 +30,7 @@ if (PPWOO_Config::is_debug()) {
 }
 ?>
 
-<div class="painel-empacotamento">
+<div class="painel-empacotamento" data-ppwoo-debug="<?php echo PPWOO_Config::is_debug() ? '1' : '0'; ?>" data-ppwoo-version="<?php echo esc_attr(painel_empacotamento_get_version()); ?>">
     <header class="painel-header">
         <h1><?php esc_html_e('Painel de Empacotamento', 'painel-empacotamento'); ?></h1>
         <div class="status-info">

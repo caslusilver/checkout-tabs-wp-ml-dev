@@ -12,6 +12,16 @@
 if (!defined('ABSPATH')) exit;
 
 class PPWOO_PackingPanel {
+    private static function log_debug(string $message, array $context = []): void {
+        if (!PPWOO_Config::is_debug()) {
+            return;
+        }
+        $suffix = '';
+        if (!empty($context)) {
+            $suffix = ' | ' . wp_json_encode($context);
+        }
+        error_log('[PPWOO] ' . $message . $suffix);
+    }
 
     /**
      * Inicializa os hooks principais.
@@ -55,6 +65,10 @@ class PPWOO_PackingPanel {
         }
 
         $version = painel_empacotamento_get_version();
+        self::log_debug('Enqueue painel', [
+            'version' => $version,
+            'post_id' => $post ? $post->ID : null,
+        ]);
 
         // Adiciona Dashicons (necessário no frontend)
         wp_enqueue_style('dashicons');
@@ -107,8 +121,11 @@ class PPWOO_PackingPanel {
     public static function render_shortcode($atts) {
         // Verifica permissões
         if (!PPWOO_Security::can_manage_panel()) {
+            self::log_debug('Shortcode bloqueado por permissão');
             return '<p>' . esc_html__('Você não tem permissão para visualizar este painel.', 'painel-empacotamento') . '</p>';
         }
+
+        self::log_debug('Shortcode render iniciado');
 
         ob_start();
 
@@ -118,6 +135,7 @@ class PPWOO_PackingPanel {
         if (file_exists($template)) {
             include $template;
         } else {
+            self::log_debug('Template não encontrado', ['template' => $template]);
             echo '<p style="color:red;">Erro: O template painel.php não foi encontrado em /templates/</p>';
         }
 
@@ -128,13 +146,14 @@ class PPWOO_PackingPanel {
      * Handle internal AJAX calls (to admin-ajax.php).
      */
     public static function handle_internal_ajax() {
-        if (PPWOO_Config::is_debug()) {
-            error_log('Packing Panel Internal AJAX: Received POST data: ' . print_r($_POST, true));
-        }
+        self::log_debug('AJAX recebido', [
+            'post_keys' => array_keys($_POST),
+        ]);
 
         check_ajax_referer('packing_panel_nonce', 'nonce');
 
         if (!PPWOO_Security::can_manage_panel()) {
+            self::log_debug('AJAX sem permissão');
             wp_send_json_error('Você não tem permissão para executar esta ação.', 403);
         }
 
@@ -142,27 +161,41 @@ class PPWOO_PackingPanel {
         $webhook_type = isset($_POST['webhook_type']) ? sanitize_text_field($_POST['webhook_type']) : '';
         $tracking_data = isset($_POST['tracking_data']) ? PPWOO_Security::sanitize_tracking_data($_POST['tracking_data']) : array();
         $tab_context = isset($_POST['tab_context']) ? sanitize_text_field($_POST['tab_context']) : '';
+        self::log_debug('AJAX payload normalizado', [
+            'order_id' => $order_id,
+            'webhook_type' => $webhook_type,
+            'tab_context' => $tab_context,
+            'tracking_keys' => is_array($tracking_data) ? array_keys($tracking_data) : [],
+        ]);
 
         // Validação
         $validation = PPWOO_Security::validate_webhook_request($order_id, $webhook_type);
         if (is_wp_error($validation)) {
+            self::log_debug('AJAX validação falhou', [
+                'message' => $validation->get_error_message(),
+                'status' => $validation->get_error_data()['status'] ?? null,
+            ]);
             wp_send_json_error($validation->get_error_message(), $validation->get_error_data()['status']);
         }
 
         $order = wc_get_order($order_id);
         if (!$order) {
+            self::log_debug('AJAX pedido não encontrado', ['order_id' => $order_id]);
             wp_send_json_error('Pedido não encontrado.', 404);
         }
 
-        if (PPWOO_Config::is_debug()) {
-            error_log('Packing Panel: Processing INTERNAL AJAX for "' . $webhook_type . '" for Order #' . $order_id);
-        }
+        self::log_debug('AJAX processando', [
+            'order_id' => $order_id,
+            'status' => $order->get_status(),
+            'webhook_type' => $webhook_type,
+        ]);
 
         switch ($webhook_type) {
             case 'accepted':
                 // Atualiza a meta do pedido para o passo 2
                 $order->update_meta_data('_packing_panel_workflow_step', 'step2');
                 $order->save();
+                self::log_debug('Pedido aceito', ['order_id' => $order_id]);
 
                 // Envia webhook externo
                 PPWOO_Webhook::send('packing_panel_accepted', $order);
@@ -172,6 +205,11 @@ class PPWOO_PackingPanel {
             case 'shipped':
                 // Determina o nome do evento com base na aba
                 $event_name = ('motoboy' === $tab_context) ? 'mtb_packing_panel_shipped' : 'packing_panel_shipped';
+                self::log_debug('Concluir envio', [
+                    'order_id' => $order_id,
+                    'event_name' => $event_name,
+                    'tab_context' => $tab_context,
+                ]);
 
                 // Marca o pedido como concluído
                 $order->update_status('completed', __('Pedido marcado como enviado pelo Painel de Empacotamento.', 'painel-empacotamento'));
@@ -180,6 +218,10 @@ class PPWOO_PackingPanel {
                 if (!empty($tracking_data)) {
                     PPWOO_Utils::save_tracking_data($tracking_data, $order);
                 }
+                self::log_debug('Tracking salvo', [
+                    'order_id' => $order_id,
+                    'tracking_keys' => is_array($tracking_data) ? array_keys($tracking_data) : [],
+                ]);
 
                 // Remove meta de workflow
                 $order->delete_meta_data('_packing_panel_workflow_step');
@@ -191,6 +233,7 @@ class PPWOO_PackingPanel {
                 break;
 
             default:
+                self::log_debug('Webhook type desconhecido', ['webhook_type' => $webhook_type]);
                 wp_send_json_error('Tipo de webhook desconhecido.', 400);
         }
 

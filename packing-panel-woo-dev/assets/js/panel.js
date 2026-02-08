@@ -15,6 +15,25 @@
 
     // Inicializa debug se ativo
     var debugEnabled = typeof PPWOO !== 'undefined' && PPWOO.debug_enabled;
+    function logDetail(message, payload) {
+        if (!debugEnabled) return;
+        var detail = message || '';
+        try {
+            if (typeof payload !== 'undefined') {
+                detail += ' | ' + JSON.stringify(payload);
+            }
+        } catch (e) { }
+        try {
+            if (window.console && console.debug) {
+                console.debug('[PPWOO]', detail);
+            }
+        } catch (e2) { }
+        try {
+            if (window.ppDebug && typeof window.ppDebug.log === 'function') {
+                window.ppDebug.log(detail);
+            }
+        } catch (e3) { }
+    }
     if (debugEnabled) {
         window.ppDebug = {
             log: function(msg) {
@@ -58,11 +77,17 @@
     var ajaxAction = typeof PPWOO !== 'undefined' ? PPWOO.ajax_action : 'packing_panel_webhook';
 
     ppDebug.log('Painel encontrado. Internal AJAX Action: ' + ajaxAction);
+    logDetail('Init painel', {
+        ajaxAction: ajaxAction,
+        hasMotoboyTab: packingPanel.find('#tab-motoboy').length > 0,
+        hasCorreiosTab: packingPanel.find('#tab-correios').length > 0
+    });
 
     // --- Tab Switching ---
     packingPanel.on('click', '.painel-tabs .tab-button', function() {
         var targetTabId = $(this).data('tab');
         ppDebug.log('Clicou na aba: ' + targetTabId);
+        logDetail('Troca de aba', { tab: targetTabId });
 
         packingPanel.find('.painel-tabs .tab-button').removeClass('active');
         $(this).addClass('active');
@@ -98,10 +123,15 @@
         $('#tab-motoboy').addClass('active');
         packingPanel.find('.sem-pedidos-global').show().text('Nenhum pedido pendente para empacotamento.');
     }
+    logDetail('Status inicial de pedidos', {
+        hasMotoboyOrders: hasMotoboyOrders,
+        hasCorreiosOrders: hasCorreiosOrders
+    });
 
     // --- Copy Buttons Helper ---
     function copyTextToClipboard(text, button) {
         ppDebug.log("Tentando copiar: '" + text + "'");
+        logDetail('Copy iniciado', { preview: text ? String(text).slice(0, 120) : '' });
         if (navigator.clipboard && navigator.clipboard.writeText) {
             navigator.clipboard.writeText(text).then(function() {
                 ppDebug.log('Texto copiado.');
@@ -157,6 +187,7 @@
     function transitionWorkflow(orderItem, step) {
         var workflowSlides = orderItem.find('.workflow-area .workflow-slides');
         ppDebug.log('Transicionando workflow para ' + step + ' para pedido ' + orderItem.data('order-id'));
+        logDetail('Workflow transition', { orderId: orderItem.data('order-id'), step: step });
         if (step === 'step2') {
             workflowSlides.css('transform', 'translateX(-50%)');
             orderItem.data('workflow-step', 'step2');
@@ -173,6 +204,7 @@
         var orderId = orderItem.data('order-id');
 
         ppDebug.log("Clicou 'Aceitar Pedido' para pedido " + orderId);
+        logDetail('Aceitar pedido', { orderId: orderId });
         showLoadingMotoboy(orderItem);
 
         $.ajax({
@@ -186,6 +218,7 @@
                 webhook_type: 'accepted'
             },
             success: function(response) {
+                logDetail('Resposta aceitar pedido', { orderId: orderId, success: !!response.success, data: response.data || null });
                 if (response.success) {
                     ppDebug.log('Pedido ' + orderId + ' aceito. Transicionando para step2.');
                     transitionWorkflow(orderItem, 'step2');
@@ -195,6 +228,7 @@
             },
             error: function(jqXHR) {
                 ppDebug.log('Erro AJAX ao aceitar pedido: ' + jqXHR.responseText);
+                logDetail('Erro AJAX aceitar pedido', { orderId: orderId, status: jqXHR.status, response: jqXHR.responseText || '' });
                 alert('Erro na requisição AJAX para aceitar pedido.');
             },
             complete: function() {
@@ -210,6 +244,10 @@
         var orderId = orderItem.data('order-id');
 
         ppDebug.log("Clicou 'Concluir Envio' para pedido Motoboy " + orderId);
+        logDetail('Concluir envio (motoboy)', {
+            orderId: orderId,
+            trackingKeys: ['link', 'deadline', 'cost', 'finalization_code', 'motoboy_whatsapp']
+        });
 
         var trackingLink = orderItem.find('.tracking-link').val();
         var deliveryDeadline = orderItem.find('.delivery-deadline').val();
@@ -239,6 +277,7 @@
                 }
             },
             success: function(response) {
+                logDetail('Resposta concluir envio (motoboy)', { orderId: orderId, success: !!response.success, data: response.data || null });
                 if (response.success) {
                     ppDebug.log('Envio concluído (Motoboy) para pedido ' + orderId + '. Removendo item.');
                     orderItem.addClass('removing').on('transitionend', function() {
@@ -252,6 +291,7 @@
             },
             error: function(jqXHR) {
                 ppDebug.log('Erro AJAX ao concluir envio (Motoboy): ' + jqXHR.responseText);
+                logDetail('Erro AJAX concluir envio (motoboy)', { orderId: orderId, status: jqXHR.status, response: jqXHR.responseText || '' });
                 alert('Erro na requisição AJAX para concluir envio.');
                 hideLoadingMotoboy(orderItem);
             }
@@ -308,6 +348,7 @@
                 var orderIndex = $slides.index(orderItem);
 
                 ppDebug.log("Clicou 'Concluir Envio' (Correios) para pedido " + orderId);
+                logDetail('Concluir envio (correios)', { orderId: orderId, trackingKeys: ['link', 'deadline', 'cost', 'finalization_code'] });
                 var $actionArea = button.closest('.order-actions');
                 $actionArea.find('.btn-conclude-shipment-correios').hide();
                 $actionArea.find('.loading-indicator').show();
@@ -325,6 +366,7 @@
                         tracking_data: { link: '', deadline: '', cost: '', finalization_code: '' }
                     },
                     success: function(response) {
+                        logDetail('Resposta concluir envio (correios)', { orderId: orderId, success: !!response.success, data: response.data || null });
                         if (response.success) {
                             ppDebug.log('Envio concluído (Correios) para pedido ' + orderId + '. Removendo item.');
                             orderItem.addClass('removing').on('transitionend', function() {
@@ -345,6 +387,7 @@
                     },
                     error: function(jqXHR) {
                         ppDebug.log('Erro AJAX ao concluir envio (Correios): ' + jqXHR.responseText);
+                        logDetail('Erro AJAX concluir envio (correios)', { orderId: orderId, status: jqXHR.status, response: jqXHR.responseText || '' });
                         alert('Erro na requisição AJAX para concluir envio.');
                         $actionArea.find('.loading-indicator').hide();
                         $actionArea.find('.btn-conclude-shipment-correios').show();
@@ -380,6 +423,11 @@
                 $('#tab-correios .sem-pedidos').hide();
             }
         }
+        logDetail('Atualizar contadores', {
+            totalMotoboy: totalMotoboy,
+            totalCorreios: totalCorreios,
+            totalPending: totalPending
+        });
     }
     updateCounts();
 
