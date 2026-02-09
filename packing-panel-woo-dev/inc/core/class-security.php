@@ -57,5 +57,3 @@ class PPWOO_Security {
         return true;
     }
 }
-
-

@@ -14,17 +14,6 @@ if (!defined('ABSPATH')) exit;
 class PPWOO_PackingPanel {
     private static $initialized = false;
 
-    private static function log_debug(string $message, array $context = []): void {
-        if (!PPWOO_Config::is_debug()) {
-            return;
-        }
-        $suffix = '';
-        if (!empty($context)) {
-            $suffix = ' | ' . wp_json_encode($context);
-        }
-        error_log('[PPWOO] ' . $message . $suffix);
-    }
-
     public static function post_has_shortcode($post): bool {
         if (!$post || !isset($post->ID)) {
             return false;
@@ -61,19 +50,29 @@ class PPWOO_PackingPanel {
         return false;
     }
 
-    private static function is_woocommerce_active(): bool {
+    /**
+     * Verifica se WooCommerce está instalado e ativo.
+     *
+     * Observação: `class_exists('WooCommerce')` pode falhar em alguns contextos
+     * dependendo da ordem de carregamento. A função `WC()` costuma ser o sinal
+     * mais confiável quando o plugin está ativo.
+     */
+    private static function is_woocommerce_active() {
+        // Sinal mais confiável (WooCommerce ativo)
         if (function_exists('WC')) {
             return true;
         }
 
+        // Fallbacks comuns
         if (class_exists('WooCommerce')) {
             return true;
         }
 
-        if (class_exists('Automattic\\WooCommerce\\Plugin')) {
+        if (class_exists('Automattic\WooCommerce\Plugin')) {
             return true;
         }
 
+        // Verificação via "plugin ativo" (nem sempre disponível no frontend)
         if (function_exists('is_plugin_active') && is_plugin_active('woocommerce/woocommerce.php')) {
             return true;
         }
@@ -89,13 +88,29 @@ class PPWOO_PackingPanel {
             return;
         }
 
+        if (PPWOO_Config::is_debug()) {
+            error_log('PPWOO: Inicializando classe PackingPanel');
+        }
+        
         // Verifica se WooCommerce está ativo
         if (!self::is_woocommerce_active()) {
+            if (PPWOO_Config::is_debug()) {
+                error_log(
+                    'PPWOO: WooCommerce não encontrado, exibindo aviso (checks: WC()='
+                    . (function_exists('WC') ? 'sim' : 'não')
+                    . ', WooCommerceClass=' . (class_exists('WooCommerce') ? 'sim' : 'não')
+                    . ')'
+                );
+            }
             add_action('admin_notices', [__CLASS__, 'woocommerce_missing_notice']);
             return;
         }
 
         self::$initialized = true;
+
+        if (PPWOO_Config::is_debug()) {
+            error_log('PPWOO: WooCommerce encontrado, registrando hooks');
+        }
 
         // Shortcode principal do painel (usa o mesmo nome do código antigo)
         add_shortcode('packing_panel', [__CLASS__, 'render_shortcode']);
@@ -105,6 +120,10 @@ class PPWOO_PackingPanel {
 
         // AJAX handler para webhooks internos
         add_action('wp_ajax_' . PPWOO_Config::AJAX_ACTION, [__CLASS__, 'handle_internal_ajax']);
+        
+        if (PPWOO_Config::is_debug()) {
+            error_log('PPWOO: Hooks registrados com sucesso');
+        }
     }
 
     /**
@@ -123,16 +142,40 @@ class PPWOO_PackingPanel {
     public static function enqueue_panel_assets() {
         global $post;
         
-        // Verifica se estamos em uma página singular e se o shortcode está presente
-        if (!is_singular() || !self::post_has_shortcode($post)) {
+        // Log de debug inicial
+        if (PPWOO_Config::is_debug()) {
+            error_log('PPWOO: Verificando carregamento de assets - is_singular: ' . (is_singular() ? 'sim' : 'não'));
+        }
+        
+        // Verifica se estamos em uma página singular
+        if (!is_singular()) {
+            if (PPWOO_Config::is_debug()) {
+                error_log('PPWOO: Assets não carregados - não é página singular');
+            }
             return;
+        }
+        
+        // Verifica se o post existe
+        if (!$post || !isset($post->ID)) {
+            if (PPWOO_Config::is_debug()) {
+                error_log('PPWOO: Assets não carregados - post não encontrado');
+            }
+            return;
+        }
+        
+        $has_shortcode = self::post_has_shortcode($post);
+        if (!$has_shortcode) {
+            if (PPWOO_Config::is_debug()) {
+                error_log('PPWOO: Assets não carregados - shortcode [' . PPWOO_Config::SHORTCODE_TAG . '] não encontrado no post #' . $post->ID);
+            }
+            return;
+        }
+        
+        if (PPWOO_Config::is_debug()) {
+            error_log('PPWOO: Carregando assets do painel para o post #' . $post->ID);
         }
 
         $version = painel_empacotamento_get_version();
-        self::log_debug('Enqueue painel', [
-            'version' => $version,
-            'post_id' => $post ? $post->ID : null,
-        ]);
 
         // Adiciona Dashicons (necessário no frontend)
         wp_enqueue_style('dashicons');
@@ -144,6 +187,12 @@ class PPWOO_PackingPanel {
             ['dashicons'],
             $version
         );
+        
+        // Injeta CSS dinâmico baseado nas configurações de estilo
+        $dynamic_css = PPWOO_Style::generate_css();
+        wp_add_inline_style('packing-panel-woo', $dynamic_css);
+        
+        PPWOO_Debug::info('CSS dinâmico injetado no painel');
 
         // JS do painel
         wp_enqueue_script(
@@ -177,19 +226,35 @@ class PPWOO_PackingPanel {
             'copy_error' => esc_html__('Falha ao copiar.', 'painel-empacotamento'),
             'debug_enabled' => PPWOO_Config::is_debug(),
         ]);
+        
+        if (PPWOO_Config::is_debug()) {
+            error_log('PPWOO: Assets do painel carregados com sucesso para o post #' . $post->ID);
+        }
     }
 
     /**
      * SHORTCODE principal — Exibe o painel administrativo completo.
      */
     public static function render_shortcode($atts) {
+        if (PPWOO_Config::is_debug()) {
+            error_log('PPWOO: Shortcode [packing_panel] chamado');
+        }
+        
         // Verifica permissões
         if (!PPWOO_Security::can_manage_panel()) {
-            self::log_debug('Shortcode bloqueado por permissão');
+            if (PPWOO_Config::is_debug()) {
+                error_log('PPWOO: Acesso negado ao painel - usuário sem permissão');
+            }
             return '<p>' . esc_html__('Você não tem permissão para visualizar este painel.', 'painel-empacotamento') . '</p>';
         }
 
-        self::log_debug('Shortcode render iniciado');
+        // Verifica se WooCommerce está ativo
+        if (!self::is_woocommerce_active()) {
+            if (PPWOO_Config::is_debug()) {
+                error_log('PPWOO: WooCommerce não está ativo');
+            }
+            return '<p style="color:red;">' . esc_html__('Erro: WooCommerce não está instalado ou ativo.', 'painel-empacotamento') . '</p>';
+        }
 
         ob_start();
 
@@ -197,27 +262,37 @@ class PPWOO_PackingPanel {
         $template = plugin_dir_path(__FILE__) . '../templates/painel.php';
 
         if (file_exists($template)) {
+            if (PPWOO_Config::is_debug()) {
+                error_log('PPWOO: Template encontrado, renderizando painel');
+            }
             include $template;
         } else {
-            self::log_debug('Template não encontrado', ['template' => $template]);
+            if (PPWOO_Config::is_debug()) {
+                error_log('PPWOO: ERRO - Template painel.php não encontrado em: ' . $template);
+            }
             echo '<p style="color:red;">Erro: O template painel.php não foi encontrado em /templates/</p>';
         }
 
-        return ob_get_clean();
+        $output = ob_get_clean();
+        
+        if (PPWOO_Config::is_debug()) {
+            error_log('PPWOO: Shortcode renderizado com sucesso (tamanho: ' . strlen($output) . ' bytes)');
+        }
+        
+        return $output;
     }
 
     /**
      * Handle internal AJAX calls (to admin-ajax.php).
      */
     public static function handle_internal_ajax() {
-        self::log_debug('AJAX recebido', [
-            'post_keys' => array_keys($_POST),
-        ]);
+        if (PPWOO_Config::is_debug()) {
+            error_log('Packing Panel Internal AJAX: Received POST data: ' . print_r($_POST, true));
+        }
 
         check_ajax_referer('packing_panel_nonce', 'nonce');
 
         if (!PPWOO_Security::can_manage_panel()) {
-            self::log_debug('AJAX sem permissão');
             wp_send_json_error('Você não tem permissão para executar esta ação.', 403);
         }
 
@@ -225,41 +300,27 @@ class PPWOO_PackingPanel {
         $webhook_type = isset($_POST['webhook_type']) ? sanitize_text_field($_POST['webhook_type']) : '';
         $tracking_data = isset($_POST['tracking_data']) ? PPWOO_Security::sanitize_tracking_data($_POST['tracking_data']) : array();
         $tab_context = isset($_POST['tab_context']) ? sanitize_text_field($_POST['tab_context']) : '';
-        self::log_debug('AJAX payload normalizado', [
-            'order_id' => $order_id,
-            'webhook_type' => $webhook_type,
-            'tab_context' => $tab_context,
-            'tracking_keys' => is_array($tracking_data) ? array_keys($tracking_data) : [],
-        ]);
 
         // Validação
         $validation = PPWOO_Security::validate_webhook_request($order_id, $webhook_type);
         if (is_wp_error($validation)) {
-            self::log_debug('AJAX validação falhou', [
-                'message' => $validation->get_error_message(),
-                'status' => $validation->get_error_data()['status'] ?? null,
-            ]);
             wp_send_json_error($validation->get_error_message(), $validation->get_error_data()['status']);
         }
 
         $order = wc_get_order($order_id);
         if (!$order) {
-            self::log_debug('AJAX pedido não encontrado', ['order_id' => $order_id]);
             wp_send_json_error('Pedido não encontrado.', 404);
         }
 
-        self::log_debug('AJAX processando', [
-            'order_id' => $order_id,
-            'status' => $order->get_status(),
-            'webhook_type' => $webhook_type,
-        ]);
+        if (PPWOO_Config::is_debug()) {
+            error_log('Packing Panel: Processing INTERNAL AJAX for "' . $webhook_type . '" for Order #' . $order_id);
+        }
 
         switch ($webhook_type) {
             case 'accepted':
                 // Atualiza a meta do pedido para o passo 2
                 $order->update_meta_data('_packing_panel_workflow_step', 'step2');
                 $order->save();
-                self::log_debug('Pedido aceito', ['order_id' => $order_id]);
 
                 // Envia webhook externo
                 PPWOO_Webhook::send('packing_panel_accepted', $order);
@@ -269,11 +330,6 @@ class PPWOO_PackingPanel {
             case 'shipped':
                 // Determina o nome do evento com base na aba
                 $event_name = ('motoboy' === $tab_context) ? 'mtb_packing_panel_shipped' : 'packing_panel_shipped';
-                self::log_debug('Concluir envio', [
-                    'order_id' => $order_id,
-                    'event_name' => $event_name,
-                    'tab_context' => $tab_context,
-                ]);
 
                 // Marca o pedido como concluído
                 $order->update_status('completed', __('Pedido marcado como enviado pelo Painel de Empacotamento.', 'painel-empacotamento'));
@@ -282,10 +338,6 @@ class PPWOO_PackingPanel {
                 if (!empty($tracking_data)) {
                     PPWOO_Utils::save_tracking_data($tracking_data, $order);
                 }
-                self::log_debug('Tracking salvo', [
-                    'order_id' => $order_id,
-                    'tracking_keys' => is_array($tracking_data) ? array_keys($tracking_data) : [],
-                ]);
 
                 // Remove meta de workflow
                 $order->delete_meta_data('_packing_panel_workflow_step');
@@ -297,7 +349,6 @@ class PPWOO_PackingPanel {
                 break;
 
             default:
-                self::log_debug('Webhook type desconhecido', ['webhook_type' => $webhook_type]);
                 wp_send_json_error('Tipo de webhook desconhecido.', 400);
         }
 

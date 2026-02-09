@@ -93,10 +93,17 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
 #### Protocol: a6949a1
 
+## [v3.2.111] - 2026-02-03
+
+### Changed
+- atualiza a pasta integrada do packing-panel-woo-dev para base 0.3.3 com classes/admin/integ externas e assets sincronizados; reforça init pos-WooCommerce e detecao de shortcode (Elementor/Gutenberg); adiciona guia TXT de integracao com erros comuns e boas praticas.
+
+#### Protocol: 0531c5c
+
 ## [Unreleased]
 
 ### Changed
-- **Versão atual**: v3.2.110  
+- **Versão atual**: v3.2.111  
   **Versão sugerida após a mudança**: vX.Y.Z  
   **Descrição**: texto objetivo do que mudou e impacto (pode listar itens separados por ponto e vírgula).
 

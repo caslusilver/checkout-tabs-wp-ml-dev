@@ -50,6 +50,10 @@ class PPWOO_Config {
      * Retorna se o debug está ativo
      */
     public static function is_debug() {
+        // Prioriza a constante global do arquivo principal
+        if (defined('PPWOO_DEBUG_MODE')) {
+            return apply_filters('ppwoo_debug', PPWOO_DEBUG_MODE);
+        }
         return apply_filters('ppwoo_debug', self::DEBUG);
     }
 }
