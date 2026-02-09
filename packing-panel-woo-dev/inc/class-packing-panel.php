@@ -12,6 +12,8 @@
 if (!defined('ABSPATH')) exit;
 
 class PPWOO_PackingPanel {
+    private static $initialized = false;
+
     private static function log_debug(string $message, array $context = []): void {
         if (!PPWOO_Config::is_debug()) {
             return;
@@ -59,15 +61,41 @@ class PPWOO_PackingPanel {
         return false;
     }
 
+    private static function is_woocommerce_active(): bool {
+        if (function_exists('WC')) {
+            return true;
+        }
+
+        if (class_exists('WooCommerce')) {
+            return true;
+        }
+
+        if (class_exists('Automattic\\WooCommerce\\Plugin')) {
+            return true;
+        }
+
+        if (function_exists('is_plugin_active') && is_plugin_active('woocommerce/woocommerce.php')) {
+            return true;
+        }
+
+        return false;
+    }
+
     /**
      * Inicializa os hooks principais.
      */
     public static function init() {
+        if (self::$initialized) {
+            return;
+        }
+
         // Verifica se WooCommerce está ativo
-        if (!class_exists('WooCommerce')) {
+        if (!self::is_woocommerce_active()) {
             add_action('admin_notices', [__CLASS__, 'woocommerce_missing_notice']);
             return;
         }
+
+        self::$initialized = true;
 
         // Shortcode principal do painel (usa o mesmo nome do código antigo)
         add_shortcode('packing_panel', [__CLASS__, 'render_shortcode']);
@@ -277,5 +305,6 @@ class PPWOO_PackingPanel {
     }
 }
 
-// Inicializa a classe
-PPWOO_PackingPanel::init();
+// Inicializa a classe após o carregamento dos plugins/WooCommerce
+add_action('plugins_loaded', ['PPWOO_PackingPanel', 'init']);
+add_action('woocommerce_loaded', ['PPWOO_PackingPanel', 'init']);

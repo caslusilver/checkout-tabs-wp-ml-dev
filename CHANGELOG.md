@@ -86,10 +86,17 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
 #### Protocol: 26c8050
 
+## [v3.2.110] - 2026-02-03
+
+### Changed
+- registra shortcode do painel após o carregamento do WooCommerce para evitar renderização crua no Elementor.
+
+#### Protocol: a6949a1
+
 ## [Unreleased]
 
 ### Changed
-- **Versão atual**: v3.2.109  
+- **Versão atual**: v3.2.110  
   **Versão sugerida após a mudança**: vX.Y.Z  
   **Descrição**: texto objetivo do que mudou e impacto (pode listar itens separados por ponto e vírgula).
 
