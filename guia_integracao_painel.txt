@@ -1,0 +1,57 @@
+GUIA DE INTEGRACAO - PACKING PANEL (CHECKOUT-TABS-WP-ML)
+
+Objetivo
+- Unificar o plugin packing-panel-woo-dev dentro do checkout-tabs-wp-ml sem quebrar o que ja funciona.
+- Garantir que o shortcode [packing_panel] renderize corretamente em paginas com Elementor e no frontend.
+
+Checklist rapido (antes de integrar)
+1) Confirmar versao oficial alvo (ex.: 0.3.3) e clonar em pasta temporaria.
+2) Mapear divergencias entre a copia integrada e a oficial.
+3) Sincronizar arquivos do repo oficial para a pasta integrada.
+4) Reaplicar ajustes de integracao (bootstrap, filtros de webhook/debug, versionamento unificado).
+5) Validar carregamento do shortcode e assets.
+
+Erros recorrentes e como evitar
+1) Shortcode exibido cru no Elementor
+   - Causa: o shortcode nao foi registrado porque o WooCommerce ainda nao estava carregado.
+   - Solucao: inicializar o painel via hooks 'plugins_loaded' e 'woocommerce_loaded' e evitar init precoce.
+
+2) Assets nao carregam na pagina do painel
+   - Causa: deteccao do shortcode apenas via post_content (Elementor usa _elementor_data).
+   - Solucao: usar um helper de deteccao robusto (post_has_shortcode) que verifica:
+     - post_content
+     - blocos Gutenberg
+     - meta _elementor_data
+     - flag _ppwoo_has_shortcode
+
+3) Erros de compatibilidade quando Woo nao esta carregado
+   - Causa: uso direto de helpers do WooCommerce em contexts sem Woo (ex.: editor Elementor).
+   - Solucao: fallback seguro (ex.: placeholder de imagem usando includes_url).
+
+4) Duplicacao de logica ou arquivos
+   - Causa: manter implementacao antiga junto com a nova.
+   - Solucao: sempre substituir a copia integrada pela versao oficial e reaplicar apenas os ajustes necessarios.
+
+Passos recomendados de integracao
+1) Baixar a versao oficial (tag) e congelar a referencia.
+2) Sincronizar a pasta integrada com a versao oficial.
+3) Reaplicar ajustes de integracao:
+   - bootstrap de integracao em inc/packing-panel/bootstrap.php
+   - filtros ppwoo_webhook_url e ppwoo_debug
+   - versionamento via checkout_tabs_wp_ml_get_version()
+4) Garantir que o init do painel rode apos WooCommerce carregar.
+5) Garantir carregamento de assets apenas quando o shortcode estiver presente.
+
+Boas praticas
+- Manter a pasta integrada com a estrutura oficial para facilitar upgrades futuros.
+- Nao editar arquivos do repo oficial fora do necessario; concentrar integracao no bootstrap.
+- Evitar logs ruidosos em producao (usar PPWOO_Config::is_debug).
+- Sempre limpar cache (LiteSpeed/Elementor) ao testar shortcode no frontend.
+- Validar em ambientes dev/test/prod antes do release.
+
+Teste minimo apos integracao
+1) Pagina com Elementor (widget Shortcode) exibindo [packing_panel].
+2) Pagina publica com shortcode e usuario com permissao (manage_woocommerce).
+3) Verificar se CSS/JS do painel carregaram.
+4) Verificar se nao ha "fatal error" no editor do Elementor.
+5) Verificar logs do debug apenas se habilitado.

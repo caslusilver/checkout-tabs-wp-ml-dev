@@ -1,0 +1,203 @@
+================================================================================
+CONTRATO DE CAMPOS - PackPanel
+================================================================================
+
+Este arquivo documenta todos os campos atualmente lidos e renderizados pelo
+painel PackPanel, bem como sugestões de chaves JSON equivalentes para uso
+em webhooks externos.
+
+================================================================================
+CAMPOS DO PEDIDO WOOCOMMERCE
+================================================================================
+
+1. IDENTIFICAÇÃO DO PEDIDO
+   Campo WooCommerce: $order->get_id()
+   Tipo: integer
+   Uso no Painel: Exibido como "Pedido #{id}" no cabeçalho
+   Sugestão JSON: "id" ou "order_id"
+
+2. STATUS DO PEDIDO
+   Campo WooCommerce: $order->get_status()
+   Tipo: string
+   Uso no Painel: Usado para filtrar pedidos pendentes
+   Sugestão JSON: "status"
+
+3. TOTAL DO PEDIDO
+   Campo WooCommerce: $order->get_total()
+   Tipo: float
+   Uso no Painel: Exibido na seção "Total Pedido"
+   Sugestão JSON: "total"
+
+4. TOTAL DO FRETE
+   Campo WooCommerce: $order->get_shipping_total()
+   Tipo: float
+   Uso no Painel: Exibido na seção "Total Frete"
+   Sugestão JSON: "shipping_total"
+
+================================================================================
+CAMPOS DE COBRANÇA (BILLING)
+================================================================================
+
+5. PRIMEIRO NOME
+   Campo WooCommerce: $order->get_billing_first_name()
+   Tipo: string
+   Uso no Painel: Exibido na seção "Cliente" (concatena com sobrenome)
+   Sugestão JSON: "billing.first_name" ou "billing_first_name"
+
+6. SOBRENOME
+   Campo WooCommerce: $order->get_billing_last_name()
+   Tipo: string
+   Uso no Painel: Exibido na seção "Cliente" (concatena com primeiro nome)
+   Sugestão JSON: "billing.last_name" ou "billing_last_name"
+
+7. ENDEREÇO (LINHA 1)
+   Campo WooCommerce: $order->get_billing_address_1()
+   Tipo: string
+   Uso no Painel: Exibido na seção "Endereço"
+   Sugestão JSON: "billing.address_1" ou "billing_address_1"
+
+8. CIDADE
+   Campo WooCommerce: $order->get_billing_city()
+   Tipo: string
+   Uso no Painel: Exibido na seção "Endereço"
+   Sugestão JSON: "billing.city" ou "billing_city"
+
+9. ESTADO
+   Campo WooCommerce: $order->get_billing_state()
+   Tipo: string
+   Uso no Painel: Exibido na seção "Endereço" (aba Correios)
+   Sugestão JSON: "billing.state" ou "billing_state"
+
+10. CEP
+    Campo WooCommerce: $order->get_billing_postcode()
+    Tipo: string
+    Uso no Painel: Exibido como "CEP: {postcode}"
+    Sugestão JSON: "billing.postcode" ou "billing_postcode"
+
+================================================================================
+CAMPOS DE ENVIO (SHIPPING)
+================================================================================
+
+11. ENDEREÇO DE ENVIO
+    Campo WooCommerce: $order->get_address('shipping')
+    Tipo: array
+    Uso no Painel: Usado para webhook (não exibido diretamente)
+    Sugestão JSON: "shipping" (objeto com address_1, city, state, postcode, etc.)
+
+================================================================================
+META CAMPOS CUSTOMIZADOS (_billing_*)
+================================================================================
+
+12. NÚMERO DO ENDEREÇO
+    Campo WooCommerce: $order->get_meta('_billing_number')
+    Tipo: string
+    Uso no Painel: Exibido no endereço como "nº {number}"
+    Sugestão JSON: "billing.number" ou "billing_number" ou "meta._billing_number"
+
+13. BAIRRO
+    Campo WooCommerce: $order->get_meta('_billing_neighborhood')
+    Tipo: string
+    Uso no Painel: Exibido no endereço após o número
+    Sugestão JSON: "billing.neighborhood" ou "billing_neighborhood" ou "meta._billing_neighborhood"
+
+14. COMPLEMENTO
+    Campo WooCommerce: $order->get_meta('_billing_complemento')
+    Tipo: string
+    Uso no Painel: Exibido abaixo do endereço principal
+    Sugestão JSON: "billing.complement" ou "billing_complemento" ou "meta._billing_complemento"
+
+15. CELULAR/WHATSAPP
+    Campo WooCommerce: $order->get_meta('_billing_cellphone')
+    Tipo: string
+    Uso no Painel: Exibido na seção "WhatsApp"
+    Sugestão JSON: "billing.cellphone" ou "billing_cellphone" ou "meta._billing_cellphone"
+
+16. CPF
+    Campo WooCommerce: $order->get_meta('billing_cpf')
+    Tipo: string
+    Uso no Painel: Usado no webhook (sanitizado para apenas dígitos)
+    Sugestão JSON: "billing.cpf" ou "billing_cpf" ou "meta.billing_cpf"
+
+================================================================================
+META CAMPOS DO PAINEL (_packing_panel_*)
+================================================================================
+
+17. ETAPA DO WORKFLOW
+    Campo WooCommerce: $order->get_meta('_packing_panel_workflow_step')
+    Tipo: string ('step1' ou 'step2')
+    Uso no Painel: Controla qual slide do workflow está visível (Motoboy)
+    Sugestão JSON: "workflow_step" ou "meta._packing_panel_workflow_step"
+
+18. LINK DE RASTREIO
+    Campo WooCommerce: $order->get_meta('_packing_panel_tracking_link')
+    Tipo: string (URL)
+    Uso no Painel: Exibido no workflow step 2 (Motoboy)
+    Sugestão JSON: "tracking_link" ou "meta._packing_panel_tracking_link"
+
+19. PRAZO DE ENTREGA
+    Campo WooCommerce: $order->get_meta('_packing_panel_delivery_deadline')
+    Tipo: string
+    Uso no Painel: Exibido no workflow step 2 (Motoboy)
+    Sugestão JSON: "delivery_deadline" ou "meta._packing_panel_delivery_deadline"
+
+20. CUSTO DO FRETE PAGO
+    Campo WooCommerce: $order->get_meta('_packing_panel_shipping_paid_cost')
+    Tipo: float
+    Uso no Painel: Exibido no workflow step 2 (Motoboy)
+    Sugestão JSON: "shipping_paid_cost" ou "meta._packing_panel_shipping_paid_cost"
+
+21. CÓDIGO DE FINALIZAÇÃO
+    Campo WooCommerce: $order->get_meta('_packing_panel_finalization_code')
+    Tipo: integer
+    Uso no Painel: Campo de input no workflow step 2 (Motoboy)
+    Sugestão JSON: "finalization_code" ou "meta._packing_panel_finalization_code"
+
+22. WHATSAPP DO MOTOBOY
+    Campo WooCommerce: $order->get_meta('_packing_panel_motoboy_whatsapp')
+    Tipo: string
+    Uso no Painel: Exibido no workflow step 2 (Motoboy)
+    Sugestão JSON: "motoboy_whatsapp" ou "meta._packing_panel_motoboy_whatsapp"
+
+23. CANAL DE ORIGEM (WHATSAPP)
+    Campo WooCommerce: $order->get_meta('_ppwoo_channel')
+    Tipo: string ('whatsapp' ou outro)
+    Uso no Painel: Usado para exibir badge WhatsApp
+    Sugestão JSON: "channel" ou "source" ou "meta._ppwoo_channel"
+
+================================================================================
+CAMPOS DE ITENS DO PEDIDO
+================================================================================
+
+24. ITENS DO PEDIDO
+    Campo WooCommerce: $order->get_items()
+    Tipo: array de WC_Order_Item_Product
+    Uso no Painel: Exibidos na seção "Produtos" com imagem, nome e quantidade
+    Campos de cada item:
+      - product_id: ID do produto
+      - variation_id: ID da variação (se aplicável)
+      - name: Nome do produto
+      - quantity: Quantidade
+      - total: Total do item
+      - sku: SKU do produto
+      - image_url: URL da imagem (thumbnail)
+    Sugestão JSON: "items" (array de objetos com os campos acima)
+
+================================================================================
+CAMPOS DE CUPONS
+================================================================================
+
+25. CUPONS USADOS
+    Campo WooCommerce: $order->get_coupon_codes()
+    Tipo: array de strings
+    Uso no Painel: Exibido na seção "Cupom(ns) Usado(s)" (se houver)
+    Sugestão JSON: "coupons" (array de strings)
+
+================================================================================
+CAMPOS DE OBSERVAÇÕES
+================================================================================
+
+26. NOTA DO CLIENTE
+    Campo WooCommerce: $order->get_customer_note()
+    Tipo: string
+    Uso no Painel: Exibido na seção "Observações"
+    Sugestão JSON: "customer_note" ou "note"

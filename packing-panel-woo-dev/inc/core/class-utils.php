@@ -41,6 +41,19 @@ class PPWOO_Utils {
     }
     
     /**
+     * Obtém URL de imagem placeholder com fallback seguro
+     * 
+     * @return string URL da imagem placeholder
+     */
+    private static function get_placeholder_image_url() {
+        if (function_exists('wc_placeholder_img_url')) {
+            return wc_placeholder_img_url();
+        }
+        // Fallback para placeholder padrão do WordPress
+        return includes_url('images/media/default.png');
+    }
+    
+    /**
      * Prepara dados de rastreio para salvar no pedido
      * 
      * @param array $tracking_data Dados brutos do rastreio
@@ -92,10 +105,361 @@ class PPWOO_Utils {
                 'sku' => $product ? $product->get_sku() : '',
                 'image_url' => $product && $product->get_image_id() 
                     ? wp_get_attachment_image_url($product->get_image_id(), 'thumbnail') 
-                    : wc_placeholder_img_url(),
+                    : self::get_placeholder_image_url(),
             );
         }, $order->get_items());
     }
+    
+    /**
+     * Verifica se um pedido é do WhatsApp
+     * 
+     * @param WC_Order|array $order Objeto do pedido WooCommerce ou array de pedido externo
+     * @return bool
+     */
+    public static function is_whatsapp_order($order) {
+        // Filtro para permitir customização da detecção
+        $is_whatsapp = apply_filters('ppwoo_is_whatsapp_order', null, $order);
+        
+        if ($is_whatsapp !== null) {
+            return (bool) $is_whatsapp;
+        }
+        
+        // Para pedidos WooCommerce
+        if ($order instanceof WC_Order) {
+            $channel = $order->get_meta('_ppwoo_channel');
+            return $channel === 'whatsapp';
+        }
+        
+        // Para pedidos externos (array)
+        if (is_array($order)) {
+            if (isset($order['channel']) && $order['channel'] === 'whatsapp') {
+                return true;
+            }
+            if (isset($order['source']) && $order['source'] === 'whatsapp') {
+                return true;
+            }
+        }
+        
+        return false;
+    }
+    
+    /**
+     * Verifica se um pedido é externo (array normalizado)
+     * 
+     * @param WC_Order|array $order
+     * @return bool
+     */
+    public static function is_external_order($order) {
+        return is_array($order) && isset($order['_is_external']) && $order['_is_external'] === true;
+    }
+    
+    /**
+     * Obtém o ID do pedido (WooCommerce ou externo)
+     * 
+     * @param WC_Order|array $order
+     * @return int
+     */
+    public static function get_order_id($order) {
+        if ($order instanceof WC_Order) {
+            return $order->get_id();
+        }
+        if (is_array($order) && isset($order['id'])) {
+            return intval($order['id']);
+        }
+        return 0;
+    }
+    
+    /**
+     * Obtém o primeiro nome do billing
+     * 
+     * @param WC_Order|array $order
+     * @return string
+     */
+    public static function get_billing_first_name($order) {
+        if ($order instanceof WC_Order) {
+            return $order->get_billing_first_name();
+        }
+        if (is_array($order) && isset($order['billing']['first_name'])) {
+            return $order['billing']['first_name'];
+        }
+        return '';
+    }
+    
+    /**
+     * Obtém o sobrenome do billing
+     * 
+     * @param WC_Order|array $order
+     * @return string
+     */
+    public static function get_billing_last_name($order) {
+        if ($order instanceof WC_Order) {
+            return $order->get_billing_last_name();
+        }
+        if (is_array($order) && isset($order['billing']['last_name'])) {
+            return $order['billing']['last_name'];
+        }
+        return '';
+    }
+    
+    /**
+     * Obtém o celular/WhatsApp do billing
+     * 
+     * @param WC_Order|array $order
+     * @return string
+     */
+    public static function get_billing_cellphone($order) {
+        if ($order instanceof WC_Order) {
+            return $order->get_meta('_billing_cellphone');
+        }
+        if (is_array($order) && isset($order['billing']['cellphone'])) {
+            return $order['billing']['cellphone'];
+        }
+        return '';
+    }
+    
+    /**
+     * Obtém o endereço 1 do billing
+     * 
+     * @param WC_Order|array $order
+     * @return string
+     */
+    public static function get_billing_address_1($order) {
+        if ($order instanceof WC_Order) {
+            return $order->get_billing_address_1();
+        }
+        if (is_array($order) && isset($order['billing']['address_1'])) {
+            return $order['billing']['address_1'];
+        }
+        return '';
+    }
+    
+    /**
+     * Obtém o número do endereço
+     * 
+     * @param WC_Order|array $order
+     * @return string
+     */
+    public static function get_billing_number($order) {
+        if ($order instanceof WC_Order) {
+            return $order->get_meta('_billing_number');
+        }
+        if (is_array($order) && isset($order['billing']['number'])) {
+            return $order['billing']['number'];
+        }
+        return '';
+    }
+    
+    /**
+     * Obtém o bairro
+     * 
+     * @param WC_Order|array $order
+     * @return string
+     */
+    public static function get_billing_neighborhood($order) {
+        if ($order instanceof WC_Order) {
+            return $order->get_meta('_billing_neighborhood');
+        }
+        if (is_array($order) && isset($order['billing']['neighborhood'])) {
+            return $order['billing']['neighborhood'];
+        }
+        return '';
+    }
+    
+    /**
+     * Obtém a cidade
+     * 
+     * @param WC_Order|array $order
+     * @return string
+     */
+    public static function get_billing_city($order) {
+        if ($order instanceof WC_Order) {
+            return $order->get_billing_city();
+        }
+        if (is_array($order) && isset($order['billing']['city'])) {
+            return $order['billing']['city'];
+        }
+        return '';
+    }
+    
+    /**
+     * Obtém o estado
+     * 
+     * @param WC_Order|array $order
+     * @return string
+     */
+    public static function get_billing_state($order) {
+        if ($order instanceof WC_Order) {
+            return $order->get_billing_state();
+        }
+        if (is_array($order) && isset($order['billing']['state'])) {
+            return $order['billing']['state'];
+        }
+        return '';
+    }
+    
+    /**
+     * Obtém o CEP
+     * 
+     * @param WC_Order|array $order
+     * @return string
+     */
+    public static function get_billing_postcode($order) {
+        if ($order instanceof WC_Order) {
+            return $order->get_billing_postcode();
+        }
+        if (is_array($order) && isset($order['billing']['postcode'])) {
+            return $order['billing']['postcode'];
+        }
+        return '';
+    }
+    
+    /**
+     * Obtém o complemento
+     * 
+     * @param WC_Order|array $order
+     * @return string
+     */
+    public static function get_billing_complemento($order) {
+        if ($order instanceof WC_Order) {
+            return $order->get_meta('_billing_complemento');
+        }
+        if (is_array($order) && isset($order['billing']['complement'])) {
+            return $order['billing']['complement'];
+        }
+        return '';
+    }
+    
+    /**
+     * Obtém a nota do cliente
+     * 
+     * @param WC_Order|array $order
+     * @return string
+     */
+    public static function get_customer_note($order) {
+        if ($order instanceof WC_Order) {
+            return $order->get_customer_note();
+        }
+        if (is_array($order) && isset($order['customer_note'])) {
+            return $order['customer_note'];
+        }
+        return '';
+    }
+    
+    /**
+     * Obtém o total do pedido
+     * 
+     * @param WC_Order|array $order
+     * @return float
+     */
+    public static function get_order_total($order) {
+        if ($order instanceof WC_Order) {
+            return $order->get_total();
+        }
+        if (is_array($order) && isset($order['total'])) {
+            return floatval($order['total']);
+        }
+        return 0.0;
+    }
+    
+    /**
+     * Obtém o total do frete
+     * 
+     * @param WC_Order|array $order
+     * @return float
+     */
+    public static function get_shipping_total($order) {
+        if ($order instanceof WC_Order) {
+            return $order->get_shipping_total();
+        }
+        if (is_array($order) && isset($order['shipping_total'])) {
+            return floatval($order['shipping_total']);
+        }
+        return 0.0;
+    }
+    
+    /**
+     * Obtém os cupons usados
+     * 
+     * @param WC_Order|array $order
+     * @return array
+     */
+    public static function get_coupon_codes($order) {
+        if ($order instanceof WC_Order) {
+            return $order->get_coupon_codes();
+        }
+        if (is_array($order) && isset($order['coupons']) && is_array($order['coupons'])) {
+            return $order['coupons'];
+        }
+        return array();
+    }
+    
+    /**
+     * Obtém os métodos de envio
+     * 
+     * @param WC_Order|array $order
+     * @return array Array de arrays com method_id, method_title, total
+     */
+    public static function get_shipping_methods($order) {
+        if ($order instanceof WC_Order) {
+            $methods = array();
+            foreach ($order->get_shipping_methods() as $method) {
+                $methods[] = array(
+                    'method_id' => $method->get_method_id(),
+                    'method_title' => $method->get_method_title(),
+                    'total' => floatval($method->get_total()),
+                );
+            }
+            return $methods;
+        }
+        if (is_array($order) && isset($order['shipping_methods']) && is_array($order['shipping_methods'])) {
+            return $order['shipping_methods'];
+        }
+        return array();
+    }
+    
+    /**
+     * Obtém os itens do pedido
+     * 
+     * @param WC_Order|array $order
+     * @return array Array de arrays com product_id, name, quantity, image_url, etc.
+     */
+    public static function get_order_items($order) {
+        if ($order instanceof WC_Order) {
+            $items = array();
+            foreach ($order->get_items() as $item_id => $item) {
+                $product = $item->get_product();
+                $image_id = $product ? $product->get_image_id() : 0;
+                $items[] = array(
+                    'item_id' => $item_id,
+                    'product_id' => $item->get_product_id(),
+                    'variation_id' => $item->get_variation_id(),
+                    'name' => $item->get_name(),
+                    'quantity' => $item->get_quantity(),
+                    'total' => floatval($item->get_total()),
+                    'image_url' => $image_id ? wp_get_attachment_image_url($image_id, 'thumbnail') : self::get_placeholder_image_url(),
+                );
+            }
+            return $items;
+        }
+        if (is_array($order) && isset($order['items']) && is_array($order['items'])) {
+            return $order['items'];
+        }
+        return array();
+    }
+    
+    /**
+     * Obtém o workflow step
+     * 
+     * @param WC_Order|array $order
+     * @return string|null
+     */
+    public static function get_workflow_step($order) {
+        if ($order instanceof WC_Order) {
+            return $order->get_meta('_packing_panel_workflow_step');
+        }
+        if (is_array($order) && isset($order['workflow_step'])) {
+            return $order['workflow_step'];
+        }
+        return null;
+    }
 }
-
-

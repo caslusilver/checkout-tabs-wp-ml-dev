@@ -13,6 +13,7 @@
     --spacing-small: 8px;
     --spacing-medium: 16px;
     --spacing-large: 24px;
+    --ppwoo-title-font-size: 0.9em;
 }
 
 .painel-empacotamento {
@@ -37,7 +38,7 @@
 
 .painel-header h1 {
     margin: 0;
-    font-size: 1.8em;
+    font-size: var(--ppwoo-title-font-size, 0.9em);
     color: #000 !important;
 }
 
@@ -144,6 +145,17 @@
     border-radius: 3px;
     text-transform: uppercase;
     background: var(--cor-erro);
+}
+
+.ppwoo-whatsapp-badge {
+    display: inline-block;
+    padding: 4px 8px;
+    font-size: 0.85em;
+    font-weight: bold;
+    color: #fff;
+    border-radius: 3px;
+    background-color: var(--ppwoo-whatsapp-badge-color, #25D366);
+    text-transform: uppercase;
 }
 
 #tab-motoboy .product-list {
@@ -497,6 +509,17 @@
     border-radius: 3px;
     text-transform: uppercase;
     background: var(--cor-primaria);
+}
+
+#tab-correios .ppwoo-whatsapp-badge {
+    display: inline-block;
+    padding: 4px 8px;
+    font-size: 0.85em;
+    font-weight: bold;
+    color: #fff;
+    border-radius: 3px;
+    background-color: var(--ppwoo-whatsapp-badge-color, #25D366);
+    text-transform: uppercase;
 }
 
 #tab-correios .product-list {

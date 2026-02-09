@@ -1,0 +1,23 @@
+/**
+ * CSS para a página de administração do PackPanel
+ */
+
+.ppwoo-admin-content {
+    margin-top: 20px;
+}
+
+.ppwoo-admin-content .form-table th {
+    width: 200px;
+}
+
+.ppwoo-admin-content .ppwoo-color-picker {
+    width: 100px;
+}
+
+#ppwoo-webhook-test-result {
+    max-width: 800px;
+}
+
+#ppwoo-webhook-test-result .notice {
+    margin: 0;
+}

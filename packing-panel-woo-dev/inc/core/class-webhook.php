@@ -7,16 +7,6 @@
 if (!defined('ABSPATH')) exit;
 
 class PPWOO_Webhook {
-    private static function log_debug(string $message, array $context = []): void {
-        if (!PPWOO_Config::is_debug()) {
-            return;
-        }
-        $suffix = '';
-        if (!empty($context)) {
-            $suffix = ' | ' . wp_json_encode($context);
-        }
-        error_log('[PPWOO] ' . $message . $suffix);
-    }
     
     /**
      * Envia webhook externo
@@ -27,11 +17,6 @@ class PPWOO_Webhook {
      */
     public static function send($event_name, $order) {
         $webhook_url = PPWOO_Config::get_webhook_url();
-        self::log_debug('Webhook send start', [
-            'event' => $event_name,
-            'order_id' => $order ? $order->get_id() : null,
-            'webhook_host' => $webhook_url ? wp_parse_url($webhook_url, PHP_URL_HOST) : null,
-        ]);
         
         if (empty($webhook_url) || strpos($webhook_url, 'YOUR_') !== false) {
             error_log('Packing Panel Webhook Error (' . $event_name . '): URL do Webhook não configurada.');
@@ -52,12 +37,6 @@ class PPWOO_Webhook {
             'order_data' => $order_data_payload,
             'event_data' => $event_data_payload,
         );
-        self::log_debug('Webhook payload preparado', [
-            'event' => $event_name,
-            'order_id' => $order->get_id(),
-            'has_tracking' => !empty($event_data_payload['tracking_data'] ?? []),
-            'items_count' => is_array($order_data_payload['items'] ?? null) ? count($order_data_payload['items']) : 0,
-        ]);
         
         // Envia requisição
         $remote_response = wp_remote_post($webhook_url, array(
@@ -67,12 +46,6 @@ class PPWOO_Webhook {
             'blocking' => true,
             'sslverify' => apply_filters('packing_panel_webhook_sslverify', !PPWOO_Config::is_debug()),
         ));
-        self::log_debug('Webhook resposta recebida', [
-            'event' => $event_name,
-            'order_id' => $order->get_id(),
-            'is_wp_error' => is_wp_error($remote_response),
-            'status' => is_wp_error($remote_response) ? null : wp_remote_retrieve_response_code($remote_response),
-        ]);
         
         // Log do resultado
         self::log_webhook_response($event_name, $order->get_id(), $remote_response);
@@ -107,7 +80,7 @@ class PPWOO_Webhook {
                 '_packing_panel_motoboy_whatsapp' => $order->get_meta('_packing_panel_motoboy_whatsapp'),
             ),
             'items' => $items_payload,
-            'coupons' => $order->get_used_coupons(),
+            'coupons' => $order->get_coupon_codes(),
         );
     }
     
@@ -150,5 +123,3 @@ class PPWOO_Webhook {
         }
     }
 }
-
-
