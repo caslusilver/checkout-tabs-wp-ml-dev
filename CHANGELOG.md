@@ -100,6 +100,13 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
 #### Protocol: 0531c5c
 
+## [v3.2.111] - 2026-02-03
+
+### Changed
+- publicação da v3.2.111 na main (release sem alterações adicionais de código).
+
+#### Protocol: 25b4183
+
 ## [Unreleased]
 
 ### Changed
