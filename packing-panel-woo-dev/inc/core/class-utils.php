@@ -231,6 +231,10 @@ class PPWOO_Utils {
         $meta = null;
 
         if ($order instanceof WC_Order) {
+            $direct_id = $order->get_meta('_asaas_id');
+            if (!empty($direct_id)) {
+                return (string) $direct_id;
+            }
             $meta = $order->get_meta('__ASAAS_ORDER');
         } elseif (is_array($order) && isset($order['__ASAAS_ORDER'])) {
             $meta = $order['__ASAAS_ORDER'];

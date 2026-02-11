@@ -114,6 +114,13 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
 #### Protocol: ee78e51
 
+## [v3.2.118] - 2026-02-11
+
+### Changed
+- corrige busca do payment_id no PackPanel priorizando o meta _asaas_id antes do __ASAAS_ORDER.
+
+#### Protocol: pending
+
 ## [v3.2.117] - 2026-02-11
 
 ### Changed
@@ -152,7 +159,7 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 ## [Unreleased]
 
 ### Changed
-- **Versão atual**: v3.2.117  
+- **Versão atual**: v3.2.118  
   **Versão sugerida após a mudança**: vX.Y.Z  
   **Descrição**: texto objetivo do que mudou e impacto (pode listar itens separados por ponto e vírgula).
 
