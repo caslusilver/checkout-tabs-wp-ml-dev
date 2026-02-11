@@ -3,7 +3,7 @@
  * Plugin Name: Painel de Empacotamento Woo
  * Plugin URI: https://cubensisstore.com.br
  * Description: Painel administrativo de empacotamento para pedidos via WooCommerce, com abas Motoboy e Correios, workflow e integração com webhooks externos.
- * Version: 0.3.5
+ * Version: 0.3.6
  * Author: Lucas Andrade / AI
  * Author URI: https://github.com/caslusilver
  * License: GPL2
@@ -77,6 +77,7 @@ add_action('wp_enqueue_scripts', function () {
 require_once plugin_dir_path(__FILE__) . 'inc/core/class-config.php';
 require_once plugin_dir_path(__FILE__) . 'inc/core/class-utils.php';
 require_once plugin_dir_path(__FILE__) . 'inc/core/class-security.php';
+require_once plugin_dir_path(__FILE__) . 'inc/core/class-payments-action-service.php';
 require_once plugin_dir_path(__FILE__) . 'inc/core/class-webhook.php';
 require_once plugin_dir_path(__FILE__) . 'inc/core/class-orders.php';
 require_once plugin_dir_path(__FILE__) . 'inc/core/class-debug.php';

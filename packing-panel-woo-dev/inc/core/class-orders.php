@@ -167,6 +167,27 @@ class PPWOO_Orders {
     public static function get_total_pending_orders() {
         $motoboy = count(self::get_motoboy_orders());
         $correios = count(self::get_correios_orders());
-        return $motoboy + $correios;
+        $pagamentos = count(self::get_pending_payment_orders());
+        return $motoboy + $correios + $pagamentos;
+    }
+
+    /**
+     * Busca pedidos WooCommerce com status pending (pagamentos pendentes)
+     *
+     * @return WC_Order[] Lista de pedidos pendentes
+     */
+    public static function get_pending_payment_orders() {
+        $orders = wc_get_orders(array(
+            'status' => 'pending',
+            'limit' => -1,
+            'orderby' => 'date',
+            'order' => 'ASC',
+        ));
+
+        PPWOO_Debug::info('Pedidos de pagamento pendente obtidos', [
+            'woocommerce' => count($orders),
+        ]);
+
+        return $orders;
     }
 }

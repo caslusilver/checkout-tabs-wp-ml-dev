@@ -50,7 +50,7 @@ class PPWOO_Security {
             return new WP_Error('invalid_order_id', 'ID do pedido inválido.', array('status' => 400));
         }
         
-        if (empty($webhook_type) || !in_array($webhook_type, ['accepted', 'shipped'])) {
+        if (empty($webhook_type) || !in_array($webhook_type, ['accepted', 'shipped', 'payment_confirm', 'payment_deny'])) {
             return new WP_Error('invalid_webhook_type', 'Tipo de webhook inválido.', array('status' => 400));
         }
         

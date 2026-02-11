@@ -17,6 +17,16 @@ class PPWOO_Config {
      * URL do webhook para envio de eventos
      */
     const WEBHOOK_URL = 'https://n8n.cubensisstore.com.br/webhook/atualiza-clf-store';
+
+    /**
+     * URL do webhook de atualização de pagamentos manuais
+     */
+    const PAYMENTS_WEBHOOK_URL = 'https://cubensisstore.com.br/asaas-webhook';
+
+    /**
+     * Nome da key para sakm_get_key (Auth header)
+     */
+    const PAYMENTS_AUTH_KEY_NAME = 'authorization';
     
     /**
      * Ativa o modo DEBUG
@@ -44,6 +54,20 @@ class PPWOO_Config {
      */
     public static function get_webhook_url() {
         return apply_filters('ppwoo_webhook_url', self::WEBHOOK_URL);
+    }
+
+    /**
+     * Retorna a URL do webhook de atualização de pagamentos
+     */
+    public static function get_payments_webhook_url() {
+        return apply_filters('ppwoo_payments_webhook_url', self::PAYMENTS_WEBHOOK_URL);
+    }
+
+    /**
+     * Retorna o nome da key para autenticação via sakm_get_key
+     */
+    public static function get_payments_auth_key_name() {
+        return apply_filters('ppwoo_payments_auth_key_name', self::PAYMENTS_AUTH_KEY_NAME);
     }
     
     /**

@@ -88,8 +88,11 @@
     // --- Set initial active tab ---
     var hasMotoboyOrders = packingPanel.find('#tab-motoboy .motoboy-order').length > 0;
     var hasCorreiosOrders = packingPanel.find('#tab-correios .pedido-container').length > 0;
+    var hasPagamentosOrders = packingPanel.find('#tab-pagamentos tbody tr').length > 0;
 
-    if (hasMotoboyOrders) {
+    if (hasPagamentosOrders) {
+        packingPanel.find('.painel-tabs .tab-button[data-tab="pagamentos"]').trigger('click');
+    } else if (hasMotoboyOrders) {
         packingPanel.find('.painel-tabs .tab-button[data-tab="motoboy"]').trigger('click');
     } else if (hasCorreiosOrders) {
         packingPanel.find('.painel-tabs .tab-button[data-tab="correios"]').trigger('click');
@@ -358,11 +361,13 @@
     function updateCounts() {
         var totalMotoboy = $('#tab-motoboy .motoboy-order').length;
         var totalCorreios = $('#tab-correios .pedido-container').length;
-        var totalPending = totalMotoboy + totalCorreios;
+        var totalPagamentos = $('#tab-pagamentos tbody tr').length;
+        var totalPending = totalMotoboy + totalCorreios + totalPagamentos;
 
         $('.status-info .pendentes').text(totalPending + ' pedidos pendentes');
         $('.tab-button[data-tab="motoboy"]').text('Motoboy (' + totalMotoboy + ')');
         $('.tab-button[data-tab="correios"]').text('Correios (' + totalCorreios + ')');
+        $('.tab-button[data-tab="pagamentos"]').text('Pagamentos Pendentes (' + totalPagamentos + ')');
 
         if (totalPending === 0) {
             $('.sem-pedidos-global').show().text('Nenhum pedido pendente para empacotamento.');
@@ -382,6 +387,52 @@
         }
     }
     updateCounts();
+
+    // --- Pagamentos Pendentes ---
+    function handlePaymentAction(button, actionType) {
+        var $button = $(button);
+        var $row = $button.closest('tr');
+        var orderId = $row.data('order-id');
+        var originalText = $button.text();
+
+        $button.prop('disabled', true).text(packingPanelVars && packingPanelVars.processing_text ? packingPanelVars.processing_text : 'Processando...');
+
+        $.ajax({
+            url: ajaxUrl,
+            type: 'POST',
+            dataType: 'json',
+            data: {
+                action: ajaxAction,
+                nonce: nonce,
+                order_id: orderId,
+                webhook_type: actionType
+            },
+            success: function(response) {
+                if (response.success) {
+                    $row.addClass('removing').on('transitionend', function() {
+                        $(this).remove();
+                        updateCounts();
+                    });
+                } else {
+                    alert('Erro ao atualizar pagamento: ' + (response.data || 'Erro desconhecido'));
+                    $button.prop('disabled', false).text(originalText);
+                }
+            },
+            error: function(jqXHR) {
+                ppDebug.log('Erro AJAX ao atualizar pagamento: ' + jqXHR.responseText);
+                alert('Erro na requisição AJAX para atualizar pagamento.');
+                $button.prop('disabled', false).text(originalText);
+            }
+        });
+    }
+
+    $('#tab-pagamentos').on('click', '.ppwoo-btn-confirm-payment', function() {
+        handlePaymentAction(this, 'payment_confirm');
+    });
+
+    $('#tab-pagamentos').on('click', '.ppwoo-btn-deny-payment', function() {
+        handlePaymentAction(this, 'payment_deny');
+    });
 
     // --- Máscara para WhatsApp do Motoboy ---
     function applyWhatsAppMask(input) {

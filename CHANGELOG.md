@@ -114,6 +114,13 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
 #### Protocol: ee78e51
 
+## [v3.2.116] - 2026-02-11
+
+### Changed
+- aplica PackPanel com aba Pagamentos Pendentes, ações de confirmar/negar via webhook e novos campos de conexão.
+
+#### Protocol: pending
+
 ## [v3.2.115] - 2026-02-11
 
 ### Changed
@@ -138,7 +145,7 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 ## [Unreleased]
 
 ### Changed
-- **Versão atual**: v3.2.115  
+- **Versão atual**: v3.2.116  
   **Versão sugerida após a mudança**: vX.Y.Z  
   **Descrição**: texto objetivo do que mudou e impacto (pode listar itens separados por ponto e vírgula).
 

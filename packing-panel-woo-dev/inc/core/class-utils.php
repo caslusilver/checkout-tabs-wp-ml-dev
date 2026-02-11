@@ -168,6 +168,92 @@ class PPWOO_Utils {
         }
         return 0;
     }
+
+    /**
+     * Obtém o identificador Pix (payload copia/cola) do pedido
+     *
+     * @param WC_Order|array $order
+     * @return string
+     */
+    public static function get_pix_identifier($order) {
+        $meta = null;
+
+        if ($order instanceof WC_Order) {
+            $meta = $order->get_meta('__ASAAS_ORDER');
+        } elseif (is_array($order) && isset($order['__ASAAS_ORDER'])) {
+            $meta = $order['__ASAAS_ORDER'];
+        }
+
+        if (is_object($meta)) {
+            $meta = (array) $meta;
+        }
+
+        if (is_array($meta)) {
+            if (!empty($meta['payload'])) {
+                return (string) $meta['payload'];
+            }
+            if (!empty($meta['pix_payload'])) {
+                return (string) $meta['pix_payload'];
+            }
+            if (!empty($meta['pixCopyPaste'])) {
+                return (string) $meta['pixCopyPaste'];
+            }
+            if (!empty($meta['pix_copy_paste'])) {
+                return (string) $meta['pix_copy_paste'];
+            }
+            if (!empty($meta['pix']) && is_array($meta['pix'])) {
+                if (!empty($meta['pix']['payload'])) {
+                    return (string) $meta['pix']['payload'];
+                }
+                if (!empty($meta['pix']['copyPaste'])) {
+                    return (string) $meta['pix']['copyPaste'];
+                }
+            }
+        }
+
+        if ($order instanceof WC_Order) {
+            $fallback = $order->get_meta('_pix_payload');
+            if (!empty($fallback)) {
+                return (string) $fallback;
+            }
+        }
+
+        return '';
+    }
+
+    /**
+     * Obtém o payment_id do pedido
+     *
+     * @param WC_Order|array $order
+     * @return string
+     */
+    public static function get_payment_id_from_order($order) {
+        $meta = null;
+
+        if ($order instanceof WC_Order) {
+            $meta = $order->get_meta('__ASAAS_ORDER');
+        } elseif (is_array($order) && isset($order['__ASAAS_ORDER'])) {
+            $meta = $order['__ASAAS_ORDER'];
+        }
+
+        if (is_object($meta)) {
+            $meta = (array) $meta;
+        }
+
+        if (is_array($meta)) {
+            if (!empty($meta['id'])) {
+                return (string) $meta['id'];
+            }
+            if (!empty($meta['payment_id'])) {
+                return (string) $meta['payment_id'];
+            }
+            if (!empty($meta['paymentId'])) {
+                return (string) $meta['paymentId'];
+            }
+        }
+
+        return '';
+    }
     
     /**
      * Obtém o primeiro nome do billing
