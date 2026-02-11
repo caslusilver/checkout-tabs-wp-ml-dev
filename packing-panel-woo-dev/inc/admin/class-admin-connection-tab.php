@@ -10,6 +10,8 @@ class PPWOO_Admin_Connection_Tab {
      * Nome da option que armazena a URL do webhook
      */
     const OPTION_NAME = 'ppwoo_webhook_url';
+    const OPTION_PAYMENTS_WEBHOOK_URL = 'ppwoo_payments_webhook_url';
+    const OPTION_PAYMENTS_AUTH_KEY_NAME = 'ppwoo_payments_auth_key_name';
     
     /**
      * Nomes das options para webhook externo
@@ -26,10 +28,13 @@ class PPWOO_Admin_Connection_Tab {
         // Processa o formulário se foi submetido
         if (isset($_POST['ppwoo_save_webhook']) && check_admin_referer('ppwoo_save_webhook', 'ppwoo_webhook_nonce')) {
             self::save_webhook_url();
+            self::save_payments_webhook_settings();
             self::save_external_webhook_settings();
         }
         
         $webhook_url = get_option(self::OPTION_NAME, PPWOO_Config::get_webhook_url());
+        $payments_webhook_url = get_option(self::OPTION_PAYMENTS_WEBHOOK_URL, PPWOO_Config::get_payments_webhook_url());
+        $payments_auth_key_name = get_option(self::OPTION_PAYMENTS_AUTH_KEY_NAME, PPWOO_Config::get_payments_auth_key_name());
         
         // Opções do webhook externo
         $external_url = get_option(self::OPTION_EXTERNAL_URL, '');
@@ -56,6 +61,40 @@ class PPWOO_Admin_Connection_Tab {
                                class="regular-text" 
                                placeholder="https://exemplo.com/webhook" />
                         <p class="description"><?php esc_html_e('URL do webhook para receber eventos do painel', 'painel-empacotamento'); ?></p>
+                    </td>
+                </tr>
+            </table>
+
+            <hr>
+
+            <h2><?php esc_html_e('Pagamentos Manuais (Webhook)', 'painel-empacotamento'); ?></h2>
+            <table class="form-table">
+                <tr>
+                    <th scope="row">
+                        <label for="payments_webhook_url"><?php esc_html_e('URL do Webhook de Atualização', 'painel-empacotamento'); ?></label>
+                    </th>
+                    <td>
+                        <input type="url"
+                               id="payments_webhook_url"
+                               name="ppwoo_payments_webhook_url"
+                               value="<?php echo esc_url($payments_webhook_url); ?>"
+                               class="regular-text"
+                               placeholder="https://cubensisstore.com.br/asaas-webhook" />
+                        <p class="description"><?php esc_html_e('URL do webhook usado para confirmar ou negar pagamentos.', 'painel-empacotamento'); ?></p>
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row">
+                        <label for="payments_auth_key_name"><?php esc_html_e('Auth key name', 'painel-empacotamento'); ?></label>
+                    </th>
+                    <td>
+                        <input type="text"
+                               id="payments_auth_key_name"
+                               name="ppwoo_payments_auth_key_name"
+                               value="<?php echo esc_attr($payments_auth_key_name); ?>"
+                               class="regular-text"
+                               placeholder="authorization" />
+                        <p class="description"><?php esc_html_e('Nome da variável no cofre usada em sakm_get_key. O token não é salvo no banco.', 'painel-empacotamento'); ?></p>
                     </td>
                 </tr>
             </table>
@@ -196,6 +235,46 @@ class PPWOO_Admin_Connection_Tab {
         }
         
         settings_errors('ppwoo_webhook');
+    }
+
+    /**
+     * Salva as configurações do webhook de pagamentos manuais
+     */
+    private static function save_payments_webhook_settings() {
+        if (isset($_POST['ppwoo_payments_webhook_url'])) {
+            $url = esc_url_raw($_POST['ppwoo_payments_webhook_url']);
+            if (!empty($url) && !filter_var($url, FILTER_VALIDATE_URL)) {
+                add_settings_error(
+                    'ppwoo_payments_webhook',
+                    'ppwoo_payments_webhook_invalid',
+                    __('URL do webhook de pagamentos inválida.', 'painel-empacotamento'),
+                    'error'
+                );
+            } else {
+                update_option(self::OPTION_PAYMENTS_WEBHOOK_URL, $url);
+                PPWOO_Debug::info('URL do webhook de pagamentos salva', ['url' => $url]);
+            }
+        }
+
+        if (isset($_POST['ppwoo_payments_auth_key_name'])) {
+            $key_name = sanitize_text_field($_POST['ppwoo_payments_auth_key_name']);
+            if ($key_name === '') {
+                $key_name = PPWOO_Config::get_payments_auth_key_name();
+            }
+            update_option(self::OPTION_PAYMENTS_AUTH_KEY_NAME, $key_name);
+            PPWOO_Debug::info('Auth key name salvo', ['key_name' => $key_name]);
+        }
+
+        if (!get_settings_errors('ppwoo_payments_webhook')) {
+            add_settings_error(
+                'ppwoo_payments_webhook',
+                'ppwoo_payments_webhook_saved',
+                __('Configurações de pagamentos salvas com sucesso!', 'painel-empacotamento'),
+                'success'
+            );
+        }
+
+        settings_errors('ppwoo_payments_webhook');
     }
     
     /**

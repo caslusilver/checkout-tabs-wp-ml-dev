@@ -15,6 +15,7 @@ if (!PPWOO_Security::can_manage_panel()) {
 // Busca pedidos
 $motoboy_orders = PPWOO_Orders::get_motoboy_orders();
 $correios_orders = PPWOO_Orders::get_correios_orders();
+$payments_pending_orders = PPWOO_Orders::get_pending_payment_orders();
 $total_pending_orders = PPWOO_Orders::get_total_pending_orders();
 
 // Painel de debug se ativo
@@ -40,6 +41,7 @@ if (PPWOO_Config::is_debug()) {
     <div class="painel-tabs">
         <button class="tab-button" data-tab="motoboy"><?php esc_html_e('Motoboy', 'painel-empacotamento'); ?> (<?php echo count($motoboy_orders); ?>)</button>
         <button class="tab-button" data-tab="correios"><?php esc_html_e('Correios', 'painel-empacotamento'); ?> (<?php echo count($correios_orders); ?>)</button>
+        <button class="tab-button" data-tab="pagamentos"><?php esc_html_e('Pagamentos Pendentes', 'painel-empacotamento'); ?> (<?php echo count($payments_pending_orders); ?>)</button>
     </div>
 
     <!-- Aba Motoboy -->
@@ -355,6 +357,65 @@ if (PPWOO_Config::is_debug()) {
             </div>
         <?php else : ?>
             <p class="sem-pedidos"><?php esc_html_e('Nenhum pedido de Correios pendente para empacotamento.', 'painel-empacotamento'); ?></p>
+        <?php endif; ?>
+    </div>
+
+    <!-- Aba Pagamentos Pendentes -->
+    <div id="tab-pagamentos" class="tab-content">
+        <?php if (!empty($payments_pending_orders)) : ?>
+            <div class="ppwoo-payments-pending">
+                <table class="widefat striped">
+                    <thead>
+                        <tr>
+                            <th><?php esc_html_e('Pedido', 'painel-empacotamento'); ?></th>
+                            <th><?php esc_html_e('Data / Hora', 'painel-empacotamento'); ?></th>
+                            <th><?php esc_html_e('Valor', 'painel-empacotamento'); ?></th>
+                            <th><?php esc_html_e('Frete', 'painel-empacotamento'); ?></th>
+                            <th><?php esc_html_e('Cliente', 'painel-empacotamento'); ?></th>
+                            <th><?php esc_html_e('Identificador Pix', 'painel-empacotamento'); ?></th>
+                            <th><?php esc_html_e('Ações', 'painel-empacotamento'); ?></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($payments_pending_orders as $order) :
+                            $order_id = $order->get_id();
+                            $created = $order->get_date_created();
+                            $created_fmt = $created ? $created->date_i18n('d/m/Y H:i') : '';
+                            $client_name = PPWOO_Utils::get_billing_first_name($order) . ' ' . PPWOO_Utils::get_billing_last_name($order);
+                            $client_email = $order->get_billing_email();
+                            $pix_identifier = PPWOO_Utils::get_pix_identifier($order);
+                            ?>
+                            <tr data-order-id="<?php echo esc_attr($order_id); ?>">
+                                <td><?php echo esc_html($order_id); ?></td>
+                                <td><?php echo esc_html($created_fmt); ?></td>
+                                <td><?php echo wc_price(PPWOO_Utils::get_order_total($order)); ?></td>
+                                <td><?php echo wc_price(PPWOO_Utils::get_shipping_total($order)); ?></td>
+                                <td>
+                                    <div><?php echo esc_html($client_name); ?></div>
+                                    <div><?php echo esc_html($client_email); ?></div>
+                                </td>
+                                <td>
+                                    <div class="ppwoo-pix-identifier"><?php echo esc_html($pix_identifier); ?></div>
+                                </td>
+                                <td>
+                                    <button class="button ppwoo-btn-confirm-payment" style="background:#2e7d32 !important;color:#fff !important;">
+                                        <?php esc_html_e('Confirmar pagamento', 'painel-empacotamento'); ?>
+                                    </button>
+                                    <button class="button ppwoo-btn-deny-payment" style="background:#c62828 !important;color:#fff !important;">
+                                        <?php esc_html_e('Negar pagamento', 'painel-empacotamento'); ?>
+                                    </button>
+                                    <span class="ppwoo-payment-loading" style="display:none;">
+                                        <span class="dashicons dashicons-update spin"></span>
+                                        <?php esc_html_e('Processando...', 'painel-empacotamento'); ?>
+                                    </span>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+        <?php else : ?>
+            <p class="sem-pedidos"><?php esc_html_e('Nenhum pagamento pendente encontrado.', 'painel-empacotamento'); ?></p>
         <?php endif; ?>
     </div>
 

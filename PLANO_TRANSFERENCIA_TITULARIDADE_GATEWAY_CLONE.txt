@@ -1,0 +1,92 @@
+PLANO DE TRANSFERENCIA DE TITULARIDADE - GATEWAY CLONE (PIX VIA WEBHOOK)
+
+Objetivo
+- Separar o gateway clone em um novo repositorio, removendo qualquer dependencia de "Asaas",
+  e publicar como um novo plugin de gateway WooCommerce sob a titularidade do projeto atual.
+- Garantir compatibilidade com o padrao de releases do time (Git Updater + Auto Tag).
+
+Contexto (referencia de header do plugin)
+- Basear o preenchimento do cabecalho do plugin seguindo o modelo de:
+  C:\Users\Dell\Desktop\checkout-tabs-wp-ml-2026\checkout-tabs-wp-ml.php
+- Campos obrigatorios no cabecalho (exemplo de estrutura):
+  Plugin Name: NOME_DO_PLUGIN
+  Plugin URI: https://github.com/OWNER/REPO
+  Description: DESCRICAO_CURTA
+  Version: X.Y.Z
+  Author: NOME_DO_TIME
+  Author URI: https://github.com/OWNER
+  License: GPL2
+  Text Domain: slug-do-plugin
+  GitHub Plugin URI: OWNER/REPO
+  Primary Branch: develop
+
+Escopo da transferencia
+1) Remover referencias a Asaas
+2) Renomear tudo para a nova identidade
+3) Ajustar automacao de release
+4) Garantir padrao de Git Updater e cache
+
+1) Remover referencias a Asaas
+- Substituir namespaces, classes, textos e ids que contenham "Asaas".
+- Exemplo de alvos (nao exaustivo):
+  - Namespace: WC_Asaas\... -> WC_NovoGateway\...
+  - Plugin Name/Description/Docs contendo "Asaas"
+  - Ids de gateway: asaas-pix, asaas-pix-clone, etc.
+  - Text Domain: woo-asaas
+  - Constantes e arquivos "woo-asaas"
+  - Metadados do pedido: _asaas_id, __ASAAS_ORDER
+- Substituir por nomes neutros do novo gateway.
+
+2) Renomear identidade do plugin
+- Nome do plugin, slug e dominio de texto devem ser unicos e sem "asaas".
+- Ajustar:
+  - Nome do plugin
+  - Slug de pasta
+  - Text Domain
+  - GitHub Plugin URI (novo owner/repo)
+  - Primary Branch (manter develop, se esse for o padrao)
+  - Version (SemVer)
+
+3) Ajustes de automacao (GitHub Actions)
+- O workflow de release deve estar em:
+  .github/workflows/release.yml
+- O arquivo principal do plugin deve conter:
+  - Version: X.Y.Z
+  - GitHub Plugin URI: owner/repo
+  - Primary Branch: develop
+- Referencia obrigatoria para configurar o workflow:
+  C:\Users\Dell\Desktop\plugins VIBE CODER\FRAME WORKS\FRAMEWORK-ACTION-AUTO-TAG-RELEASE-GITUPDATER.txt
+
+4) Padrao Git Updater + cache
+- Implementar o link "Atualizar Cache" no plugin_row_meta e o endpoint AJAX.
+- Referencia de implementacao:
+  C:\Users\Dell\Desktop\plugins VIBE CODER\FRAME WORKS\FRAMEWORK-ATUALIZAR-CACHE-GIT-UPDATER-PLUGIN-ROW-META.txt
+
+5) Variavel de ambiente do GitHub para publicar repo
+- A variavel GITHUB_TOKEN deve estar configurada no ambiente.
+- Referencia oficial interna:
+  C:\Users\Dell\Desktop\plugins VIBE CODER\FRAME WORKS\REFERENCIA-GITHUB_TOKEN-E-PUBLICACAO-REPO.txt
+
+Checklist tecnico de transferencia
+[ ] Criar novo repositorio no GitHub (owner correto)
+[ ] Definir slug e pasta do plugin (sem "asaas")
+[ ] Atualizar cabecalho do plugin conforme modelo
+[ ] Atualizar Text Domain
+[ ] Renomear namespaces/classes/constantes
+[ ] Renomear ids/metas do pedido
+[ ] Atualizar links e README/Docs (se houver)
+[ ] Revisar todos os arquivos por referencias a Asaas
+[ ] Configurar .github/workflows/release.yml
+[ ] Incluir padrao "Atualizar Cache" do Git Updater
+[ ] Validar versionamento SemVer
+[ ] Push inicial na branch develop
+[ ] Validar Action (Auto Tag + Release)
+
+Observacoes de compatibilidade
+- Manter o contrato do Pix (encodedImage/payload) para nao quebrar o thankyou.
+- Nao expor segredo em front-end; manter chamada server-side.
+- Evitar duplicacao de logicas com o plugin original.
+
+Resultado esperado
+- Plugin de gateway independente, sem dependencias do Asaas,
+  pronto para publicacao e updates via Git Updater.

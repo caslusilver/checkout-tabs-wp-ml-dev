@@ -416,6 +416,82 @@ class PPWOO_Utils {
         }
         return array();
     }
+
+    /**
+     * Obtém identificador Pix (payload ou chave) do meta do pedido.
+     *
+     * @param WC_Order $order
+     * @return string
+     */
+    public static function get_pix_identifier($order) {
+        if (!$order instanceof WC_Order) {
+            return '';
+        }
+
+        $meta_raw = $order->get_meta('__ASAAS_ORDER', true);
+        if (empty($meta_raw) || !is_string($meta_raw)) {
+            return '';
+        }
+
+        $decoded = json_decode($meta_raw);
+        if (!is_object($decoded)) {
+            return '';
+        }
+
+        if (!empty($decoded->payload)) {
+            return (string) $decoded->payload;
+        }
+
+        if (!empty($decoded->pixPayload)) {
+            return (string) $decoded->pixPayload;
+        }
+
+        if (!empty($decoded->chave_pix)) {
+            return (string) $decoded->chave_pix;
+        }
+
+        if (!empty($decoded->pixKey)) {
+            return (string) $decoded->pixKey;
+        }
+
+        return '';
+    }
+
+    /**
+     * Obtém o ID da cobrança Pix salvo no meta do pedido.
+     *
+     * @param WC_Order $order
+     * @return string
+     */
+    public static function get_payment_id_from_order($order) {
+        if (!$order instanceof WC_Order) {
+            return '';
+        }
+
+        $meta_raw = $order->get_meta('__ASAAS_ORDER', true);
+        if (empty($meta_raw) || !is_string($meta_raw)) {
+            return '';
+        }
+
+        $decoded = json_decode($meta_raw);
+        if (!is_object($decoded)) {
+            return '';
+        }
+
+        if (!empty($decoded->id)) {
+            return (string) $decoded->id;
+        }
+
+        if (!empty($decoded->payment_id)) {
+            return (string) $decoded->payment_id;
+        }
+
+        if (!empty($decoded->paymentId)) {
+            return (string) $decoded->paymentId;
+        }
+
+        return '';
+    }
     
     /**
      * Obtém os itens do pedido

@@ -348,6 +348,32 @@ class PPWOO_PackingPanel {
                 wp_send_json_success();
                 break;
 
+            case 'payment_confirm':
+                $result = PPWOO_Payments_Action_Service::send_payment_status($order, 'CONFIRMED');
+                if (is_wp_error($result)) {
+                    $status = 422;
+                    $data = $result->get_error_data();
+                    if (is_array($data) && isset($data['status_code'])) {
+                        $status = (int) $data['status_code'];
+                    }
+                    wp_send_json_error($result->get_error_message(), $status);
+                }
+                wp_send_json_success();
+                break;
+
+            case 'payment_deny':
+                $result = PPWOO_Payments_Action_Service::send_payment_status($order, 'OVERDUE');
+                if (is_wp_error($result)) {
+                    $status = 422;
+                    $data = $result->get_error_data();
+                    if (is_array($data) && isset($data['status_code'])) {
+                        $status = (int) $data['status_code'];
+                    }
+                    wp_send_json_error($result->get_error_message(), $status);
+                }
+                wp_send_json_success();
+                break;
+
             default:
                 wp_send_json_error('Tipo de webhook desconhecido.', 400);
         }

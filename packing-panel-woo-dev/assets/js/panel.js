@@ -88,8 +88,11 @@
     // --- Set initial active tab ---
     var hasMotoboyOrders = packingPanel.find('#tab-motoboy .motoboy-order').length > 0;
     var hasCorreiosOrders = packingPanel.find('#tab-correios .pedido-container').length > 0;
+    var hasPaymentsOrders = packingPanel.find('#tab-pagamentos tbody tr').length > 0;
 
-    if (hasMotoboyOrders) {
+    if (hasPaymentsOrders) {
+        packingPanel.find('.painel-tabs .tab-button[data-tab="pagamentos"]').trigger('click');
+    } else if (hasMotoboyOrders) {
         packingPanel.find('.painel-tabs .tab-button[data-tab="motoboy"]').trigger('click');
     } else if (hasCorreiosOrders) {
         packingPanel.find('.painel-tabs .tab-button[data-tab="correios"]').trigger('click');
@@ -354,15 +357,60 @@
         });
     }, 10);
 
+    // --- Pagamentos Pendentes: Confirmar/Negar ---
+    $('#tab-pagamentos').on('click', '.ppwoo-btn-confirm-payment, .ppwoo-btn-deny-payment', function() {
+        var button = $(this);
+        var row = button.closest('tr');
+        var orderId = row.data('order-id');
+        var isConfirm = button.hasClass('ppwoo-btn-confirm-payment');
+        var webhookType = isConfirm ? 'payment_confirm' : 'payment_deny';
+        var loading = row.find('.ppwoo-payment-loading');
+
+        ppDebug.log("Ação de pagamento (" + webhookType + ") para pedido " + orderId);
+        row.find('.ppwoo-btn-confirm-payment, .ppwoo-btn-deny-payment').prop('disabled', true);
+        loading.show();
+
+        $.ajax({
+            url: ajaxUrl,
+            type: 'POST',
+            dataType: 'json',
+            data: {
+                action: ajaxAction,
+                nonce: nonce,
+                order_id: orderId,
+                webhook_type: webhookType
+            },
+            success: function(response) {
+                if (response.success) {
+                    ppDebug.log('Pagamento atualizado para pedido ' + orderId + '. Removendo linha.');
+                    row.remove();
+                    updateCounts();
+                } else {
+                    alert('Erro ao atualizar pagamento: ' + (response.data || 'Erro desconhecido'));
+                    row.find('.ppwoo-btn-confirm-payment, .ppwoo-btn-deny-payment').prop('disabled', false);
+                    loading.hide();
+                }
+            },
+            error: function(jqXHR) {
+                ppDebug.log('Erro AJAX ao atualizar pagamento: ' + jqXHR.responseText);
+                alert('Erro na requisição AJAX para atualizar pagamento.');
+                row.find('.ppwoo-btn-confirm-payment, .ppwoo-btn-deny-payment').prop('disabled', false);
+                loading.hide();
+            }
+        });
+    });
+
     // --- Function to update counts ---
     function updateCounts() {
         var totalMotoboy = $('#tab-motoboy .motoboy-order').length;
         var totalCorreios = $('#tab-correios .pedido-container').length;
-        var totalPending = totalMotoboy + totalCorreios;
+        var totalPagamentos = $('#tab-pagamentos tbody tr').length;
+        var totalPending = totalMotoboy + totalCorreios + totalPagamentos;
 
         $('.status-info .pendentes').text(totalPending + ' pedidos pendentes');
         $('.tab-button[data-tab="motoboy"]').text('Motoboy (' + totalMotoboy + ')');
         $('.tab-button[data-tab="correios"]').text('Correios (' + totalCorreios + ')');
+        $('.tab-button[data-tab="pagamentos"]').text('Pagamentos Pendentes (' + totalPagamentos + ')');
 
         if (totalPending === 0) {
             $('.sem-pedidos-global').show().text('Nenhum pedido pendente para empacotamento.');
@@ -378,6 +426,11 @@
                 $('#tab-correios .sem-pedidos').show();
             } else {
                 $('#tab-correios .sem-pedidos').hide();
+            }
+            if (totalPagamentos === 0) {
+                $('#tab-pagamentos .sem-pedidos').show();
+            } else {
+                $('#tab-pagamentos .sem-pedidos').hide();
             }
         }
     }
