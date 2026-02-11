@@ -20,7 +20,7 @@ jobs:
       - name: Detect plugin version from main file
         id: get_version
         run: |
-          PLUGIN_FILE=$(grep -rl "Plugin Name:" --include="*.php" .)
+          PLUGIN_FILE="checkout-tabs-wp-ml.php"
           VERSION=$(grep -i "Version:" "$PLUGIN_FILE" | head -n 1 | awk -F': ' '{print $2}' | tr -d '\r')
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "plugin_file=$PLUGIN_FILE" >> $GITHUB_OUTPUT

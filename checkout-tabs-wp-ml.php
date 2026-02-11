@@ -3,7 +3,7 @@
  * Plugin Name: Checkout Tabs WP ML
  * Plugin URI: https://github.com/caslusilver/checkout-tabs-wp-ml-dev
  * Description: Abas no checkout do WooCommerce (checkout clássico) com consulta de frete via webhook e integração em WC_Session.
- * Version: 3.2.112
+ * Version: 3.2.113
  * Author: Lucas Andrade / AI
  * Author URI: https://github.com/caslusilver
  * License: GPL2
@@ -26,6 +26,7 @@ define('CHECKOUT_TABS_WP_ML_PACKING_PANEL_URL', CHECKOUT_TABS_WP_ML_URL . 'packi
 require_once CHECKOUT_TABS_WP_ML_DIR . 'inc/version.php';
 require_once CHECKOUT_TABS_WP_ML_DIR . 'inc/settings.php';
 require_once CHECKOUT_TABS_WP_ML_DIR . 'inc/admin/menu.php';
+require_once CHECKOUT_TABS_WP_ML_DIR . 'inc/admin/install-debug.php';
 require_once CHECKOUT_TABS_WP_ML_DIR . 'inc/frontend/login-popup.php';
 require_once CHECKOUT_TABS_WP_ML_DIR . 'inc/frontend/addresses-api.php';
 require_once CHECKOUT_TABS_WP_ML_DIR . 'inc/frontend/guest-checkout.php';
