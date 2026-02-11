@@ -114,6 +114,13 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
 #### Protocol: ee78e51
 
+## [v3.2.114] - 2026-02-11
+
+### Changed
+- bump de versão para forçar atualização via Git Updater e garantir entrega do painel atualizado.
+
+#### Protocol: 0ac1690
+
 ## [v3.2.113] - 2026-02-10
 
 ### Changed
@@ -124,7 +131,7 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 ## [Unreleased]
 
 ### Changed
-- **Versão atual**: v3.2.113  
+- **Versão atual**: v3.2.114  
   **Versão sugerida após a mudança**: vX.Y.Z  
   **Descrição**: texto objetivo do que mudou e impacto (pode listar itens separados por ponto e vírgula).
 
