@@ -30,7 +30,7 @@ class PPWOO_Admin_Connection_Tab {
      */
     public static function render() {
         // Processa o formulário se foi submetido
-        if (isset($_POST['ppwoo_save_webhook']) && check_admin_referer('ppwoo_save_webhook', 'ppwoo_webhook_nonce')) {
+        if ($_SERVER['REQUEST_METHOD'] === 'POST' && check_admin_referer('ppwoo_save_webhook', 'ppwoo_webhook_nonce')) {
             self::save_webhook_url();
             self::save_external_webhook_settings();
             self::save_payments_webhook_settings();
@@ -84,7 +84,7 @@ class PPWOO_Admin_Connection_Tab {
                                name="ppwoo_payments_webhook_url"
                                value="<?php echo esc_url($payments_webhook_url); ?>"
                                class="regular-text"
-                               placeholder="https://webhook.cubensisstore.com.br/webhook/invoices" />
+                               placeholder="https://webhook.cubensisstore.com.br/webhook/payment-confirmed" />
                         <p class="description"><?php esc_html_e('Webhook usado para confirmar/negar pagamentos pendentes.', 'painel-empacotamento'); ?></p>
                     </td>
                 </tr>

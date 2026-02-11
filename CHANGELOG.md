@@ -114,6 +114,13 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
 #### Protocol: ee78e51
 
+## [v3.2.120] - 2026-02-11
+
+### Changed
+- atualiza webhook default de pagamentos para payment-confirmed e corrige salvamento da aba Conexao.
+
+#### Protocol: pending
+
 ## [v3.2.119] - 2026-02-11
 
 ### Changed
@@ -166,7 +173,7 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 ## [Unreleased]
 
 ### Changed
-- **Versão atual**: v3.2.119  
+- **Versão atual**: v3.2.120  
   **Versão sugerida após a mudança**: vX.Y.Z  
   **Descrição**: texto objetivo do que mudou e impacto (pode listar itens separados por ponto e vírgula).
 
