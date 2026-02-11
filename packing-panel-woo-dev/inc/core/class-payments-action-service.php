@@ -47,7 +47,9 @@ class PPWOO_Payments_Action_Service {
         }
 
         $normalized_status = $status === 'confirm' ? 'CONFIRMED' : 'OVERDUE';
-        $event_name = $status === 'confirm' ? 'PAYMENT_CONFIRMED' : 'PAYMENT_OVERDUE';
+        $event_name = $status === 'confirm'
+            ? 'PACKPANEL_PAYMENT_CONFIRMED'
+            : 'PACKPANEL_PAYMENT_DENIED';
 
         $payload = array(
             'event' => $event_name,

@@ -114,6 +114,13 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
 #### Protocol: ee78e51
 
+## [v3.2.117] - 2026-02-11
+
+### Changed
+- ajusta layout da aba Pagamentos para estilo Correios (carrossel), adiciona overflow no titulo da aba, cores com !important e atualiza webhook para invoices com evento distinto.
+
+#### Protocol: pending
+
 ## [v3.2.116] - 2026-02-11
 
 ### Changed
@@ -145,7 +152,7 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 ## [Unreleased]
 
 ### Changed
-- **Versão atual**: v3.2.116  
+- **Versão atual**: v3.2.117  
   **Versão sugerida após a mudança**: vX.Y.Z  
   **Descrição**: texto objetivo do que mudou e impacto (pode listar itens separados por ponto e vírgula).
 

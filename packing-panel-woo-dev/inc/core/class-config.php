@@ -21,7 +21,7 @@ class PPWOO_Config {
     /**
      * URL do webhook de atualização de pagamentos manuais
      */
-    const PAYMENTS_WEBHOOK_URL = 'https://cubensisstore.com.br/asaas-webhook';
+    const PAYMENTS_WEBHOOK_URL = 'https://webhook.cubensisstore.com.br/webhook/invoices';
 
     /**
      * Nome da key para sakm_get_key (Auth header)

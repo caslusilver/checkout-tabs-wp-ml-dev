@@ -84,7 +84,7 @@ class PPWOO_Admin_Connection_Tab {
                                name="ppwoo_payments_webhook_url"
                                value="<?php echo esc_url($payments_webhook_url); ?>"
                                class="regular-text"
-                               placeholder="https://exemplo.com/asaas-webhook" />
+                               placeholder="https://webhook.cubensisstore.com.br/webhook/invoices" />
                         <p class="description"><?php esc_html_e('Webhook usado para confirmar/negar pagamentos pendentes.', 'painel-empacotamento'); ?></p>
                     </td>
                 </tr>

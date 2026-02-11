@@ -363,43 +363,56 @@ if (PPWOO_Config::is_debug()) {
     <!-- Aba Pagamentos Pendentes -->
     <div id="tab-pagamentos" class="tab-content">
         <?php if (!empty($pending_payment_orders)) : ?>
-            <div class="pagamentos-pendentes">
-                <table class="ppwoo-table">
-                    <thead>
-                        <tr>
-                            <th><?php esc_html_e('Pedido', 'painel-empacotamento'); ?></th>
-                            <th><?php esc_html_e('Data/Hora', 'painel-empacotamento'); ?></th>
-                            <th><?php esc_html_e('Valor', 'painel-empacotamento'); ?></th>
-                            <th><?php esc_html_e('Frete', 'painel-empacotamento'); ?></th>
-                            <th><?php esc_html_e('Cliente', 'painel-empacotamento'); ?></th>
-                            <th><?php esc_html_e('Pix (identificador)', 'painel-empacotamento'); ?></th>
-                            <th><?php esc_html_e('Ações', 'painel-empacotamento'); ?></th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ($pending_payment_orders as $order) : ?>
-                            <?php
-                            $order_id = $order->get_id();
-                            $created = $order->get_date_created();
-                            $created_display = $created ? $created->date_i18n('d/m/Y H:i') : '';
-                            $client_name = trim(PPWOO_Utils::get_billing_first_name($order) . ' ' . PPWOO_Utils::get_billing_last_name($order));
-                            $pix_identifier = PPWOO_Utils::get_pix_identifier($order);
-                            ?>
-                            <tr data-order-id="<?php echo esc_attr($order_id); ?>">
-                                <td>#<?php echo esc_html($order_id); ?></td>
-                                <td><?php echo esc_html($created_display); ?></td>
-                                <td><?php echo wc_price($order->get_total()); ?></td>
-                                <td><?php echo wc_price($order->get_shipping_total()); ?></td>
-                                <td><?php echo esc_html($client_name); ?></td>
-                                <td><code><?php echo esc_html($pix_identifier); ?></code></td>
-                                <td class="ppwoo-payments-actions">
-                                    <button class="button ppwoo-btn-confirm-payment"><?php esc_html_e('Confirmar pagamento', 'painel-empacotamento'); ?></button>
-                                    <button class="button ppwoo-btn-deny-payment"><?php esc_html_e('Negar pagamento', 'painel-empacotamento'); ?></button>
-                                </td>
-                            </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
+            <div class="pagamentos-carousel-wrapper">
+                <div class="pagamentos-carousel">
+                    <?php foreach ($pending_payment_orders as $order) : ?>
+                        <?php
+                        $order_id = $order->get_id();
+                        $created = $order->get_date_created();
+                        $created_display = $created ? $created->date_i18n('d/m/Y H:i') : '';
+                        $client_name = trim(PPWOO_Utils::get_billing_first_name($order) . ' ' . PPWOO_Utils::get_billing_last_name($order));
+                        $pix_identifier = PPWOO_Utils::get_pix_identifier($order);
+                        ?>
+                        <div class="pedido-container carousel-item" data-order-id="<?php echo esc_attr($order_id); ?>">
+                            <div class="order-header">
+                                <h3>Pedido #<?php echo esc_html($order_id); ?></h3>
+                                <span class="metodo-envio pagamentos"><?php esc_html_e('Pagamento Pendente', 'painel-empacotamento'); ?></span>
+                            </div>
+
+                            <div class="order-client-info">
+                                <h4><?php esc_html_e('Cliente', 'painel-empacotamento'); ?>:</h4>
+                                <p><?php echo esc_html($client_name); ?></p>
+                                <h4><?php esc_html_e('Data/Hora', 'painel-empacotamento'); ?>:</h4>
+                                <p><?php echo esc_html($created_display); ?></p>
+                            </div>
+
+                            <div class="order-values">
+                                <p><strong><?php esc_html_e('Total Pedido', 'painel-empacotamento'); ?>:</strong> <?php echo wc_price($order->get_total()); ?></p>
+                                <p><strong><?php esc_html_e('Total Frete', 'painel-empacotamento'); ?>:</strong> <?php echo wc_price($order->get_shipping_total()); ?></p>
+                            </div>
+
+                            <div class="order-address">
+                                <h4><?php esc_html_e('Pix (identificador)', 'painel-empacotamento'); ?>:</h4>
+                                <p class="pix-to-copy"><?php echo esc_html($pix_identifier); ?></p>
+                            </div>
+
+                            <div class="order-actions">
+                                <button class="slide-button ppwoo-btn-confirm-payment"><?php esc_html_e('Confirmar pagamento', 'painel-empacotamento'); ?></button>
+                                <button class="slide-button ppwoo-btn-deny-payment"><?php esc_html_e('Negar pagamento', 'painel-empacotamento'); ?></button>
+                                <div class="loading-indicator" style="display: none;">
+                                    <span class="dashicons dashicons-update spin"></span>
+                                    <?php esc_html_e('Processando...', 'painel-empacotamento'); ?>
+                                </div>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+                <?php if (count($pending_payment_orders) > 1) : ?>
+                    <div class="carousel-navigation">
+                        <button class="nav-prev"><?php esc_html_e('Anterior', 'painel-empacotamento'); ?></button>
+                        <button class="nav-next"><?php esc_html_e('Próximo', 'painel-empacotamento'); ?></button>
+                    </div>
+                <?php endif; ?>
             </div>
         <?php else : ?>
             <p class="sem-pedidos"><?php esc_html_e('Nenhum pagamento pendente encontrado.', 'painel-empacotamento'); ?></p>

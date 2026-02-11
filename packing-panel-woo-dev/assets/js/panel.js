@@ -88,7 +88,7 @@
     // --- Set initial active tab ---
     var hasMotoboyOrders = packingPanel.find('#tab-motoboy .motoboy-order').length > 0;
     var hasCorreiosOrders = packingPanel.find('#tab-correios .pedido-container').length > 0;
-    var hasPagamentosOrders = packingPanel.find('#tab-pagamentos tbody tr').length > 0;
+    var hasPagamentosOrders = packingPanel.find('#tab-pagamentos .pedido-container').length > 0;
 
     if (hasPagamentosOrders) {
         packingPanel.find('.painel-tabs .tab-button[data-tab="pagamentos"]').trigger('click');
@@ -361,7 +361,7 @@
     function updateCounts() {
         var totalMotoboy = $('#tab-motoboy .motoboy-order').length;
         var totalCorreios = $('#tab-correios .pedido-container').length;
-        var totalPagamentos = $('#tab-pagamentos tbody tr').length;
+        var totalPagamentos = $('#tab-pagamentos .pedido-container').length;
         var totalPending = totalMotoboy + totalCorreios + totalPagamentos;
 
         $('.status-info .pendentes').text(totalPending + ' pedidos pendentes');
@@ -388,14 +388,15 @@
     }
     updateCounts();
 
-    // --- Pagamentos Pendentes ---
+    // --- Pagamentos Pendentes (carousel) ---
     function handlePaymentAction(button, actionType) {
         var $button = $(button);
-        var $row = $button.closest('tr');
-        var orderId = $row.data('order-id');
-        var originalText = $button.text();
+        var $card = $button.closest('.pedido-container');
+        var orderId = $card.data('order-id');
+        var $actionArea = $card.find('.order-actions');
 
-        $button.prop('disabled', true).text(packingPanelVars && packingPanelVars.processing_text ? packingPanelVars.processing_text : 'Processando...');
+        $actionArea.find('button').prop('disabled', true);
+        $actionArea.find('.loading-indicator').show();
 
         $.ajax({
             url: ajaxUrl,
@@ -409,19 +410,22 @@
             },
             success: function(response) {
                 if (response.success) {
-                    $row.addClass('removing').on('transitionend', function() {
+                    $card.addClass('removing').on('transitionend', function() {
                         $(this).remove();
                         updateCounts();
+                        refreshPagamentosCarousel();
                     });
                 } else {
                     alert('Erro ao atualizar pagamento: ' + (response.data || 'Erro desconhecido'));
-                    $button.prop('disabled', false).text(originalText);
+                    $actionArea.find('.loading-indicator').hide();
+                    $actionArea.find('button').prop('disabled', false);
                 }
             },
             error: function(jqXHR) {
                 ppDebug.log('Erro AJAX ao atualizar pagamento: ' + jqXHR.responseText);
                 alert('Erro na requisição AJAX para atualizar pagamento.');
-                $button.prop('disabled', false).text(originalText);
+                $actionArea.find('.loading-indicator').hide();
+                $actionArea.find('button').prop('disabled', false);
             }
         });
     }
@@ -433,6 +437,71 @@
     $('#tab-pagamentos').on('click', '.ppwoo-btn-deny-payment', function() {
         handlePaymentAction(this, 'payment_deny');
     });
+
+    function refreshPagamentosCarousel() {
+        var $tab = $('#tab-pagamentos');
+        var $carouselContainer = $tab.find('.pagamentos-carousel');
+        var $slides = $carouselContainer.find('.pedido-container');
+        var totalSlides = $slides.length;
+
+        $slides.removeClass('current');
+        if (totalSlides > 0) {
+            $slides.eq(0).addClass('current');
+        }
+
+        if (totalSlides <= 1) {
+            $tab.find('.carousel-navigation').hide();
+        } else {
+            $tab.find('.carousel-navigation').show();
+            $tab.find('.nav-prev').prop('disabled', true);
+            $tab.find('.nav-next').prop('disabled', false);
+        }
+    }
+
+    // --- Pagamentos Carousel ---
+    setTimeout(function() {
+        $('#tab-pagamentos').each(function() {
+            var $tab = $(this);
+            var $carouselContainer = $tab.find('.pagamentos-carousel');
+            var $slides = $carouselContainer.find('.pedido-container');
+            var currentIndex = 0;
+
+            if ($slides.length === 0) {
+                $tab.find('.pagamentos-carousel-wrapper').hide();
+            } else {
+                showSlide(0);
+            }
+
+            function showSlide(index) {
+                $slides = $carouselContainer.find('.pedido-container');
+                var totalSlides = $slides.length;
+                if (totalSlides === 0) {
+                    $tab.find('.pagamentos-carousel-wrapper').hide();
+                    $tab.find('.sem-pedidos').show();
+                    return;
+                }
+
+                currentIndex = Math.max(0, Math.min(index, totalSlides - 1));
+                $slides.removeClass('current').eq(currentIndex).addClass('current');
+
+                if (totalSlides <= 1) {
+                    $tab.find('.carousel-navigation').hide();
+                } else {
+                    $tab.find('.carousel-navigation').show();
+                    $tab.find('.nav-prev').prop('disabled', currentIndex === 0);
+                    $tab.find('.nav-next').prop('disabled', currentIndex === totalSlides - 1);
+                }
+            }
+
+            $tab.on('click', '.nav-next', function() {
+                showSlide(currentIndex + 1);
+            });
+
+            $tab.on('click', '.nav-prev', function() {
+                showSlide(currentIndex - 1);
+            });
+        });
+    }, 10);
 
     // --- Máscara para WhatsApp do Motoboy ---
     function applyWhatsAppMask(input) {

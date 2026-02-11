@@ -66,6 +66,10 @@
     border-bottom: 2px solid transparent;
     color: #555;
     outline: none;
+    max-width: 220px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .painel-tabs .tab-button:hover {
@@ -586,6 +590,166 @@
     transition: background-color 0.2s ease, opacity 0.2s ease;
 }
 
+/* --- Pagamentos Tab Styles (Carousel) --- */
+#tab-pagamentos .pagamentos-carousel-wrapper {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-medium);
+}
+
+#tab-pagamentos .pagamentos-carousel {
+    position: relative;
+    min-height: 450px;
+    border: 1px dashed var(--cor-borda);
+    padding: var(--spacing-medium);
+    overflow: hidden;
+}
+
+#tab-pagamentos .pedido-container {
+    position: absolute;
+    top: var(--spacing-medium);
+    left: var(--spacing-medium);
+    width: calc(100% - (var(--spacing-medium) * 2));
+    height: calc(100% - (var(--spacing-medium) * 2));
+    opacity: 0;
+    transition: transform 0.5s ease, opacity 0.5s ease;
+    background-color: #fff;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-small);
+    overflow-y: auto;
+    border-radius: 4px;
+}
+
+#tab-pagamentos .pedido-container.removing {
+    opacity: 0 !important;
+    transition: opacity 0.3s ease;
+}
+
+#tab-pagamentos .pedido-container.current {
+    position: relative;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    padding: var(--spacing-medium);
+    transform: translateX(0);
+    opacity: 1;
+    z-index: 1;
+    box-shadow: 0 0 8px rgba(0, 0, 0, 0.1);
+}
+
+#tab-pagamentos .order-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: var(--spacing-small);
+    border-bottom: 1px dashed var(--cor-borda);
+}
+
+#tab-pagamentos .order-header h3 {
+    margin: 0;
+    font-size: 1.5em;
+    color: var(--cor-primaria);
+}
+
+#tab-pagamentos h4 {
+    margin-top: 0;
+    margin-bottom: 4px;
+    font-size: 1.1em;
+    color: #444;
+}
+
+#tab-pagamentos .metodo-envio {
+    display: inline-block;
+    padding: 4px 8px;
+    font-size: 0.9em;
+    font-weight: bold;
+    color: #fff;
+    border-radius: 3px;
+    text-transform: uppercase;
+    background: var(--cor-aviso);
+}
+
+#tab-pagamentos .order-actions {
+    margin-top: auto;
+    padding-top: var(--spacing-medium);
+    border-top: 1px dashed var(--cor-borda);
+}
+
+#tab-pagamentos .ppwoo-btn-confirm-payment,
+#tab-pagamentos .ppwoo-btn-deny-payment {
+    display: block;
+    width: 100%;
+    padding: var(--spacing-medium) var(--spacing-large);
+    border: none;
+    border-radius: 4px;
+    font-size: 1.1em;
+    font-weight: bold;
+    cursor: pointer;
+    color: #fff !important;
+    text-align: center;
+    transition: background-color 0.3s ease, opacity 0.2s ease;
+    margin-top: var(--spacing-small);
+}
+
+#tab-pagamentos .ppwoo-btn-confirm-payment {
+    background: var(--cor-sucesso) !important;
+}
+
+#tab-pagamentos .ppwoo-btn-deny-payment {
+    background: var(--cor-erro) !important;
+}
+
+#tab-pagamentos .ppwoo-btn-confirm-payment:hover,
+#tab-pagamentos .ppwoo-btn-deny-payment:hover {
+    opacity: 0.9;
+}
+
+#tab-pagamentos .order-actions .loading-indicator {
+    text-align: center;
+    margin-top: var(--spacing-medium);
+    font-weight: bold;
+    color: var(--cor-primaria);
+    display: none;
+}
+
+#tab-pagamentos .carousel-navigation {
+    text-align: center;
+    margin-top: var(--spacing-medium);
+    display: flex;
+    justify-content: center;
+    gap: var(--spacing-medium);
+}
+
+#tab-pagamentos .carousel-navigation button {
+    padding: var(--spacing-small) var(--spacing-medium);
+    cursor: pointer;
+    border: none;
+    background-color: var(--cor-sucesso) !important;
+    color: #000 !important;
+    border-radius: 4px;
+    font-size: 1em;
+    font-weight: bold;
+    transition: background-color 0.2s ease, opacity 0.2s ease;
+}
+
+#tab-pagamentos .carousel-navigation button:hover {
+    opacity: 0.85;
+}
+
+#tab-pagamentos .carousel-navigation button:active {
+    opacity: 0.7;
+}
+
+#tab-pagamentos .carousel-navigation button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    background-color: #ccc !important;
+    color: #666 !important;
+}
+
 #tab-correios .carousel-navigation button:hover {
     opacity: 0.85;
 }
@@ -828,6 +992,34 @@
     }
 
     #tab-correios .carousel-navigation button {
+        font-size: 0.9em;
+        padding: 6px 10px;
+    }
+
+    #tab-pagamentos .pagamentos-carousel {
+        min-height: 350px;
+        padding: var(--spacing-small);
+    }
+
+    #tab-pagamentos .pedido-container.current {
+        padding: var(--spacing-small);
+    }
+
+    #tab-pagamentos .order-header h3 {
+        font-size: 1.3em;
+    }
+
+    #tab-pagamentos h4 {
+        font-size: 1em;
+    }
+
+    #tab-pagamentos .ppwoo-btn-confirm-payment,
+    #tab-pagamentos .ppwoo-btn-deny-payment {
+        padding: var(--spacing-small);
+        font-size: 1em;
+    }
+
+    #tab-pagamentos .carousel-navigation button {
         font-size: 0.9em;
         padding: 6px 10px;
     }
