@@ -1,16 +1,14 @@
 <?php
 /**
  * Plugin Name: Painel de Empacotamento Woo
- * Plugin URI: https://github.com/caslusilver/packing-panel-woo-dev
+ * Plugin URI: https://cubensisstore.com.br
  * Description: Painel administrativo de empacotamento para pedidos via WooCommerce, com abas Motoboy e Correios, workflow e integração com webhooks externos.
- * Version: 0.3.3
+ * Version: 0.3.5
  * Author: Lucas Andrade / AI
  * Author URI: https://github.com/caslusilver
  * License: GPL2
  * Text Domain: painel-empacotamento
  *
- * GitHub Plugin URI: caslusilver/packing-panel-woo-dev
- * Primary Branch: develop
  */
 
 if (!defined('ABSPATH')) exit;

@@ -114,6 +114,13 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
 #### Protocol: ee78e51
 
+## [v3.2.115] - 2026-02-11
+
+### Changed
+- remove vinculo do PackPanel embutido ao repo original (headers Git Updater) e bump de versão para teste de atualização via plugin principal.
+
+#### Protocol: 28652dc
+
 ## [v3.2.114] - 2026-02-11
 
 ### Changed
@@ -131,7 +138,7 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 ## [Unreleased]
 
 ### Changed
-- **Versão atual**: v3.2.114  
+- **Versão atual**: v3.2.115  
   **Versão sugerida após a mudança**: vX.Y.Z  
   **Descrição**: texto objetivo do que mudou e impacto (pode listar itens separados por ponto e vírgula).
 
