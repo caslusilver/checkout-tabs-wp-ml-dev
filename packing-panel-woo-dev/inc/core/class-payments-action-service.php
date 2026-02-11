@@ -41,33 +41,35 @@ class PPWOO_Payments_Action_Service {
             return new WP_Error('missing_auth_key', 'Chave de autenticação não encontrada.');
         }
 
-        $payment_id = PPWOO_Utils::get_payment_id_from_order($order);
-        if (empty($payment_id)) {
-            return new WP_Error('missing_payment_id', 'Payment ID não encontrado no pedido.');
-        }
-
         $normalized_status = $status === 'confirm' ? 'CONFIRMED' : 'OVERDUE';
         $event_name = $status === 'confirm'
             ? 'PACKPANEL_PAYMENT_CONFIRMED'
             : 'PACKPANEL_PAYMENT_DENIED';
 
+        $created = $order->get_date_created();
+        $created_iso = $created ? $created->date('c') : '';
+        $client_name = trim(
+            PPWOO_Utils::get_billing_first_name($order) . ' ' . PPWOO_Utils::get_billing_last_name($order)
+        );
+        $pix_identifier = PPWOO_Utils::get_pix_identifier($order);
+
         $payload = array(
             'event' => $event_name,
-            'payment' => array(
-                'id' => $payment_id,
-                'status' => $normalized_status,
-            ),
             'order' => array(
                 'id' => $order->get_id(),
                 'order_key' => $order->get_order_key(),
                 'total' => $order->get_total(),
+                'shipping_total' => $order->get_shipping_total(),
+                'created_at' => $created_iso,
+            ),
+            'customer' => array(
+                'name' => $client_name,
+            ),
+            'payment' => array(
+                'status' => $normalized_status,
+                'pix_identifier' => $pix_identifier,
             ),
         );
-
-        $pix_identifier = PPWOO_Utils::get_pix_identifier($order);
-        if (!empty($pix_identifier)) {
-            $payload['payment']['pix_identifier'] = $pix_identifier;
-        }
 
         $response = wp_remote_post($webhook_url, array(
             'headers' => array(
