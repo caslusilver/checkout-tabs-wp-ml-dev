@@ -114,17 +114,10 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
 #### Protocol: ee78e51
 
-## [v3.2.113] - 2026-02-10
-
-### Changed
-- ajusta workflow de release para usar arquivo principal fixo; adiciona diagnóstico de instalação/ativação no console do admin com informações do PackPanel e dependências.
-
-#### Protocol: 5ef24e6
-
 ## [Unreleased]
 
 ### Changed
-- **Versão atual**: v3.2.113  
+- **Versão atual**: v3.2.112  
   **Versão sugerida após a mudança**: vX.Y.Z  
   **Descrição**: texto objetivo do que mudou e impacto (pode listar itens separados por ponto e vírgula).
 
