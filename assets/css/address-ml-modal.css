@@ -1020,6 +1020,15 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
   background: #fafafa;
 }
 
+.ctwpml-payment-option.is-disabled {
+  cursor: wait;
+  opacity: 0.58;
+}
+
+.ctwpml-payment-option.is-disabled:hover {
+  background: inherit;
+}
+
 .ctwpml-payment-option-content {
   display: flex;
   align-items: center;

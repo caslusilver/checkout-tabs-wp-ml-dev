@@ -54,6 +54,25 @@ function ctwpml_get_wc_session() {
 	return WC()->session ?: null;
 }
 
+function ctwpml_ensure_wc_customer_session_cookie(): void {
+	if (!function_exists('WC') || !WC()) {
+		return;
+	}
+	try {
+		if (function_exists('wc_load_cart')) {
+			wc_load_cart();
+		}
+		if (!WC()->session && method_exists(WC(), 'initialize_session')) {
+			WC()->initialize_session();
+		}
+		if (WC()->session && method_exists(WC()->session, 'set_customer_session_cookie')) {
+			WC()->session->set_customer_session_cookie(true);
+		}
+	} catch (\Throwable $e) {
+		return;
+	}
+}
+
 function ctwpml_guest_session_get(string $key, $default = null) {
 	$session = ctwpml_get_wc_session();
 	if (!$session) {
@@ -64,6 +83,7 @@ function ctwpml_guest_session_get(string $key, $default = null) {
 }
 
 function ctwpml_guest_session_set(string $key, $value): void {
+	ctwpml_ensure_wc_customer_session_cookie();
 	$session = ctwpml_get_wc_session();
 	if (!$session) {
 		return;

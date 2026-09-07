@@ -114,6 +114,13 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
 #### Protocol: ee78e51
 
+## [v3.2.121] - 2026-09-07
+
+### Changed
+- reforça persistência e prontidão do checkout ML antes da revisão/finalização: bloqueia avanço rápido no pagamento enquanto Woo blocks carregam; reidrata faturamento a partir de snapshot, endereço selecionado e sessão; inclui faturamento/pagamento no gate do Review; garante cookie de sessão Woo para visitantes.
+
+#### Protocol: pending
+
 ## [v3.2.120] - 2026-02-11
 
 ### Changed
@@ -173,7 +180,7 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 ## [Unreleased]
 
 ### Changed
-- **Versão atual**: v3.2.120  
+- **Versão atual**: v3.2.121
   **Versão sugerida após a mudança**: vX.Y.Z  
   **Descrição**: texto objetivo do que mudou e impacto (pode listar itens separados por ponto e vírgula).
 

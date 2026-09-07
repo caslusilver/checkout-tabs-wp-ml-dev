@@ -27,6 +27,8 @@
     var CACHE_DURATION = 60000; // 1 minuto
     var isSavingAddress = false;
     var formDirty = false;
+    var paymentBlocksReady = false;
+    var paymentReviewTransitionInFlight = false;
 
     // =========================================================
     // STATE MACHINE DE CUPOM (hardening v4.2)
@@ -529,6 +531,8 @@
       pendingWooUpdate: false,
       totalsReady: false,
       appliedMatch: false,
+      billingReady: false,
+      paymentReady: false,
       startedAt: 0,
       timeoutMs: ctwpmlReviewGateDefaults.timeoutMs,
       pollMs: ctwpmlReviewGateDefaults.pollMs,
@@ -616,9 +620,49 @@
       }
     }
 
+    function ctwpmlReviewGateMarkBillingReady(source, snapshot) {
+      var gate = state.__ctwpmlReviewGate;
+      var snap = {};
+      var ready = false;
+      try {
+        snap = snapshot || ctwpmlReadBillingReadinessSnapshot();
+        ready = ctwpmlIsBillingReadinessReady(snap);
+      } catch (e0) {
+        snap = { error: String(e0 && e0.message ? e0.message : e0) };
+        ready = false;
+      }
+      gate.billingReady = !!ready;
+      if (typeof state.checkpoint === 'function') {
+        state.checkpoint('CHK_REVIEW_GATE_BILLING_READY', gate.billingReady, ctwpmlBillingReadinessSummary(snap, source));
+      }
+      return gate.billingReady;
+    }
+
+    function ctwpmlReviewGateMarkPaymentReady(source) {
+      var gate = state.__ctwpmlReviewGate;
+      var woo = window.CCCheckoutTabs && window.CCCheckoutTabs.WooHost ? window.CCCheckoutTabs.WooHost : null;
+      var gatewayId = '';
+      try {
+        if (woo && typeof woo.getSelectedGatewayId === 'function') {
+          gatewayId = String(woo.getSelectedGatewayId() || '');
+        }
+      } catch (e0) {
+        gatewayId = '';
+      }
+      gate.paymentReady = !!gatewayId;
+      if (typeof state.checkpoint === 'function') {
+        state.checkpoint('CHK_REVIEW_GATE_PAYMENT_READY', gate.paymentReady, {
+          source: String(source || ''),
+          hasGateway: !!gatewayId,
+          selectedPaymentMethod: String(state.selectedPaymentMethod || ''),
+        });
+      }
+      return gate.paymentReady;
+    }
+
     function ctwpmlReviewGateIsReady() {
       var gate = state.__ctwpmlReviewGate;
-      return !!(!gate.pendingWooUpdate && !gate.pendingShipping && gate.totalsReady && gate.appliedMatch);
+      return !!(!gate.pendingWooUpdate && !gate.pendingShipping && gate.totalsReady && gate.appliedMatch && gate.billingReady && gate.paymentReady);
     }
 
     function ctwpmlReviewGateApplyCtaState() {
@@ -641,6 +685,8 @@
           requested: gate.requestedMethod,
           applied: gate.appliedMethod,
           totalsReady: gate.totalsReady,
+          billingReady: gate.billingReady,
+          paymentReady: gate.paymentReady,
           source: gate.source,
         });
       }
@@ -668,6 +714,8 @@
           pendingShipping: gate.pendingShipping,
           pendingWooUpdate: gate.pendingWooUpdate,
           totalsReady: gate.totalsReady,
+          billingReady: gate.billingReady,
+          paymentReady: gate.paymentReady,
           source: gate.source,
         });
       }
@@ -686,6 +734,8 @@
       gate.timer = setTimeout(function () {
         ctwpmlReviewGateResolveAppliedMatch();
         ctwpmlReviewGateMarkTotalsReady(source || 'poll');
+        ctwpmlReviewGateMarkBillingReady(source || 'poll');
+        ctwpmlReviewGateMarkPaymentReady(source || 'poll');
         if (ctwpmlReviewGateIsReady()) {
           ctwpmlReviewGateFinish();
           return;
@@ -722,6 +772,12 @@
         if (Object.prototype.hasOwnProperty.call(opts || {}, 'totalsReady')) {
           gate.totalsReady = !!opts.totalsReady;
         }
+        if (Object.prototype.hasOwnProperty.call(opts || {}, 'billingReady')) {
+          gate.billingReady = !!opts.billingReady;
+        }
+        if (Object.prototype.hasOwnProperty.call(opts || {}, 'paymentReady')) {
+          gate.paymentReady = !!opts.paymentReady;
+        }
         if (!gate.timer) ctwpmlReviewGateSchedule('start_skip');
         return;
       }
@@ -733,10 +789,18 @@
         gate.timedOut = false;
       }
       opts = opts || {};
+      if (String(source || '') === 'review_entry') {
+        gate.startedAt = Date.now();
+        gate.timedOut = false;
+        gate.billingReady = false;
+        gate.paymentReady = false;
+      }
       if (Object.prototype.hasOwnProperty.call(opts, 'pendingShipping')) gate.pendingShipping = !!opts.pendingShipping;
       if (Object.prototype.hasOwnProperty.call(opts, 'pendingWooUpdate')) gate.pendingWooUpdate = !!opts.pendingWooUpdate;
       if (Object.prototype.hasOwnProperty.call(opts, 'totalsReady')) gate.totalsReady = !!opts.totalsReady;
       if (Object.prototype.hasOwnProperty.call(opts, 'appliedMatch')) gate.appliedMatch = !!opts.appliedMatch;
+      if (Object.prototype.hasOwnProperty.call(opts, 'billingReady')) gate.billingReady = !!opts.billingReady;
+      if (Object.prototype.hasOwnProperty.call(opts, 'paymentReady')) gate.paymentReady = !!opts.paymentReady;
       if (requestedNow) gate.requestedMethod = requestedNow;
       gate.lastStartKey = startKey;
       gate.lastStartAt = now;
@@ -749,6 +813,8 @@
           requested: gate.requestedMethod,
           pendingShipping: gate.pendingShipping,
           pendingWooUpdate: gate.pendingWooUpdate,
+          billingReady: gate.billingReady,
+          paymentReady: gate.paymentReady,
         });
       }
       ctwpmlReviewGateSchedule('start');
@@ -1699,6 +1765,26 @@
      * Esta tela mostra os métodos de pagamento disponíveis (Pix, Boleto, Cartão).
      * NOTA: Esta é apenas a estrutura visual, sem lógica de pagamento.
      */
+    function ctwpmlSetPaymentOptionsBusy(busy, reason) {
+      try {
+        var $options = $('.ctwpml-payment-option');
+        $options.toggleClass('is-disabled', !!busy);
+        $options.attr('aria-disabled', busy ? 'true' : 'false');
+        if (busy) {
+          $options.attr('data-ctwpml-busy', String(reason || 'busy'));
+        } else {
+          $options.removeAttr('data-ctwpml-busy');
+        }
+        if (typeof state.checkpoint === 'function') {
+          state.checkpoint('CHK_PAYMENT_OPTIONS_BUSY', true, {
+            busy: !!busy,
+            reason: String(reason || ''),
+            count: $options.length,
+          });
+        }
+      } catch (e0) {}
+    }
+
     function showPaymentScreen() {
       var log = function (msg, data) {
         if (typeof state.log === 'function') {
@@ -1711,6 +1797,7 @@
       log('showPaymentScreen() - INICIANDO');
 
       currentView = 'payment';
+      paymentBlocksReady = false;
       persistModalState({ view: 'payment' });
       // IMPORTANTE: a tela de pagamento é uma "view interna".
       // O header deve ser o do modal (sem header duplicado dentro do conteúdo).
@@ -1739,6 +1826,7 @@
           totalText: totals0.totalText || '',
         });
         $('#ctwpml-view-payment').html(html);
+        ctwpmlSetPaymentOptionsBusy(true, 'payment_blocks_loading');
         log('showPaymentScreen() - Tela renderizada com sucesso');
       } else {
         log('showPaymentScreen() - ERRO: renderPaymentScreen não disponível, usando fallback');
@@ -1753,6 +1841,8 @@
       if (woo && typeof woo.ensureBlocks === 'function') {
         woo.ensureBlocks().then(function () {
           applyPaymentAvailabilityAndSync();
+          paymentBlocksReady = true;
+          ctwpmlSetPaymentOptionsBusy(false, 'payment_blocks_ready');
           // Checkpoint: tela de pagamento renderizada
           if (typeof state.checkpoint === 'function') {
             var paymentHtml = $('#ctwpml-view-payment').html() || '';
@@ -1777,10 +1867,18 @@
           }
         }).catch(function (e) {
           log('WooHost.ensureBlocks() falhou', e);
+          paymentBlocksReady = false;
+          ctwpmlSetPaymentOptionsBusy(true, 'payment_blocks_error');
           if (typeof state.checkpoint === 'function') {
             state.checkpoint('CHK_PAYMENT_RENDERED', false, { error: e && e.message ? e.message : 'ensureBlocks falhou' });
           }
+          if (currentView === 'payment') {
+            showNotification('Não foi possível carregar as formas de pagamento. Recarregue e tente novamente.', 'error', 4500);
+          }
         });
+      } else {
+        paymentBlocksReady = !!woo;
+        ctwpmlSetPaymentOptionsBusy(!paymentBlocksReady, woo ? 'payment_blocks_fallback_ready' : 'payment_blocks_unavailable');
       }
     }
 
@@ -2566,7 +2664,8 @@
       ctwpmlSyncWooTerms(checked);
     }
 
-    function showReviewConfirmScreen() {
+    function showReviewConfirmScreen(opts) {
+      opts = opts || {};
       var woo = window.CCCheckoutTabs && window.CCCheckoutTabs.WooHost ? window.CCCheckoutTabs.WooHost : null;
 
       currentView = 'review';
@@ -2578,7 +2677,9 @@
       $('#ctwpml-view-shipping').hide();
       $('#ctwpml-view-payment').hide();
       $('#ctwpml-view-review').show();
+      $('#ctwpml-view-review').empty();
       setFooterVisible(false);
+      ctwpmlReviewGateEnsureLoading();
 
       var hasRenderReview = !!(
         window.CCCheckoutTabs &&
@@ -2761,26 +2862,43 @@
         }
       };
 
-      var requestedMethod = state.selectedShipping ? String(state.selectedShipping.methodId || '') : '';
-      var isWooUpdating = typeof state.isUpdateCheckoutInProgress === 'function' ? state.isUpdateCheckoutInProgress() : false;
-      ctwpmlReviewGateStart('review_entry', {
-        pendingWooUpdate: isWooUpdating,
-        pendingShipping: true,
-        totalsReady: false,
-        appliedMatch: false,
-        requestedMethod: requestedMethod,
-      });
-      ctwpmlReviewGateAttachCallbacks(function () {
-        startRender();
-      }, function () {
-        showNotification('O frete está demorando para sincronizar. Revise a entrega e tente novamente.', 'error', 4500);
-      });
-      ctwpmlReviewGateResolveAppliedMatch();
-      ctwpmlReviewGateMarkTotalsReady('review_entry');
-      if (ctwpmlReviewGateIsReady()) {
-        ctwpmlReviewGateFinish();
+      var beginReviewGate = function (billingSnapshot) {
+        var requestedMethod = state.selectedShipping ? String(state.selectedShipping.methodId || '') : '';
+        var isWooUpdating = typeof state.isUpdateCheckoutInProgress === 'function' ? state.isUpdateCheckoutInProgress() : false;
+        ctwpmlReviewGateStart('review_entry', {
+          pendingWooUpdate: isWooUpdating,
+          pendingShipping: true,
+          totalsReady: false,
+          appliedMatch: false,
+          billingReady: false,
+          paymentReady: false,
+          requestedMethod: requestedMethod,
+        });
+        ctwpmlReviewGateAttachCallbacks(function () {
+          startRender();
+        }, function () {
+          showNotification('O checkout está demorando para sincronizar faturamento, entrega e pagamento. Revise os dados e tente novamente.', 'error', 5000);
+        });
+        ctwpmlReviewGateResolveAppliedMatch();
+        ctwpmlReviewGateMarkTotalsReady('review_entry');
+        ctwpmlReviewGateMarkBillingReady('review_entry', billingSnapshot);
+        ctwpmlReviewGateMarkPaymentReady('review_entry');
+        if (ctwpmlReviewGateIsReady()) {
+          ctwpmlReviewGateFinish();
+        } else {
+          ctwpmlReviewGateEnsureLoading();
+        }
+      };
+
+      if (opts.skipPrepare) {
+        beginReviewGate(ctwpmlReadBillingReadinessSnapshot());
       } else {
-        ctwpmlReviewGateEnsureLoading();
+        ctwpmlSpinnerAcquire('review_prepare');
+        ctwpmlPrepareCheckoutForReview('review_entry', function (billingSnapshot) {
+          ctwpmlSpinnerRelease('review_prepare');
+          if (currentView !== 'review') return;
+          beginReviewGate(billingSnapshot);
+        });
       }
     }
 
@@ -2809,6 +2927,8 @@
           syncReviewTotalsFromWoo();
           ctwpmlReviewGateMarkTotalsReady('updated_checkout');
           ctwpmlReviewGateResolveAppliedMatch();
+          ctwpmlReviewGateMarkBillingReady('updated_checkout');
+          ctwpmlReviewGateMarkPaymentReady('updated_checkout');
           // Re-sincroniza termos (Woo pode re-renderizar o DOM).
           try {
             var checked = $('.ctwpml-review-terms-checkbox').first().is(':checked');
@@ -2821,6 +2941,8 @@
           try { ctwpmlUpdateTotalsStateFromWoo('updated_checkout'); } catch (eT0) {}
           ctwpmlReviewGateMarkTotalsReady('updated_checkout');
           ctwpmlReviewGateResolveAppliedMatch();
+          ctwpmlReviewGateMarkBillingReady('updated_checkout');
+          ctwpmlReviewGateMarkPaymentReady('updated_checkout');
           ctwpmlReviewGateSchedule('updated_checkout');
         }
       } catch (e) {}
@@ -2852,6 +2974,8 @@
         try { ctwpmlUpdateTotalsStateFromWoo('woo_updated_gate'); } catch (e1) {}
         ctwpmlReviewGateMarkTotalsReady('woo_updated');
         ctwpmlReviewGateResolveAppliedMatch();
+        ctwpmlReviewGateMarkBillingReady('woo_updated');
+        ctwpmlReviewGateMarkPaymentReady('woo_updated');
         ctwpmlReviewGateSchedule('woo_updated');
       } catch (e) {}
     });
@@ -3144,6 +3268,250 @@
           if (!spinnerManagedByCaller) ctwpmlSpinnerRelease('save_contact_meta');
         },
       });
+    }
+
+    function ctwpmlReadBillingReadinessSnapshot() {
+      var readField = function (selector, nameAttr) {
+        try {
+          var $field = ctwpmlBillingField$(selector, nameAttr);
+          if ($field.length) return ctwpmlNormalizeText($field.val());
+        } catch (e0) {}
+        return '';
+      };
+
+      var firstName = readField('#billing_first_name', 'billing_first_name');
+      var lastName = readField('#billing_last_name', 'billing_last_name');
+      var modalName = ctwpmlNormalizeText($('#ctwpml-input-nome').val());
+      if ((!firstName || !lastName) && modalName) {
+        var parsedName = ctwpmlParseFullName(modalName);
+        if (!firstName) firstName = parsedName.firstName || '';
+        if (!lastName) lastName = parsedName.lastName || '';
+      }
+
+      var $cpf = getBillingCpfInput();
+      var $phone1 = ctwpmlBillingField$('#billing_cellphone', 'billing_cellphone');
+      var $phone2 = ctwpmlBillingField$('#billing_phone', 'billing_phone');
+
+      var email = readField('#billing_email', 'billing_email') || ctwpmlNormalizeText($('#ctwpml-input-email').val());
+      var phone = ($phone1.length ? ctwpmlNormalizeText($phone1.val()) : '') ||
+        ($phone2.length ? ctwpmlNormalizeText($phone2.val()) : '') ||
+        ctwpmlNormalizeText($('#ctwpml-phone-full').val()) ||
+        ctwpmlNormalizeText($('#ctwpml-input-fone').val());
+
+      var cpf = $cpf.length ? ctwpmlNormalizeText($cpf.val()) : ctwpmlNormalizeText($('#ctwpml-input-cpf').val());
+      var neighborhood = readField('#billing_neighborhood', 'billing_neighborhood') ||
+        readField('#billing_address_2', 'billing_address_2') ||
+        ctwpmlNormalizeText($('#ctwpml-input-bairro').val());
+
+      return {
+        firstName: firstName,
+        lastName: lastName,
+        email: email,
+        phone: phone,
+        cpf: cpf,
+        postcode: readField('#billing_postcode', 'billing_postcode') || ctwpmlNormalizeText($('#ctwpml-input-cep').val()).replace(/\D/g, ''),
+        address1: readField('#billing_address_1', 'billing_address_1') || ctwpmlNormalizeText($('#ctwpml-input-rua').val()),
+        number: readField('#billing_number', 'billing_number') || ctwpmlNormalizeText($('#ctwpml-input-numero').val()),
+        neighborhood: neighborhood,
+        city: readField('#billing_city', 'billing_city'),
+        state: readField('#billing_state', 'billing_state'),
+        hasCpfField: !!$cpf.length,
+        hasPhoneField: !!($phone1.length || $phone2.length),
+      };
+    }
+
+    function ctwpmlIsBillingReadinessReady(snapshot) {
+      if (!snapshot) return false;
+      var cpfRequired = !!snapshot.hasCpfField;
+      var phoneRequired = !!snapshot.hasPhoneField;
+      var cpfOk = !cpfRequired || cpfDigitsOnly(snapshot.cpf).length === 11;
+      var phoneOk = !phoneRequired || phoneDigits(snapshot.phone).length >= 10;
+      return !!(
+        snapshot.firstName &&
+        snapshot.lastName &&
+        ctwpmlIsValidEmail(snapshot.email) &&
+        snapshot.postcode &&
+        snapshot.address1 &&
+        snapshot.number &&
+        snapshot.neighborhood &&
+        snapshot.city &&
+        snapshot.state &&
+        cpfOk &&
+        phoneOk
+      );
+    }
+
+    function ctwpmlBillingReadinessSummary(snapshot, source) {
+      snapshot = snapshot || {};
+      return {
+        source: String(source || ''),
+        ready: ctwpmlIsBillingReadinessReady(snapshot),
+        hasFirstName: !!snapshot.firstName,
+        hasLastName: !!snapshot.lastName,
+        hasEmail: !!snapshot.email,
+        hasValidEmail: ctwpmlIsValidEmail(snapshot.email || ''),
+        hasPhone: phoneDigits(snapshot.phone || '').length >= 10,
+        hasCpf: cpfDigitsOnly(snapshot.cpf || '').length === 11,
+        hasPostcode: !!snapshot.postcode,
+        hasAddress1: !!snapshot.address1,
+        hasNumber: !!snapshot.number,
+        hasNeighborhood: !!snapshot.neighborhood,
+        hasCity: !!snapshot.city,
+        hasState: !!snapshot.state,
+        hasCpfField: !!snapshot.hasCpfField,
+        hasPhoneField: !!snapshot.hasPhoneField,
+        error: snapshot.error ? String(snapshot.error) : '',
+      };
+    }
+
+    function ctwpmlEnsureBillingFieldsFromState(context) {
+      context = String(context || 'billing_rehydrate');
+      try { ensureWooNeighborhoodInputs(); } catch (e0) {}
+      try {
+        var storedSnapshot = readFormSnapshot();
+        if (storedSnapshot) ctwpmlApplyFormSnapshot(storedSnapshot);
+      } catch (e1) {}
+      try { applyFormToCheckout(); } catch (e2) {}
+      try {
+        if (selectedAddressId) applySelectedAddressToWooFields(selectedAddressId, context);
+      } catch (e3) {}
+      try { refreshFromCheckoutFields(); } catch (e4) {}
+
+      var snap = ctwpmlReadBillingReadinessSnapshot();
+      if (typeof state.checkpoint === 'function') {
+        state.checkpoint('CHK_BILLING_REHYDRATE', ctwpmlIsBillingReadinessReady(snap), ctwpmlBillingReadinessSummary(snap, context));
+      }
+      return snap;
+    }
+
+    function ctwpmlEnsureSelectedPaymentGateway(context) {
+      var woo = window.CCCheckoutTabs && window.CCCheckoutTabs.WooHost ? window.CCCheckoutTabs.WooHost : null;
+      var gatewayId = '';
+      var selectedGatewayId = '';
+      if (!woo) return '';
+
+      try { applyPaymentAvailabilityAndSync(context || 'payment_gateway_restore'); } catch (e0) {}
+      try {
+        var method = String(state.selectedPaymentMethod || '');
+        var map = state.paymentGatewayMap || {};
+        gatewayId = method ? String(map[method] || '') : '';
+        if (!gatewayId && method && typeof woo.matchGatewayId === 'function') {
+          gatewayId = String(woo.matchGatewayId(method) || '');
+          if (gatewayId) {
+            map[method] = gatewayId;
+            state.paymentGatewayMap = map;
+          }
+        }
+        if (gatewayId && typeof woo.selectGateway === 'function') {
+          woo.selectGateway(gatewayId);
+        }
+        if (typeof woo.getSelectedGatewayId === 'function') {
+          selectedGatewayId = String(woo.getSelectedGatewayId() || '');
+        }
+      } catch (e1) {
+        selectedGatewayId = '';
+      }
+
+      if (typeof state.checkpoint === 'function') {
+        state.checkpoint('CHK_PAYMENT_GATEWAY_RESTORE', !!selectedGatewayId, {
+          context: String(context || ''),
+          selectedPaymentMethod: String(state.selectedPaymentMethod || ''),
+          hasGateway: !!selectedGatewayId,
+        });
+      }
+      return selectedGatewayId;
+    }
+
+    function ctwpmlWaitForWooUpdateOrTimeout(context, done) {
+      var finished = false;
+      var $body = $(document.body);
+      var timer = null;
+      var finish = function (source) {
+        if (finished) return;
+        finished = true;
+        if (timer) clearTimeout(timer);
+        try { $body.off('updated_checkout.ctwpml_pre_review'); } catch (e0) {}
+        if (typeof state.checkpoint === 'function') {
+          state.checkpoint('CHK_PRE_REVIEW_WOO_WAIT', true, {
+            context: String(context || ''),
+            source: String(source || ''),
+          });
+        }
+        if (typeof done === 'function') done();
+      };
+
+      try {
+        $body.one('updated_checkout.ctwpml_pre_review', function () {
+          finish('updated_checkout');
+        });
+        timer = setTimeout(function () {
+          finish('timeout');
+        }, 2200);
+        $body.trigger('update_checkout');
+      } catch (e1) {
+        finish('exception');
+      }
+    }
+
+    function ctwpmlPrepareCheckoutForReview(context, done) {
+      context = String(context || 'review_entry');
+      var woo = window.CCCheckoutTabs && window.CCCheckoutTabs.WooHost ? window.CCCheckoutTabs.WooHost : null;
+      var completed = false;
+      var watchdog = null;
+      var complete = function (snapshot) {
+        if (completed) return;
+        completed = true;
+        if (watchdog) clearTimeout(watchdog);
+        if (typeof done === 'function') done(snapshot || ctwpmlReadBillingReadinessSnapshot());
+      };
+
+      watchdog = setTimeout(function () {
+        var snap = null;
+        try { snap = ctwpmlEnsureBillingFieldsFromState(context + ':watchdog'); } catch (e0) {}
+        if (typeof state.checkpoint === 'function') {
+          state.checkpoint('CHK_PRE_REVIEW_PREPARE_WATCHDOG', false, { context: context });
+        }
+        complete(snap);
+      }, 7000);
+
+      var finishAfterContact = function () {
+        try { ctwpmlEnsureBillingFieldsFromState(context + ':after_contact'); } catch (e0) {}
+        try { ctwpmlEnsureSelectedPaymentGateway(context + ':after_contact'); } catch (e1) {}
+        ctwpmlWaitForWooUpdateOrTimeout(context, function () {
+          var snap = null;
+          try { snap = ctwpmlEnsureBillingFieldsFromState(context + ':after_update'); } catch (e2) {}
+          try { ctwpmlEnsureSelectedPaymentGateway(context + ':after_update'); } catch (e3) {}
+          complete(snap);
+        });
+      };
+
+      var loadContactThenFinish = function () {
+        try {
+          loadContactMeta(function () {
+            finishAfterContact();
+          });
+        } catch (e0) {
+          finishAfterContact();
+        }
+      };
+
+      try { ctwpmlEnsureBillingFieldsFromState(context + ':before_blocks'); } catch (e1) {}
+      if (woo && typeof woo.ensureBlocks === 'function') {
+        woo.ensureBlocks().then(function () {
+          try { applyPaymentAvailabilityAndSync(context + ':ensure_blocks'); } catch (e2) {}
+          loadContactThenFinish();
+        }).catch(function (e3) {
+          if (typeof state.checkpoint === 'function') {
+            state.checkpoint('CHK_PRE_REVIEW_ENSURE_BLOCKS', false, {
+              context: context,
+              error: e3 && e3.message ? e3.message : String(e3 || ''),
+            });
+          }
+          loadContactThenFinish();
+        });
+      } else {
+        loadContactThenFinish();
+      }
     }
 
     // v2.0 [2.3]: Campo DDI (NOVO FORMATO: TomSelect + IMask) - baseado no modelo externo
@@ -5969,6 +6337,16 @@
       var map = state.paymentGatewayMap || {};
       var gatewayId = map[method] || (woo ? woo.matchGatewayId(method) : '');
 
+      if (paymentReviewTransitionInFlight) {
+        showNotification('Aguarde enquanto preparamos a revisão do pedido.', 'error', 2500);
+        return;
+      }
+
+      if (!paymentBlocksReady) {
+        showNotification('Aguarde carregar as formas de pagamento antes de continuar.', 'error', 3000);
+        return;
+      }
+
       if (!woo || !gatewayId) {
         showNotification('Forma de pagamento indisponível no checkout.', 'error', 3500);
         return;
@@ -5982,8 +6360,17 @@
       state.selectedPaymentMethod = method;
       persistModalState({ selectedPaymentMethod: method, view: 'payment' });
 
-      // Avança para a próxima e última tela (revise e confirme)
-      showReviewConfirmScreen();
+      paymentReviewTransitionInFlight = true;
+      ctwpmlSetPaymentOptionsBusy(true, 'payment_to_review');
+      ctwpmlSpinnerAcquire('payment_to_review');
+
+      ctwpmlPrepareCheckoutForReview('payment_to_review', function () {
+        paymentReviewTransitionInFlight = false;
+        ctwpmlSetPaymentOptionsBusy(false, 'payment_to_review_done');
+        ctwpmlSpinnerRelease('payment_to_review');
+        if (currentView !== 'payment' && currentView !== 'review') return;
+        showReviewConfirmScreen({ skipPrepare: true });
+      });
     });
 
     // Tela 3 (Pagamento): clique no link de cupom - abre drawer
@@ -6588,7 +6975,7 @@
       } catch (eT) {}
 
       if (!ctwpmlReviewGateIsReady()) {
-        showNotification('Aguarde a sincronização do frete e totais antes de confirmar.', 'error', 3500);
+        showNotification('Aguarde a sincronização do checkout antes de confirmar.', 'error', 3500);
         ctwpmlSetReviewCtaEnabled(false);
         try {
           if (typeof state.checkpoint === 'function') {
@@ -6598,6 +6985,8 @@
               pendingWooUpdate: state.__ctwpmlReviewGate ? state.__ctwpmlReviewGate.pendingWooUpdate : null,
               totalsReady: state.__ctwpmlReviewGate ? state.__ctwpmlReviewGate.totalsReady : null,
               appliedMatch: state.__ctwpmlReviewGate ? state.__ctwpmlReviewGate.appliedMatch : null,
+              billingReady: state.__ctwpmlReviewGate ? state.__ctwpmlReviewGate.billingReady : null,
+              paymentReady: state.__ctwpmlReviewGate ? state.__ctwpmlReviewGate.paymentReady : null,
             });
           }
         } catch (eR) {}
@@ -6626,6 +7015,11 @@
           var email = ($('#billing_email').val() || '').trim().toLowerCase();
           if (email) return email;
         } catch (e1) {}
+        try {
+          var snap = readFormSnapshot();
+          var storedEmail = snap && snap.email ? String(snap.email).trim().toLowerCase() : '';
+          if (storedEmail) return storedEmail;
+        } catch (eSnap) {}
         try {
           return (state.params && state.params.user_email) ? String(state.params.user_email).trim().toLowerCase() : '';
         } catch (e2) {}
@@ -6759,6 +7153,10 @@
         return true;
       }
 
+      try {
+        ctwpmlEnsureBillingFieldsFromState('pre_submit_entry');
+      } catch (ePreSubmit) {}
+
       if (!isLoggedIn()) {
         var emailToConfirm = getBillingEmail();
         if (!isValidEmail(emailToConfirm)) {
@@ -6878,6 +7276,11 @@
         try { state.checkpoint('CHK_PREPARE_OVERLAY_FORCE_HIDE_ON_CONFIRM', true, {}); } catch (eC) {}
       }
       log('CTA click: iniciando finalização', { overlayShown: false, gateway: woo.getSelectedGatewayId ? woo.getSelectedGatewayId() : '' });
+
+      try {
+        ctwpmlEnsureBillingFieldsFromState('pre_submit_final');
+        ctwpmlEnsureSelectedPaymentGateway('pre_submit_final');
+      } catch (ePreFinal) {}
 
       // Hardening: evita checkout_error por "Bairro obrigatório" quando o Woo/tema limpa ou valida em outro campo.
       // Regra: tenta preencher automaticamente; se ainda estiver vazio, bloqueia o submit com mensagem clara.
