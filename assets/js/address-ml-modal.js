@@ -2696,7 +2696,7 @@
         var totals = woo ? woo.readTotals() : { subtotalText: '', shippingText: '', totalText: '' };
         var paymentLabel = woo ? woo.getSelectedGatewayLabel() : '';
 
-        var it = selectedAddressId ? getAddressById(selectedAddressId) : null;
+        var it = getRecoverableAddressFromState();
         // Fidelidade: título fixo, subtítulo com endereço selecionado (mesmo padrão do frete)
         var addressTitle = 'Enviar no meu endereço';
         var addressSubtitle = it ? formatFullAddressLine(it) : '';
@@ -2865,11 +2865,16 @@
       var beginReviewGate = function (billingSnapshot) {
         var requestedMethod = state.selectedShipping ? String(state.selectedShipping.methodId || '') : '';
         var isWooUpdating = typeof state.isUpdateCheckoutInProgress === 'function' ? state.isUpdateCheckoutInProgress() : false;
+        if (!requestedMethod) {
+          showNotification('Selecione o frete para continuar.', 'error', 3500);
+          showShippingPlaceholder();
+          return;
+        }
         ctwpmlReviewGateStart('review_entry', {
           pendingWooUpdate: isWooUpdating,
-          pendingShipping: true,
+          pendingShipping: !!requestedMethod,
           totalsReady: false,
-          appliedMatch: false,
+          appliedMatch: !requestedMethod,
           billingReady: false,
           paymentReady: false,
           requestedMethod: requestedMethod,
@@ -2878,6 +2883,9 @@
           startRender();
         }, function () {
           showNotification('O checkout está demorando para sincronizar faturamento, entrega e pagamento. Revise os dados e tente novamente.', 'error', 5000);
+          if (currentView === 'review') {
+            startRender();
+          }
         });
         ctwpmlReviewGateResolveAppliedMatch();
         ctwpmlReviewGateMarkTotalsReady('review_entry');
@@ -3271,6 +3279,8 @@
     }
 
     function ctwpmlReadBillingReadinessSnapshot() {
+      var formSnapshot = null;
+      try { formSnapshot = readFormSnapshot(); } catch (eFs) {}
       var readField = function (selector, nameAttr) {
         try {
           var $field = ctwpmlBillingField$(selector, nameAttr);
@@ -3281,7 +3291,7 @@
 
       var firstName = readField('#billing_first_name', 'billing_first_name');
       var lastName = readField('#billing_last_name', 'billing_last_name');
-      var modalName = ctwpmlNormalizeText($('#ctwpml-input-nome').val());
+      var modalName = ctwpmlNormalizeText($('#ctwpml-input-nome').val()) || ctwpmlNormalizeText(formSnapshot && formSnapshot.nome);
       if ((!firstName || !lastName) && modalName) {
         var parsedName = ctwpmlParseFullName(modalName);
         if (!firstName) firstName = parsedName.firstName || '';
@@ -3292,16 +3302,23 @@
       var $phone1 = ctwpmlBillingField$('#billing_cellphone', 'billing_cellphone');
       var $phone2 = ctwpmlBillingField$('#billing_phone', 'billing_phone');
 
-      var email = readField('#billing_email', 'billing_email') || ctwpmlNormalizeText($('#ctwpml-input-email').val());
+      var email = readField('#billing_email', 'billing_email') ||
+        ctwpmlNormalizeText($('#ctwpml-input-email').val()) ||
+        ctwpmlNormalizeText(formSnapshot && formSnapshot.email);
       var phone = ($phone1.length ? ctwpmlNormalizeText($phone1.val()) : '') ||
         ($phone2.length ? ctwpmlNormalizeText($phone2.val()) : '') ||
         ctwpmlNormalizeText($('#ctwpml-phone-full').val()) ||
-        ctwpmlNormalizeText($('#ctwpml-input-fone').val());
+        ctwpmlNormalizeText($('#ctwpml-input-fone').val()) ||
+        ctwpmlNormalizeText(formSnapshot && formSnapshot.phone_full) ||
+        ctwpmlNormalizeText(formSnapshot && formSnapshot.phone);
 
-      var cpf = $cpf.length ? ctwpmlNormalizeText($cpf.val()) : ctwpmlNormalizeText($('#ctwpml-input-cpf').val());
+      var cpf = ($cpf.length ? ctwpmlNormalizeText($cpf.val()) : '') ||
+        ctwpmlNormalizeText($('#ctwpml-input-cpf').val()) ||
+        ctwpmlNormalizeText(formSnapshot && formSnapshot.cpf);
       var neighborhood = readField('#billing_neighborhood', 'billing_neighborhood') ||
         readField('#billing_address_2', 'billing_address_2') ||
-        ctwpmlNormalizeText($('#ctwpml-input-bairro').val());
+        ctwpmlNormalizeText($('#ctwpml-input-bairro').val()) ||
+        ctwpmlNormalizeText(formSnapshot && formSnapshot.bairro);
 
       return {
         firstName: firstName,
@@ -3309,12 +3326,12 @@
         email: email,
         phone: phone,
         cpf: cpf,
-        postcode: readField('#billing_postcode', 'billing_postcode') || ctwpmlNormalizeText($('#ctwpml-input-cep').val()).replace(/\D/g, ''),
-        address1: readField('#billing_address_1', 'billing_address_1') || ctwpmlNormalizeText($('#ctwpml-input-rua').val()),
-        number: readField('#billing_number', 'billing_number') || ctwpmlNormalizeText($('#ctwpml-input-numero').val()),
+        postcode: readField('#billing_postcode', 'billing_postcode') || ctwpmlNormalizeText($('#ctwpml-input-cep').val()).replace(/\D/g, '') || ctwpmlNormalizeText(formSnapshot && formSnapshot.cep).replace(/\D/g, ''),
+        address1: readField('#billing_address_1', 'billing_address_1') || ctwpmlNormalizeText($('#ctwpml-input-rua').val()) || ctwpmlNormalizeText(formSnapshot && formSnapshot.rua),
+        number: readField('#billing_number', 'billing_number') || ctwpmlNormalizeText($('#ctwpml-input-numero').val()) || ctwpmlNormalizeText(formSnapshot && formSnapshot.numero),
         neighborhood: neighborhood,
-        city: readField('#billing_city', 'billing_city'),
-        state: readField('#billing_state', 'billing_state'),
+        city: readField('#billing_city', 'billing_city') || ctwpmlNormalizeText(formSnapshot && formSnapshot.city),
+        state: readField('#billing_state', 'billing_state') || ctwpmlNormalizeText(formSnapshot && formSnapshot.state),
         hasCpfField: !!$cpf.length,
         hasPhoneField: !!($phone1.length || $phone2.length),
       };
@@ -3829,6 +3846,17 @@
       try { ensureWooNeighborhoodInputs(); } catch (e0) {}
       refreshFromCheckoutFields();
       restoreStateOnOpen = resumeSnapshot || safeReadModalState();
+      try {
+        if (restoreStateOnOpen && restoreStateOnOpen.selectedAddressId) {
+          selectedAddressId = restoreStateOnOpen.selectedAddressId;
+        }
+        if (restoreStateOnOpen && restoreStateOnOpen.selectedShipping && restoreStateOnOpen.selectedShipping.methodId) {
+          state.selectedShipping = restoreStateOnOpen.selectedShipping;
+        }
+        if (restoreStateOnOpen && restoreStateOnOpen.selectedPaymentMethod) {
+          state.selectedPaymentMethod = restoreStateOnOpen.selectedPaymentMethod;
+        }
+      } catch (eRestore0) {}
       
       // Modo fullscreen: mostrar componente inline e esconder abas antigas
       $('#ctwpml-address-modal-overlay').css('display', 'block');
@@ -3889,6 +3917,15 @@
             }
 
             targetView = (restoreStateOnOpen.view || '').toString() || 'initial';
+            if (targetView === 'review') {
+              if (!(state.selectedShipping && state.selectedShipping.methodId)) {
+                targetView = 'shipping';
+              } else if (!state.selectedPaymentMethod) {
+                targetView = 'payment';
+              }
+            } else if (targetView === 'payment' && !(state.selectedShipping && state.selectedShipping.methodId)) {
+              targetView = 'shipping';
+            }
             restored = true;
           }
         } catch (e) {}
@@ -3943,6 +3980,16 @@
         console.log('[CTWPML][DEBUG] openModal() - loadAddresses callback - items:', items.length, 'selectedAddressId:', selectedAddressId);
 
         if (!items.length) {
+          var restoreTarget = restoreStateOnOpen && restoreStateOnOpen.open ? String(restoreStateOnOpen.view || '') : '';
+          var canRecoverCheckoutState = !!(
+            selectedAddressId ||
+            (state.selectedShipping && state.selectedShipping.methodId) ||
+            readFormSnapshot()
+          );
+          if ((restoreTarget === 'shipping' || restoreTarget === 'payment' || restoreTarget === 'review') && canRecoverCheckoutState) {
+            restoreAndShow();
+            return;
+          }
           // Se não houver endereços, vai direto pro formulário (fluxo atual).
           console.log('[CTWPML][DEBUG] openModal() - sem endereços, mostrando formulário');
           showFormForNewAddress();
@@ -4257,6 +4304,8 @@
           numero: ($('#ctwpml-input-numero').val() || '').trim(),
           comp: ($('#ctwpml-input-comp').val() || '').trim(),
           bairro: ($('#ctwpml-input-bairro').val() || '').trim(),
+          city: ($('#billing_city').val() || '').trim(),
+          state: ($('#billing_state').val() || '').trim(),
           info: ($('#ctwpml-input-info').val() || '').trim(),
           label: $('#ctwpml-type-home').hasClass('is-active') ? 'Casa' : ($('#ctwpml-type-work').hasClass('is-active') ? 'Trabalho' : ''),
           nome: ($('#ctwpml-input-nome').val() || '').trim(),
@@ -4286,6 +4335,8 @@
       if (snapshot.numero) $('#ctwpml-input-numero').val(snapshot.numero);
       if (snapshot.comp) $('#ctwpml-input-comp').val(snapshot.comp);
       if (snapshot.bairro) $('#ctwpml-input-bairro').val(snapshot.bairro);
+      if (snapshot.city) $('#billing_city').val(snapshot.city).trigger('change');
+      if (snapshot.state) $('#billing_state').val(snapshot.state).trigger('change');
       if (snapshot.info) $('#ctwpml-input-info').val(snapshot.info);
       if (snapshot.label) setTypeSelection(snapshot.label);
       if (snapshot.nome) $('#ctwpml-input-nome').val(snapshot.nome);
@@ -4573,6 +4624,30 @@
       return null;
     }
 
+    function getRecoverableAddressFromState() {
+      var it = selectedAddressId ? getAddressById(selectedAddressId) : null;
+      if (it) return it;
+
+      var snap = null;
+      try { snap = readFormSnapshot(); } catch (e0) {}
+      if (!snap || typeof snap !== 'object') return null;
+      if (snap.addressId && selectedAddressId && String(snap.addressId) !== String(selectedAddressId)) return null;
+      if (!snap.cep && !snap.rua && !snap.numero && !snap.bairro) return null;
+
+      return {
+        id: snap.addressId || selectedAddressId || 'snapshot',
+        label: snap.label || '',
+        cep: snap.cep || '',
+        address_1: snap.rua || '',
+        number: snap.numero || '',
+        complement: snap.comp || '',
+        neighborhood: snap.bairro || '',
+        city: snap.city || '',
+        state: snap.state || '',
+        receiver_name: snap.nome || '',
+      };
+    }
+
     function setSelectedAddressId(id) {
       selectedAddressId = id || null;
       renderAddressList();
@@ -4766,7 +4841,9 @@
             console.log('[CTWPML][DEBUG] loadAddresses() - resposta inválida ou sem items');
             addressesCache = [];
             addressesCacheTimestamp = null;
-            selectedAddressId = null;
+            if (!(selectedAddressId || (restoreStateOnOpen && restoreStateOnOpen.selectedAddressId) || readFormSnapshot())) {
+              selectedAddressId = null;
+            }
           }
           done();
         },
@@ -4775,7 +4852,9 @@
           console.log('[CTWPML][DEBUG] loadAddresses() - erro AJAX:', status, error);
           addressesCache = [];
           addressesCacheTimestamp = null;
-          selectedAddressId = null;
+          if (!(selectedAddressId || (restoreStateOnOpen && restoreStateOnOpen.selectedAddressId) || readFormSnapshot())) {
+            selectedAddressId = null;
+          }
           done();
         },
       });

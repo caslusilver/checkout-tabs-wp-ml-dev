@@ -114,6 +114,13 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
 #### Protocol: ee78e51
 
+## [v3.2.122] - 2026-09-07
+
+### Fixed
+- corrige reload na etapa final do checkout ML: preserva o endereço selecionado durante falha temporária de recuperação, salva/restaura cidade e UF no snapshot, restaura review/payment somente com pré-requisitos mínimos e renderiza a revisão recuperável quando o gate expira, evitando loading infinito.
+
+#### Protocol: pending
+
 ## [v3.2.121] - 2026-09-07
 
 ### Changed
@@ -180,7 +187,7 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 ## [Unreleased]
 
 ### Changed
-- **Versão atual**: v3.2.121
+- **Versão atual**: v3.2.122
   **Versão sugerida após a mudança**: vX.Y.Z  
   **Descrição**: texto objetivo do que mudou e impacto (pode listar itens separados por ponto e vírgula).
 
