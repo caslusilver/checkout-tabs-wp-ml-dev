@@ -164,9 +164,9 @@ if (PPWOO_Config::is_debug()) {
                             <?php else : ?>
                             <div class="workflow-slides" style="<?php echo esc_attr($workflow_style); ?>">
                                 <div class="workflow-step step-1">
-                                    <button class="slide-button btn-accept-order">
-                                        <?php esc_html_e('Aceitar Pedido', 'painel-empacotamento'); ?>
-                                        <span class="dashicons dashicons-arrow-right-alt2"></span>
+                                    <button type="button" class="slide-button ppwoo-swipe-action btn-accept-order" data-swipe-label="<?php esc_attr_e('Deslize para aceitar', 'painel-empacotamento'); ?>" data-swipe-complete-label="<?php esc_attr_e('Solte para aceitar', 'painel-empacotamento'); ?>">
+                                        <span class="ppwoo-swipe-label"><?php esc_html_e('Deslize para aceitar', 'painel-empacotamento'); ?></span>
+                                        <span class="ppwoo-swipe-thumb" aria-hidden="true"><span class="dashicons dashicons-arrow-right-alt2"></span></span>
                                     </button>
                                 </div>
                                 <div class="workflow-step step-2">
@@ -208,9 +208,9 @@ if (PPWOO_Config::is_debug()) {
                                         value="<?php echo esc_attr($motoboy_whatsapp); ?>"
                                     >
 
-                                    <button class="slide-button btn-conclude-shipment">
-                                        <?php esc_html_e('Concluir Envio', 'painel-empacotamento'); ?>
-                                        <span class="dashicons dashicons-yes"></span>
+                                    <button type="button" class="slide-button ppwoo-swipe-action btn-conclude-shipment" data-swipe-label="<?php esc_attr_e('Deslize para concluir', 'painel-empacotamento'); ?>" data-swipe-complete-label="<?php esc_attr_e('Solte para concluir', 'painel-empacotamento'); ?>">
+                                        <span class="ppwoo-swipe-label"><?php esc_html_e('Deslize para concluir', 'painel-empacotamento'); ?></span>
+                                        <span class="ppwoo-swipe-thumb" aria-hidden="true"><span class="dashicons dashicons-yes"></span></span>
                                     </button>
                                 </div>
                             </div>
@@ -339,9 +339,9 @@ if (PPWOO_Config::is_debug()) {
                                         <?php esc_html_e('Pedido externo (somente leitura). Ações de workflow não disponíveis.', 'painel-empacotamento'); ?>
                                     </p>
                                 <?php else : ?>
-                                <button class="slide-button btn-conclude-shipment-correios">
-                                    <?php esc_html_e('Concluir Envio', 'painel-empacotamento'); ?>
-                                    <span class="dashicons dashicons-yes"></span>
+                                <button type="button" class="slide-button ppwoo-swipe-action btn-conclude-shipment-correios" data-swipe-label="<?php esc_attr_e('Deslize para concluir', 'painel-empacotamento'); ?>" data-swipe-complete-label="<?php esc_attr_e('Solte para concluir', 'painel-empacotamento'); ?>">
+                                    <span class="ppwoo-swipe-label"><?php esc_html_e('Deslize para concluir', 'painel-empacotamento'); ?></span>
+                                    <span class="ppwoo-swipe-thumb" aria-hidden="true"><span class="dashicons dashicons-yes"></span></span>
                                 </button>
                                 <div class="loading-indicator" style="display: none;">
                                     <span class="dashicons dashicons-update spin"></span>

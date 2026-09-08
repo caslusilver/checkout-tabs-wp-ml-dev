@@ -146,6 +146,128 @@
         copyTextToClipboard(getTextToCopy($(this)), $(this));
     });
 
+    // --- Slider de confirmação para ações críticas ---
+    var activeSwipe = null;
+
+    function getPointerClientX(event) {
+        var nativeEvent = event.originalEvent || event;
+        if (nativeEvent.touches && nativeEvent.touches.length) {
+            return nativeEvent.touches[0].clientX;
+        }
+        if (nativeEvent.changedTouches && nativeEvent.changedTouches.length) {
+            return nativeEvent.changedTouches[0].clientX;
+        }
+        return nativeEvent.clientX;
+    }
+
+    function updateSwipePosition(swipe, offset) {
+        var $action = $(swipe.action);
+        var boundedOffset = Math.max(0, Math.min(offset, swipe.maxOffset));
+        var progress = swipe.maxOffset > 0 ? (boundedOffset / swipe.maxOffset) * 100 : 0;
+
+        swipe.offset = boundedOffset;
+        $action.css('--ppwoo-swipe-offset', boundedOffset + 'px');
+        $action.css('--ppwoo-swipe-progress', progress + '%');
+        $action.attr('aria-valuenow', Math.round(progress));
+    }
+
+    function resetSwipeAction(action) {
+        var $action = $(action);
+        $action.removeClass('is-dragging is-complete');
+        $action.css('--ppwoo-swipe-offset', '0px');
+        $action.css('--ppwoo-swipe-progress', '0%');
+        $action.attr('aria-valuenow', '0');
+        $action.find('.ppwoo-swipe-label').text($action.attr('data-swipe-label') || 'Deslize para confirmar');
+    }
+
+    function finishSwipe(event, cancelled) {
+        if (!activeSwipe) {
+            return;
+        }
+
+        var swipe = activeSwipe;
+        var $action = $(swipe.action);
+        var shouldComplete = !cancelled && swipe.offset >= swipe.maxOffset * 0.96;
+
+        if (shouldComplete) {
+            updateSwipePosition(swipe, swipe.maxOffset);
+            $action.removeClass('is-dragging').addClass('is-complete');
+            $action.find('.ppwoo-swipe-label').text($action.attr('data-swipe-complete-label') || 'Solte para confirmar');
+            $action.trigger('ppwoo:slide-complete');
+        } else {
+            resetSwipeAction($action);
+        }
+
+        if (event && event.preventDefault) {
+            event.preventDefault();
+        }
+        activeSwipe = null;
+        document.removeEventListener('pointermove', handleSwipeMove);
+        document.removeEventListener('pointerup', handleSwipeUp);
+        document.removeEventListener('pointercancel', handleSwipeCancel);
+    }
+
+    function handleSwipeMove(event) {
+        if (!activeSwipe || event.pointerId !== activeSwipe.pointerId) {
+            return;
+        }
+
+        var offset = getPointerClientX(event) - activeSwipe.startX;
+        updateSwipePosition(activeSwipe, offset);
+        if (Math.abs(offset) > 2) {
+            event.preventDefault();
+        }
+    }
+
+    function handleSwipeUp(event) {
+        if (!activeSwipe || event.pointerId !== activeSwipe.pointerId) {
+            return;
+        }
+        finishSwipe(event, false);
+    }
+
+    function handleSwipeCancel(event) {
+        if (!activeSwipe || event.pointerId !== activeSwipe.pointerId) {
+            return;
+        }
+        finishSwipe(event, true);
+    }
+
+    packingPanel.on('pointerdown', '.ppwoo-swipe-action', function(event) {
+        var nativeEvent = event.originalEvent || event;
+        var $action = $(this);
+        if ($action.prop('disabled') || activeSwipe || nativeEvent.button === 2) {
+            return;
+        }
+
+        var rect = this.getBoundingClientRect();
+        var thumbWidth = $action.find('.ppwoo-swipe-thumb').outerWidth() || 50;
+        var maxOffset = Math.max(0, rect.width - thumbWidth - 8);
+
+        activeSwipe = {
+            action: this,
+            pointerId: nativeEvent.pointerId,
+            startX: getPointerClientX(event),
+            maxOffset: maxOffset,
+            offset: 0
+        };
+
+        $action.addClass('is-dragging').attr('aria-valuenow', '0');
+        document.addEventListener('pointermove', handleSwipeMove, { passive: false });
+        document.addEventListener('pointerup', handleSwipeUp, { passive: false });
+        document.addEventListener('pointercancel', handleSwipeCancel, { passive: false });
+
+        if (this.setPointerCapture && nativeEvent.pointerId !== undefined) {
+            try {
+                this.setPointerCapture(nativeEvent.pointerId);
+            } catch (error) {
+                ppDebug.log('Não foi possível capturar o ponteiro do slider.');
+            }
+        }
+
+        event.preventDefault();
+    });
+
     // --- Motoboy Workflow ---
     function showLoadingMotoboy(orderItem) {
         orderItem.find('.workflow-area .workflow-slides').hide();
@@ -170,7 +292,7 @@
     }
 
     // --- 'Aceitar Pedido' Click (Motoboy) ---
-    packingPanel.on('click', '#tab-motoboy .btn-accept-order', function() {
+    packingPanel.on('ppwoo:slide-complete', '#tab-motoboy .btn-accept-order', function() {
         var button = $(this);
         var orderItem = button.closest('.motoboy-order');
         var orderId = orderItem.data('order-id');
@@ -193,21 +315,24 @@
                     ppDebug.log('Pedido ' + orderId + ' aceito. Transicionando para step2.');
                     transitionWorkflow(orderItem, 'step2');
                 } else {
+                    resetSwipeAction(button);
                     alert('Erro ao aceitar pedido: ' + (response.data || 'Erro desconhecido'));
                 }
             },
             error: function(jqXHR) {
                 ppDebug.log('Erro AJAX ao aceitar pedido: ' + jqXHR.responseText);
+                resetSwipeAction(button);
                 alert('Erro na requisição AJAX para aceitar pedido.');
             },
             complete: function() {
                 hideLoadingMotoboy(orderItem);
+                resetSwipeAction(button);
             }
         });
     });
 
     // --- 'Concluir Envio' Click (Motoboy) ---
-    packingPanel.on('click', '#tab-motoboy .btn-conclude-shipment', function() {
+    packingPanel.on('ppwoo:slide-complete', '#tab-motoboy .btn-conclude-shipment', function() {
         var button = $(this);
         var orderItem = button.closest('.motoboy-order');
         var orderId = orderItem.data('order-id');
@@ -249,12 +374,14 @@
                         updateCounts();
                     });
                 } else {
+                    resetSwipeAction(button);
                     alert('Erro ao concluir envio: ' + (response.data || 'Erro desconhecido'));
                     hideLoadingMotoboy(orderItem);
                 }
             },
             error: function(jqXHR) {
                 ppDebug.log('Erro AJAX ao concluir envio (Motoboy): ' + jqXHR.responseText);
+                resetSwipeAction(button);
                 alert('Erro na requisição AJAX para concluir envio.');
                 hideLoadingMotoboy(orderItem);
             }
@@ -313,7 +440,7 @@
         setCarouselSlide($tab, '.pedidos-carousel', getCurrentCarouselIndex($tab, '.pedidos-carousel') - 1);
     });
 
-    packingPanel.on('click', '#tab-correios .btn-conclude-shipment-correios', function() {
+    packingPanel.on('ppwoo:slide-complete', '#tab-correios .btn-conclude-shipment-correios', function() {
         var button = $(this);
         var orderItem = button.closest('.pedido-container');
         var orderId = orderItem.data('order-id');
@@ -344,6 +471,7 @@
                         refreshCorreiosCarousel();
                     });
                 } else {
+                    resetSwipeAction(button);
                     alert('Erro ao concluir envio: ' + (response.data || 'Erro desconhecido'));
                     $actionArea.find('.loading-indicator').hide();
                     $actionArea.find('.btn-conclude-shipment-correios').show();
@@ -351,6 +479,7 @@
             },
             error: function(jqXHR) {
                 ppDebug.log('Erro AJAX ao concluir envio (Correios): ' + jqXHR.responseText);
+                resetSwipeAction(button);
                 alert('Erro na requisição AJAX para concluir envio.');
                 $actionArea.find('.loading-indicator').hide();
                 $actionArea.find('.btn-conclude-shipment-correios').show();

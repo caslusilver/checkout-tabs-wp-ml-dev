@@ -68,6 +68,24 @@
     cursor: pointer;
 }
 
+/* Mantém o controle visível mesmo quando WordPress/Elementor sobrescrevem botões. */
+.painel-empacotamento .ppwoo-refresh-button,
+.painel-empacotamento .ppwoo-refresh-button:hover,
+.painel-empacotamento .ppwoo-refresh-button:focus {
+    background-color: #fff !important;
+    border: 2px solid #1d2327 !important;
+    color: #1d2327 !important;
+    opacity: 1 !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.28) !important;
+}
+
+.painel-empacotamento .ppwoo-refresh-button .dashicons,
+.painel-empacotamento .ppwoo-refresh-button .dashicons::before {
+    color: #1d2327 !important;
+    opacity: 1 !important;
+    text-shadow: none !important;
+}
+
 .ppwoo-refresh-button:hover,
 .ppwoo-refresh-button:focus-visible {
     color: var(--cor-primaria);
@@ -840,6 +858,102 @@
 #tab-correios .btn-conclude-shipment-correios .dashicons {
     font-size: 1.2em;
     line-height: 1;
+}
+
+/* Confirmações por arraste: um toque simples não executa a ação. */
+.painel-empacotamento .ppwoo-swipe-action {
+    position: relative;
+    display: block !important;
+    width: 100%;
+    height: 58px;
+    min-height: 58px;
+    padding: 4px !important;
+    overflow: hidden;
+    border: 1px solid rgba(0, 0, 0, 0.16);
+    border-radius: 10px;
+    color: #fff !important;
+    cursor: grab;
+    touch-action: pan-y;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.28), 0 2px 5px rgba(0, 0, 0, 0.16);
+}
+
+.painel-empacotamento .ppwoo-swipe-action::before {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: var(--ppwoo-swipe-progress, 0%);
+    content: '';
+    background: rgba(255, 255, 255, 0.16);
+    pointer-events: none;
+    transition: width 0.2s ease;
+}
+
+.painel-empacotamento .ppwoo-swipe-action.is-dragging,
+.painel-empacotamento .ppwoo-swipe-action.is-complete {
+    cursor: grabbing;
+}
+
+.painel-empacotamento .ppwoo-swipe-action.is-dragging::before {
+    transition: none;
+}
+
+#tab-motoboy .ppwoo-swipe-action.btn-accept-order {
+    background: var(--cor-aviso) !important;
+}
+
+#tab-motoboy .ppwoo-swipe-action.btn-conclude-shipment,
+#tab-correios .ppwoo-swipe-action.btn-conclude-shipment-correios {
+    background: var(--cor-sucesso) !important;
+}
+
+.painel-empacotamento .ppwoo-swipe-label {
+    position: absolute;
+    z-index: 2;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 64px;
+    font-size: 1em;
+    font-weight: bold;
+    line-height: 1.1;
+    text-align: center;
+    pointer-events: none;
+}
+
+.painel-empacotamento .ppwoo-swipe-thumb {
+    position: absolute;
+    z-index: 3;
+    top: 4px;
+    left: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    background: #fff;
+    color: #1d2327;
+    box-shadow: -2px -2px 4px rgba(255, 255, 255, 0.62), 2px 3px 5px rgba(0, 0, 0, 0.28);
+    transform: translateX(var(--ppwoo-swipe-offset, 0px));
+    transition: transform 0.25s ease;
+    pointer-events: none;
+}
+
+.painel-empacotamento .ppwoo-swipe-thumb .dashicons,
+.painel-empacotamento .ppwoo-swipe-thumb .dashicons::before {
+    color: #1d2327 !important;
+    font-size: 1.35em;
+    line-height: 1;
+}
+
+.painel-empacotamento .ppwoo-swipe-action.is-dragging .ppwoo-swipe-thumb,
+.painel-empacotamento .ppwoo-swipe-action.is-complete .ppwoo-swipe-thumb {
+    transition: none;
 }
 
 #tab-correios .order-actions .loading-indicator {

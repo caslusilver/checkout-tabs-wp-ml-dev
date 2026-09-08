@@ -2,6 +2,13 @@
 
 Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
+## [v3.2.126] - 2026-09-08
+
+### Fixed
+- reforça o contraste do ícone de atualização do PackPanel e transforma as ações de aceitar pedido e concluir envio em sliders de confirmação, evitando acionamento por toque acidental e preservando o AJAX existente.
+
+#### Protocol: pending
+
 ## [v3.2.125] - 2026-09-08
 
 ### Fixed
