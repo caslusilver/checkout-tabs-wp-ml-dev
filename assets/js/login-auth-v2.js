@@ -268,6 +268,55 @@
       Recaptcha.reset();
     }
 
+    function normalizeFullName(fullName) {
+      try {
+        return String(fullName || '').replace(/\s+/g, ' ').trim();
+      } catch (e) {
+        return '';
+      }
+    }
+
+    function getStoredCheckoutName() {
+      var keys = ['ctwpml_auth_resume_v1', 'ctwpml_ml_form_state_v1'];
+      for (var i = 0; i < keys.length; i++) {
+        try {
+          if (!window.sessionStorage) continue;
+          var raw = window.sessionStorage.getItem(keys[i]);
+          if (!raw) continue;
+          var snap = JSON.parse(raw);
+          if (!snap || typeof snap !== 'object') continue;
+          var candidates = [
+            snap.billingName || '',
+            snap.nome || '',
+            snap.formSnapshot && snap.formSnapshot.nome ? snap.formSnapshot.nome : '',
+            snap.addressSnapshot && snap.addressSnapshot.receiver_name ? snap.addressSnapshot.receiver_name : '',
+            snap.billingSnapshot ? ((snap.billingSnapshot.firstName || '') + ' ' + (snap.billingSnapshot.lastName || '')).trim() : ''
+          ];
+          for (var j = 0; j < candidates.length; j++) {
+            var name = normalizeFullName(candidates[j]);
+            if (name) return name;
+          }
+        } catch (e0) { }
+      }
+      return '';
+    }
+
+    function getCheckoutBillingName() {
+      var candidates = [];
+      try { candidates.push(($('#ctwpml-input-nome').val() || '').trim()); } catch (e0) { }
+      try {
+        var first = ($('#billing_first_name').val() || '').trim();
+        var last = ($('#billing_last_name').val() || '').trim();
+        candidates.push((first + ' ' + last).trim());
+      } catch (e1) { }
+      candidates.push(getStoredCheckoutName());
+      for (var i = 0; i < candidates.length; i++) {
+        var name = normalizeFullName(candidates[i]);
+        if (name) return name;
+      }
+      return '';
+    }
+
     $(document).on('submit', '#ctwpml-auth-form', function (e) {
       e.preventDefault();
       var $form = $(this);
@@ -325,17 +374,20 @@
       }
 
       $('#ctwpml-auth-submit').prop('disabled', true);
+      var requestData = {
+        action: (flow === 'login') ? 'ctwpml_login' : 'ctwpml_auth_email',
+        _ajax_nonce: (flow === 'login') ? loginNonce : createNonce,
+        email: (flow === 'login') ? loginEmail : createEmail,
+        password: (flow === 'login') ? loginPassword : undefined,
+        recaptcha_response: recaptchaResponse
+      };
+      var checkoutName = getCheckoutBillingName();
+      if (flow === 'create' && checkoutName) requestData.name = checkoutName;
       $.ajax({
         url: ajaxUrl,
         type: 'POST',
         dataType: 'json',
-        data: {
-          action: (flow === 'login') ? 'ctwpml_login' : 'ctwpml_auth_email',
-          _ajax_nonce: (flow === 'login') ? loginNonce : createNonce,
-          email: (flow === 'login') ? loginEmail : createEmail,
-          password: (flow === 'login') ? loginPassword : undefined,
-          recaptcha_response: recaptchaResponse
-        },
+        data: requestData,
         success: function (resp) {
           if (resp && resp.success) {
             setMsg($msg, 'Entrando... Aguarde.', false);

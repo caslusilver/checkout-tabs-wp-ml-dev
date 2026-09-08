@@ -1038,10 +1038,12 @@
 
     function showAuthView(opts) {
       opts = opts || {};
+      var previousView = currentView;
       currentView = 'auth';
+      state.__ctwpmlAuthReturnView = String(opts.returnView || previousView || 'review');
       try {
         if (opts.preserveView) {
-          persistModalState({ view: String(opts.returnView || 'review'), pendingAuth: true });
+          persistModalState({ view: state.__ctwpmlAuthReturnView, pendingAuth: true });
         } else {
           persistModalState({ view: 'auth' });
         }
@@ -2755,6 +2757,9 @@
       }
 
       var run = function () {
+        try {
+          if (authResumeContext) ctwpmlApplyAuthResumeBillingSnapshot(authResumeContext, 'review_render');
+        } catch (eResumeBilling0) {}
         var totals = woo ? woo.readTotals() : { subtotalText: '', shippingText: '', totalText: '' };
         var paymentLabel = woo ? woo.getSelectedGatewayLabel() : '';
 
@@ -2785,6 +2790,12 @@
         } catch (e) {}
         if (!billingName) {
           billingName = ($('#ctwpml-input-nome').val() || '').trim();
+        }
+        if (!billingName) {
+          billingName = ctwpmlGetPersistedBillingName('review_render');
+        }
+        if (billingName) {
+          try { ctwpmlApplyBillingNameToWoo(billingName, 'review_render'); } catch (eNameApply0) {}
         }
         var billingCpf = ($('#billing_cpf').val() || $('#ctwpml-input-cpf').val() || '').trim();
         if (billingCpf && billingCpf.indexOf('CPF') !== 0) billingCpf = 'CPF ' + billingCpf;
@@ -3354,6 +3365,7 @@
       var firstName = readField('#billing_first_name', 'billing_first_name');
       var lastName = readField('#billing_last_name', 'billing_last_name');
       var modalName = ctwpmlNormalizeText($('#ctwpml-input-nome').val()) || ctwpmlNormalizeText(formSnapshot && formSnapshot.nome);
+      if (!modalName) modalName = ctwpmlGetPersistedBillingName('billing_readiness');
       if ((!firstName || !lastName) && modalName) {
         var parsedName = ctwpmlParseFullName(modalName);
         if (!firstName) firstName = parsedName.firstName || '';
@@ -3443,9 +3455,167 @@
       };
     }
 
+    function ctwpmlGetPersistedBillingName(context) {
+      var candidates = [];
+      try {
+        var n1 = ($('#billing_first_name').val() || '').trim();
+        var n2 = ($('#billing_last_name').val() || '').trim();
+        candidates.push((n1 + ' ' + n2).trim());
+      } catch (e0) {}
+      try {
+        candidates.push(($('#ctwpml-input-nome').val() || '').trim());
+      } catch (e1) {}
+      try {
+        var resume = authResumeContext || restoreStateOnOpen || null;
+        if (resume && typeof resume === 'object') {
+          candidates.push(resume.billingName || '');
+          if (resume.billingSnapshot && typeof resume.billingSnapshot === 'object') {
+            candidates.push(((resume.billingSnapshot.firstName || '') + ' ' + (resume.billingSnapshot.lastName || '')).trim());
+          }
+          if (resume.addressSnapshot && typeof resume.addressSnapshot === 'object') {
+            candidates.push(resume.addressSnapshot.receiver_name || '');
+          }
+          if (resume.formSnapshot && typeof resume.formSnapshot === 'object') {
+            candidates.push(resume.formSnapshot.nome || '');
+          }
+        }
+      } catch (e2) {}
+      try {
+        var storedSnapshot = readFormSnapshot();
+        if (storedSnapshot && typeof storedSnapshot === 'object') candidates.push(storedSnapshot.nome || '');
+      } catch (e3) {}
+      try {
+        var recoverableAddress = getRecoverableAddressFromState();
+        if (recoverableAddress && typeof recoverableAddress === 'object') candidates.push(recoverableAddress.receiver_name || '');
+      } catch (e4) {}
+
+      for (var i = 0; i < candidates.length; i++) {
+        var name = ctwpmlNormalizeFullName(candidates[i]);
+        if (name) {
+          if (typeof state.checkpoint === 'function') {
+            state.checkpoint('CHK_BILLING_NAME_CANDIDATE', true, { context: String(context || ''), index: i, hasName: true });
+          }
+          return name;
+        }
+      }
+      return '';
+    }
+
+    function ctwpmlApplyBillingNameToWoo(fullName, context) {
+      var parsed = ctwpmlParseFullName(fullName);
+      if (!parsed.normalized) return false;
+      var wrote = false;
+      try {
+        var $modalName = $('#ctwpml-input-nome');
+        if ($modalName.length) {
+          $modalName.val(parsed.normalized).trigger('input').trigger('change');
+          wrote = true;
+        }
+      } catch (e0) {}
+      try {
+        var $first = ctwpmlBillingField$('#billing_first_name', 'billing_first_name');
+        if ($first.length && parsed.firstName) wrote = ctwpmlSetFieldValue($first, parsed.firstName) || wrote;
+      } catch (e1) {}
+      try {
+        var $last = ctwpmlBillingField$('#billing_last_name', 'billing_last_name');
+        if ($last.length && parsed.lastName) wrote = ctwpmlSetFieldValue($last, parsed.lastName) || wrote;
+      } catch (e2) {}
+      if (typeof state.checkpoint === 'function') {
+        state.checkpoint('CHK_BILLING_NAME_RESTORE', wrote, {
+          context: String(context || ''),
+          hasName: !!parsed.normalized,
+          hasFirstName: !!parsed.firstName,
+          hasLastName: !!parsed.lastName,
+        });
+      }
+      return wrote;
+    }
+
+    function ctwpmlApplyAuthResumeBillingSnapshot(snapshot, context) {
+      if (!snapshot || typeof snapshot !== 'object') return false;
+      var applied = false;
+      var formSnapshot = snapshot.formSnapshot && typeof snapshot.formSnapshot === 'object' ? snapshot.formSnapshot : null;
+      var billing = snapshot.billingSnapshot && typeof snapshot.billingSnapshot === 'object' ? snapshot.billingSnapshot : {};
+
+      try {
+        if (formSnapshot) {
+          saveFormSnapshot(formSnapshot);
+          ctwpmlApplyFormSnapshot(formSnapshot);
+          applied = true;
+        }
+      } catch (e0) {}
+
+      var billingName = ctwpmlNormalizeFullName(snapshot.billingName || '');
+      if (!billingName && billing.firstName) billingName = ctwpmlNormalizeFullName(((billing.firstName || '') + ' ' + (billing.lastName || '')).trim());
+      if (!billingName && snapshot.addressSnapshot) billingName = ctwpmlNormalizeFullName(snapshot.addressSnapshot.receiver_name || '');
+      if (!billingName && formSnapshot) billingName = ctwpmlNormalizeFullName(formSnapshot.nome || '');
+      if (!billingName) billingName = ctwpmlGetPersistedBillingName(context);
+      if (billingName) {
+        ctwpmlApplyBillingNameToWoo(billingName, context);
+        try {
+          var stored = readFormSnapshot() || {};
+          if (!stored.nome) {
+            stored.nome = billingName;
+            saveFormSnapshot(stored);
+          }
+        } catch (eName0) {}
+        applied = true;
+      }
+
+      var email = ctwpmlNormalizeText(snapshot.authEmail || billing.email || (formSnapshot && formSnapshot.email) || '');
+      if (email) {
+        try { $('#ctwpml-input-email').val(email).trigger('input').trigger('change'); } catch (e1) {}
+        try {
+          var $email = ctwpmlBillingField$('#billing_email', 'billing_email');
+          if ($email.length) ctwpmlSetFieldValue($email, email);
+        } catch (e2) {}
+        applied = true;
+      }
+
+      var cpf = ctwpmlNormalizeText(billing.cpf || (formSnapshot && formSnapshot.cpf) || '');
+      if (cpf) {
+        try { $('#ctwpml-input-cpf').val(cpf).trigger('input').trigger('change'); } catch (e3) {}
+        try {
+          var $cpf = getBillingCpfInput();
+          if ($cpf.length) ctwpmlSetFieldValue($cpf, cpf);
+        } catch (e4) {}
+        applied = true;
+      }
+
+      var phone = ctwpmlNormalizeText(billing.phone || (formSnapshot && (formSnapshot.phone_full || formSnapshot.phone)) || '');
+      if (phone) {
+        try { $('#ctwpml-phone-full').val(phone).trigger('input').trigger('change'); } catch (e5) {}
+        try { $('#ctwpml-input-fone').val(formatPhone(phone)).trigger('input').trigger('change'); } catch (e6) {}
+        try {
+          var $cellphone = ctwpmlBillingField$('#billing_cellphone', 'billing_cellphone');
+          if ($cellphone.length) ctwpmlSetFieldValue($cellphone, phoneDigits(phone));
+        } catch (e7) {}
+        try {
+          var $phone = ctwpmlBillingField$('#billing_phone', 'billing_phone');
+          if ($phone.length) ctwpmlSetFieldValue($phone, phoneDigits(phone));
+        } catch (e8) {}
+        applied = true;
+      }
+
+      if (typeof state.checkpoint === 'function') {
+        state.checkpoint('CHK_AUTH_RESUME_BILLING_RESTORE', applied, {
+          context: String(context || ''),
+          hasBillingName: !!billingName,
+          hasEmail: !!email,
+          hasCpf: !!cpf,
+          hasPhone: !!phone,
+          hasFormSnapshot: !!formSnapshot,
+        });
+      }
+      return applied;
+    }
+
     function ctwpmlEnsureBillingFieldsFromState(context) {
       context = String(context || 'billing_rehydrate');
       try { ensureWooNeighborhoodInputs(); } catch (e0) {}
+      try {
+        if (authResumeContext) ctwpmlApplyAuthResumeBillingSnapshot(authResumeContext, context + ':auth_resume');
+      } catch (eAuth0) {}
       try {
         var storedSnapshot = readFormSnapshot();
         if (storedSnapshot) ctwpmlApplyFormSnapshot(storedSnapshot);
@@ -3919,6 +4089,13 @@
           state.selectedPaymentMethod = restoreStateOnOpen.selectedPaymentMethod;
         }
       } catch (eRestore0) {}
+      try {
+        if (restoreStateOnOpen && restoreStateOnOpen.formSnapshot) saveFormSnapshot(restoreStateOnOpen.formSnapshot);
+        if (restoreStateOnOpen && restoreStateOnOpen.resumeAfterAuth) {
+          ctwpmlApplyAuthResumeBillingSnapshot(restoreStateOnOpen, 'openModal_resume');
+          refreshFromCheckoutFields();
+        }
+      } catch (eRestoreBilling) {}
       
       // Modo fullscreen: mostrar componente inline e esconder abas antigas
       $('#ctwpml-address-modal-overlay').css('display', 'block');
@@ -5965,14 +6142,39 @@
       // initial → fecha modal (ou history.back quando for fullscreen)
 
       if (currentView === 'auth') {
-        // Saída explícita: voltar ao carrinho
-        var cartUrlA = (state.params && state.params.cart_url) ? String(state.params.cart_url) : '';
-        closeModal({ reason: 'auth_exit_to_cart', allowNavigateBack: false });
-        if (cartUrlA) {
-          setTimeout(function () {
-            try { window.location.href = cartUrlA; } catch (eN0) {}
-          }, 0);
+        var returnView = '';
+        try {
+          returnView = String(state.__ctwpmlAuthReturnView || '');
+        } catch (eA0) {}
+        if (!returnView || returnView === 'auth') {
+          try {
+            var modalState = safeReadModalState();
+            returnView = modalState && modalState.view && modalState.view !== 'auth' ? String(modalState.view) : 'review';
+          } catch (eA1) {
+            returnView = 'review';
+          }
         }
+        if (typeof state.checkpoint === 'function') {
+          state.checkpoint('CHK_AUTH_BACK_RETURN', true, { returnView: returnView });
+        }
+        if (returnView === 'payment') {
+          showPaymentScreen();
+          return;
+        }
+        if (returnView === 'shipping') {
+          showShippingPlaceholder();
+          return;
+        }
+        if (returnView === 'list') {
+          showList();
+          renderAddressList();
+          return;
+        }
+        if (returnView === 'form') {
+          showFormForNewAddress();
+          return;
+        }
+        showReviewConfirmScreen();
         return;
       }
       if (currentView === 'payment') {
@@ -7320,9 +7522,36 @@
           try {
             var termsChecked = $('.ctwpml-review-terms-checkbox').first().is(':checked');
             var addressSnapshot = null;
+            var billingSnapshot = null;
+            var billingName = '';
+            var formSnapshot = null;
             try {
               addressSnapshot = getRecoverableAddressFromState();
             } catch (eA0) {}
+            try {
+              billingSnapshot = ctwpmlReadBillingReadinessSnapshot();
+            } catch (eB0) {}
+            try {
+              billingName = ctwpmlGetPersistedBillingName('auth_resume');
+            } catch (eN0) {}
+            try {
+              var storedFormSnapshot = readFormSnapshot();
+              var collectedFormSnapshot = ctwpmlCollectFormSnapshot();
+              formSnapshot = storedFormSnapshot && typeof storedFormSnapshot === 'object' ? storedFormSnapshot : null;
+              if (collectedFormSnapshot && typeof collectedFormSnapshot === 'object') {
+                if (!formSnapshot) formSnapshot = {};
+                Object.keys(collectedFormSnapshot).forEach(function (key) {
+                  var value = collectedFormSnapshot[key];
+                  if (value !== '' && value !== null && typeof value !== 'undefined') formSnapshot[key] = value;
+                });
+              }
+              if (formSnapshot && billingName && !formSnapshot.nome) formSnapshot.nome = billingName;
+              if (formSnapshot && email && !formSnapshot.email) formSnapshot.email = String(email || '');
+              if (formSnapshot) saveFormSnapshot(formSnapshot);
+            } catch (eF0) {}
+            if (addressSnapshot && billingName && !addressSnapshot.receiver_name) {
+              addressSnapshot.receiver_name = billingName;
+            }
             saveAuthResumeSnapshot({
               view: currentView || 'review',
               selectedAddressId: selectedAddressId || '',
@@ -7331,6 +7560,9 @@
               termsChecked: !!termsChecked,
               autoSubmit: !!termsChecked,
               addressSnapshot: addressSnapshot,
+              billingName: billingName,
+              billingSnapshot: billingSnapshot,
+              formSnapshot: formSnapshot,
               resumeAfterAuth: true,
               authMode: String(authMode || ''),
               authEmail: String(email || ''),
@@ -7341,6 +7573,9 @@
                 termsChecked: !!termsChecked,
                 authMode: String(authMode || ''),
                 hasEmail: !!email,
+                hasBillingName: !!billingName,
+                hasBillingSnapshot: !!billingSnapshot,
+                hasFormSnapshot: !!formSnapshot,
               });
             }
           } catch (eSnap) {
@@ -7824,6 +8059,9 @@
         snapshot.open = true;
         snapshot.view = (snapshot.view || 'review');
         snapshot.resumeAfterAuth = true;
+        try {
+          if (snapshot.formSnapshot) saveFormSnapshot(snapshot.formSnapshot);
+        } catch (eFs0) {}
         if (typeof state.checkpoint === 'function') {
           state.checkpoint('CHK_AUTH_RESUME_READY', true, { view: snapshot.view, autoSubmit: !!snapshot.autoSubmit });
         }

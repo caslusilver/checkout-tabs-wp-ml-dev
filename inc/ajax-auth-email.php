@@ -17,6 +17,8 @@ function ctwpml_ajax_auth_email(): void {
 
 	$email = isset($_POST['email']) ? sanitize_email((string) wp_unslash($_POST['email'])) : '';
 	$email = strtolower(trim($email));
+	$name = isset($_POST['name']) ? sanitize_text_field((string) wp_unslash($_POST['name'])) : '';
+	$name = trim((string) preg_replace('/\s+/', ' ', $name));
 	$recaptcha_response = isset($_POST['recaptcha_response']) ? sanitize_text_field((string) wp_unslash($_POST['recaptcha_response'])) : '';
 
 	if ($email === '' || !is_email($email)) {
@@ -106,11 +108,31 @@ function ctwpml_ajax_auth_email(): void {
 		}
 		$user = get_user_by('id', $user_id);
 		if ($user) {
+			$first_name = '';
+			$last_name = '';
+			if ($name !== '') {
+				$name_parts = preg_split('/\s+/', $name);
+				if (is_array($name_parts) && !empty($name_parts)) {
+					$first_name = sanitize_text_field((string) array_shift($name_parts));
+					$last_name = sanitize_text_field(trim((string) implode(' ', $name_parts)));
+				}
+			}
+
 			wp_update_user([
 				'ID' => $user->ID,
-				'display_name' => $email,
+				'display_name' => $name !== '' ? $name : $email,
 				'user_nicename' => $username,
 			]);
+
+			if ($first_name !== '') {
+				update_user_meta($user->ID, 'first_name', $first_name);
+				update_user_meta($user->ID, 'billing_first_name', $first_name);
+			}
+			if ($last_name !== '') {
+				update_user_meta($user->ID, 'last_name', $last_name);
+				update_user_meta($user->ID, 'billing_last_name', $last_name);
+			}
+			update_user_meta($user->ID, 'billing_email', $email);
 		}
 	}
 

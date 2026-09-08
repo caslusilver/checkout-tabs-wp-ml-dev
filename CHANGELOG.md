@@ -114,6 +114,13 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
 #### Protocol: ee78e51
 
+## [v3.2.124] - 2026-09-08
+
+### Fixed
+- preserva o nome de faturamento no retorno pós-criação de conta/autenticação e faz o botão Voltar da etapa de autenticação retornar para a etapa anterior do checkout em vez do carrinho.
+
+#### Protocol: pending
+
 ## [v3.2.123] - 2026-09-08
 
 ### Changed
@@ -195,7 +202,7 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 ## [Unreleased]
 
 ### Changed
-- **Versão atual**: v3.2.123
+- **Versão atual**: v3.2.124
   **Versão sugerida após a mudança**: vX.Y.Z  
   **Descrição**: texto objetivo do que mudou e impacto (pode listar itens separados por ponto e vírgula).
 
