@@ -2,6 +2,13 @@
 
 Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
+## [v3.2.128] - 2026-09-08
+
+### Fixed
+- corrige a entrada de telefone com `55` adicional quando o país selecionado é Brasil, evitando que a máscara descarte os últimos dígitos; preserva o DDD `55` válido e mantém números internacionais fora dessa regra.
+
+#### Protocol: pending
+
 ## [v3.2.127] - 2026-09-08
 
 ### Fixed

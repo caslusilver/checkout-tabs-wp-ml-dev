@@ -3860,6 +3860,79 @@
         options.push({ value: 'XX', text: 'Outro', ddi: '+', flag: getFlagEmoji('XX') });
 
         var maskInstance = null;
+        var activeCountryCode = 'BR';
+        var isNormalizingBrazilPrefix = false;
+
+        function getDigitIndexAtPosition(value, position) {
+          return String(value || '').slice(0, Math.max(0, Number(position) || 0)).replace(/\D/g, '').length;
+        }
+
+        function applyBrazilNationalDigits(digits) {
+          var nationalDigits = String(digits || '').replace(/\D/g, '').slice(0, 11);
+          var ddi = String((countryData.BR && countryData.BR[1]) || '55');
+
+          isNormalizingBrazilPrefix = true;
+          try {
+            if (maskInstance) {
+              maskInstance.unmaskedValue = nationalDigits;
+            } else {
+              inputEl.value = formatPhone(nationalDigits);
+            }
+
+            // IMask may not emit accept when the value is changed programmatically.
+            var expectedFull = nationalDigits ? ('+' + ddi + nationalDigits) : '';
+            if (String(hiddenEl.value || '') !== expectedFull) {
+              updateHidden('BR', ddi, nationalDigits);
+            }
+          } finally {
+            isNormalizingBrazilPrefix = false;
+          }
+
+          try {
+            inputEl.setSelectionRange(inputEl.value.length, inputEl.value.length);
+          } catch (e0) {}
+        }
+
+        function normalizeBrazilPrefixFromEvent(event, insertedValue) {
+          if (activeCountryCode !== 'BR' || isNormalizingBrazilPrefix || !event || event.isComposing) return false;
+
+          var visibleValue = String(inputEl.value || '');
+          var currentDigits = maskInstance
+            ? String(maskInstance.unmaskedValue || '').replace(/\D/g, '')
+            : visibleValue.replace(/\D/g, '');
+          var insertedDigits = String(insertedValue || '').replace(/\D/g, '');
+          if (!insertedDigits) return false;
+
+          var selectionStart = typeof inputEl.selectionStart === 'number' ? inputEl.selectionStart : visibleValue.length;
+          var selectionEnd = typeof inputEl.selectionEnd === 'number' ? inputEl.selectionEnd : selectionStart;
+          var startDigit = getDigitIndexAtPosition(visibleValue, selectionStart);
+          var endDigit = getDigitIndexAtPosition(visibleValue, selectionEnd);
+          var proposedDigits = currentDigits.slice(0, startDigit) + insertedDigits + currentDigits.slice(endDigit);
+
+          // Brasil usa 11 digitos nacionais. Se houver mais e o prefixo for 55,
+          // trata o 55 como DDI digitado por engano e preserva o restante.
+          if (proposedDigits.length <= 11 || proposedDigits.indexOf('55') !== 0) return false;
+
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          applyBrazilNationalDigits(proposedDigits.slice(2));
+          return true;
+        }
+
+        // Intercepta teclado e colagem antes de a mascara descartar os ultimos digitos.
+        inputEl.addEventListener('beforeinput', function (event) {
+          var insertedValue = event && event.data ? event.data : '';
+          if (!insertedValue && event && event.inputType === 'insertFromPaste' && event.clipboardData) {
+            try { insertedValue = event.clipboardData.getData('text'); } catch (e0) {}
+          }
+          normalizeBrazilPrefixFromEvent(event, insertedValue);
+        }, true);
+
+        inputEl.addEventListener('paste', function (event) {
+          var pastedValue = '';
+          try { pastedValue = event.clipboardData ? event.clipboardData.getData('text') : ''; } catch (e0) {}
+          normalizeBrazilPrefixFromEvent(event, pastedValue);
+        }, true);
 
         function updateHidden(countryCode, ddi, unmaskedValue) {
           var val = String(unmaskedValue || '');
@@ -3885,6 +3958,7 @@
         function updateMask(countryCode, isInitCall) {
           var data = countryData[countryCode];
           if (!data) return;
+          activeCountryCode = String(countryCode || '').toUpperCase();
           var maskPattern = data[2];
           var ddi = data[1];
 
