@@ -80,7 +80,7 @@ class PPWOO_Orders {
      * 
      * @return array Array de objetos WC_Order e arrays normalizados
      */
-    public static function get_motoboy_orders() {
+    public static function get_motoboy_orders($external_orders = null) {
         $motoboy_orders = array();
         
         // Busca pedidos WooCommerce
@@ -102,7 +102,9 @@ class PPWOO_Orders {
         }
         
         // Busca e mescla pedidos externos
-        $external_orders = self::get_external_orders();
+        if ($external_orders === null) {
+            $external_orders = self::get_external_orders();
+        }
         foreach ($external_orders as $external_order) {
             if (self::classify_order($external_order) === 'motoboy') {
                 $motoboy_orders[] = $external_order;
@@ -124,7 +126,7 @@ class PPWOO_Orders {
      * 
      * @return array Array de objetos WC_Order e arrays normalizados
      */
-    public static function get_correios_orders() {
+    public static function get_correios_orders($external_orders = null) {
         $correios_orders = array();
         
         // Busca pedidos WooCommerce
@@ -143,7 +145,9 @@ class PPWOO_Orders {
         }
         
         // Busca e mescla pedidos externos
-        $external_orders = self::get_external_orders();
+        if ($external_orders === null) {
+            $external_orders = self::get_external_orders();
+        }
         foreach ($external_orders as $external_order) {
             if (self::classify_order($external_order) === 'correios') {
                 $correios_orders[] = $external_order;
@@ -157,6 +161,26 @@ class PPWOO_Orders {
         ]);
         
         return $correios_orders;
+    }
+
+    /**
+     * Obtém todos os dados exibidos no painel usando uma única consulta ao
+     * webhook externo por renderização/polling.
+     *
+     * @return array Dados normalizados para o template do painel.
+     */
+    public static function get_panel_data() {
+        $external_orders = self::get_external_orders();
+        $motoboy_orders = self::get_motoboy_orders($external_orders);
+        $correios_orders = self::get_correios_orders($external_orders);
+        $pending_payment_orders = self::get_pending_payment_orders();
+
+        return array(
+            'motoboy_orders' => $motoboy_orders,
+            'correios_orders' => $correios_orders,
+            'pending_payment_orders' => $pending_payment_orders,
+            'total_pending_orders' => count($motoboy_orders) + count($correios_orders) + count($pending_payment_orders),
+        );
     }
     
     /**

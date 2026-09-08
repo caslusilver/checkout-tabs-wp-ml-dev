@@ -47,6 +47,48 @@
     color: var(--cor-aviso);
 }
 
+.status-info {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.ppwoo-refresh-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border: 1px solid var(--cor-borda);
+    border-radius: 3px;
+    background: #fff;
+    color: #555;
+    cursor: pointer;
+}
+
+.ppwoo-refresh-button:hover,
+.ppwoo-refresh-button:focus-visible {
+    color: var(--cor-primaria);
+    border-color: var(--cor-primaria);
+}
+
+.ppwoo-refresh-button.is-refreshing .dashicons {
+    animation: ppwoo-refresh-spin 0.9s linear infinite;
+}
+
+.ppwoo-refresh-status {
+    color: #666;
+    font-size: 0.78em;
+    white-space: nowrap;
+}
+
+@keyframes ppwoo-refresh-spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
 .painel-tabs {
     display: flex;
     border-bottom: 1px solid var(--cor-borda);

@@ -120,6 +120,7 @@ class PPWOO_PackingPanel {
 
         // AJAX handler para webhooks internos
         add_action('wp_ajax_' . PPWOO_Config::AJAX_ACTION, [__CLASS__, 'handle_internal_ajax']);
+        add_action('wp_ajax_ppwoo_refresh_panel', [__CLASS__, 'handle_refresh_ajax']);
         
         if (PPWOO_Config::is_debug()) {
             error_log('PPWOO: Hooks registrados com sucesso');
@@ -215,6 +216,10 @@ class PPWOO_PackingPanel {
             'correios_tab_text' => esc_html__('Correios', 'painel-empacotamento'),
             'pending_orders_text' => esc_html__(' pedidos pendentes', 'painel-empacotamento'),
             'debug_enabled' => PPWOO_Config::is_debug(),
+            'refresh_interval' => max(10000, min(120000, (int) apply_filters('ppwoo_panel_refresh_interval', 15000))),
+            'refresh_error' => esc_html__('Não foi possível atualizar os pedidos.', 'painel-empacotamento'),
+            'refreshing_text' => esc_html__('Atualizando...', 'painel-empacotamento'),
+            'refreshed_text' => esc_html__('Atualizado agora', 'painel-empacotamento'),
         ]);
 
         // Compatibilidade com variável PPWOO (usada no JS)
@@ -225,6 +230,10 @@ class PPWOO_PackingPanel {
             'copy_success' => esc_html__('Copiado!', 'painel-empacotamento'),
             'copy_error' => esc_html__('Falha ao copiar.', 'painel-empacotamento'),
             'debug_enabled' => PPWOO_Config::is_debug(),
+            'refresh_interval' => max(10000, min(120000, (int) apply_filters('ppwoo_panel_refresh_interval', 15000))),
+            'refresh_error' => esc_html__('Não foi possível atualizar os pedidos.', 'painel-empacotamento'),
+            'refreshing_text' => esc_html__('Atualizando...', 'painel-empacotamento'),
+            'refreshed_text' => esc_html__('Atualizado agora', 'painel-empacotamento'),
         ]);
         
         if (PPWOO_Config::is_debug()) {
@@ -370,6 +379,27 @@ class PPWOO_PackingPanel {
         }
 
         wp_die();
+    }
+
+    /**
+     * Atualiza somente o conteúdo do painel sem recarregar a página inteira.
+     */
+    public static function handle_refresh_ajax() {
+        check_ajax_referer('packing_panel_nonce', 'nonce');
+
+        if (!PPWOO_Security::can_manage_panel()) {
+            wp_send_json_error('Você não tem permissão para atualizar este painel.', 403);
+        }
+
+        $html = self::render_shortcode([]);
+        if (strpos($html, 'painel-empacotamento') === false) {
+            wp_send_json_error('Não foi possível renderizar o painel atualizado.', 500);
+        }
+
+        wp_send_json_success([
+            'html' => $html,
+            'refreshed_at' => current_time('H:i:s'),
+        ]);
     }
 }
 

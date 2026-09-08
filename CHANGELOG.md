@@ -2,6 +2,13 @@
 
 Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
+## [v3.2.125] - 2026-09-08
+
+### Fixed
+- adiciona atualização automática leve do PackPanel a cada 15 segundos, com atualização manual e pausa quando a página fica oculta; a lista é trocada via AJAX sem reload completo e cada ciclo consulta o webhook externo uma única vez.
+
+#### Protocol: pending
+
 > Importante: **o repositório ainda não foi criado nem publicado no GitHub**.  
 > Este changelog está sendo preparado **antes do primeiro push/publicação**.
 

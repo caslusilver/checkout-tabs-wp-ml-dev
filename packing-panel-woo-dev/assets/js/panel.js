@@ -142,7 +142,7 @@
         return textToCopy.trim().replace(/\s{2,}/g, ' ');
     }
 
-    $('#tab-motoboy').on('click', '.copy-address, .copy-name, .copy-whatsapp', function() {
+    packingPanel.on('click', '#tab-motoboy .copy-address, #tab-motoboy .copy-name, #tab-motoboy .copy-whatsapp', function() {
         copyTextToClipboard(getTextToCopy($(this)), $(this));
     });
 
@@ -170,7 +170,7 @@
     }
 
     // --- 'Aceitar Pedido' Click (Motoboy) ---
-    $('#tab-motoboy').on('click', '.btn-accept-order', function() {
+    packingPanel.on('click', '#tab-motoboy .btn-accept-order', function() {
         var button = $(this);
         var orderItem = button.closest('.motoboy-order');
         var orderId = orderItem.data('order-id');
@@ -207,7 +207,7 @@
     });
 
     // --- 'Concluir Envio' Click (Motoboy) ---
-    $('#tab-motoboy').on('click', '.btn-conclude-shipment', function() {
+    packingPanel.on('click', '#tab-motoboy .btn-conclude-shipment', function() {
         var button = $(this);
         var orderItem = button.closest('.motoboy-order');
         var orderId = orderItem.data('order-id');
@@ -261,101 +261,104 @@
         });
     });
 
-    // --- Correios Carousel & Conclusion ---
-    setTimeout(function() {
-        $('#tab-correios').each(function() {
-            var $tab = $(this);
-            var $carouselContainer = $tab.find('.pedidos-carousel');
-            var $slides = $carouselContainer.find('.pedido-container');
-            var currentIndex = 0;
+    // --- Carousels e conclusão de pedidos Correios ---
+    function setCarouselSlide($tab, carouselSelector, index) {
+        var $carouselContainer = $tab.find(carouselSelector);
+        var $slides = $carouselContainer.find('.pedido-container');
+        var $wrapper = $tab.find(carouselSelector === '.pedidos-carousel' ? '.pedidos-carousel-wrapper' : '.pagamentos-carousel-wrapper');
+        var totalSlides = $slides.length;
 
-            if ($slides.length === 0) {
-                $tab.find('.pedidos-carousel-wrapper').hide();
-            } else {
-                showSlide(0);
-            }
+        if (totalSlides === 0) {
+            $wrapper.hide();
+            $tab.find('.sem-pedidos').show();
+            return;
+        }
 
-            function showSlide(index) {
-                $slides = $carouselContainer.find('.pedido-container');
-                var totalSlides = $slides.length;
-                if (totalSlides === 0) {
-                    $tab.find('.pedidos-carousel-wrapper').hide();
-                    $tab.find('.sem-pedidos').show();
-                    return;
-                }
-                currentIndex = Math.max(0, Math.min(index, totalSlides - 1));
+        $wrapper.show();
+        $tab.find('.sem-pedidos').hide();
+        var currentIndex = Math.max(0, Math.min(typeof index === 'number' ? index : 0, totalSlides - 1));
+        $slides.removeClass('current').eq(currentIndex).addClass('current');
 
-                $slides.removeClass('current').eq(currentIndex).addClass('current');
+        if (totalSlides <= 1) {
+            $tab.find('.carousel-navigation').hide();
+        } else {
+            $tab.find('.carousel-navigation').show();
+            $tab.find('.nav-prev').prop('disabled', currentIndex === 0);
+            $tab.find('.nav-next').prop('disabled', currentIndex === totalSlides - 1);
+        }
+    }
 
-                if (totalSlides <= 1) {
-                    $tab.find('.carousel-navigation').hide();
+    function getCurrentCarouselIndex($tab, carouselSelector) {
+        var index = $tab.find(carouselSelector + ' .pedido-container.current').index();
+        return index >= 0 ? index : 0;
+    }
+
+    function refreshCorreiosCarousel(preferredOrderId) {
+        var $tab = $('#tab-correios');
+        var $slides = $tab.find('.pedidos-carousel .pedido-container');
+        var index = preferredOrderId ? $slides.filter(function() {
+            return String($(this).data('order-id')) === String(preferredOrderId);
+        }).index() : getCurrentCarouselIndex($tab, '.pedidos-carousel');
+
+        setCarouselSlide($tab, '.pedidos-carousel', index >= 0 ? index : 0);
+    }
+
+    packingPanel.on('click', '#tab-correios .nav-next', function() {
+        var $tab = $(this).closest('#tab-correios');
+        setCarouselSlide($tab, '.pedidos-carousel', getCurrentCarouselIndex($tab, '.pedidos-carousel') + 1);
+    });
+
+    packingPanel.on('click', '#tab-correios .nav-prev', function() {
+        var $tab = $(this).closest('#tab-correios');
+        setCarouselSlide($tab, '.pedidos-carousel', getCurrentCarouselIndex($tab, '.pedidos-carousel') - 1);
+    });
+
+    packingPanel.on('click', '#tab-correios .btn-conclude-shipment-correios', function() {
+        var button = $(this);
+        var orderItem = button.closest('.pedido-container');
+        var orderId = orderItem.data('order-id');
+
+        ppDebug.log("Clicou 'Concluir Envio' (Correios) para pedido " + orderId);
+        var $actionArea = button.closest('.order-actions');
+        $actionArea.find('.btn-conclude-shipment-correios').hide();
+        $actionArea.find('.loading-indicator').show();
+
+        $.ajax({
+            url: ajaxUrl,
+            type: 'POST',
+            dataType: 'json',
+            data: {
+                action: ajaxAction,
+                nonce: nonce,
+                order_id: orderId,
+                webhook_type: 'shipped',
+                tab_context: 'correios',
+                tracking_data: { link: '', deadline: '', cost: '', finalization_code: '' }
+            },
+            success: function(response) {
+                if (response.success) {
+                    ppDebug.log('Envio concluído (Correios) para pedido ' + orderId + '. Removendo item.');
+                    orderItem.addClass('removing').on('transitionend', function() {
+                        $(this).remove();
+                        updateCounts();
+                        refreshCorreiosCarousel();
+                    });
                 } else {
-                    $tab.find('.carousel-navigation').show();
-                    $tab.find('.nav-prev').prop('disabled', currentIndex === 0);
-                    $tab.find('.nav-next').prop('disabled', currentIndex === totalSlides - 1);
+                    alert('Erro ao concluir envio: ' + (response.data || 'Erro desconhecido'));
+                    $actionArea.find('.loading-indicator').hide();
+                    $actionArea.find('.btn-conclude-shipment-correios').show();
                 }
+            },
+            error: function(jqXHR) {
+                ppDebug.log('Erro AJAX ao concluir envio (Correios): ' + jqXHR.responseText);
+                alert('Erro na requisição AJAX para concluir envio.');
+                $actionArea.find('.loading-indicator').hide();
+                $actionArea.find('.btn-conclude-shipment-correios').show();
             }
-
-            $tab.on('click', '.nav-next', function() {
-                showSlide(currentIndex + 1);
-            });
-            
-            $tab.on('click', '.nav-prev', function() {
-                showSlide(currentIndex - 1);
-            });
-
-            $tab.on('click', '.btn-conclude-shipment-correios', function() {
-                var button = $(this);
-                var orderItem = button.closest('.pedido-container');
-                var orderId = orderItem.data('order-id');
-                var orderIndex = $slides.index(orderItem);
-
-                ppDebug.log("Clicou 'Concluir Envio' (Correios) para pedido " + orderId);
-                var $actionArea = button.closest('.order-actions');
-                $actionArea.find('.btn-conclude-shipment-correios').hide();
-                $actionArea.find('.loading-indicator').show();
-
-                $.ajax({
-                    url: ajaxUrl,
-                    type: 'POST',
-                    dataType: 'json',
-                    data: {
-                        action: ajaxAction,
-                        nonce: nonce,
-                        order_id: orderId,
-                        webhook_type: 'shipped',
-                        tab_context: 'correios',
-                        tracking_data: { link: '', deadline: '', cost: '', finalization_code: '' }
-                    },
-                    success: function(response) {
-                        if (response.success) {
-                            ppDebug.log('Envio concluído (Correios) para pedido ' + orderId + '. Removendo item.');
-                            orderItem.addClass('removing').on('transitionend', function() {
-                                $(this).remove();
-                                $slides = $carouselContainer.find('.pedido-container');
-                                updateCounts();
-                                if ($slides.length > 0) {
-                                    showSlide(Math.min(orderIndex, $slides.length - 1));
-                                } else {
-                                    showSlide(0);
-                                }
-                            });
-                        } else {
-                            alert('Erro ao concluir envio: ' + (response.data || 'Erro desconhecido'));
-                            $actionArea.find('.loading-indicator').hide();
-                            $actionArea.find('.btn-conclude-shipment-correios').show();
-                        }
-                    },
-                    error: function(jqXHR) {
-                        ppDebug.log('Erro AJAX ao concluir envio (Correios): ' + jqXHR.responseText);
-                        alert('Erro na requisição AJAX para concluir envio.');
-                        $actionArea.find('.loading-indicator').hide();
-                        $actionArea.find('.btn-conclude-shipment-correios').show();
-                    }
-                });
-            });
         });
-    }, 10);
+    });
+
+    refreshCorreiosCarousel();
 
     // --- Function to update counts ---
     function updateCounts() {
@@ -430,78 +433,146 @@
         });
     }
 
-    $('#tab-pagamentos').on('click', '.ppwoo-btn-confirm-payment', function() {
+    packingPanel.on('click', '#tab-pagamentos .ppwoo-btn-confirm-payment', function() {
         handlePaymentAction(this, 'payment_confirm');
     });
 
-    $('#tab-pagamentos').on('click', '.ppwoo-btn-deny-payment', function() {
+    packingPanel.on('click', '#tab-pagamentos .ppwoo-btn-deny-payment', function() {
         handlePaymentAction(this, 'payment_deny');
     });
 
-    function refreshPagamentosCarousel() {
+    function refreshPagamentosCarousel(preferredOrderId) {
         var $tab = $('#tab-pagamentos');
-        var $carouselContainer = $tab.find('.pagamentos-carousel');
-        var $slides = $carouselContainer.find('.pedido-container');
-        var totalSlides = $slides.length;
+        var $slides = $tab.find('.pagamentos-carousel .pedido-container');
+        var index = preferredOrderId ? $slides.filter(function() {
+            return String($(this).data('order-id')) === String(preferredOrderId);
+        }).index() : 0;
 
-        $slides.removeClass('current');
-        if (totalSlides > 0) {
-            $slides.eq(0).addClass('current');
-        }
-
-        if (totalSlides <= 1) {
-            $tab.find('.carousel-navigation').hide();
-        } else {
-            $tab.find('.carousel-navigation').show();
-            $tab.find('.nav-prev').prop('disabled', true);
-            $tab.find('.nav-next').prop('disabled', false);
-        }
+        setCarouselSlide($tab, '.pagamentos-carousel', index >= 0 ? index : 0);
     }
 
-    // --- Pagamentos Carousel ---
-    setTimeout(function() {
-        $('#tab-pagamentos').each(function() {
-            var $tab = $(this);
-            var $carouselContainer = $tab.find('.pagamentos-carousel');
-            var $slides = $carouselContainer.find('.pedido-container');
-            var currentIndex = 0;
+    packingPanel.on('click', '#tab-pagamentos .nav-next', function() {
+        var $tab = $(this).closest('#tab-pagamentos');
+        setCarouselSlide($tab, '.pagamentos-carousel', getCurrentCarouselIndex($tab, '.pagamentos-carousel') + 1);
+    });
 
-            if ($slides.length === 0) {
-                $tab.find('.pagamentos-carousel-wrapper').hide();
-            } else {
-                showSlide(0);
+    packingPanel.on('click', '#tab-pagamentos .nav-prev', function() {
+        var $tab = $(this).closest('#tab-pagamentos');
+        setCarouselSlide($tab, '.pagamentos-carousel', getCurrentCarouselIndex($tab, '.pagamentos-carousel') - 1);
+    });
+
+    refreshPagamentosCarousel();
+
+    // --- Atualização automática do painel ---
+    var refreshInFlight = false;
+    var refreshInterval = typeof PPWOO !== 'undefined' && parseInt(PPWOO.refresh_interval, 10) > 0
+        ? parseInt(PPWOO.refresh_interval, 10)
+        : 15000;
+
+    function setRefreshStatus(message, isError) {
+        var $status = packingPanel.find('.ppwoo-refresh-status');
+        $status.text(message || '').toggleClass('is-error', !!isError);
+    }
+
+    function capturePanelState() {
+        var $activeTab = packingPanel.find('.tab-content.active');
+        var $correiosCurrent = packingPanel.find('#tab-correios .pedido-container.current');
+        var $pagamentosCurrent = packingPanel.find('#tab-pagamentos .pedido-container.current');
+
+        return {
+            activeTab: $activeTab.attr('id') || 'tab-motoboy',
+            correiosOrderId: $correiosCurrent.length ? $correiosCurrent.data('order-id') : null,
+            pagamentosOrderId: $pagamentosCurrent.length ? $pagamentosCurrent.data('order-id') : null
+        };
+    }
+
+    function restorePanelMarkup(html, previousState) {
+        var $responseRoot = $('<div>').html(html);
+        var $newPanel = $responseRoot.find('.painel-empacotamento').first();
+        if (!$newPanel.length) {
+            return false;
+        }
+
+        [
+            '.painel-tabs',
+            '#tab-motoboy',
+            '#tab-correios',
+            '#tab-pagamentos',
+            '.sem-pedidos-global'
+        ].forEach(function(selector) {
+            var $current = packingPanel.find(selector).first();
+            var $replacement = $newPanel.find(selector).first();
+            if ($current.length && $replacement.length) {
+                $current.replaceWith($replacement);
             }
-
-            function showSlide(index) {
-                $slides = $carouselContainer.find('.pedido-container');
-                var totalSlides = $slides.length;
-                if (totalSlides === 0) {
-                    $tab.find('.pagamentos-carousel-wrapper').hide();
-                    $tab.find('.sem-pedidos').show();
-                    return;
-                }
-
-                currentIndex = Math.max(0, Math.min(index, totalSlides - 1));
-                $slides.removeClass('current').eq(currentIndex).addClass('current');
-
-                if (totalSlides <= 1) {
-                    $tab.find('.carousel-navigation').hide();
-                } else {
-                    $tab.find('.carousel-navigation').show();
-                    $tab.find('.nav-prev').prop('disabled', currentIndex === 0);
-                    $tab.find('.nav-next').prop('disabled', currentIndex === totalSlides - 1);
-                }
-            }
-
-            $tab.on('click', '.nav-next', function() {
-                showSlide(currentIndex + 1);
-            });
-
-            $tab.on('click', '.nav-prev', function() {
-                showSlide(currentIndex - 1);
-            });
         });
-    }, 10);
+
+        var $activeButton = packingPanel.find('.painel-tabs .tab-button[data-tab="' + (previousState.activeTab || 'tab-motoboy').replace(/^tab-/, '') + '"]');
+        if ($activeButton.length) {
+            $activeButton.trigger('click');
+        }
+
+        refreshCorreiosCarousel(previousState.correiosOrderId);
+        refreshPagamentosCarousel(previousState.pagamentosOrderId);
+        updateCounts();
+        return true;
+    }
+
+    function refreshPanel(force) {
+        if (refreshInFlight || (!force && document.hidden)) {
+            return;
+        }
+
+        refreshInFlight = true;
+        var $button = packingPanel.find('.ppwoo-refresh-button');
+        $button.addClass('is-refreshing').prop('disabled', true);
+        setRefreshStatus((typeof PPWOO !== 'undefined' && PPWOO.refreshing_text) || 'Atualizando...', false);
+
+        $.ajax({
+            url: ajaxUrl,
+            type: 'POST',
+            dataType: 'json',
+            cache: false,
+            data: {
+                action: 'ppwoo_refresh_panel',
+                nonce: nonce
+            },
+            success: function(response) {
+                var previousState = capturePanelState();
+                var html = response && response.success && response.data ? response.data.html : '';
+
+                if (html && restorePanelMarkup(html, previousState)) {
+                    setRefreshStatus((typeof PPWOO !== 'undefined' && PPWOO.refreshed_text) || 'Atualizado agora', false);
+                    ppDebug.log('Painel atualizado automaticamente.');
+                } else {
+                    setRefreshStatus((typeof PPWOO !== 'undefined' && PPWOO.refresh_error) || 'Não foi possível atualizar os pedidos.', true);
+                    ppDebug.log('Resposta de atualização sem HTML válido.');
+                }
+            },
+            error: function(jqXHR) {
+                setRefreshStatus((typeof PPWOO !== 'undefined' && PPWOO.refresh_error) || 'Não foi possível atualizar os pedidos.', true);
+                ppDebug.log('Erro AJAX ao atualizar painel: ' + jqXHR.status);
+            },
+            complete: function() {
+                refreshInFlight = false;
+                packingPanel.find('.ppwoo-refresh-button').removeClass('is-refreshing').prop('disabled', false);
+            }
+        });
+    }
+
+    packingPanel.on('click', '.ppwoo-refresh-button', function() {
+        refreshPanel(true);
+    });
+
+    window.setInterval(function() {
+        refreshPanel(false);
+    }, refreshInterval);
+
+    $(document).on('visibilitychange.ppwooPanelRefresh', function() {
+        if (!document.hidden) {
+            refreshPanel(true);
+        }
+    });
 
     // --- Máscara para WhatsApp do Motoboy ---
     function applyWhatsAppMask(input) {
@@ -520,12 +591,12 @@
         input.value = value;
     }
 
-    $('#tab-motoboy').on('input', '.motoboy-whatsapp', function() {
+    packingPanel.on('input', '#tab-motoboy .motoboy-whatsapp', function() {
         applyWhatsAppMask(this);
     });
 
     // --- Limpeza automática do link de rastreio ao colar ---
-    $('#tab-motoboy').on('paste', '.tracking-link', function(e) {
+    packingPanel.on('paste', '#tab-motoboy .tracking-link', function(e) {
         e.preventDefault();
 
         var pastedText = (e.originalEvent.clipboardData || window.clipboardData).getData('text');

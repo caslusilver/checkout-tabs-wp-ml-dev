@@ -12,11 +12,12 @@ if (!PPWOO_Security::can_manage_panel()) {
     return;
 }
 
-// Busca pedidos
-$motoboy_orders = PPWOO_Orders::get_motoboy_orders();
-$correios_orders = PPWOO_Orders::get_correios_orders();
-$pending_payment_orders = PPWOO_Orders::get_pending_payment_orders();
-$total_pending_orders = PPWOO_Orders::get_total_pending_orders();
+// Busca todos os pedidos com uma única consulta ao webhook externo por ciclo.
+$panel_data = PPWOO_Orders::get_panel_data();
+$motoboy_orders = $panel_data['motoboy_orders'];
+$correios_orders = $panel_data['correios_orders'];
+$pending_payment_orders = $panel_data['pending_payment_orders'];
+$total_pending_orders = $panel_data['total_pending_orders'];
 
 // Painel de debug se ativo
 if (PPWOO_Config::is_debug()) {
@@ -35,6 +36,11 @@ if (PPWOO_Config::is_debug()) {
         <h1><?php esc_html_e('PackPanel', 'painel-empacotamento'); ?></h1>
         <div class="status-info">
             <span class="pendentes"><?php printf(esc_html__('%d pedidos pendentes', 'painel-empacotamento'), $total_pending_orders); ?></span>
+            <button type="button" class="ppwoo-refresh-button" aria-label="<?php esc_attr_e('Atualizar pedidos', 'painel-empacotamento'); ?>" title="<?php esc_attr_e('Atualizar pedidos', 'painel-empacotamento'); ?>">
+                <span class="dashicons dashicons-update" aria-hidden="true"></span>
+                <span class="screen-reader-text"><?php esc_html_e('Atualizar pedidos', 'painel-empacotamento'); ?></span>
+            </button>
+            <span class="ppwoo-refresh-status" aria-live="polite"></span>
         </div>
     </header>
 
