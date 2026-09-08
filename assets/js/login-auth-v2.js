@@ -270,6 +270,7 @@
 
     $(document).on('submit', '#ctwpml-auth-form', function (e) {
       e.preventDefault();
+      var $form = $(this);
       var p = getParams();
       var ajaxUrl = p.ajax_url;
       var createNonce = p.auth_email_nonce;
@@ -283,7 +284,10 @@
       setMsg($msg, '', false);
 
       var flow = '';
-      if (loginPassword) flow = 'login';
+      var explicitMode = String($form.attr('data-ctwpml-auth-mode') || '').toLowerCase();
+      if (explicitMode === 'login') flow = 'login';
+      else if (explicitMode === 'create') flow = 'create';
+      else if (loginPassword) flow = 'login';
       else if (createEmail) flow = 'create';
 
       if (flow === 'login') {
@@ -304,7 +308,7 @@
           setMsg($msg, 'Configuração inválida. Recarregue a página.', true);
           return;
         }
-        if (!window.confirm('Confira se este e-mail está correto antes de prosseguir.')) return;
+        if (explicitMode !== 'create' && !window.confirm('Confira se este e-mail está correto antes de prosseguir.')) return;
       } else {
         setMsg($msg, 'Preencha seus dados para prosseguir.', true);
         return;

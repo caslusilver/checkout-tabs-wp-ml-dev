@@ -285,6 +285,7 @@ add_action('wp_enqueue_scripts', function () {
 		'guest_checkout_enabled' => $guest_checkout_enabled ? 1 : 0,
 		'registration_generate_password' => $registration_generate_password ? 1 : 0,
 		'registration_generate_username' => $registration_generate_username ? 1 : 0,
+		'google_login_enabled' => (function_exists('checkout_tabs_wp_ml_is_google_login_enabled') && checkout_tabs_wp_ml_is_google_login_enabled()) ? 1 : 0,
 		'ml_only'    => $ml_only ? 1 : 0, // Modo ML definitivo (sem abas legadas)
 		'ajax_url'   => admin_url('admin-ajax.php'),
 		'nonce'      => wp_create_nonce('store_webhook_shipping'),

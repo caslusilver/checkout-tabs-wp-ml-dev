@@ -1067,6 +1067,68 @@
         }
       } catch (e1) {}
 
+      try {
+        var mode = String(opts.mode || '').toLowerCase();
+        if (mode !== 'login' && mode !== 'create') mode = 'mixed';
+        var email = String(opts.email || '').trim().toLowerCase();
+        var googleEnabled = !!(state.params && Number(state.params.google_login_enabled || 0) === 1);
+        var $auth = $('#ctwpml-view-auth');
+        var $popup = $auth.find('.ctwpml-login-popup').first();
+        var $form = $auth.find('#ctwpml-auth-form').first();
+
+        $popup
+          .removeClass('ctwpml-auth-mode-login ctwpml-auth-mode-create ctwpml-auth-mode-mixed ctwpml-google-login-disabled')
+          .addClass('ctwpml-auth-mode-' + mode)
+          .toggleClass('ctwpml-google-login-disabled', !googleEnabled);
+        $form.attr('data-ctwpml-auth-mode', mode === 'mixed' ? '' : mode);
+
+        if (!googleEnabled) {
+          $auth.find('.ctwpml-auth-social, .ctwpml-auth-divider').hide();
+        } else {
+          $auth.find('.ctwpml-auth-social, .ctwpml-auth-divider').show();
+        }
+
+        if (email) {
+          if (mode === 'create') {
+            $('#ctwpml-create-email').val(email);
+            $('#ctwpml-login-email').val('');
+          } else if (mode === 'login') {
+            $('#ctwpml-login-email').val(email);
+            $('#ctwpml-create-email').val('');
+          } else {
+            $('#ctwpml-login-email, #ctwpml-create-email').val(email);
+          }
+        }
+
+        if (mode === 'create') {
+          $('#ctwpml-modal-title').text('Criar conta');
+          $auth.find('.ctwpml-auth-col-left').hide();
+          $auth.find('.ctwpml-create-account-fields, .ctwpml-auth-col-right').show();
+          $auth.find('.ctwpml-create-account-fields .ctwpml-auth-subtitle').first().text('Continuar com este e-mail');
+          $auth.find('.ctwpml-auth-create-helper').first().text('Vamos criar sua conta automaticamente e manter seus dados do checkout.');
+          $('#ctwpml-auth-submit').text('Continuar');
+          setTimeout(function () { try { $('#ctwpml-create-email').trigger('focus'); } catch (eF0) {} }, 60);
+        } else if (mode === 'login') {
+          $('#ctwpml-modal-title').text('Entrar para finalizar');
+          $auth.find('.ctwpml-auth-col-left, .ctwpml-auth-col-right').show();
+          $auth.find('.ctwpml-create-account-fields').hide();
+          $('#ctwpml-auth-submit').text('Entrar');
+          setTimeout(function () { try { $('#ctwpml-login-password').trigger('focus'); } catch (eF1) {} }, 60);
+        } else {
+          $('#ctwpml-modal-title').text('Entrar');
+          $auth.find('.ctwpml-auth-col-left, .ctwpml-auth-col-right, .ctwpml-create-account-fields').show();
+          $('#ctwpml-auth-submit').text('Entrar');
+        }
+
+        if (typeof state.checkpoint === 'function') {
+          state.checkpoint('CHK_AUTH_VIEW_MODE', true, {
+            mode: mode,
+            hasEmail: !!email,
+            googleLoginEnabled: googleEnabled,
+          });
+        }
+      } catch (eMode) {}
+
       // Render do reCAPTCHA acontece quando a view auth está visível
       try {
         if (window.ctwpmlRenderRecaptchaIfNeeded) window.ctwpmlRenderRecaptchaIfNeeded();
@@ -7253,6 +7315,41 @@
           var $billingEmailSync = ctwpmlBillingField$('#billing_email', 'billing_email');
           if ($billingEmailSync.length) ctwpmlSetFieldValue($billingEmailSync, emailToConfirm);
         } catch (eSync0) {}
+
+        var saveCheckoutAuthResume = function (authMode, email) {
+          try {
+            var termsChecked = $('.ctwpml-review-terms-checkbox').first().is(':checked');
+            var addressSnapshot = null;
+            try {
+              addressSnapshot = getRecoverableAddressFromState();
+            } catch (eA0) {}
+            saveAuthResumeSnapshot({
+              view: currentView || 'review',
+              selectedAddressId: selectedAddressId || '',
+              selectedShipping: state.selectedShipping || null,
+              selectedPaymentMethod: state.selectedPaymentMethod || '',
+              termsChecked: !!termsChecked,
+              autoSubmit: !!termsChecked,
+              addressSnapshot: addressSnapshot,
+              resumeAfterAuth: true,
+              authMode: String(authMode || ''),
+              authEmail: String(email || ''),
+            });
+            if (typeof state.checkpoint === 'function') {
+              state.checkpoint('CHK_AUTH_RESUME_SNAPSHOT', true, {
+                view: currentView || 'review',
+                termsChecked: !!termsChecked,
+                authMode: String(authMode || ''),
+                hasEmail: !!email,
+              });
+            }
+          } catch (eSnap) {
+            if (typeof state.checkpoint === 'function') {
+              state.checkpoint('CHK_AUTH_RESUME_SNAPSHOT', false, { error: String(eSnap || '') });
+            }
+          }
+        };
+
         if (!state.skipAuthCheckOnce) {
           var emailToCheck = emailToConfirm;
           if (!state.params || !state.params.ajax_url || !state.params.check_email_nonce) {
@@ -7280,31 +7377,15 @@
               $ctaAuth.prop('disabled', false).css('opacity', '');
               if (resp && resp.success && resp.data && resp.data.exists) {
                 setCreateAccountFlag(false);
-                try {
-                  var termsChecked = $('.ctwpml-review-terms-checkbox').first().is(':checked');
-                  var addressSnapshot = null;
-                  try {
-                    if (selectedAddressId) addressSnapshot = getAddressById(selectedAddressId) || null;
-                  } catch (eA0) {}
-                  saveAuthResumeSnapshot({
-                    view: currentView || 'review',
-                    selectedAddressId: selectedAddressId || '',
-                    selectedShipping: state.selectedShipping || null,
-                    selectedPaymentMethod: state.selectedPaymentMethod || '',
-                    termsChecked: !!termsChecked,
-                    autoSubmit: !!termsChecked,
-                    addressSnapshot: addressSnapshot,
-                    resumeAfterAuth: true,
-                  });
-                  if (typeof state.checkpoint === 'function') {
-                    state.checkpoint('CHK_AUTH_RESUME_SNAPSHOT', true, { view: currentView || 'review', termsChecked: !!termsChecked });
-                  }
-                } catch (eSnap) {
-                  if (typeof state.checkpoint === 'function') {
-                    state.checkpoint('CHK_AUTH_RESUME_SNAPSHOT', false, { error: String(eSnap || '') });
-                  }
-                }
-                showAuthView({ preserveView: true, returnView: 'review' });
+                saveCheckoutAuthResume('login', emailToCheck);
+                showAuthView({ preserveView: true, returnView: 'review', mode: 'login', email: emailToCheck });
+                return;
+              }
+              var canUseCreateAuthView = !!(state.params && state.params.auth_email_nonce && state.params.recaptcha_site_key);
+              if (canUseCreateAuthView) {
+                setCreateAccountFlag(false);
+                saveCheckoutAuthResume('create', emailToCheck);
+                showAuthView({ preserveView: true, returnView: 'review', mode: 'create', email: emailToCheck });
                 return;
               }
               if (!prepareAutoAccountCreation(emailToCheck)) {

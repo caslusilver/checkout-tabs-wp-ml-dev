@@ -85,6 +85,15 @@ function checkout_tabs_wp_ml_allow_fake_cpf(): bool {
 	return $enabled;
 }
 
+function checkout_tabs_wp_ml_is_google_login_enabled(): bool {
+	$enabled = (int) checkout_tabs_wp_ml_get_option('google_login_enabled', 0) === 1;
+	/**
+	 * Permite religar/desligar o login Google por ambiente sem alterar wp_options.
+	 */
+	$enabled = (bool) apply_filters('checkout_tabs_wp_ml_google_login_enabled', $enabled);
+	return $enabled;
+}
+
 add_action('admin_init', function () {
 	register_setting(CHECKOUT_TABS_WP_ML_SETTINGS_GROUP, 'checkout_tabs_wp_ml_webhook_url', [
 		'type'              => 'string',
@@ -126,6 +135,14 @@ add_action('admin_init', function () {
 			return !empty($value) ? 1 : 0;
 		},
 		'default'           => 1,
+	]);
+
+	register_setting(CHECKOUT_TABS_WP_ML_SETTINGS_GROUP, 'checkout_tabs_wp_ml_google_login_enabled', [
+		'type'              => 'integer',
+		'sanitize_callback' => static function ($value) {
+			return !empty($value) ? 1 : 0;
+		},
+		'default'           => 0,
 	]);
 
 	register_setting(CHECKOUT_TABS_WP_ML_SETTINGS_GROUP, 'checkout_tabs_wp_ml_allow_fake_cpf', [

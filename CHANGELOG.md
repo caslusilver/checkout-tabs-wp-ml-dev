@@ -114,6 +114,14 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
 #### Protocol: ee78e51
 
+## [v3.2.123] - 2026-09-08
+
+### Changed
+- adiciona toggle administrativo para exibir/ocultar o login com Google/Nextend no checkout ML, desligado por padrão enquanto o OAuth está instável.
+- simplifica a autenticação na finalização: e-mail existente abre somente login com e-mail preenchido; e-mail novo abre somente criação automática com e-mail preenchido.
+
+#### Protocol: pending
+
 ## [v3.2.122] - 2026-09-07
 
 ### Fixed
@@ -187,7 +195,7 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 ## [Unreleased]
 
 ### Changed
-- **Versão atual**: v3.2.122
+- **Versão atual**: v3.2.123
   **Versão sugerida após a mudança**: vX.Y.Z  
   **Descrição**: texto objetivo do que mudou e impacto (pode listar itens separados por ponto e vírgula).
 

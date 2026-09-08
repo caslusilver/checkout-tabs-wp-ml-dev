@@ -81,6 +81,7 @@ function checkout_tabs_wp_ml_render_admin_page(): void {
 	$debug_enabled = ((int) get_option('checkout_tabs_wp_ml_debug', 0) === 1);
 	$packing_panel_debug_enabled = ((int) get_option('checkout_tabs_wp_ml_packing_panel_debug', 0) === 1);
 	$geo_enabled = ((int) get_option('checkout_tabs_wp_ml_geolocation_enabled', 1) === 1);
+	$google_login_enabled = function_exists('checkout_tabs_wp_ml_is_google_login_enabled') ? checkout_tabs_wp_ml_is_google_login_enabled() : false;
 	$allow_fake_cpf = ((int) get_option('checkout_tabs_wp_ml_allow_fake_cpf', 0) === 1);
 	$ui_primary = sanitize_hex_color((string) get_option('checkout_tabs_wp_ml_ui_primary', '#0075ff')) ?: '#0075ff';
 	$ui_login_bg = sanitize_hex_color((string) get_option('checkout_tabs_wp_ml_ui_login_bg', '#f5f5f5')) ?: '#f5f5f5';
@@ -169,6 +170,16 @@ function checkout_tabs_wp_ml_render_admin_page(): void {
 		echo ' Ativar popup de maioridade + geolocalização';
 		echo '</label>';
 		echo '<p class="description">Quando desativado, o site não solicita localização e o fluxo depende apenas do formulário de CEP.</p>';
+		echo '</td>';
+		echo '</tr>';
+		echo '<tr>';
+		echo '<th scope="row">Login com Google</th>';
+		echo '<td>';
+		echo '<label>';
+		echo '<input type="checkbox" name="checkout_tabs_wp_ml_google_login_enabled" value="1" ' . ($google_login_enabled ? 'checked' : '') . ' />';
+		echo ' Exibir login com Google/Nextend no checkout';
+		echo '</label>';
+		echo '<p class="description">Desative enquanto o OAuth/ModSecurity estiver instável para deixar o checkout mais limpo.</p>';
 		echo '</td>';
 		echo '</tr>';
 		echo '<tr>';

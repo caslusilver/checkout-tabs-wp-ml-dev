@@ -22,24 +22,30 @@ add_action('wp_footer', function () {
 		return;
 	}
 
+	$google_login_enabled = function_exists('checkout_tabs_wp_ml_is_google_login_enabled')
+		? checkout_tabs_wp_ml_is_google_login_enabled()
+		: false;
+
 	// HTML minimalista, inspirado no exemplo fornecido, sem anexar handlers globais.
 	?>
 	<div id="ctwpml-auth-template" style="display:none;">
 		<!-- Wrapper interno é movido para dentro do modal via JS (showAuthView) -->
-		<div class="ctwpml-login-popup">
+		<div class="ctwpml-login-popup <?php echo $google_login_enabled ? '' : 'ctwpml-google-login-disabled'; ?>" data-ctwpml-google-login-enabled="<?php echo $google_login_enabled ? '1' : '0'; ?>">
 			<form id="ctwpml-auth-form" class="ctwpml-auth-form" autocomplete="on">
 				<div class="ctwpml-auth-grid">
 					<!-- Esquerda: Google + Login -->
 					<div class="ctwpml-auth-col ctwpml-auth-col-left">
-						<div class="ctwpml-auth-social" style="text-align:center; margin: 12px 0 16px;">
-							<?php echo do_shortcode('[nextend_social_login]'); ?>
-						</div>
+						<?php if ($google_login_enabled) : ?>
+							<div class="ctwpml-auth-social" style="text-align:center; margin: 12px 0 16px;">
+								<?php echo do_shortcode('[nextend_social_login]'); ?>
+							</div>
 
-						<div class="ctwpml-auth-divider">
-							<div class="ctwpml-auth-divider-line"></div>
-							<span class="ctwpml-auth-divider-text">ou</span>
-							<div class="ctwpml-auth-divider-line"></div>
-						</div>
+							<div class="ctwpml-auth-divider">
+								<div class="ctwpml-auth-divider-line"></div>
+								<span class="ctwpml-auth-divider-text">ou</span>
+								<div class="ctwpml-auth-divider-line"></div>
+							</div>
+						<?php endif; ?>
 
 						<div class="ctwpml-popup-h2 ctwpml-auth-subtitle" style="margin-top: 12px;">
 							Faça login com seu e-mail e senha.
@@ -58,14 +64,16 @@ add_action('wp_footer', function () {
 
 					<!-- Direita: Criar conta + reCAPTCHA + Entrar -->
 					<div class="ctwpml-auth-col ctwpml-auth-col-right">
-						<div class="ctwpml-popup-h2 ctwpml-auth-subtitle" style="margin-top: 12px;">
-							Criar uma conta
+						<div class="ctwpml-create-account-fields">
+							<div class="ctwpml-popup-h2 ctwpml-auth-subtitle" style="margin-top: 12px;">
+								Criar uma conta
+							</div>
+							<div class="ctwpml-popup-h3 ctwpml-auth-create-helper" style="opacity:.9; margin: 0 0 10px;">
+								Você pode criar uma conta apenas com seu e-mail e redefinir a senha depois.
+							</div>
+							<label for="ctwpml-create-email" class="ctwpml-popup-h3">E-mail para criar conta</label>
+							<input type="email" id="ctwpml-create-email" autocomplete="email">
 						</div>
-						<div class="ctwpml-popup-h3" style="opacity:.9; margin: 0 0 10px;">
-							Você pode criar uma conta apenas com seu e-mail e redefinir a senha depois.
-						</div>
-						<label for="ctwpml-create-email" class="ctwpml-popup-h3">E-mail para criar conta</label>
-						<input type="email" id="ctwpml-create-email" autocomplete="email">
 
 						<?php
 						// reCAPTCHA v2: chave pública por site/ambiente
