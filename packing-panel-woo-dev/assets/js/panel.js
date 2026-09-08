@@ -592,11 +592,8 @@
 
     refreshPagamentosCarousel();
 
-    // --- Atualização automática do painel ---
+    // --- Atualização manual do painel ---
     var refreshInFlight = false;
-    var refreshInterval = typeof PPWOO !== 'undefined' && parseInt(PPWOO.refresh_interval, 10) > 0
-        ? parseInt(PPWOO.refresh_interval, 10)
-        : 15000;
 
     function setRefreshStatus(message, isError) {
         var $status = packingPanel.find('.ppwoo-refresh-status');
@@ -611,8 +608,73 @@
         return {
             activeTab: $activeTab.attr('id') || 'tab-motoboy',
             correiosOrderId: $correiosCurrent.length ? $correiosCurrent.data('order-id') : null,
-            pagamentosOrderId: $pagamentosCurrent.length ? $pagamentosCurrent.data('order-id') : null
+            pagamentosOrderId: $pagamentosCurrent.length ? $pagamentosCurrent.data('order-id') : null,
+            editableOrders: captureEditablePanelState()
         };
+    }
+
+    function getEditableFieldKey($field) {
+        var name = $field.attr('name');
+        if (name) {
+            return 'name:' + name;
+        }
+
+        var classes = String($field.attr('class') || '').split(/\s+/).filter(function(className) {
+            return className !== '';
+        }).sort();
+
+        return classes.length ? 'class:' + classes.join('.') : '';
+    }
+
+    function captureEditablePanelState() {
+        var editableOrders = {};
+
+        packingPanel.find('#tab-motoboy .motoboy-order').each(function() {
+            var $order = $(this);
+            var orderId = String($order.data('order-id'));
+            editableOrders[orderId] = {};
+
+            $order.find('input, textarea, select').each(function() {
+                var $field = $(this);
+                var key = getEditableFieldKey($field);
+                if (!key) {
+                    return;
+                }
+
+                editableOrders[orderId][key] = {
+                    value: $field.val(),
+                    checked: $field.prop('checked')
+                };
+            });
+        });
+
+        return editableOrders;
+    }
+
+    function restoreEditablePanelState(editableOrders) {
+        Object.keys(editableOrders || {}).forEach(function(orderId) {
+            var $order = packingPanel.find('#tab-motoboy .motoboy-order').filter(function() {
+                return String($(this).data('order-id')) === String(orderId);
+            }).first();
+
+            if (!$order.length) {
+                return;
+            }
+
+            $order.find('input, textarea, select').each(function() {
+                var $field = $(this);
+                var fieldState = editableOrders[orderId][getEditableFieldKey($field)];
+                if (!fieldState) {
+                    return;
+                }
+
+                if ($field.is(':checkbox, :radio')) {
+                    $field.prop('checked', !!fieldState.checked);
+                } else {
+                    $field.val(fieldState.value);
+                }
+            });
+        });
     }
 
     function restorePanelMarkup(html, previousState) {
@@ -635,6 +697,9 @@
                 $current.replaceWith($replacement);
             }
         });
+
+        // A resposta do servidor não conhece valores digitados ainda não salvos.
+        restoreEditablePanelState(previousState.editableOrders);
 
         var $activeButton = packingPanel.find('.painel-tabs .tab-button[data-tab="' + (previousState.activeTab || 'tab-motoboy').replace(/^tab-/, '') + '"]');
         if ($activeButton.length) {
@@ -691,16 +756,6 @@
 
     packingPanel.on('click', '.ppwoo-refresh-button', function() {
         refreshPanel(true);
-    });
-
-    window.setInterval(function() {
-        refreshPanel(false);
-    }, refreshInterval);
-
-    $(document).on('visibilitychange.ppwooPanelRefresh', function() {
-        if (!document.hidden) {
-            refreshPanel(true);
-        }
     });
 
     // --- Máscara para WhatsApp do Motoboy ---

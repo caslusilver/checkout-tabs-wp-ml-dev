@@ -107,6 +107,7 @@ O CSS do plugin deve vencer conflitos do WordPress, Elementor, tema e estilos in
 - Reutilizar endpoints, helpers, nonces, capacidades e padrões já existentes.
 - Para ações críticas, exigir confirmação explícita do usuário. Um toque simples não deve executar operações irreversíveis; sliders devem voltar ao início quando o gesto for incompleto e disparar o endpoint apenas ao atingir o fim.
 - Para polling, evitar chamadas agressivas, impedir requisições sobrepostas, pausar quando a página estiver oculta e preservar a aba/estado visível.
+- Regra de ação e consequência: nenhuma atualização automática, atualização AJAX ou substituição de DOM pode apagar dados digitados pelo operador; antes de alterar a interface, capturar e restaurar o estado editável, ou manter a atualização sob demanda e alertar sobre o risco.
 - Endpoints AJAX devem validar nonce e capacidade do usuário no servidor, mesmo quando a interface já bloqueia o acesso.
 - Nunca registrar dados sensíveis, tokens, CPFs, e-mails completos ou payloads de pagamento em logs de debug.
 
