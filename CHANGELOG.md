@@ -2,6 +2,13 @@
 
 Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
+## [v3.2.127] - 2026-09-08
+
+### Fixed
+- remove a atualização automática de 15 segundos do PackPanel, mantendo a atualização sob demanda e preservando os campos manuais preenchidos quando o operador solicita uma atualização.
+
+#### Protocol: pending
+
 ## [v3.2.126] - 2026-09-08
 
 ### Fixed
