@@ -2,6 +2,14 @@
 
 Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
+## [v3.2.130] - 2026-09-22
+
+### Fixed
+- Diagnóstico: permite salvar checkpoints anonimizados de visitantes e clientes no arquivo isolado quando o modo Debug está ativo; mantém a visualização, limpeza e download restritos ao painel administrativo.
+- Diagnóstico: corrige a autorização inconsistente do endpoint de gravação e adiciona limite de taxa e tamanho para evitar excesso de escrita durante uma sessão pública.
+
+#### Protocol: pending
+
 ## [v3.2.129] - 2026-09-22
 
 ### Fixed

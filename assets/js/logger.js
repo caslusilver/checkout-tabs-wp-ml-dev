@@ -24,6 +24,16 @@
       isAdminViewer = !!(state.params && (state.params.is_admin_viewer === 1 || state.params.is_admin_viewer === true || state.params.is_admin_viewer === '1'));
     } catch (e0) {}
 
+    // A captura pode ocorrer em uma sessão de visitante quando o Debug estiver
+    // ativo; somente a interface de visualização permanece restrita ao admin.
+    var canCaptureLogs = !!(
+      debugMode &&
+      state.params &&
+      (state.params.debug_capture_enabled === 1 || state.params.debug_capture_enabled === true || state.params.debug_capture_enabled === '1') &&
+      state.params.ajax_url &&
+      state.params.debug_log_nonce
+    );
+
     // Evita flood de logs remotos (admin-ajax) em loops de polling.
     var remoteLogState = {
       lastSentAt: 0,
@@ -207,8 +217,8 @@
         ta.scrollTop(ta[0].scrollHeight);
       }
 
-      // Salva no backend (apenas admin, com throttle)
-      if (isAdminViewer && state.params && state.params.ajax_url) {
+      // Salva no backend quando a captura foi explicitamente habilitada, com throttle.
+      if (canCaptureLogs) {
         var key = 'checkpoint:' + String(name || '') + ':' + (ok ? '1' : '0');
         if (!canSendRemoteLog(key, 1500, 5000)) return;
         var payload = new FormData();
@@ -288,8 +298,8 @@
         ta.scrollTop(ta[0].scrollHeight);
       }
 
-      // Enviar log ao backend para exibição no admin (apenas admin, com throttle)
-      if (isAdminViewer && state.params && state.params.ajax_url) {
+      // Enviar log ao backend para exibição no admin quando a captura está ativa.
+      if (canCaptureLogs) {
         var key = 'log:' + String(phase || '') + ':' + String(message || '');
         if (!canSendRemoteLog(key, 1000, 4000)) return;
         var payload = new FormData();

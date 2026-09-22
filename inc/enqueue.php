@@ -279,6 +279,8 @@ add_action('wp_enqueue_scripts', function () {
 		// Admin-only UI: painéis visuais (Ver Logs / Telemetria) apenas para quem pode gerenciar o site.
 		// Mantém captura de logs/telemetria para depuração sem expor UI ao usuário final.
 		'is_admin_viewer' => current_user_can('manage_options') ? 1 : 0,
+		// A captura de uma tentativa pode vir de visitante/cliente, mas somente quando o Debug está ativo.
+		'debug_capture_enabled' => checkout_tabs_wp_ml_is_debug_enabled() ? 1 : 0,
 		'cta_anim'   => 1,
 		'is_logged_in' => is_user_logged_in() ? 1 : 0,
 		'registration_enabled' => $registration_enabled ? 1 : 0,

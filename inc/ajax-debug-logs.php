@@ -13,8 +13,10 @@ add_action('wp_ajax_ctwpml_save_log', 'ctwpml_ajax_save_log');
 add_action('wp_ajax_nopriv_ctwpml_save_log', 'ctwpml_ajax_save_log');
 
 function ctwpml_ajax_save_log(): void {
-	if (!current_user_can('manage_woocommerce') || !check_ajax_referer('ctwpml_debug_log', '_ajax_nonce', false)) {
-		wp_send_json_error(['message' => 'Permissão ou nonce inválido'], 403);
+	// O registro pode ser enviado por visitante durante uma tentativa de checkout.
+	// Leitura, limpeza e download continuam restritos às capacidades administrativas.
+	if (!check_ajax_referer('ctwpml_debug_log', '_ajax_nonce', false)) {
+		wp_send_json_error(['message' => 'Nonce inválido'], 403);
 		return;
 	}
 	if (function_exists('checkout_tabs_wp_ml_is_debug_enabled') && !checkout_tabs_wp_ml_is_debug_enabled()) {
@@ -22,8 +24,18 @@ function ctwpml_ajax_save_log(): void {
 		return;
 	}
 
+	// Evita que uma sessão pública malformada transforme o modo Debug em um flood de escrita.
+	$rate_key = 'ctwpml_debug_rate_' . md5((string) ($_SERVER['REMOTE_ADDR'] ?? '') . '|' . (string) ($_SERVER['HTTP_USER_AGENT'] ?? ''));
+	$rate_count = (int) get_transient($rate_key);
+	if ($rate_count >= 120) {
+		wp_send_json_success(['message' => 'Log limitado temporariamente']);
+		return;
+	}
+	set_transient($rate_key, $rate_count + 1, MINUTE_IN_SECONDS);
+
 	$level = isset($_POST['level']) ? sanitize_key((string) wp_unslash($_POST['level'])) : 'info';
 	$message = isset($_POST['message']) ? ctwpml_debug_redact_text(wp_strip_all_tags((string) wp_unslash($_POST['message']))) : '';
+	$message = function_exists('mb_substr') ? mb_substr($message, 0, 12000) : substr($message, 0, 12000);
 	$timestamp = isset($_POST['timestamp']) ? absint($_POST['timestamp']) : time() * 1000;
 	
 	if (empty($message)) {
