@@ -72,6 +72,19 @@
       lastname: true,
       receivername: true,
       billingname: true,
+      name: true,
+      nome: true,
+      first_name: true,
+      last_name: true,
+      billing_first_name: true,
+      billing_last_name: true,
+      number: true,
+      neighborhood: true,
+      bairro: true,
+      city: true,
+      state: true,
+      complement: true,
+      extra_info: true,
     };
 
     function redactDebugValue(value, key) {

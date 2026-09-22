@@ -2,6 +2,16 @@
 
 Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
+## [v3.2.131] - 2026-09-22
+
+### Fixed
+- Checkout: separa a confirmação do frete da validação de faturamento/pagamento; com frete aplicado e totais prontos, o fluxo avança para pagamento sem exibir o falso erro de demora.
+- Checkout: sincroniza e-mail, telefone e CPF entre o formulário ML, o snapshot de sessão e os campos reais do WooCommerce sem substituir valores já presentes; aceita telefone internacional entre 8 e 15 dígitos.
+- Checkout: grava imediatamente o snapshot de contato ao digitar, ocultar/recarregar a página ou sair dela, e retorna ao formulário quando dados obrigatórios realmente faltam, retomando a revisão após salvar.
+- Diagnóstico: adiciona checkpoints de modo do gate, bloqueios, sincronização e campos ausentes sem registrar conteúdo pessoal; remove também dados de contato do log padrão do PHP.
+
+#### Protocol: pending
+
 ## [v3.2.130] - 2026-09-22
 
 ### Fixed
