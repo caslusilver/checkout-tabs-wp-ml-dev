@@ -288,6 +288,7 @@ add_action('wp_enqueue_scripts', function () {
 		'google_login_enabled' => (function_exists('checkout_tabs_wp_ml_is_google_login_enabled') && checkout_tabs_wp_ml_is_google_login_enabled()) ? 1 : 0,
 		'ml_only'    => $ml_only ? 1 : 0, // Modo ML definitivo (sem abas legadas)
 		'ajax_url'   => admin_url('admin-ajax.php'),
+		'debug_log_nonce' => wp_create_nonce('ctwpml_debug_log'),
 		'nonce'      => wp_create_nonce('store_webhook_shipping'),
 		'addresses_nonce' => wp_create_nonce('ctwpml_addresses'),
 		'address_payload_nonce' => wp_create_nonce('ctwpml_address_payload'),

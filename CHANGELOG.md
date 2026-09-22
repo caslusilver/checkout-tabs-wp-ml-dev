@@ -2,6 +2,15 @@
 
 Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
+## [v3.2.129] - 2026-09-22
+
+### Fixed
+- Checkout: impede a corrida entre `update_checkout` e o envio final, aguardando a confirmação de sincronização do WooCommerce antes de disparar o pedido; em caso de timeout, bloqueia o envio incompleto e libera a tentativa com mensagem clara.
+- Diagnóstico: adiciona checkpoints de espera do submit e timeout monitorado do `wc-ajax=checkout`.
+- Logs: cria arquivo isolado em `wp-content/uploads/checkout-tabs-wp-ml-logs/checkout-flow.log`, com proteção de acesso, visualização, cópia, download e limpeza pelo painel Debug; dados pessoais são mascarados antes do armazenamento.
+
+#### Protocol: pending
+
 ## [v3.2.128] - 2026-09-08
 
 ### Fixed

@@ -13,8 +13,17 @@ add_action('wp_ajax_ctwpml_save_log', 'ctwpml_ajax_save_log');
 add_action('wp_ajax_nopriv_ctwpml_save_log', 'ctwpml_ajax_save_log');
 
 function ctwpml_ajax_save_log(): void {
-	$level = isset($_POST['level']) ? sanitize_text_field((string) $_POST['level']) : 'info';
-	$message = isset($_POST['message']) ? sanitize_text_field((string) $_POST['message']) : '';
+	if (!current_user_can('manage_woocommerce') || !check_ajax_referer('ctwpml_debug_log', '_ajax_nonce', false)) {
+		wp_send_json_error(['message' => 'Permissão ou nonce inválido'], 403);
+		return;
+	}
+	if (function_exists('checkout_tabs_wp_ml_is_debug_enabled') && !checkout_tabs_wp_ml_is_debug_enabled()) {
+		wp_send_json_success(['message' => 'Debug desativado']);
+		return;
+	}
+
+	$level = isset($_POST['level']) ? sanitize_key((string) wp_unslash($_POST['level'])) : 'info';
+	$message = isset($_POST['message']) ? ctwpml_debug_redact_text(wp_strip_all_tags((string) wp_unslash($_POST['message']))) : '';
 	$timestamp = isset($_POST['timestamp']) ? absint($_POST['timestamp']) : time() * 1000;
 	
 	if (empty($message)) {
@@ -47,6 +56,9 @@ function ctwpml_ajax_save_log(): void {
 	
 	// Salvar no transient (expira em 1 hora)
 	set_transient('ctwpml_debug_logs', $logs, 3600);
+
+	// Persistir também em arquivo isolado para facilitar a coleta de uma tentativa.
+	ctwpml_write_isolated_debug_log($level, $message, $timestamp);
 	
 	wp_send_json_success(['message' => 'Log salvo', 'total' => count($logs)]);
 }
@@ -55,7 +67,7 @@ function ctwpml_ajax_save_log(): void {
 add_action('wp_ajax_ctwpml_get_logs', 'ctwpml_ajax_get_logs');
 
 function ctwpml_ajax_get_logs(): void {
-	if (!current_user_can('manage_woocommerce')) {
+	if (!current_user_can('manage_woocommerce') || !check_ajax_referer('ctwpml_debug_log', '_ajax_nonce', false)) {
 		wp_send_json_error(['message' => 'Permissão negada']);
 		return;
 	}
@@ -84,14 +96,66 @@ function ctwpml_ajax_get_logs(): void {
 add_action('wp_ajax_ctwpml_clear_logs', 'ctwpml_ajax_clear_logs');
 
 function ctwpml_ajax_clear_logs(): void {
-	if (!current_user_can('manage_woocommerce')) {
+	if (!current_user_can('manage_woocommerce') || !check_ajax_referer('ctwpml_debug_log', '_ajax_nonce', false)) {
 		wp_send_json_error(['message' => 'Permissão negada']);
 		return;
 	}
 	
 	delete_transient('ctwpml_debug_logs');
-	
+
 	wp_send_json_success(['message' => 'Logs limpos']);
+}
+
+// Obter o arquivo isolado (admin -> backend)
+add_action('wp_ajax_ctwpml_get_isolated_log', 'ctwpml_ajax_get_isolated_log');
+
+function ctwpml_ajax_get_isolated_log(): void {
+	if (!current_user_can('manage_woocommerce') || !check_ajax_referer('ctwpml_debug_log', '_ajax_nonce', false)) {
+		wp_send_json_error(['message' => 'Permissão negada']);
+		return;
+	}
+
+	$content = ctwpml_read_isolated_debug_log();
+	wp_send_json_success([
+		'log' => $content,
+		'size' => strlen($content),
+		'path' => 'wp-content/uploads/checkout-tabs-wp-ml-logs/checkout-flow.log',
+	]);
+}
+
+// Limpar o arquivo isolado (admin -> backend)
+add_action('wp_ajax_ctwpml_clear_isolated_log', 'ctwpml_ajax_clear_isolated_log');
+
+function ctwpml_ajax_clear_isolated_log(): void {
+	if (!current_user_can('manage_woocommerce') || !check_ajax_referer('ctwpml_debug_log', '_ajax_nonce', false)) {
+		wp_send_json_error(['message' => 'Permissão negada']);
+		return;
+	}
+
+	if (!ctwpml_clear_isolated_debug_log()) {
+		wp_send_json_error(['message' => 'Não foi possível limpar o arquivo isolado']);
+		return;
+	}
+
+	wp_send_json_success(['message' => 'Arquivo isolado limpo']);
+}
+
+// Download manual do arquivo isolado (admin -> navegador)
+add_action('admin_post_ctwpml_download_isolated_log', 'ctwpml_download_isolated_log');
+
+function ctwpml_download_isolated_log(): void {
+	if (!current_user_can('manage_woocommerce')) {
+		wp_die('Permissão negada');
+	}
+	check_admin_referer('ctwpml_download_isolated_log');
+
+	$content = ctwpml_read_isolated_debug_log();
+	nocache_headers();
+	header('Content-Type: text/plain; charset=utf-8');
+	header('Content-Disposition: attachment; filename="checkout-flow.log"');
+	header('Content-Length: ' . strlen($content));
+	echo $content;
+	exit;
 }
 
 

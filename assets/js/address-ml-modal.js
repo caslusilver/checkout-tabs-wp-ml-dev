@@ -7793,9 +7793,15 @@
       } catch (eA0) {}
       $('#ctwpml-review-confirm, #ctwpml-review-confirm-sticky').prop('disabled', true).css('opacity', '0.7');
 
+      var finalSubmitWatchdog = null;
+
       // Se o Woo emitir erro, reabilita CTA e loga.
       $(document.body).one('checkout_error', function () {
         try {
+          if (finalSubmitWatchdog) {
+            clearTimeout(finalSubmitWatchdog);
+            finalSubmitWatchdog = null;
+          }
           $('#ctwpml-review-confirm, #ctwpml-review-confirm-sticky').prop('disabled', false).css('opacity', '');
           // Hide overlay se estiver visível
           try {
@@ -7845,48 +7851,132 @@
         } catch (_) {}
       });
 
-      // (Opcional) garante update_checkout antes do submit.
-      try { $(document.body).trigger('update_checkout'); } catch (e2) {}
+      function getFinalSubmitSyncState() {
+        var gate = state.__ctwpmlReviewGate || {};
+        var updateInProgress = false;
+        try {
+          updateInProgress = typeof state.isUpdateCheckoutInProgress === 'function' && state.isUpdateCheckoutInProgress();
+        } catch (eSync0) {}
+        var gatePending = !!(gate.active && (gate.pendingWooUpdate || gate.pendingShipping));
+        return {
+          updateInProgress: !!updateInProgress,
+          gateActive: !!gate.active,
+          pendingWooUpdate: !!(gate.active && gate.pendingWooUpdate),
+          pendingShipping: !!(gate.active && gate.pendingShipping),
+          pending: !!(updateInProgress || gatePending),
+          elapsedGateMs: gate.startedAt ? Math.max(0, Date.now() - gate.startedAt) : null,
+        };
+      }
 
-      // Watchdog: se nada acontecer (sem redirect/sem erro) por muito tempo, liberar para retry.
-      try {
-        setTimeout(function () {
-          try {
-            // Se ainda está na mesma página e CTA continua desabilitado, liberar.
-            var $cta = $('#ctwpml-review-confirm, #ctwpml-review-confirm-sticky');
-            if ($cta.length && $cta.is(':disabled')) {
-              $cta.prop('disabled', false).css('opacity', '');
-              if (prep && typeof prep.hidePreparingOverlay === 'function') prep.hidePreparingOverlay();
-              log('Watchdog: liberando CTA após timeout', { ms: 25000 });
-              if (typeof state.checkpoint === 'function') state.checkpoint('CHK_CTA_WATCHDOG_RELEASE', true, { ms: 25000 });
+      function waitForFinalSubmitSync(done) {
+        var startedAt = Date.now();
+        var maxWaitMs = 12000;
+        var pollMs = 100;
+        var attempts = 0;
+        var initial = getFinalSubmitSyncState();
+        if (typeof state.checkpoint === 'function') {
+          state.checkpoint('CHK_FINAL_SUBMIT_WAIT_START', true, {
+            maxWaitMs: maxWaitMs,
+            initial: initial,
+          });
+        }
+
+        function poll() {
+          attempts += 1;
+          var current = getFinalSubmitSyncState();
+          var waitedMs = Date.now() - startedAt;
+          if (!current.pending) {
+            if (typeof state.checkpoint === 'function') {
+              state.checkpoint('CHK_FINAL_SUBMIT_WAIT_READY', true, {
+                waitedMs: waitedMs,
+                attempts: attempts,
+                initialPending: initial.pending,
+                finalState: current,
+              });
             }
-          } catch (eW) {}
-        }, 25000);
-      } catch (eW0) {}
+            done(true, current);
+            return;
+          }
+          if (waitedMs >= maxWaitMs) {
+            if (typeof state.checkpoint === 'function') {
+              state.checkpoint('CHK_FINAL_SUBMIT_WAIT_TIMEOUT', false, {
+                waitedMs: waitedMs,
+                attempts: attempts,
+                finalState: current,
+              });
+            }
+            done(false, current);
+            return;
+          }
+          setTimeout(poll, pollMs);
+        }
 
-      // Preferência 1: click NATIVO no botão submit
-      var btn = document.getElementById('place_order');
-      if (btn && typeof btn.click === 'function') {
-        log('CTA submit via place_order.click() nativo');
-        if (typeof state.checkpoint === 'function') state.checkpoint('CHK_PLACE_ORDER_NATIVE', true, {});
-        btn.click();
-        return;
+        poll();
       }
-      if (typeof state.checkpoint === 'function') state.checkpoint('CHK_PLACE_ORDER_NATIVE', false, { found: !!btn });
 
-      // Preferência 2: submit NATIVO do form
-      var form = document.querySelector('form.checkout, form.woocommerce-checkout');
-      if (form && typeof form.submit === 'function') {
-        log('CTA submit via form.checkout.submit() nativo');
-        if (typeof state.checkpoint === 'function') state.checkpoint('CHK_FORM_SUBMIT_NATIVE', true, {});
-        form.submit();
-        return;
+      function resetFinalSubmitControls() {
+        try {
+          if (window.CTWPMLCtaAnim && typeof window.CTWPMLCtaAnim.reset === 'function') {
+            window.CTWPMLCtaAnim.reset();
+          }
+        } catch (eReset) {}
+        $('#ctwpml-review-confirm, #ctwpml-review-confirm-sticky').prop('disabled', false).css('opacity', '');
+        try {
+          if (prep && typeof prep.hidePreparingOverlay === 'function') prep.hidePreparingOverlay();
+        } catch (eResetOverlay) {}
       }
-      if (typeof state.checkpoint === 'function') state.checkpoint('CHK_FORM_SUBMIT_NATIVE', false, { found: !!form });
 
-      // Fallback: jQuery submit
-      $('form.checkout, form.woocommerce-checkout').first().trigger('submit');
-      log('CTA submit via jQuery trigger(submit)');
+      function submitWooCheckout() {
+        // Watchdog: se nada acontecer (sem redirect/sem erro) por muito tempo, liberar para retry.
+        try {
+          finalSubmitWatchdog = setTimeout(function () {
+            try {
+              var $cta = $('#ctwpml-review-confirm, #ctwpml-review-confirm-sticky');
+              if ($cta.length && $cta.is(':disabled')) {
+                $cta.prop('disabled', false).css('opacity', '');
+                if (prep && typeof prep.hidePreparingOverlay === 'function') prep.hidePreparingOverlay();
+                log('Watchdog: liberando CTA após timeout', { ms: 25000 });
+                if (typeof state.checkpoint === 'function') state.checkpoint('CHK_CTA_WATCHDOG_RELEASE', true, { ms: 25000 });
+              }
+            } catch (eW) {}
+          }, 25000);
+        } catch (eW0) {}
+
+        // Preferência 1: click NATIVO no botão submit
+        var btn = document.getElementById('place_order');
+        if (btn && typeof btn.click === 'function') {
+          log('CTA submit via place_order.click() nativo');
+          if (typeof state.checkpoint === 'function') state.checkpoint('CHK_PLACE_ORDER_NATIVE', true, {});
+          btn.click();
+          return;
+        }
+        if (typeof state.checkpoint === 'function') state.checkpoint('CHK_PLACE_ORDER_NATIVE', false, { found: !!btn });
+
+        // Preferência 2: submit NATIVO do form
+        var form = document.querySelector('form.checkout, form.woocommerce-checkout');
+        if (form && typeof form.submit === 'function') {
+          log('CTA submit via form.checkout.submit() nativo');
+          if (typeof state.checkpoint === 'function') state.checkpoint('CHK_FORM_SUBMIT_NATIVE', true, {});
+          form.submit();
+          return;
+        }
+        if (typeof state.checkpoint === 'function') state.checkpoint('CHK_FORM_SUBMIT_NATIVE', false, { found: !!form });
+
+        // Fallback: jQuery submit
+        $('form.checkout, form.woocommerce-checkout').first().trigger('submit');
+        log('CTA submit via jQuery trigger(submit)');
+      }
+
+      // Não abre uma nova atualização imediatamente antes do pedido. Aguarda a atualização real do Woo.
+      waitForFinalSubmitSync(function (ready) {
+        if (!ready) {
+          resetFinalSubmitControls();
+          showNotification('O checkout ainda está sincronizando. Aguarde alguns segundos e tente novamente.', 'error', 5000);
+          log('Finalização bloqueada: sincronização do checkout não terminou', getFinalSubmitSyncState());
+          return;
+        }
+        submitWooCheckout();
+      });
       }
     });
 
