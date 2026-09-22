@@ -24,6 +24,16 @@
       isAdminViewer = !!(state.params && (state.params.is_admin_viewer === 1 || state.params.is_admin_viewer === true || state.params.is_admin_viewer === '1'));
     } catch (e0) {}
 
+    // A captura pode ocorrer em uma sessão de visitante quando o Debug estiver
+    // ativo; somente a interface de visualização permanece restrita ao admin.
+    var canCaptureLogs = !!(
+      debugMode &&
+      state.params &&
+      (state.params.debug_capture_enabled === 1 || state.params.debug_capture_enabled === true || state.params.debug_capture_enabled === '1') &&
+      state.params.ajax_url &&
+      state.params.debug_log_nonce
+    );
+
     // Evita flood de logs remotos (admin-ajax) em loops de polling.
     var remoteLogState = {
       lastSentAt: 0,
@@ -39,6 +49,77 @@
       remoteLogState.lastKey = key || '';
       remoteLogState.lastKeyAt = now;
       return true;
+    }
+
+    // Mantém diagnóstico útil sem persistir dados pessoais no console, painel ou arquivo isolado.
+    var sensitiveDebugKeys = {
+      email: true,
+      authemail: true,
+      phone: true,
+      phonefull: true,
+      phone_full: true,
+      whatsapp: true,
+      cpf: true,
+      billing_email: true,
+      billing_phone: true,
+      billing_cellphone: true,
+      address: true,
+      address_1: true,
+      address_2: true,
+      postcode: true,
+      cep: true,
+      firstname: true,
+      lastname: true,
+      receivername: true,
+      billingname: true,
+      name: true,
+      nome: true,
+      first_name: true,
+      last_name: true,
+      billing_first_name: true,
+      billing_last_name: true,
+      number: true,
+      neighborhood: true,
+      bairro: true,
+      city: true,
+      state: true,
+      complement: true,
+      extra_info: true,
+    };
+
+    function redactDebugValue(value, key) {
+      var normalizedKey = String(key || '').toLowerCase();
+      if (sensitiveDebugKeys[normalizedKey]) return '[redacted]';
+      if (typeof value === 'string') {
+        return value
+          .replace(/[A-Z0-9._%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,}/gi, '[redacted-email]')
+          .replace(/\b\d{3}[.\s-]?\d{3}[.\s-]?\d{3}[.\s-]?\d{2}\b/g, '[redacted-cpf]');
+      }
+      if (!value || typeof value !== 'object') return value;
+      if (Array.isArray(value)) {
+        return value.map(function (item) { return redactDebugValue(item, ''); });
+      }
+      var output = {};
+      Object.keys(value).forEach(function (childKey) {
+        output[childKey] = redactDebugValue(value[childKey], childKey);
+      });
+      return output;
+    }
+
+    function formatDebugData(data) {
+      if (typeof data === 'undefined' || data === null) return '';
+      var safeData = redactDebugValue(data, '');
+      if (typeof safeData === 'string') return safeData;
+      try {
+        return JSON.stringify(safeData, null, 2);
+      } catch (e) {
+        return String(safeData);
+      }
+    }
+
+    function appendSafeData(logMessage, data) {
+      var formatted = formatDebugData(data);
+      return formatted ? logMessage + '\n  → ' + formatted : logMessage;
     }
 
     state.currentPhase = '';
@@ -129,6 +210,7 @@
       });
 
       var logMessage = '[CTWPML] [' + timestamp + '] CHECK      ' + message;
+      var safeData = redactDebugValue(data, '');
 
       // Cor diferente no console
       if (ok) {
@@ -136,33 +218,28 @@
       } else {
         console.log('%c' + logMessage, 'color: #ef4444; font-weight: bold;');
       }
-      if (data) console.log(data);
+      if (typeof data !== 'undefined' && data !== null) console.log(safeData);
 
       // Adiciona ao painel de debug
       if ($('#debug-log-content').length) {
         var ta = $('#debug-log-content');
         var line = logMessage;
-        if (data) {
-          try {
-            line += '\n  → ' + (typeof data === 'string' ? data : JSON.stringify(data, null, 2));
-          } catch (e) {
-            line += '\n  → ' + String(data);
-          }
-        }
+        line = appendSafeData(line, safeData);
         var cur = ta.val() || '';
         ta.val(cur ? cur + '\n' + line : line);
         ta.scrollTop(ta[0].scrollHeight);
       }
 
-      // Salva no backend (apenas admin, com throttle)
-      if (isAdminViewer && state.params && state.params.ajax_url) {
+      // Salva no backend quando a captura foi explicitamente habilitada, com throttle.
+      if (canCaptureLogs) {
         var key = 'checkpoint:' + String(name || '') + ':' + (ok ? '1' : '0');
         if (!canSendRemoteLog(key, 1500, 5000)) return;
         var payload = new FormData();
         payload.append('action', 'ctwpml_save_log');
         payload.append('level', ok ? 'info' : 'error');
-        payload.append('message', logMessage);
+        payload.append('message', appendSafeData(logMessage, safeData));
         payload.append('timestamp', Date.now());
+        payload.append('_ajax_nonce', state.params.debug_log_nonce || '');
 
         if (navigator.sendBeacon) {
           navigator.sendBeacon(state.params.ajax_url, payload);
@@ -220,34 +297,30 @@
 
       var phaseLabel = (phase + '          ').slice(0, 10);
       var logMessage = '[CTWPML] [' + timestamp + '] ' + phaseLabel + ' ' + message + timingInfo;
+      var safeData = redactDebugValue(data, '');
 
       console.log(logMessage);
-      if (data) console.log(data);
+      if (typeof data !== 'undefined' && data !== null) console.log(safeData);
 
       if ($('#debug-log-content').length) {
         var ta = $('#debug-log-content');
         var line = logMessage;
-        if (data) {
-          try {
-            line += '\n' + (typeof data === 'string' ? data : JSON.stringify(data, null, 2));
-          } catch (e) {
-            line += '\n' + String(data);
-          }
-        }
+        line = appendSafeData(line, safeData);
         var cur = ta.val() || '';
         ta.val(cur ? cur + '\n' + line : line);
         ta.scrollTop(ta[0].scrollHeight);
       }
 
-      // Enviar log ao backend para exibição no admin (apenas admin, com throttle)
-      if (isAdminViewer && state.params && state.params.ajax_url) {
+      // Enviar log ao backend para exibição no admin quando a captura está ativa.
+      if (canCaptureLogs) {
         var key = 'log:' + String(phase || '') + ':' + String(message || '');
         if (!canSendRemoteLog(key, 1000, 4000)) return;
         var payload = new FormData();
         payload.append('action', 'ctwpml_save_log');
         payload.append('level', phase === 'ERROR' ? 'error' : 'info');
-        payload.append('message', logMessage);
+        payload.append('message', appendSafeData(logMessage, safeData));
         payload.append('timestamp', Date.now());
+        payload.append('_ajax_nonce', state.params.debug_log_nonce || '');
 
         // Usar sendBeacon (assíncrono, não bloqueia) ou fetch com keepalive
         if (navigator.sendBeacon) {

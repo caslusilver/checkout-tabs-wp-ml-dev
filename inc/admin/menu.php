@@ -48,6 +48,11 @@ add_action('admin_enqueue_scripts', function ($hook_suffix) {
 
 	wp_localize_script('checkout-tabs-wp-ml-admin-tabs', 'CTWPMLAdminTabs', [
 		'page' => CHECKOUT_TABS_WP_ML_SETTINGS_PAGE,
+		'debug_log_nonce' => wp_create_nonce('ctwpml_debug_log'),
+		'isolated_log_download_url' => wp_nonce_url(
+			admin_url('admin-post.php?action=ctwpml_download_isolated_log'),
+			'ctwpml_download_isolated_log'
+		),
 	]);
 	
 	// JavaScript para controlar checkboxes "Transparente"
@@ -350,6 +355,19 @@ function checkout_tabs_wp_ml_render_admin_page(): void {
 		echo '<button type="button" id="ctwpml-copy-logs-btn" class="button">Copiar Logs</button>';
 		echo '<button type="button" id="ctwpml-clear-logs-btn" class="button">Limpar Logs</button>';
 		echo '<span id="ctwpml-logs-status" style="line-height:28px; color:#666;"></span>';
+		echo '</div>';
+
+		// Arquivo persistente e isolado da tentativa, separado do transient e do debug.log do site.
+		echo '<h3 style="margin-top:30px; border-bottom:1px solid #ccc; padding-bottom:8px;">Arquivo isolado da tentativa</h3>';
+		echo '<p class="description">Este arquivo contém somente eventos enviados pelo Checkout Tabs ML. Dados pessoais são mascarados antes do armazenamento. Use-o depois de reproduzir o problema para copiar ou baixar o contexto completo.</p>';
+		echo '<p><code>wp-content/uploads/checkout-tabs-wp-ml-logs/checkout-flow.log</code></p>';
+		$isolated_log_content = ctwpml_read_isolated_debug_log();
+		echo '<textarea id="ctwpml-isolated-log-textarea" readonly style="width:100%; height:400px; font-family:monospace; font-size:12px; background:#07111a; color:#d9f5ff; border:1px solid #2271b1; border-radius:4px; padding:10px; box-sizing:border-box; resize:vertical;">' . esc_textarea($isolated_log_content) . '</textarea>';
+		echo '<div style="margin-top:10px; display:flex; gap:10px; flex-wrap:wrap; align-items:center;">';
+		echo '<button type="button" id="ctwpml-copy-isolated-log-btn" class="button button-primary">Copiar arquivo isolado</button>';
+		echo '<button type="button" id="ctwpml-download-isolated-log-btn" class="button">Baixar arquivo isolado</button>';
+		echo '<button type="button" id="ctwpml-clear-isolated-log-btn" class="button">Limpar arquivo isolado</button>';
+		echo '<span id="ctwpml-isolated-log-status" style="line-height:28px; color:#666;"></span>';
 		echo '</div>';
 	echo '</div>';
 

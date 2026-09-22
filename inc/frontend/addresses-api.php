@@ -1384,12 +1384,8 @@ add_action('wp_ajax_ctwpml_get_contact_meta', function (): void {
 		}
 	}
 
-	error_log('[CTWPML] get_contact_meta - WhatsApp: ' . $whatsapp);
-	error_log('[CTWPML] get_contact_meta - phone_full: ' . $phone_full);
-	error_log('[CTWPML] get_contact_meta - country_code: ' . $country_code);
-	error_log('[CTWPML] get_contact_meta - dial_code: ' . $dial_code);
-	error_log('[CTWPML] get_contact_meta - CPF: ' . $cpf);
-	error_log('[CTWPML] get_contact_meta - CPF locked: ' . ($cpf_locked ? 'yes' : 'no'));
+	// Diagnóstico sem dados pessoais: o arquivo padrão do PHP é compartilhado pelo site.
+	error_log('[CTWPML] get_contact_meta - summary: has_phone=' . (!empty($phone_full) || !empty($whatsapp) ? 'yes' : 'no') . ' has_cpf=' . (!empty($cpf) ? 'yes' : 'no') . ' has_email=' . (!empty($email) ? 'yes' : 'no') . ' cpf_locked=' . ($cpf_locked ? 'yes' : 'no') . ' country=' . ($country_code !== '' ? 'set' : 'empty'));
 
 	wp_send_json_success([
 		'whatsapp' => $whatsapp ?: '',

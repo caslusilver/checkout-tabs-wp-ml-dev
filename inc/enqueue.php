@@ -279,6 +279,8 @@ add_action('wp_enqueue_scripts', function () {
 		// Admin-only UI: painéis visuais (Ver Logs / Telemetria) apenas para quem pode gerenciar o site.
 		// Mantém captura de logs/telemetria para depuração sem expor UI ao usuário final.
 		'is_admin_viewer' => current_user_can('manage_options') ? 1 : 0,
+		// A captura de uma tentativa pode vir de visitante/cliente, mas somente quando o Debug está ativo.
+		'debug_capture_enabled' => checkout_tabs_wp_ml_is_debug_enabled() ? 1 : 0,
 		'cta_anim'   => 1,
 		'is_logged_in' => is_user_logged_in() ? 1 : 0,
 		'registration_enabled' => $registration_enabled ? 1 : 0,
@@ -288,6 +290,7 @@ add_action('wp_enqueue_scripts', function () {
 		'google_login_enabled' => (function_exists('checkout_tabs_wp_ml_is_google_login_enabled') && checkout_tabs_wp_ml_is_google_login_enabled()) ? 1 : 0,
 		'ml_only'    => $ml_only ? 1 : 0, // Modo ML definitivo (sem abas legadas)
 		'ajax_url'   => admin_url('admin-ajax.php'),
+		'debug_log_nonce' => wp_create_nonce('ctwpml_debug_log'),
 		'nonce'      => wp_create_nonce('store_webhook_shipping'),
 		'addresses_nonce' => wp_create_nonce('ctwpml_addresses'),
 		'address_payload_nonce' => wp_create_nonce('ctwpml_address_payload'),
