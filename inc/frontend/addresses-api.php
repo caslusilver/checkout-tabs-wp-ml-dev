@@ -121,7 +121,18 @@ function ctwpml_guest_address_payload_map_set(array $map): void {
 
 function ctwpml_guest_contact_meta_get(): array {
 	$raw = ctwpml_guest_session_get(CTWPML_GUEST_CONTACT_META_SESSION_KEY, []);
-	return is_array($raw) ? $raw : [];
+	if (!is_array($raw)) {
+		return [];
+	}
+	$shape = ctwpml_contact_phone_for_woo(
+		(string) ($raw['whatsapp'] ?? ''),
+		(string) ($raw['phone_full'] ?? ''),
+		(string) ($raw['country_code'] ?? '')
+	);
+	if ($shape['valid']) {
+		$raw['whatsapp'] = $shape['woo_digits'];
+	}
+	return $raw;
 }
 
 function ctwpml_guest_contact_meta_set(array $meta): void {
@@ -1262,6 +1273,60 @@ function ctwpml_handle_set_shipping_method() {
 add_action('wp_ajax_ctwpml_set_shipping_method', 'ctwpml_handle_set_shipping_method');
 add_action('wp_ajax_nopriv_ctwpml_set_shipping_method', 'ctwpml_handle_set_shipping_method');
 
+function ctwpml_contact_phone_for_woo(string $whatsapp, string $phone_full, string $country_code): array {
+	$source = trim($phone_full) !== '' ? trim($phone_full) : trim($whatsapp);
+	$digits = preg_replace('/\D+/', '', $source);
+	$country = strtoupper(trim($country_code));
+	$explicit_international = strpos($source, '+') === 0;
+	$brazil = $explicit_international
+		? strpos($digits, '55') === 0
+		: ($country === 'BR' || ($country === '' && in_array(strlen($digits), [12, 13], true) && strpos($digits, '55') === 0));
+	$ddi_count = 0;
+	if ($brazil && (($explicit_international && strpos($digits, '55') === 0) || (in_array(strlen($digits), [12, 13], true) && strpos($digits, '55') === 0))) {
+		$ddi_count = 1;
+	}
+	if ($brazil && in_array(strlen($digits), [14, 15], true) && strpos($digits, '5555') === 0) {
+		$ddi_count = 2;
+	}
+	$woo_digits = $ddi_count ? substr($digits, $ddi_count * 2) : $digits;
+	$valid = $brazil
+		? in_array(strlen($woo_digits), [10, 11], true) && (strlen($digits) <= 11 || $ddi_count > 0)
+		: strlen($digits) >= 8 && strlen($digits) <= 15;
+	if (!$valid && trim($phone_full) !== '' && trim($whatsapp) !== '') {
+		$fallback = ctwpml_contact_phone_for_woo($whatsapp, '', $country_code);
+		if ($fallback['valid']) {
+			return $fallback;
+		}
+	}
+
+	return [
+		'country' => $brazil ? 'BR' : ($explicit_international && $country === 'BR' ? 'XX' : $country),
+		'source_length' => strlen($digits),
+		'woo_digits' => $valid ? $woo_digits : '',
+		'woo_length' => $valid ? strlen($woo_digits) : 0,
+		'removed_ddi' => $ddi_count > 0,
+		'ddi_count' => $ddi_count,
+		'valid' => $valid,
+		'reason' => $valid ? '' : ($brazil ? 'invalid_br_length' : 'invalid_international_length'),
+	];
+}
+
+function ctwpml_log_contact_phone_shape(string $stage, array $shape): void {
+	if (!function_exists('ctwpml_write_isolated_debug_log')) {
+		return;
+	}
+	ctwpml_write_isolated_debug_log('info', '[CTWPML_PHONE] ' . wp_json_encode([
+		'stage' => $stage,
+		'country' => $shape['country'],
+		'source_length' => $shape['source_length'],
+		'woo_length' => $shape['woo_length'],
+		'removed_ddi' => $shape['removed_ddi'],
+		'ddi_count' => $shape['ddi_count'],
+		'valid' => $shape['valid'],
+		'reason' => $shape['reason'],
+	]));
+}
+
 function ctwpml_apply_contact_meta_to_user(int $user_id, array $input, bool $is_admin = false): array {
 	$whatsapp = isset($input['whatsapp']) ? sanitize_text_field((string) $input['whatsapp']) : '';
 	$phone_full = isset($input['phone_full']) ? sanitize_text_field((string) $input['phone_full']) : '';
@@ -1271,21 +1336,23 @@ function ctwpml_apply_contact_meta_to_user(int $user_id, array $input, bool $is_
 
 	$updated = false;
 
-	if (!empty($whatsapp)) {
-		$whatsapp_digits = preg_replace('/\D/', '', $whatsapp);
-		if (strlen($whatsapp_digits) >= 8 && strlen($whatsapp_digits) <= 15) {
-			update_user_meta($user_id, '_ctwpml_whatsapp', $whatsapp_digits);
-			update_user_meta($user_id, 'billing_cellphone', $whatsapp_digits);
+	if ($whatsapp !== '' || $phone_full !== '') {
+		$phone_shape = ctwpml_contact_phone_for_woo($whatsapp, $phone_full, $country_code);
+		ctwpml_log_contact_phone_shape('user_meta_save', $phone_shape);
+		if ($phone_shape['valid']) {
+			update_user_meta($user_id, '_ctwpml_whatsapp', $phone_shape['woo_digits']);
+			update_user_meta($user_id, 'billing_cellphone', $phone_shape['woo_digits']);
 			$updated = true;
 		}
 	}
 
 	if (!empty($phone_full)) {
+		$full_shape = ctwpml_contact_phone_for_woo('', $phone_full, $country_code);
 		$pf = trim((string) $phone_full);
 		$pf = preg_replace('/[^\d\+]+/', '', $pf);
 		$pf_digits = preg_replace('/\D+/', '', $pf);
-		if ($pf_digits !== '' && strlen($pf_digits) >= 8 && strlen($pf_digits) <= 15) {
-			$pf = '+' . $pf_digits;
+		if ($full_shape['valid']) {
+			$pf = $full_shape['country'] === 'BR' ? '+55' . $full_shape['woo_digits'] : '+' . $pf_digits;
 			update_user_meta($user_id, '_ctwpml_phone_full', $pf);
 			$updated = true;
 		}
@@ -1356,7 +1423,12 @@ add_action('wp_ajax_ctwpml_get_contact_meta', function (): void {
 	$phone_full = get_user_meta($user_id, '_ctwpml_phone_full', true);
 	$country_code = get_user_meta($user_id, '_ctwpml_country_code', true);
 	$dial_code = get_user_meta($user_id, '_ctwpml_dial_code', true);
-	if (empty($phone_full) && !empty($whatsapp)) {
+	$phone_shape = ctwpml_contact_phone_for_woo((string) $whatsapp, (string) $phone_full, (string) $country_code);
+	if ($phone_shape['valid']) {
+		$whatsapp = $phone_shape['woo_digits'];
+	}
+	$billing_country = strtoupper((string) get_user_meta($user_id, 'billing_country', true));
+	if (empty($phone_full) && !empty($whatsapp) && ($country_code === 'BR' || ($country_code === '' && $billing_country === 'BR'))) {
 		// Fallback BR: monta +55 + dígitos nacionais se parecer celular BR
 		$digits = preg_replace('/\D+/', '', (string) $whatsapp);
 		if (strlen($digits) === 10 || strlen($digits) === 11) {
@@ -1384,12 +1456,8 @@ add_action('wp_ajax_ctwpml_get_contact_meta', function (): void {
 		}
 	}
 
-	error_log('[CTWPML] get_contact_meta - WhatsApp: ' . $whatsapp);
-	error_log('[CTWPML] get_contact_meta - phone_full: ' . $phone_full);
-	error_log('[CTWPML] get_contact_meta - country_code: ' . $country_code);
-	error_log('[CTWPML] get_contact_meta - dial_code: ' . $dial_code);
-	error_log('[CTWPML] get_contact_meta - CPF: ' . $cpf);
-	error_log('[CTWPML] get_contact_meta - CPF locked: ' . ($cpf_locked ? 'yes' : 'no'));
+	// Diagnóstico sem dados pessoais: o arquivo padrão do PHP é compartilhado pelo site.
+	error_log('[CTWPML] get_contact_meta - summary: has_phone=' . (!empty($phone_full) || !empty($whatsapp) ? 'yes' : 'no') . ' has_cpf=' . (!empty($cpf) ? 'yes' : 'no') . ' has_email=' . (!empty($email) ? 'yes' : 'no') . ' cpf_locked=' . ($cpf_locked ? 'yes' : 'no') . ' country=' . ($country_code !== '' ? 'set' : 'empty'));
 
 	wp_send_json_success([
 		'whatsapp' => $whatsapp ?: '',
@@ -1419,6 +1487,17 @@ add_action('wp_ajax_ctwpml_save_contact_meta', function (): void {
 			'cpf' => isset($_POST['cpf']) ? sanitize_text_field((string) $_POST['cpf']) : '',
 			'email' => $email,
 		];
+		$phone_shape = ctwpml_contact_phone_for_woo((string) $guest['whatsapp'], (string) $guest['phone_full'], (string) $guest['country_code']);
+		ctwpml_log_contact_phone_shape('guest_session_save', $phone_shape);
+		if ($phone_shape['valid']) {
+			$guest['whatsapp'] = $phone_shape['woo_digits'];
+		}
+		if ($guest['phone_full'] !== '') {
+			$full_shape = ctwpml_contact_phone_for_woo('', (string) $guest['phone_full'], (string) $guest['country_code']);
+			$guest['phone_full'] = $full_shape['valid']
+				? ($full_shape['country'] === 'BR' ? '+55' . $full_shape['woo_digits'] : '+' . preg_replace('/\D+/', '', (string) $guest['phone_full']))
+				: '';
+		}
 		ctwpml_guest_contact_meta_set($guest);
 		wp_send_json_success([
 			'message' => 'Dados processados',

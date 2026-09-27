@@ -79,6 +79,7 @@
     checkoutStartedAt: 0,
     checkoutXhrStartAt: 0,
     checkoutXhrEndAt: 0,
+    checkoutTimeoutTimer: null,
     overlayShownAt: 0,
   };
 
@@ -262,6 +263,8 @@
       if (!isCheckoutAjaxUrl(url)) return;
       anim.checkoutStartedAt = Date.now();
       anim.checkoutXhrStartAt = Date.now();
+      anim.checkoutXhrEndAt = 0;
+      if (anim.checkoutTimeoutTimer) clearTimeout(anim.checkoutTimeoutTimer);
       checkpoint('CHK_CTA_WC_CHECKOUT_AJAX_SEND', true, {
         afterClickMs: anim.clickAt ? (anim.checkoutStartedAt - anim.clickAt) : null,
         url: url,
@@ -270,7 +273,36 @@
         afterClickMs: anim.clickAt ? (anim.checkoutStartedAt - anim.clickAt) : null,
         url: url,
       });
+      anim.checkoutTimeoutTimer = setTimeout(function () {
+        if (!anim.checkoutXhrStartAt || anim.checkoutXhrEndAt) return;
+        var elapsed = Date.now() - anim.checkoutXhrStartAt;
+        checkpoint('CHK_CTA_WC_CHECKOUT_AJAX_TIMEOUT', false, {
+          elapsedMs: elapsed,
+          requestOpen: true,
+          url: url,
+          note: 'Nenhuma resposta do wc-ajax=checkout foi observada dentro do limite de diagnóstico.',
+        });
+        log('wc-ajax=checkout ainda sem resposta', { elapsedMs: elapsed, requestOpen: true });
+      }, 30000);
       // Importante: NÃO mostrar overlay aqui. A referência pede: overlay só após expand_done.
+    } catch (e) { }
+  });
+
+  // Registra falhas HTTP (incluindo 403/406 do servidor) sem persistir o corpo da resposta.
+  $(document).ajaxError(function (_evt, jqXHR, settings, errorThrown) {
+    try {
+      var url = settings && settings.url ? String(settings.url) : '';
+      if (!isCheckoutAjaxUrl(url)) return;
+      checkpoint('CHK_CTA_WC_CHECKOUT_AJAX_ERROR', false, {
+        status: jqXHR ? jqXHR.status : null,
+        statusText: jqXHR ? String(jqXHR.statusText || '') : '',
+        error: String(errorThrown || ''),
+        responseLength: jqXHR && jqXHR.responseText ? String(jqXHR.responseText).length : 0,
+      });
+      log('wc-ajax=checkout retornou erro HTTP', {
+        status: jqXHR ? jqXHR.status : null,
+        statusText: jqXHR ? String(jqXHR.statusText || '') : '',
+      });
     } catch (e) { }
   });
 
@@ -279,6 +311,10 @@
     try {
       var url = settings && settings.url ? String(settings.url) : '';
       if (!isCheckoutAjaxUrl(url)) return;
+      if (anim.checkoutTimeoutTimer) {
+        clearTimeout(anim.checkoutTimeoutTimer);
+        anim.checkoutTimeoutTimer = null;
+      }
       anim.checkoutXhrEndAt = Date.now();
       var durMs = anim.checkoutXhrStartAt ? (anim.checkoutXhrEndAt - anim.checkoutXhrStartAt) : null;
       var status = jqXHR ? jqXHR.status : null;
@@ -314,10 +350,12 @@
 
   try {
     window.addEventListener('pagehide', function () {
+      if (anim.checkoutTimeoutTimer) clearTimeout(anim.checkoutTimeoutTimer);
       setOverlayProgress(100);
       stopOverlayProgress();
     });
     window.addEventListener('beforeunload', function () {
+      if (anim.checkoutTimeoutTimer) clearTimeout(anim.checkoutTimeoutTimer);
       setOverlayProgress(100);
       stopOverlayProgress();
     });

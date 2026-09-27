@@ -3,6 +3,40 @@
 
   window.CCCheckoutTabs = window.CCCheckoutTabs || {};
 
+  window.CCCheckoutTabs.normalizePhoneForCheckout = function (value, countryCode) {
+    var raw = String(value || '').trim();
+    var digits = raw.replace(/\D/g, '');
+    var country = String(countryCode || '').toUpperCase();
+    var explicitInternational = raw.charAt(0) === '+';
+    var brazil = explicitInternational
+      ? digits.indexOf('55') === 0
+      : (country === 'BR' || (!country && (digits.length === 12 || digits.length === 13) && digits.indexOf('55') === 0));
+    var ddiCount = 0;
+    if (brazil && ((explicitInternational && digits.indexOf('55') === 0) || ((digits.length === 12 || digits.length === 13) && digits.indexOf('55') === 0))) ddiCount = 1;
+    if (brazil && (digits.length === 14 || digits.length === 15) && digits.indexOf('5555') === 0) ddiCount = 2;
+    var national = ddiCount ? digits.slice(ddiCount * 2) : digits;
+    var valid = brazil ? national.length > 0 && national.length <= 11 && (digits.length <= 11 || ddiCount > 0) : digits.length > 0 && digits.length <= 15;
+
+    return {
+      country: brazil ? 'BR' : (explicitInternational && country === 'BR' ? 'XX' : country),
+      sourceLength: digits.length,
+      wooDigits: valid ? national : '',
+      removedDdi: ddiCount > 0,
+      ddiCount: ddiCount,
+      valid: valid,
+      reason: valid ? '' : (brazil ? 'invalid_br_length' : 'invalid_international_length'),
+    };
+  };
+
+  window.CCCheckoutTabs.isTruncatedBrazilPhone = function (wooValue, fullValue) {
+    var wooDigits = String(wooValue || '').replace(/\D/g, '');
+    var fullDigits = String(fullValue || '').replace(/\D/g, '');
+    var fullShape = window.CCCheckoutTabs.normalizePhoneForCheckout(fullValue, 'BR');
+    return fullShape.valid && fullShape.country === 'BR' && fullShape.ddiCount === 1 &&
+      (fullDigits.length === 12 || fullDigits.length === 13) && wooDigits.length === 11 &&
+      wooDigits === fullDigits.slice(0, 11) && wooDigits !== fullShape.wooDigits;
+  };
+
   window.CCCheckoutTabs.setupAddressModal = function setupAddressModal(state) {
     console.log('[CTWPML][DEBUG] setupAddressModal() - INICIANDO');
     console.log('[CTWPML][DEBUG] setupAddressModal() - AddressMlScreens disponível:', !!(window.CCCheckoutTabs && window.CCCheckoutTabs.AddressMlScreens));
@@ -338,7 +372,7 @@
     }
 
     function phoneDigits(value) {
-      return String(value || '').replace(/\D/g, '').slice(0, 11);
+      return window.CCCheckoutTabs.normalizePhoneForCheckout(value, 'BR').wooDigits;
     }
 
     // Formato pedido: "XX - X XXXX-XXXX" (11 dígitos).
@@ -527,6 +561,9 @@
 
     state.__ctwpmlReviewGate = state.__ctwpmlReviewGate || {
       active: false,
+      // O gate de frete e o gate de review possuem requisitos diferentes.
+      // Nunca exigir faturamento/pagamento antes de o cliente poder sair do frete.
+      mode: 'review',
       pendingShipping: false,
       pendingWooUpdate: false,
       totalsReady: false,
@@ -662,7 +699,34 @@
 
     function ctwpmlReviewGateIsReady() {
       var gate = state.__ctwpmlReviewGate;
-      return !!(!gate.pendingWooUpdate && !gate.pendingShipping && gate.totalsReady && gate.appliedMatch && gate.billingReady && gate.paymentReady);
+      var shippingReady = !gate.pendingWooUpdate && !gate.pendingShipping && gate.totalsReady && gate.appliedMatch;
+      if (gate.mode === 'shipping') return !!shippingReady;
+      return !!(shippingReady && gate.billingReady && gate.paymentReady);
+    }
+
+    function ctwpmlReviewGateBlockingReasons() {
+      var gate = state.__ctwpmlReviewGate;
+      var reasons = [];
+      if (gate.pendingShipping) reasons.push('shipping_pending');
+      if (gate.pendingWooUpdate) reasons.push('woo_update_pending');
+      if (!gate.totalsReady) reasons.push('totals_unavailable');
+      if (!gate.appliedMatch) reasons.push('shipping_method_unconfirmed');
+      if (gate.mode !== 'shipping') {
+        if (!gate.billingReady) reasons.push('billing_incomplete');
+        if (!gate.paymentReady) reasons.push('payment_unselected');
+      }
+      return reasons;
+    }
+
+    function ctwpmlReviewGateResolveMode(source, opts) {
+      var requestedMode = opts && opts.mode ? String(opts.mode) : '';
+      if (requestedMode === 'shipping' || requestedMode === 'review') return requestedMode;
+      if (String(source || '').indexOf('shipping_') === 0) return 'shipping';
+      if (String(source || '') === 'woo_updating' && currentView === 'shipping') return 'shipping';
+      if (state.__ctwpmlReviewGate && state.__ctwpmlReviewGate.active) {
+        return state.__ctwpmlReviewGate.mode === 'shipping' ? 'shipping' : 'review';
+      }
+      return currentView === 'shipping' ? 'shipping' : 'review';
     }
 
     function ctwpmlReviewGateApplyCtaState() {
@@ -682,6 +746,7 @@
       ctwpmlReviewGateUnlockSpinner();
       if (typeof state.checkpoint === 'function') {
         state.checkpoint('CHK_REVIEW_GATE_READY', true, {
+          mode: gate.mode,
           requested: gate.requestedMethod,
           applied: gate.appliedMethod,
           totalsReady: gate.totalsReady,
@@ -708,6 +773,7 @@
       ctwpmlReviewGateUnlockSpinner();
       if (typeof state.checkpoint === 'function') {
         state.checkpoint('CHK_REVIEW_GATE_TIMEOUT', false, {
+          mode: gate.mode,
           reason: String(reason || 'timeout'),
           requested: gate.requestedMethod,
           applied: gate.appliedMethod,
@@ -716,6 +782,7 @@
           totalsReady: gate.totalsReady,
           billingReady: gate.billingReady,
           paymentReady: gate.paymentReady,
+          blockingReasons: ctwpmlReviewGateBlockingReasons(),
           source: gate.source,
         });
       }
@@ -734,8 +801,10 @@
       gate.timer = setTimeout(function () {
         ctwpmlReviewGateResolveAppliedMatch();
         ctwpmlReviewGateMarkTotalsReady(source || 'poll');
-        ctwpmlReviewGateMarkBillingReady(source || 'poll');
-        ctwpmlReviewGateMarkPaymentReady(source || 'poll');
+        if (gate.mode !== 'shipping') {
+          ctwpmlReviewGateMarkBillingReady(source || 'poll');
+          ctwpmlReviewGateMarkPaymentReady(source || 'poll');
+        }
         if (ctwpmlReviewGateIsReady()) {
           ctwpmlReviewGateFinish();
           return;
@@ -750,16 +819,19 @@
 
     function ctwpmlReviewGateStart(source, opts) {
       var gate = state.__ctwpmlReviewGate;
+      opts = opts || {};
       var params = ctwpmlGetReviewGateParams();
       gate.timeoutMs = params.timeoutMs;
       gate.pollMs = params.pollMs;
-      var requestedFromOpts = opts && opts.requestedMethod ? String(opts.requestedMethod || '') : '';
+      var requestedMode = ctwpmlReviewGateResolveMode(source, opts);
+      var requestedFromOpts = opts.requestedMethod ? String(opts.requestedMethod || '') : '';
       var requestedNow = requestedFromOpts || gate.requestedMethod || (state.selectedShipping ? String(state.selectedShipping.methodId || '') : '');
-      var startKey = String(source || '') + ':' + String(requestedNow || '');
+      var startKey = requestedMode + ':' + String(source || '') + ':' + String(requestedNow || '');
       var now = Date.now();
 
       // Evita reentradas rápidas do mesmo gate (single-flight).
       if (gate.active && gate.lastStartKey === startKey && (now - gate.lastStartAt) < 1200) {
+        gate.mode = requestedMode;
         if (Object.prototype.hasOwnProperty.call(opts || {}, 'pendingWooUpdate')) {
           gate.pendingWooUpdate = !!opts.pendingWooUpdate;
         }
@@ -783,12 +855,12 @@
       }
 
       gate.source = String(source || gate.source || '');
+      gate.mode = requestedMode;
       if (!gate.active) {
         gate.active = true;
         gate.startedAt = Date.now();
         gate.timedOut = false;
       }
-      opts = opts || {};
       if (String(source || '') === 'review_entry') {
         gate.startedAt = Date.now();
         gate.timedOut = false;
@@ -809,6 +881,7 @@
       ctwpmlSetReviewCtaEnabled(false);
       if (typeof state.checkpoint === 'function') {
         state.checkpoint('CHK_REVIEW_GATE_START', true, {
+          mode: gate.mode,
           source: gate.source,
           requested: gate.requestedMethod,
           pendingShipping: gate.pendingShipping,
@@ -1231,6 +1304,10 @@
       }
 
       var requested = String(methodId || '');
+      var activeGate = state.__ctwpmlReviewGate || {};
+      var gateMode = activeGate.active
+        ? (activeGate.mode === 'shipping' ? 'shipping' : 'review')
+        : (currentView === 'shipping' ? 'shipping' : 'review');
       var beforeSnap = ctwpmlReadWooShippingDomSnapshot();
       // Guarda último resultado para bloquear avanço caso Woo não aplique.
       state.__ctwpmlLastShippingSet = {
@@ -1244,6 +1321,7 @@
       };
       if (requested) {
         ctwpmlReviewGateStart('shipping_set', {
+          mode: gateMode,
           pendingShipping: true,
           pendingWooUpdate: true,
           totalsReady: false,
@@ -1324,6 +1402,7 @@
           }
           if (appliedMethod && appliedMethod === requested) {
             ctwpmlReviewGateStart('shipping_set_applied', {
+              mode: gateMode,
               pendingShipping: false,
               appliedMatch: true,
               requestedMethod: requested,
@@ -2943,7 +3022,25 @@
           showShippingPlaceholder();
           return;
         }
+        if (!ctwpmlIsBillingReadinessReady(billingSnapshot)) {
+          var missingBillingFields = ctwpmlBillingMissingFields(billingSnapshot);
+          if (typeof state.checkpoint === 'function') {
+            state.checkpoint('CHK_REVIEW_BLOCKED_BILLING', false, {
+              source: 'review_entry',
+              missing: missingBillingFields,
+              selectedAddress: !!selectedAddressId,
+            });
+          }
+          // A pessoa volta ao formulário com o estado restaurado, em vez de ficar presa
+          // esperando um gate que não pode se resolver sozinho.
+          state.__ctwpmlResumeAfterBilling = true;
+          showNotification('Complete os dados de faturamento para continuar.', 'error', 4000);
+          if (selectedAddressId) showFormForEditAddress(selectedAddressId);
+          else showFormForNewAddress();
+          return;
+        }
         ctwpmlReviewGateStart('review_entry', {
+          mode: 'review',
           pendingWooUpdate: isWooUpdating,
           pendingShipping: !!requestedMethod,
           totalsReady: false,
@@ -2972,7 +3069,7 @@
       };
 
       if (opts.skipPrepare) {
-        beginReviewGate(ctwpmlReadBillingReadinessSnapshot());
+        beginReviewGate(opts.billingSnapshot || ctwpmlReadBillingReadinessSnapshot());
       } else {
         ctwpmlSpinnerAcquire('review_prepare');
         ctwpmlPrepareCheckoutForReview('review_entry', function (billingSnapshot) {
@@ -3008,8 +3105,10 @@
           syncReviewTotalsFromWoo();
           ctwpmlReviewGateMarkTotalsReady('updated_checkout');
           ctwpmlReviewGateResolveAppliedMatch();
-          ctwpmlReviewGateMarkBillingReady('updated_checkout');
-          ctwpmlReviewGateMarkPaymentReady('updated_checkout');
+          if (state.__ctwpmlReviewGate.mode !== 'shipping') {
+            ctwpmlReviewGateMarkBillingReady('updated_checkout');
+            ctwpmlReviewGateMarkPaymentReady('updated_checkout');
+          }
           // Re-sincroniza termos (Woo pode re-renderizar o DOM).
           try {
             var checked = $('.ctwpml-review-terms-checkbox').first().is(':checked');
@@ -3022,8 +3121,10 @@
           try { ctwpmlUpdateTotalsStateFromWoo('updated_checkout'); } catch (eT0) {}
           ctwpmlReviewGateMarkTotalsReady('updated_checkout');
           ctwpmlReviewGateResolveAppliedMatch();
-          ctwpmlReviewGateMarkBillingReady('updated_checkout');
-          ctwpmlReviewGateMarkPaymentReady('updated_checkout');
+          if (state.__ctwpmlReviewGate.mode !== 'shipping') {
+            ctwpmlReviewGateMarkBillingReady('updated_checkout');
+            ctwpmlReviewGateMarkPaymentReady('updated_checkout');
+          }
           ctwpmlReviewGateSchedule('updated_checkout');
         }
       } catch (e) {}
@@ -3041,6 +3142,7 @@
         }
         if (gate) gate.lastWooUpdatingAt = now;
         ctwpmlReviewGateStart('woo_updating', {
+          mode: currentView === 'shipping' ? 'shipping' : (gate && gate.mode === 'shipping' ? 'shipping' : 'review'),
           pendingWooUpdate: true,
           pendingShipping: !!requestedMethod,
           requestedMethod: requestedMethod,
@@ -3055,8 +3157,10 @@
         try { ctwpmlUpdateTotalsStateFromWoo('woo_updated_gate'); } catch (e1) {}
         ctwpmlReviewGateMarkTotalsReady('woo_updated');
         ctwpmlReviewGateResolveAppliedMatch();
-        ctwpmlReviewGateMarkBillingReady('woo_updated');
-        ctwpmlReviewGateMarkPaymentReady('woo_updated');
+        if (state.__ctwpmlReviewGate.mode !== 'shipping') {
+          ctwpmlReviewGateMarkBillingReady('woo_updated');
+          ctwpmlReviewGateMarkPaymentReady('woo_updated');
+        }
         ctwpmlReviewGateSchedule('woo_updated');
       } catch (e) {}
     });
@@ -3151,11 +3255,15 @@
       $.ajax({
         url: state.params.ajax_url,
         type: 'POST',
+        timeout: 7000,
         data: {
           action: 'ctwpml_get_contact_meta',
         },
         success: function (response) {
           if (response && response.success && response.data) {
+            // Valores visíveis/atuais têm prioridade sobre metadados retornados pelo servidor.
+            // Assim uma resposta tardia nunca substitui o que a pessoa acabou de preencher.
+            try { ctwpmlSynchronizeCriticalContactFields('contact_meta_before_restore'); } catch (eSyncBefore) {}
             var whatsapp = response.data.whatsapp || '';
             var phoneFull = response.data.phone_full || '';
             var countryCode = response.data.country_code || '';
@@ -3182,16 +3290,20 @@
               if (!currentPhone && !currentPhoneFull && window.ctwpmlPhoneWidget && typeof window.ctwpmlPhoneWidget.setPhoneFull === 'function' && phoneFull) {
                 window.ctwpmlPhoneWidget.setPhoneFull(String(phoneFull));
               } else if (!currentPhone && whatsapp) {
-                $('#ctwpml-input-fone').val(formatPhone(whatsapp));
-                // Também tenta popular hidden para persistência
-                var digits = phoneDigits(whatsapp);
-                if (digits && (digits.length === 10 || digits.length === 11)) {
+                var contactCountry = String(countryCode || ctwpmlSelectedPhoneCountry()).toUpperCase();
+                var contactShape = window.CCCheckoutTabs.normalizePhoneForCheckout(whatsapp, contactCountry);
+                if (contactCountry !== 'BR' && window.ctwpmlPhoneWidget && typeof window.ctwpmlPhoneWidget.setNationalDigits === 'function') {
+                  window.ctwpmlPhoneWidget.setNationalDigits(contactCountry, contactShape.wooDigits);
+                } else {
+                  $('#ctwpml-input-fone').val(contactCountry === 'BR' ? formatPhone(whatsapp) : whatsapp);
+                }
+                if (contactCountry === 'BR' && contactShape.valid && (contactShape.wooDigits.length === 10 || contactShape.wooDigits.length === 11)) {
                   var h = document.getElementById('ctwpml-phone-full');
-                  if (h) h.value = '+55' + digits;
+                  if (h) h.value = '+55' + contactShape.wooDigits;
                 }
               }
             } catch (e0) {
-              if (!currentPhone && whatsapp) $('#ctwpml-input-fone').val(formatPhone(whatsapp));
+              if (!currentPhone && whatsapp) $('#ctwpml-input-fone').val(String(countryCode || '').toUpperCase() === 'BR' ? formatPhone(whatsapp) : whatsapp);
             }
 
             if (cpf && !currentCpf) {
@@ -3223,6 +3335,18 @@
                 state.checkpoint('CHK_CONTACT_EMAIL_RESTORE', false, { hasEmail: false });
               }
             }
+            try {
+              ctwpmlSynchronizeCriticalContactFields('contact_meta_loaded', response.data);
+              ctwpmlFlushFormSnapshot('contact_meta_loaded');
+              if (typeof state.checkpoint === 'function') {
+                state.checkpoint('CHK_CONTACT_META_LOAD', true, {
+                  hasEmail: !!email,
+                  hasPhone: !!(phoneFull || whatsapp),
+                  hasCpf: cpfDigitsOnly(cpf).length === 11,
+                  cpfLocked: !!cpfLocked,
+                });
+              }
+            } catch (eSync) {}
             if (typeof callback === 'function') {
               try {
                 callback(response.data);
@@ -3230,6 +3354,10 @@
             }
           } else {
             state.log('UI        Nenhum dado de contato encontrado no perfil', {}, 'UI');
+            try {
+              ctwpmlSynchronizeCriticalContactFields('contact_meta_empty');
+              if (typeof state.checkpoint === 'function') state.checkpoint('CHK_CONTACT_META_LOAD', true, { empty: true });
+            } catch (eEmpty) {}
             if (typeof callback === 'function') {
               try {
                 callback(null);
@@ -3242,6 +3370,12 @@
             status: status, 
             error: error 
           }, 'UI');
+          try {
+            ctwpmlSynchronizeCriticalContactFields('contact_meta_error');
+            if (typeof state.checkpoint === 'function') {
+              state.checkpoint('CHK_CONTACT_META_LOAD', false, { reason: 'ajax_error', status: String(status || '') });
+            }
+          } catch (eErrorSync) {}
           if (typeof callback === 'function') {
             try {
               callback(null);
@@ -3261,6 +3395,10 @@
         callback = typeof maybeCallback === 'function' ? maybeCallback : null;
       }
 
+      // Antes de persistir, recupera campos reais do Woo que possam ter sido
+      // preenchidos enquanto o formulário modal ainda não estava montado.
+      try { ctwpmlSynchronizeCriticalContactFields('contact_meta_save'); } catch (eSync) {}
+
       // v2.0 [2.3] (novo formato): o valor fonte da verdade é #ctwpml-phone-full
       var phoneFull = '';
       var countryCode = '';
@@ -3273,7 +3411,9 @@
           dialCode = String(window.ctwpmlPhoneWidget.getDialCode ? window.ctwpmlPhoneWidget.getDialCode() : '');
         }
         // compat: whatsapp = apenas dígitos (pode incluir DDI)
-        whatsappDigits = phoneFull ? String(phoneFull).replace(/\D/g, '') : phoneDigits($('#ctwpml-input-fone').val() || '');
+        whatsappDigits = phoneFull
+          ? ctwpmlPhoneDigitsForWoo(phoneFull, countryCode)
+          : ctwpmlPhoneDigitsForWoo($('#ctwpml-input-fone').val() || '', countryCode);
       } catch (e0) {
         whatsappDigits = phoneDigits($('#ctwpml-input-fone').val() || '');
       }
@@ -3416,7 +3556,7 @@
       var cpfRequired = !!snapshot.hasCpfField;
       var phoneRequired = !!snapshot.hasPhoneField;
       var cpfOk = !cpfRequired || cpfDigitsOnly(snapshot.cpf).length === 11;
-      var phoneOk = !phoneRequired || phoneDigits(snapshot.phone).length >= 10;
+      var phoneOk = !phoneRequired || ctwpmlIsCheckoutPhoneReady(snapshot.phone);
       return !!(
         snapshot.firstName &&
         snapshot.lastName &&
@@ -3441,7 +3581,7 @@
         hasLastName: !!snapshot.lastName,
         hasEmail: !!snapshot.email,
         hasValidEmail: ctwpmlIsValidEmail(snapshot.email || ''),
-        hasPhone: phoneDigits(snapshot.phone || '').length >= 10,
+        hasPhone: ctwpmlIsCheckoutPhoneReady(snapshot.phone || ''),
         hasCpf: cpfDigitsOnly(snapshot.cpf || '').length === 11,
         hasPostcode: !!snapshot.postcode,
         hasAddress1: !!snapshot.address1,
@@ -3453,6 +3593,22 @@
         hasPhoneField: !!snapshot.hasPhoneField,
         error: snapshot.error ? String(snapshot.error) : '',
       };
+    }
+
+    function ctwpmlBillingMissingFields(snapshot) {
+      snapshot = snapshot || {};
+      var missing = [];
+      if (!snapshot.firstName || !snapshot.lastName) missing.push('name');
+      if (!ctwpmlIsValidEmail(snapshot.email)) missing.push('email');
+      if (snapshot.hasPhoneField && !ctwpmlIsCheckoutPhoneReady(snapshot.phone)) missing.push('phone');
+      if (snapshot.hasCpfField && cpfDigitsOnly(snapshot.cpf).length !== 11) missing.push('cpf');
+      if (!snapshot.postcode) missing.push('postcode');
+      if (!snapshot.address1) missing.push('address');
+      if (!snapshot.number) missing.push('number');
+      if (!snapshot.neighborhood) missing.push('neighborhood');
+      if (!snapshot.city) missing.push('city');
+      if (!snapshot.state) missing.push('state');
+      return missing;
     }
 
     function ctwpmlGetPersistedBillingName(context) {
@@ -3584,16 +3740,28 @@
 
       var phone = ctwpmlNormalizeText(billing.phone || (formSnapshot && (formSnapshot.phone_full || formSnapshot.phone)) || '');
       if (phone) {
-        try { $('#ctwpml-phone-full').val(phone).trigger('input').trigger('change'); } catch (e5) {}
-        try { $('#ctwpml-input-fone').val(formatPhone(phone)).trigger('input').trigger('change'); } catch (e6) {}
+        var restoredFull = ctwpmlNormalizePhoneFullForStorage(phone);
+        var restoredShape = window.CCCheckoutTabs.normalizePhoneForCheckout(restoredFull || phone, ctwpmlSelectedPhoneCountry());
+        try { $('#ctwpml-phone-full').val(restoredFull).trigger('input').trigger('change'); } catch (e5) {}
+        try {
+          if (restoredFull.charAt(0) === '+' && window.ctwpmlPhoneWidget && typeof window.ctwpmlPhoneWidget.setPhoneFull === 'function') {
+            window.ctwpmlPhoneWidget.setPhoneFull(restoredFull);
+          } else if (restoredShape.country === 'BR') {
+            $('#ctwpml-input-fone').val(formatPhone(phone)).trigger('input').trigger('change');
+          }
+        } catch (e6) {}
         try {
           var $cellphone = ctwpmlBillingField$('#billing_cellphone', 'billing_cellphone');
-          if ($cellphone.length) ctwpmlSetFieldValue($cellphone, phoneDigits(phone));
+          if ($cellphone.length && restoredShape.wooDigits) ctwpmlSetFieldValue($cellphone, restoredShape.wooDigits);
         } catch (e7) {}
         try {
           var $phone = ctwpmlBillingField$('#billing_phone', 'billing_phone');
-          if ($phone.length) ctwpmlSetFieldValue($phone, phoneDigits(phone));
+          if ($phone.length && restoredShape.wooDigits) ctwpmlSetFieldValue($phone, restoredShape.wooDigits);
         } catch (e8) {}
+        if (typeof state.checkpoint === 'function') state.checkpoint('CHK_PHONE_RESTORE', restoredShape.valid, {
+          stage: 'auth_resume', country: restoredShape.country, sourceLength: restoredShape.sourceLength,
+          wooLength: restoredShape.wooDigits.length, ddiSeparated: restoredShape.removedDdi, reason: restoredShape.reason,
+        });
         applied = true;
       }
 
@@ -3620,6 +3788,7 @@
         var storedSnapshot = readFormSnapshot();
         if (storedSnapshot) ctwpmlApplyFormSnapshot(storedSnapshot);
       } catch (e1) {}
+      try { ctwpmlSynchronizeCriticalContactFields(context + ':stored'); } catch (eContact) {}
       try { applyFormToCheckout(); } catch (e2) {}
       try {
         if (selectedAddressId) applySelectedAddressToWooFields(selectedAddressId, context);
@@ -3629,6 +3798,14 @@
       var snap = ctwpmlReadBillingReadinessSnapshot();
       if (typeof state.checkpoint === 'function') {
         state.checkpoint('CHK_BILLING_REHYDRATE', ctwpmlIsBillingReadinessReady(snap), ctwpmlBillingReadinessSummary(snap, context));
+        state.checkpoint('CHK_BILLING_CRITICAL_FIELDS', ctwpmlIsBillingReadinessReady(snap), {
+          context: context,
+          missing: [
+            ctwpmlIsValidEmail(snap.email) ? '' : 'email',
+            !snap.hasPhoneField || ctwpmlIsCheckoutPhoneReady(snap.phone) ? '' : 'phone',
+            !snap.hasCpfField || cpfDigitsOnly(snap.cpf).length === 11 ? '' : 'cpf',
+          ].filter(Boolean),
+        });
       }
       return snap;
     }
@@ -3909,13 +4086,23 @@
           var endDigit = getDigitIndexAtPosition(visibleValue, selectionEnd);
           var proposedDigits = currentDigits.slice(0, startDigit) + insertedDigits + currentDigits.slice(endDigit);
 
-          // Brasil usa 11 digitos nacionais. Se houver mais e o prefixo for 55,
-          // trata o 55 como DDI digitado por engano e preserva o restante.
-          if (proposedDigits.length <= 11 || proposedDigits.indexOf('55') !== 0) return false;
+          if (proposedDigits.length <= 11) return false;
+
+          var proposedShape = window.CCCheckoutTabs.normalizePhoneForCheckout(proposedDigits, 'BR');
+          var nationalDigits = proposedShape.wooDigits;
 
           event.preventDefault();
           event.stopImmediatePropagation();
-          applyBrazilNationalDigits(proposedDigits.slice(2));
+          if (nationalDigits.length === 10 || nationalDigits.length === 11) applyBrazilNationalDigits(nationalDigits);
+          if (typeof state.checkpoint === 'function') {
+            state.checkpoint('CHK_PHONE_INPUT_PREFIX', !!nationalDigits, {
+              source: event.type,
+              proposedLength: proposedDigits.length,
+              nationalLength: nationalDigits.length,
+              ddiCount: proposedShape.ddiCount,
+              preserved: nationalDigits.length === 10 || nationalDigits.length === 11,
+            });
+          }
           return true;
         }
 
@@ -3945,14 +4132,26 @@
           }
           hiddenEl.value = full;
 
-          // Mantém billing_cellphone sincronizado (somente dígitos)
-          var digits = full ? full.replace(/\D/g, '') : '';
-          if (digits) $('#billing_cellphone').val(digits).trigger('change');
+          var phoneShape = window.CCCheckoutTabs.normalizePhoneForCheckout(full, countryCode);
+          var wooDigits = phoneShape.wooDigits;
+          if (wooDigits) {
+            var $cellphone = ctwpmlBillingField$('#billing_cellphone', 'billing_cellphone');
+            var $phone = ctwpmlBillingField$('#billing_phone', 'billing_phone');
+            if ($cellphone.length && ctwpmlPhoneDigitsForCheckout($cellphone.val()) !== wooDigits) ctwpmlSetFieldValue($cellphone, wooDigits);
+            if ($phone.length && ctwpmlPhoneDigitsForCheckout($phone.val()) !== wooDigits) ctwpmlSetFieldValue($phone, wooDigits);
+          }
 
           if (typeof state.log === 'function') {
-            state.log('UI        v2.0 [2.3] Phone accept', { country: countryCode, ddi: ddiStr ? ('+' + ddiStr) : '', digitsLen: digits.length, phone_full: full.slice(0, 8) + '...' }, 'UI');
+            state.log('UI        Phone accept', {
+              country: countryCode,
+              nationalLength: val.replace(/\D/g, '').length,
+              fullLength: phoneShape.sourceLength,
+              wooLength: wooDigits.length,
+              ddiSeparated: phoneShape.removedDdi,
+              formatValid: phoneShape.valid,
+            }, 'UI');
           }
-          ctwpmlPersistFormSnapshot('phone_accept');
+          ctwpmlFlushFormSnapshot('phone_accept');
         }
 
         function updateMask(countryCode, isInitCall) {
@@ -4054,14 +4253,12 @@
             var only = String(digits || '').replace(/\D/g, '');
             if (!cc) cc = 'BR';
 
-            // BR: nunca permitir que o DDI apareça no input (somente no seletor).
-            // Se vier um número com DDI repetido (ex.: 5555...), remove apenas um prefixo de DDI.
-            if (cc === 'BR') {
-              var brDdi = String((countryData.BR && countryData.BR[1]) || '55');
-              if (only.length >= 12 && only.indexOf(brDdi) === 0) {
-                only = only.slice(brDdi.length);
-              }
+            var phoneShape = window.CCCheckoutTabs.normalizePhoneForCheckout(only, cc);
+            if (!phoneShape.valid) {
+              if (typeof state.checkpoint === 'function') state.checkpoint('CHK_PHONE_RESTORE', false, { country: cc, sourceLength: phoneShape.sourceLength, reason: phoneShape.reason });
+              return;
             }
+            only = phoneShape.wooDigits;
 
             tom.setValue(cc, true);
             updateMask(cc, true);
@@ -4114,6 +4311,15 @@
                   best = { code: code, ddi: ddi, rest: digits.slice(ddi.length) };
                 }
               });
+
+              if (best.code === 'BR') {
+                var restoredShape = window.CCCheckoutTabs.normalizePhoneForCheckout(pf, 'BR');
+                if (!restoredShape.valid) {
+                  if (typeof state.checkpoint === 'function') state.checkpoint('CHK_PHONE_RESTORE', false, { stage: 'full_number', country: 'BR', sourceLength: restoredShape.sourceLength, reason: restoredShape.reason });
+                  return;
+                }
+                best.rest = restoredShape.wooDigits;
+              }
 
               tom.setValue(best.code, true);
               updateMask(best.code, true);
@@ -4444,7 +4650,9 @@
         } catch (e0) {}
       }
       if (emailCheckout) $('#ctwpml-input-email').val(emailCheckout);
-      $('#ctwpml-input-fone').val(formatPhone((($('#billing_cellphone').val() || '') || '').trim()));
+      var checkoutPhone = (($('#billing_cellphone').val() || '') || '').trim();
+      var checkoutPhoneCountry = ($('#billing_country').val() || ctwpmlSelectedPhoneCountry()).toString().toUpperCase();
+      $('#ctwpml-input-fone').val(checkoutPhoneCountry === 'BR' ? formatPhone(checkoutPhone) : checkoutPhone);
       syncLoginBanner();
       syncCpfUiFromCheckout();
       // v3.2.13: Carregar CPF e WhatsApp do perfil (user_meta) para novo endereço
@@ -4522,28 +4730,32 @@
           }
         } catch (e0) {}
 
-        // 2) Fallback: billing_cellphone do checkout (assumir nacional BR e nunca injetar DDI no input).
+        // 2) Fallback: billing_cellphone do checkout, respeitando o país informado.
         if (!filled) {
           var phoneFromCheckout = ($('#billing_cellphone').val() || '').trim();
           try {
-            var digits = phoneDigits(String(phoneFromCheckout || ''));
+            var fallbackCountry = String((meta && meta.country_code) || $('#billing_country').val() || ctwpmlSelectedPhoneCountry()).toUpperCase();
+            var phoneShape = window.CCCheckoutTabs.normalizePhoneForCheckout(phoneFromCheckout, fallbackCountry);
+            var digits = phoneShape.wooDigits;
+            if (typeof state.checkpoint === 'function') state.checkpoint('CHK_PHONE_RESTORE', phoneShape.valid, {
+              stage: 'billing_fallback', country: phoneShape.country, sourceLength: phoneShape.sourceLength,
+              wooLength: digits.length, ddiSeparated: phoneShape.removedDdi, reason: phoneShape.reason,
+            });
             if (digits && window.ctwpmlPhoneWidget) {
-              // Se já vier com DDI 55 + DDD + número (13 dígitos), remove DDI para preencher só o nacional no input.
-              if (digits.length >= 12 && digits.indexOf('55') === 0) {
-                digits = digits.slice(2);
-              }
-              if (typeof window.ctwpmlPhoneWidget.setNationalDigits === 'function') {
-                window.ctwpmlPhoneWidget.setNationalDigits('BR', digits);
-              } else if (typeof window.ctwpmlPhoneWidget.setPhoneFull === 'function') {
-                window.ctwpmlPhoneWidget.setPhoneFull('+' + '55' + digits);
+              if (phoneFromCheckout.charAt(0) === '+' && typeof window.ctwpmlPhoneWidget.setPhoneFull === 'function') {
+                window.ctwpmlPhoneWidget.setPhoneFull(phoneFromCheckout);
+              } else if (typeof window.ctwpmlPhoneWidget.setNationalDigits === 'function') {
+                window.ctwpmlPhoneWidget.setNationalDigits(phoneShape.country || fallbackCountry, digits);
+              } else if (phoneShape.country === 'BR' && typeof window.ctwpmlPhoneWidget.setPhoneFull === 'function') {
+                window.ctwpmlPhoneWidget.setPhoneFull('+55' + digits);
               } else {
-                $('#ctwpml-input-fone').val(formatPhone(phoneFromCheckout));
+                $('#ctwpml-input-fone').val(phoneShape.country === 'BR' ? formatPhone(phoneFromCheckout) : phoneFromCheckout);
               }
             } else {
-              $('#ctwpml-input-fone').val(formatPhone(phoneFromCheckout));
+              $('#ctwpml-input-fone').val(phoneShape.country === 'BR' ? formatPhone(phoneFromCheckout) : phoneFromCheckout);
             }
           } catch (e1) {
-            $('#ctwpml-input-fone').val(formatPhone(phoneFromCheckout));
+            $('#ctwpml-input-fone').val(phoneFromCheckout);
           }
         }
       });
@@ -4608,8 +4820,21 @@
 
     var formSnapshotDebounce = null;
 
+    function ctwpmlFirstPresentValue(values) {
+      for (var i = 0; i < values.length; i++) {
+        var value = ctwpmlNormalizeText(values[i]);
+        if (value) return value;
+      }
+      return '';
+    }
+
     function ctwpmlCollectFormSnapshot() {
       try {
+        var $billingEmail = ctwpmlBillingField$('#billing_email', 'billing_email');
+        var $billingCellphone = ctwpmlBillingField$('#billing_cellphone', 'billing_cellphone');
+        var $billingPhone = ctwpmlBillingField$('#billing_phone', 'billing_phone');
+        var $billingCpf = getBillingCpfInput();
+        var billingName = ctwpmlNormalizeFullName((($('#billing_first_name').val() || '') + ' ' + ($('#billing_last_name').val() || '')).trim());
         return {
           addressId: selectedAddressId || null,
           cep: ($('#ctwpml-input-cep').val() || '').trim(),
@@ -4621,11 +4846,11 @@
           state: ($('#billing_state').val() || '').trim(),
           info: ($('#ctwpml-input-info').val() || '').trim(),
           label: $('#ctwpml-type-home').hasClass('is-active') ? 'Casa' : ($('#ctwpml-type-work').hasClass('is-active') ? 'Trabalho' : ''),
-          nome: ($('#ctwpml-input-nome').val() || '').trim(),
-          email: ($('#ctwpml-input-email').val() || '').trim(),
-          phone: ($('#ctwpml-input-fone').val() || '').trim(),
-          phone_full: ($('#ctwpml-phone-full').val() || '').trim(),
-          cpf: ($('#ctwpml-input-cpf').val() || '').trim(),
+          nome: ctwpmlFirstPresentValue([$('#ctwpml-input-nome').val(), billingName]),
+          email: ctwpmlFirstPresentValue([$('#ctwpml-input-email').val(), $billingEmail.length ? $billingEmail.val() : '']),
+          phone: ctwpmlFirstPresentValue([$('#ctwpml-input-fone').val()]),
+          phone_full: ctwpmlNormalizePhoneFullForStorage(ctwpmlFirstPresentValue([$('#ctwpml-phone-full').val(), $billingCellphone.length ? $billingCellphone.val() : '', $billingPhone.length ? $billingPhone.val() : ''])),
+          cpf: ctwpmlFirstPresentValue([$('#ctwpml-input-cpf').val(), $billingCpf.length ? $billingCpf.val() : '']),
           lastCepOnly: lastCepOnly || '',
           cepConsultedFor: cepConsultedFor || '',
         };
@@ -4639,39 +4864,54 @@
       if (snapshot.addressId && snapshot.addressId !== selectedAddressId) return;
       if (!snapshot.addressId && selectedAddressId) return;
 
-      if (snapshot.cep) {
+      if (snapshot.cep && !ctwpmlNormalizeText($('#ctwpml-input-cep').val())) {
         $('#ctwpml-input-cep').val(formatCep(snapshot.cep));
         lastCepOnly = cepDigits(snapshot.cep);
         cepConsultedFor = String(snapshot.cepConsultedFor || '');
       }
-      if (snapshot.rua) $('#ctwpml-input-rua').val(snapshot.rua);
-      if (snapshot.numero) $('#ctwpml-input-numero').val(snapshot.numero);
-      if (snapshot.comp) $('#ctwpml-input-comp').val(snapshot.comp);
-      if (snapshot.bairro) $('#ctwpml-input-bairro').val(snapshot.bairro);
-      if (snapshot.city) $('#billing_city').val(snapshot.city).trigger('change');
-      if (snapshot.state) $('#billing_state').val(snapshot.state).trigger('change');
-      if (snapshot.info) $('#ctwpml-input-info').val(snapshot.info);
-      if (snapshot.label) setTypeSelection(snapshot.label);
-      if (snapshot.nome) $('#ctwpml-input-nome').val(snapshot.nome);
-      if (snapshot.email) $('#ctwpml-input-email').val(snapshot.email);
-      if (snapshot.phone_full) {
-        $('#ctwpml-phone-full').val(snapshot.phone_full);
+      ctwpmlSetModalValueIfBlank('#ctwpml-input-rua', snapshot.rua);
+      ctwpmlSetModalValueIfBlank('#ctwpml-input-numero', snapshot.numero);
+      ctwpmlSetModalValueIfBlank('#ctwpml-input-comp', snapshot.comp);
+      ctwpmlSetModalValueIfBlank('#ctwpml-input-bairro', snapshot.bairro);
+      ctwpmlSetFieldIfBlank(ctwpmlBillingField$('#billing_city', 'billing_city'), snapshot.city);
+      ctwpmlSetFieldIfBlank(ctwpmlBillingField$('#billing_state', 'billing_state'), snapshot.state);
+      ctwpmlSetModalValueIfBlank('#ctwpml-input-info', snapshot.info);
+      if (snapshot.label && !$('#ctwpml-type-home').hasClass('is-active') && !$('#ctwpml-type-work').hasClass('is-active')) setTypeSelection(snapshot.label);
+      ctwpmlSetModalValueIfBlank('#ctwpml-input-nome', snapshot.nome);
+      ctwpmlSetModalValueIfBlank('#ctwpml-input-email', snapshot.email);
+      if (snapshot.phone_full && !ctwpmlNormalizeText($('#ctwpml-phone-full').val()) && !ctwpmlNormalizeText($('#ctwpml-input-fone').val()) && window.ctwpmlPhoneWidget && typeof window.ctwpmlPhoneWidget.setPhoneFull === 'function') {
+        window.ctwpmlPhoneWidget.setPhoneFull(ctwpmlNormalizePhoneFullForStorage(snapshot.phone_full));
+      } else {
+        ctwpmlSetModalValueIfBlank('#ctwpml-phone-full', snapshot.phone_full);
       }
-      if (snapshot.phone) {
-        $('#ctwpml-input-fone').val(snapshot.phone);
+      ctwpmlSetModalValueIfBlank('#ctwpml-input-fone', snapshot.phone);
+      ctwpmlSetModalValueIfBlank('#ctwpml-input-cpf', snapshot.cpf ? formatCpf(snapshot.cpf) : '');
+    }
+
+    function ctwpmlFlushFormSnapshot(reason) {
+      if (wasOrderCompletedRecently()) return false;
+      if (formSnapshotDebounce) clearTimeout(formSnapshotDebounce);
+      formSnapshotDebounce = null;
+      var snapshot = ctwpmlCollectFormSnapshot();
+      if (!snapshot) return false;
+      saveFormSnapshot(snapshot);
+      if (typeof state.checkpoint === 'function') {
+        state.checkpoint('CHK_FORM_SNAPSHOT_FLUSH', true, {
+          reason: String(reason || 'unknown'),
+          hasEmail: !!snapshot.email,
+          hasPhone: !!(snapshot.phone_full || snapshot.phone),
+          hasCpf: cpfDigitsOnly(snapshot.cpf).length === 11,
+          hasAddressId: !!snapshot.addressId,
+        });
       }
-      if (snapshot.cpf) $('#ctwpml-input-cpf').val(snapshot.cpf);
+      return true;
     }
 
     function ctwpmlPersistFormSnapshot(reason) {
       if (currentView !== 'form') return;
       if (formSnapshotDebounce) clearTimeout(formSnapshotDebounce);
       formSnapshotDebounce = setTimeout(function () {
-        var snapshot = ctwpmlCollectFormSnapshot();
-        if (snapshot) saveFormSnapshot(snapshot);
-        if (typeof state.checkpoint === 'function') {
-          state.checkpoint('CHK_FORM_SNAPSHOT_SAVE', true, { reason: reason || 'unknown', hasAddressId: !!snapshot && !!snapshot.addressId });
-        }
+        ctwpmlFlushFormSnapshot(reason || 'debounced');
       }, 180);
     }
 
@@ -4823,8 +5063,9 @@
         errors.push('Nome completo inválido');
       }
 
-      var phone = phoneDigits($('#ctwpml-input-fone').val());
-      if (phone.length < 10) {
+      var phoneCountry = ctwpmlSelectedPhoneCountry();
+      var phoneValue = phoneCountry === 'BR' ? $('#ctwpml-input-fone').val() : ($('#ctwpml-phone-full').val() || $('#ctwpml-input-fone').val());
+      if (!ctwpmlIsCheckoutPhoneReady(phoneValue, phoneCountry)) {
         setFieldError('#ctwpml-input-fone', true);
         ok = false;
         errors.push('WhatsApp inválido');
@@ -5207,7 +5448,9 @@
       var whatsappDigits = '';
       try {
         var phoneFull = ($('#ctwpml-phone-full').val() || '').toString();
-        whatsappDigits = phoneFull ? phoneFull.replace(/\D/g, '') : phoneDigits($('#ctwpml-input-fone').val());
+        whatsappDigits = phoneFull
+          ? ctwpmlPhoneDigitsForWoo(phoneFull, ctwpmlSelectedPhoneCountry())
+          : ctwpmlPhoneDigitsForWoo($('#ctwpml-input-fone').val(), ctwpmlSelectedPhoneCountry());
       } catch (e0) {
         whatsappDigits = phoneDigits($('#ctwpml-input-fone').val());
       }
@@ -5755,6 +5998,222 @@
       }
     }
 
+    function ctwpmlPhoneDigitsForCheckout(value) {
+      return String(value || '').replace(/\D/g, '').slice(0, 15);
+    }
+
+    function ctwpmlSelectedPhoneCountry() {
+      try {
+        if (window.ctwpmlPhoneWidget && typeof window.ctwpmlPhoneWidget.getSelectedCountry === 'function') {
+          return String(window.ctwpmlPhoneWidget.getSelectedCountry() || '').toUpperCase();
+        }
+      } catch (e0) {}
+      return 'BR';
+    }
+
+    function ctwpmlPhoneDigitsForWoo(value, countryCode) {
+      return window.CCCheckoutTabs.normalizePhoneForCheckout(value, countryCode || ctwpmlSelectedPhoneCountry()).wooDigits;
+    }
+
+    function ctwpmlIsCheckoutPhoneReady(value, countryCode) {
+      var shape = window.CCCheckoutTabs.normalizePhoneForCheckout(value, countryCode || ctwpmlSelectedPhoneCountry());
+      var length = shape.wooDigits.length;
+      return shape.country === 'BR' ? (length === 10 || length === 11) : (length >= 8 && length <= 15);
+    }
+
+    function ctwpmlSetFieldIfBlank($field, value) {
+      if (!$field || !$field.length || !ctwpmlNormalizeText(value)) return false;
+      if (ctwpmlNormalizeText($field.val())) return false;
+      return ctwpmlSetFieldValue($field, value);
+    }
+
+    function ctwpmlSetModalValueIfBlank(selector, value) {
+      var $field = $(selector).first();
+      if (!$field.length || !ctwpmlNormalizeText(value) || ctwpmlNormalizeText($field.val())) return false;
+      $field.val(value).trigger('input').trigger('change');
+      return true;
+    }
+
+    function ctwpmlNormalizePhoneFullForStorage(value) {
+      var raw = String(value || '').trim();
+      var shape = window.CCCheckoutTabs.normalizePhoneForCheckout(raw, ctwpmlSelectedPhoneCountry());
+      if (!shape.valid || !shape.wooDigits) return '';
+      if (shape.country === 'BR' && (shape.wooDigits.length === 10 || shape.wooDigits.length === 11)) return '+55' + shape.wooDigits;
+      if (raw.charAt(0) === '+') return '+' + raw.replace(/\D/g, '');
+      return shape.wooDigits;
+    }
+
+    function ctwpmlSetPhoneFieldIfBlankOrPrefixed($field, digits, countryCode) {
+      if (!$field || !$field.length || !digits) return false;
+      var current = ctwpmlNormalizeText($field.val());
+      if (!current) return ctwpmlSetFieldValue($field, digits);
+      var currentShape = window.CCCheckoutTabs.normalizePhoneForCheckout(current, countryCode);
+      if (currentShape.removedDdi && currentShape.wooDigits === digits && ctwpmlPhoneDigitsForCheckout(current) !== digits) {
+        return ctwpmlSetFieldValue($field, digits);
+      }
+      return false;
+    }
+
+    function ctwpmlContactValuesConflict(first, second, normalizer) {
+      var a = normalizer(first);
+      var b = normalizer(second);
+      return !!(a && b && a !== b);
+    }
+
+    function ctwpmlSynchronizeCriticalContactFields(context, contactMeta, options) {
+      options = options || {};
+      contactMeta = contactMeta && typeof contactMeta === 'object' ? contactMeta : {};
+      var snapshot = null;
+      try { snapshot = readFormSnapshot() || {}; } catch (e0) { snapshot = {}; }
+
+      var $billingEmail = ctwpmlBillingField$('#billing_email', 'billing_email');
+      var $billingCellphone = ctwpmlBillingField$('#billing_cellphone', 'billing_cellphone');
+      var $billingPhone = ctwpmlBillingField$('#billing_phone', 'billing_phone');
+      var $billingCpf = getBillingCpfInput();
+
+      var modalEmail = ctwpmlNormalizeText($('#ctwpml-input-email').val());
+      var wooEmail = $billingEmail.length ? ctwpmlNormalizeText($billingEmail.val()) : '';
+      var snapshotEmail = ctwpmlNormalizeText(snapshot.email);
+      var metaEmail = ctwpmlNormalizeText(contactMeta.email);
+      var email = modalEmail || wooEmail || snapshotEmail || metaEmail;
+      if (!ctwpmlIsValidEmail(email)) email = '';
+
+      var modalPhoneFull = ctwpmlNormalizeText($('#ctwpml-phone-full').val());
+      var modalPhone = ctwpmlNormalizeText($('#ctwpml-input-fone').val());
+      var wooCellphone = $billingCellphone.length ? ctwpmlNormalizeText($billingCellphone.val()) : '';
+      var wooPhone = $billingPhone.length ? ctwpmlNormalizeText($billingPhone.val()) : '';
+      var snapshotPhoneFull = ctwpmlNormalizeText(snapshot.phone_full);
+      var snapshotPhone = ctwpmlNormalizeText(snapshot.phone);
+      var metaPhoneFull = ctwpmlNormalizeText(contactMeta.phone_full || contactMeta.whatsapp);
+      var phoneSourceKind = modalPhoneFull ? 'modal_full' : (wooCellphone ? 'woo_cellphone' : (wooPhone ? 'woo_phone' : (snapshotPhoneFull ? 'snapshot_full' : (metaPhoneFull ? 'contact_meta' : (modalPhone ? 'modal_visible' : 'snapshot_visible')))));
+      var phoneSource = modalPhoneFull || wooCellphone || wooPhone || snapshotPhoneFull || metaPhoneFull || modalPhone || snapshotPhone;
+      var recoveredTruncation = false;
+      if (!modalPhoneFull && !modalPhone) {
+        var wooCurrentPhone = wooCellphone || wooPhone;
+        if (window.CCCheckoutTabs.isTruncatedBrazilPhone(wooCurrentPhone, snapshotPhoneFull)) {
+          phoneSource = snapshotPhoneFull;
+          phoneSourceKind = 'snapshot_recovered_truncation';
+          recoveredTruncation = true;
+        } else if (window.CCCheckoutTabs.isTruncatedBrazilPhone(wooCurrentPhone, metaPhoneFull)) {
+          phoneSource = metaPhoneFull;
+          phoneSourceKind = 'contact_meta_recovered_truncation';
+          recoveredTruncation = true;
+        }
+      }
+      var phoneFull = ctwpmlNormalizePhoneFullForStorage(phoneSource);
+      var selectedPhoneCountry = ctwpmlSelectedPhoneCountry();
+      var phoneShape = window.CCCheckoutTabs.normalizePhoneForCheckout(phoneFull || phoneSource, selectedPhoneCountry);
+      var phoneDigitsForWoo = phoneShape.wooDigits;
+
+      var modalCpf = ctwpmlNormalizeText($('#ctwpml-input-cpf').val());
+      var wooCpf = $billingCpf.length ? ctwpmlNormalizeText($billingCpf.val()) : '';
+      var snapshotCpf = ctwpmlNormalizeText(snapshot.cpf);
+      var metaCpf = ctwpmlNormalizeText(contactMeta.cpf);
+      var cpf = cpfDigitsOnly(modalCpf || wooCpf || snapshotCpf || metaCpf);
+
+      var filled = {
+        modalEmail: false,
+        wooEmail: false,
+        modalPhone: false,
+        wooPhone: false,
+        modalCpf: false,
+        wooCpf: false,
+      };
+
+      if (email) {
+        filled.modalEmail = ctwpmlSetModalValueIfBlank('#ctwpml-input-email', email);
+        if (!$billingEmail.length) {
+          // O tema pode não ter renderizado o campo ainda; o snapshot mantém a tentativa recuperável.
+        } else if (options.overwriteWooFromModal && modalEmail && wooEmail !== modalEmail) {
+          filled.wooEmail = ctwpmlSetFieldValue($billingEmail, modalEmail);
+        } else {
+          filled.wooEmail = ctwpmlSetFieldIfBlank($billingEmail, email);
+        }
+      }
+
+      if (phoneDigitsForWoo) {
+        if (!modalPhoneFull) {
+          filled.modalPhone = ctwpmlSetModalValueIfBlank('#ctwpml-phone-full', phoneFull || phoneDigitsForWoo) || filled.modalPhone;
+        }
+        if (!modalPhone && !modalPhoneFull) {
+          var phoneWasAppliedByWidget = false;
+          try {
+            if (phoneFull.charAt(0) === '+' && window.ctwpmlPhoneWidget && typeof window.ctwpmlPhoneWidget.setPhoneFull === 'function') {
+              window.ctwpmlPhoneWidget.setPhoneFull(phoneFull);
+              phoneWasAppliedByWidget = true;
+            }
+          } catch (ePhoneWidget) {}
+          if (phoneWasAppliedByWidget) {
+            filled.modalPhone = true;
+          } else {
+            filled.modalPhone = ctwpmlSetModalValueIfBlank('#ctwpml-input-fone', phoneShape.country === 'BR' ? formatPhone(phoneDigitsForWoo) : phoneDigitsForWoo) || filled.modalPhone;
+          }
+        }
+        if (options.overwriteWooFromModal && (modalPhoneFull || modalPhone)) {
+          if ($billingCellphone.length && ctwpmlPhoneDigitsForCheckout($billingCellphone.val()) !== phoneDigitsForWoo) {
+            filled.wooPhone = ctwpmlSetFieldValue($billingCellphone, phoneDigitsForWoo) || filled.wooPhone;
+          }
+          if ($billingPhone.length && ctwpmlPhoneDigitsForCheckout($billingPhone.val()) !== phoneDigitsForWoo) {
+            filled.wooPhone = ctwpmlSetFieldValue($billingPhone, phoneDigitsForWoo) || filled.wooPhone;
+          }
+        } else {
+          if (recoveredTruncation) {
+            if ($billingCellphone.length && ctwpmlPhoneDigitsForCheckout($billingCellphone.val()) !== phoneDigitsForWoo) filled.wooPhone = ctwpmlSetFieldValue($billingCellphone, phoneDigitsForWoo) || filled.wooPhone;
+            if ($billingPhone.length && ctwpmlPhoneDigitsForCheckout($billingPhone.val()) !== phoneDigitsForWoo) filled.wooPhone = ctwpmlSetFieldValue($billingPhone, phoneDigitsForWoo) || filled.wooPhone;
+          } else {
+            filled.wooPhone = ctwpmlSetPhoneFieldIfBlankOrPrefixed($billingCellphone, phoneDigitsForWoo, phoneShape.country) || filled.wooPhone;
+            filled.wooPhone = ctwpmlSetPhoneFieldIfBlankOrPrefixed($billingPhone, phoneDigitsForWoo, phoneShape.country) || filled.wooPhone;
+          }
+        }
+      }
+
+      if (cpf) {
+        filled.modalCpf = ctwpmlSetModalValueIfBlank('#ctwpml-input-cpf', formatCpf(cpf));
+        if (options.overwriteWooFromModal && modalCpf && cpfDigitsOnly(wooCpf) !== cpf) {
+          filled.wooCpf = ctwpmlSetFieldValue($billingCpf, cpf);
+        } else {
+          filled.wooCpf = ctwpmlSetFieldIfBlank($billingCpf, cpf);
+        }
+      }
+
+      var conflicts = [];
+      if (ctwpmlContactValuesConflict(modalEmail, wooEmail, function (value) { return ctwpmlNormalizeText(value).toLowerCase(); })) conflicts.push('email');
+      if (ctwpmlContactValuesConflict(modalPhoneFull || modalPhone, wooCellphone || wooPhone, function (value) { return ctwpmlPhoneDigitsForWoo(value, phoneShape.country); })) conflicts.push('phone');
+      if (ctwpmlContactValuesConflict(modalCpf, wooCpf, cpfDigitsOnly)) conflicts.push('cpf');
+
+      var summary = {
+        context: String(context || ''),
+        hasEmail: !!email,
+        hasPhone: ctwpmlIsCheckoutPhoneReady(phoneDigitsForWoo),
+        hasCpf: cpf.length === 11,
+        hasWooEmailField: !!$billingEmail.length,
+        hasWooPhoneField: !!($billingCellphone.length || $billingPhone.length),
+        hasWooCpfField: !!$billingCpf.length,
+        phoneFormat: {
+          source: phoneSourceKind,
+          country: phoneShape.country,
+          sourceLength: window.CCCheckoutTabs.normalizePhoneForCheckout(phoneSource, selectedPhoneCountry).sourceLength,
+          fullLength: ctwpmlPhoneDigitsForCheckout(phoneFull).length,
+          wooLength: phoneDigitsForWoo.length,
+          ddiSeparated: phoneShape.removedDdi,
+          recoveredTruncation: recoveredTruncation,
+          valid: phoneShape.valid,
+          reason: phoneShape.reason,
+          wooCellBeforeLength: ctwpmlPhoneDigitsForCheckout(wooCellphone).length,
+          wooCellAfterLength: $billingCellphone.length ? ctwpmlPhoneDigitsForCheckout($billingCellphone.val()).length : 0,
+          wooPhoneBeforeLength: ctwpmlPhoneDigitsForCheckout(wooPhone).length,
+          wooPhoneAfterLength: $billingPhone.length ? ctwpmlPhoneDigitsForCheckout($billingPhone.val()).length : 0,
+        },
+        filled: filled,
+        conflicts: conflicts,
+        overwriteWooFromModal: !!options.overwriteWooFromModal,
+      };
+      if (typeof state.checkpoint === 'function') {
+        state.checkpoint('CHK_CONTACT_SYNC_TO_WOO', true, summary);
+      }
+      return summary;
+    }
+
     function ctwpmlFindNeighborhoodFields() {
       var fields = [];
       try {
@@ -6121,7 +6580,9 @@
         } catch (e0) {}
       }
       if (emailCheckout) $('#ctwpml-input-email').val(emailCheckout);
-      $('#ctwpml-input-fone').val(formatPhone((($('#billing_cellphone').val() || '') || '').trim()));
+      var checkoutPhone = (($('#billing_cellphone').val() || '') || '').trim();
+      var checkoutPhoneCountry = ($('#billing_country').val() || ctwpmlSelectedPhoneCountry()).toString().toUpperCase();
+      $('#ctwpml-input-fone').val(checkoutPhoneCountry === 'BR' ? formatPhone(checkoutPhone) : checkoutPhone);
       syncCpfUiFromCheckout();
 
       // Confirmação visual usando campos do checkout (se já preenchidos)
@@ -6132,7 +6593,8 @@
       if (bairro) $('#ctwpml-input-bairro').val(String(bairro));
     }
 
-    function applyFormToCheckout() {
+    function applyFormToCheckout(options) {
+      options = options || {};
       try { ensureWooNeighborhoodInputs(); } catch (e0) {}
 
       var cepDigits = ($('#ctwpml-input-cep').val() || '').replace(/\D/g, '');
@@ -6167,24 +6629,11 @@
         }
       }
 
-      var email = ($('#ctwpml-input-email').val() || '').trim();
-      if (email) {
-        var $email = ctwpmlBillingField$('#billing_email', 'billing_email');
-        if ($email.length) ctwpmlSetFieldValue($email, email);
-      }
-
-      var fone = ($('#ctwpml-input-fone').val() || '').trim();
-      if (fone) $('#billing_cellphone').val(phoneDigits(fone)).trigger('change');
-
-      var cpf = cpfDigitsOnly($('#ctwpml-input-cpf').val());
-      if (cpf) {
-        var $cpf = getBillingCpfInput();
-        if ($cpf.length) {
-          $cpf.val(cpf).trigger('change');
-        } else {
-          logAny('applyFormToCheckout: campo billing_cpf não encontrado.', { cpf: cpf });
-        }
-      }
+      // O contato é sincronizado sem apagar nada que o Woo ou o usuário já tenham informado.
+      // O overwrite é usado somente no salvamento explícito do formulário.
+      ctwpmlSynchronizeCriticalContactFields(options.context || 'apply_form', null, {
+        overwriteWooFromModal: !!options.overwriteWooFromModal,
+      });
     }
 
     function ensureEntryPointButton() {
@@ -6284,6 +6733,7 @@
             return;
           }
         }
+        state.__ctwpmlResumeAfterBilling = false;
         if (!hasSavedAddresses()) {
           var cartUrl0 = (state.params && state.params.cart_url) ? String(state.params.cart_url) : '';
           if (cartUrl0) {
@@ -6357,7 +6807,7 @@
       if ($cpf.length) {
         $cpf.val(cpfDigitsOnly(f)).trigger('change');
       } else {
-        logAny('CPF sync: campo billing_cpf não encontrado no checkout.', { value: cpfDigitsOnly(f) });
+        logAny('CPF sync: campo billing_cpf não encontrado no checkout.', { hasCpf: cpfDigitsOnly(f).length === 11 });
       }
     });
 
@@ -6391,9 +6841,9 @@
       var $cpf = getBillingCpfInput();
       if ($cpf.length) {
         $cpf.val(cpf).trigger('change');
-        logAny('CPF fictício (modal): aplicado no checkout.', { cpf: cpf });
+        logAny('CPF fictício (modal): aplicado no checkout.', { hasCpf: true });
       } else {
-        logAny('CPF fictício (modal): NÃO encontrou campo billing_cpf no checkout.', { cpf: cpf });
+        logAny('CPF fictício (modal): NÃO encontrou campo billing_cpf no checkout.', { hasCpf: true });
       }
 
       // Salvar imediatamente no servidor e aplicar lock
@@ -6401,7 +6851,7 @@
         if (response && response.success && response.data && response.data.cpf_locked) {
           $('#ctwpml-input-cpf').prop('readonly', true);
           $('#ctwpml-generate-cpf-modal').hide();
-          logAny('CPF fictício (modal): salvo e travado permanentemente.', { cpf: cpf });
+          logAny('CPF fictício (modal): salvo e travado permanentemente.', { hasCpf: true });
           alert('CPF gerado e salvo permanentemente no seu perfil.');
         }
       });
@@ -6449,6 +6899,7 @@
             return;
           }
         }
+        state.__ctwpmlResumeAfterBilling = false;
         if (!hasSavedAddresses()) {
           var cartUrl1 = (state.params && state.params.cart_url) ? String(state.params.cart_url) : '';
           if (cartUrl1) {
@@ -6485,7 +6936,8 @@
             return;
           }
         }
-        applyFormToCheckout();
+        applyFormToCheckout({ context: 'form_primary_save', overwriteWooFromModal: true });
+        ctwpmlFlushFormSnapshot('form_primary_save');
         // Spinner deve persistir até confirmação + retorno para lista (evita confusão/janela sem bloqueio).
         ctwpmlSpinnerAcquire('primary_save_click');
 
@@ -6500,6 +6952,19 @@
               // Não precisa de alert, a notificação já foi exibida
               state.log('ERROR     saveAddressFromForm falhou', res || {}, 'ERROR');
               releaseOnce(false);
+              return;
+            }
+
+            var resumeAfterBilling = !!state.__ctwpmlResumeAfterBilling;
+            state.__ctwpmlResumeAfterBilling = false;
+            if (resumeAfterBilling) {
+              if (typeof state.checkpoint === 'function') {
+                state.checkpoint('CHK_BILLING_FORM_RESUME_REVIEW', true, { selectedAddress: !!selectedAddressId });
+              }
+              releaseOnce(true);
+              ctwpmlPrepareCheckoutForReview('billing_completion_resume', function (billingSnapshot) {
+                showReviewConfirmScreen({ skipPrepare: true, billingSnapshot: billingSnapshot });
+              });
               return;
             }
 
@@ -6606,6 +7071,7 @@
       // Atualizar no WooCommerce (se methodId existir)
       if (methodId) {
         ctwpmlReviewGateStart('shipping_option_click', {
+          mode: 'shipping',
           pendingShipping: true,
           pendingWooUpdate: true,
           totalsReady: false,
@@ -6698,6 +7164,7 @@
         $btn.prop('disabled', true).text('Aplicando frete...');
 
         ctwpmlReviewGateStart('shipping_continue', {
+          mode: 'shipping',
           pendingShipping: true,
           pendingWooUpdate: true,
           totalsReady: false,
@@ -6717,7 +7184,7 @@
           proceedToPayment();
         }, function () {
           restoreButton();
-          showNotification('O frete está demorando para aplicar. Tente novamente.', 'error', 4500);
+          showNotification('Não foi possível confirmar o frete. Escolha a entrega novamente e tente continuar.', 'error', 4500);
         });
 
         // Re-disparar setShippingMethodInWC para garantir que está em andamento
@@ -7793,9 +8260,15 @@
       } catch (eA0) {}
       $('#ctwpml-review-confirm, #ctwpml-review-confirm-sticky').prop('disabled', true).css('opacity', '0.7');
 
+      var finalSubmitWatchdog = null;
+
       // Se o Woo emitir erro, reabilita CTA e loga.
       $(document.body).one('checkout_error', function () {
         try {
+          if (finalSubmitWatchdog) {
+            clearTimeout(finalSubmitWatchdog);
+            finalSubmitWatchdog = null;
+          }
           $('#ctwpml-review-confirm, #ctwpml-review-confirm-sticky').prop('disabled', false).css('opacity', '');
           // Hide overlay se estiver visível
           try {
@@ -7845,48 +8318,132 @@
         } catch (_) {}
       });
 
-      // (Opcional) garante update_checkout antes do submit.
-      try { $(document.body).trigger('update_checkout'); } catch (e2) {}
+      function getFinalSubmitSyncState() {
+        var gate = state.__ctwpmlReviewGate || {};
+        var updateInProgress = false;
+        try {
+          updateInProgress = typeof state.isUpdateCheckoutInProgress === 'function' && state.isUpdateCheckoutInProgress();
+        } catch (eSync0) {}
+        var gatePending = !!(gate.active && (gate.pendingWooUpdate || gate.pendingShipping));
+        return {
+          updateInProgress: !!updateInProgress,
+          gateActive: !!gate.active,
+          pendingWooUpdate: !!(gate.active && gate.pendingWooUpdate),
+          pendingShipping: !!(gate.active && gate.pendingShipping),
+          pending: !!(updateInProgress || gatePending),
+          elapsedGateMs: gate.startedAt ? Math.max(0, Date.now() - gate.startedAt) : null,
+        };
+      }
 
-      // Watchdog: se nada acontecer (sem redirect/sem erro) por muito tempo, liberar para retry.
-      try {
-        setTimeout(function () {
-          try {
-            // Se ainda está na mesma página e CTA continua desabilitado, liberar.
-            var $cta = $('#ctwpml-review-confirm, #ctwpml-review-confirm-sticky');
-            if ($cta.length && $cta.is(':disabled')) {
-              $cta.prop('disabled', false).css('opacity', '');
-              if (prep && typeof prep.hidePreparingOverlay === 'function') prep.hidePreparingOverlay();
-              log('Watchdog: liberando CTA após timeout', { ms: 25000 });
-              if (typeof state.checkpoint === 'function') state.checkpoint('CHK_CTA_WATCHDOG_RELEASE', true, { ms: 25000 });
+      function waitForFinalSubmitSync(done) {
+        var startedAt = Date.now();
+        var maxWaitMs = 12000;
+        var pollMs = 100;
+        var attempts = 0;
+        var initial = getFinalSubmitSyncState();
+        if (typeof state.checkpoint === 'function') {
+          state.checkpoint('CHK_FINAL_SUBMIT_WAIT_START', true, {
+            maxWaitMs: maxWaitMs,
+            initial: initial,
+          });
+        }
+
+        function poll() {
+          attempts += 1;
+          var current = getFinalSubmitSyncState();
+          var waitedMs = Date.now() - startedAt;
+          if (!current.pending) {
+            if (typeof state.checkpoint === 'function') {
+              state.checkpoint('CHK_FINAL_SUBMIT_WAIT_READY', true, {
+                waitedMs: waitedMs,
+                attempts: attempts,
+                initialPending: initial.pending,
+                finalState: current,
+              });
             }
-          } catch (eW) {}
-        }, 25000);
-      } catch (eW0) {}
+            done(true, current);
+            return;
+          }
+          if (waitedMs >= maxWaitMs) {
+            if (typeof state.checkpoint === 'function') {
+              state.checkpoint('CHK_FINAL_SUBMIT_WAIT_TIMEOUT', false, {
+                waitedMs: waitedMs,
+                attempts: attempts,
+                finalState: current,
+              });
+            }
+            done(false, current);
+            return;
+          }
+          setTimeout(poll, pollMs);
+        }
 
-      // Preferência 1: click NATIVO no botão submit
-      var btn = document.getElementById('place_order');
-      if (btn && typeof btn.click === 'function') {
-        log('CTA submit via place_order.click() nativo');
-        if (typeof state.checkpoint === 'function') state.checkpoint('CHK_PLACE_ORDER_NATIVE', true, {});
-        btn.click();
-        return;
+        poll();
       }
-      if (typeof state.checkpoint === 'function') state.checkpoint('CHK_PLACE_ORDER_NATIVE', false, { found: !!btn });
 
-      // Preferência 2: submit NATIVO do form
-      var form = document.querySelector('form.checkout, form.woocommerce-checkout');
-      if (form && typeof form.submit === 'function') {
-        log('CTA submit via form.checkout.submit() nativo');
-        if (typeof state.checkpoint === 'function') state.checkpoint('CHK_FORM_SUBMIT_NATIVE', true, {});
-        form.submit();
-        return;
+      function resetFinalSubmitControls() {
+        try {
+          if (window.CTWPMLCtaAnim && typeof window.CTWPMLCtaAnim.reset === 'function') {
+            window.CTWPMLCtaAnim.reset();
+          }
+        } catch (eReset) {}
+        $('#ctwpml-review-confirm, #ctwpml-review-confirm-sticky').prop('disabled', false).css('opacity', '');
+        try {
+          if (prep && typeof prep.hidePreparingOverlay === 'function') prep.hidePreparingOverlay();
+        } catch (eResetOverlay) {}
       }
-      if (typeof state.checkpoint === 'function') state.checkpoint('CHK_FORM_SUBMIT_NATIVE', false, { found: !!form });
 
-      // Fallback: jQuery submit
-      $('form.checkout, form.woocommerce-checkout').first().trigger('submit');
-      log('CTA submit via jQuery trigger(submit)');
+      function submitWooCheckout() {
+        // Watchdog: se nada acontecer (sem redirect/sem erro) por muito tempo, liberar para retry.
+        try {
+          finalSubmitWatchdog = setTimeout(function () {
+            try {
+              var $cta = $('#ctwpml-review-confirm, #ctwpml-review-confirm-sticky');
+              if ($cta.length && $cta.is(':disabled')) {
+                $cta.prop('disabled', false).css('opacity', '');
+                if (prep && typeof prep.hidePreparingOverlay === 'function') prep.hidePreparingOverlay();
+                log('Watchdog: liberando CTA após timeout', { ms: 25000 });
+                if (typeof state.checkpoint === 'function') state.checkpoint('CHK_CTA_WATCHDOG_RELEASE', true, { ms: 25000 });
+              }
+            } catch (eW) {}
+          }, 25000);
+        } catch (eW0) {}
+
+        // Preferência 1: click NATIVO no botão submit
+        var btn = document.getElementById('place_order');
+        if (btn && typeof btn.click === 'function') {
+          log('CTA submit via place_order.click() nativo');
+          if (typeof state.checkpoint === 'function') state.checkpoint('CHK_PLACE_ORDER_NATIVE', true, {});
+          btn.click();
+          return;
+        }
+        if (typeof state.checkpoint === 'function') state.checkpoint('CHK_PLACE_ORDER_NATIVE', false, { found: !!btn });
+
+        // Preferência 2: submit NATIVO do form
+        var form = document.querySelector('form.checkout, form.woocommerce-checkout');
+        if (form && typeof form.submit === 'function') {
+          log('CTA submit via form.checkout.submit() nativo');
+          if (typeof state.checkpoint === 'function') state.checkpoint('CHK_FORM_SUBMIT_NATIVE', true, {});
+          form.submit();
+          return;
+        }
+        if (typeof state.checkpoint === 'function') state.checkpoint('CHK_FORM_SUBMIT_NATIVE', false, { found: !!form });
+
+        // Fallback: jQuery submit
+        $('form.checkout, form.woocommerce-checkout').first().trigger('submit');
+        log('CTA submit via jQuery trigger(submit)');
+      }
+
+      // Não abre uma nova atualização imediatamente antes do pedido. Aguarda a atualização real do Woo.
+      waitForFinalSubmitSync(function (ready) {
+        if (!ready) {
+          resetFinalSubmitControls();
+          showNotification('O checkout ainda está sincronizando. Aguarde alguns segundos e tente novamente.', 'error', 5000);
+          log('Finalização bloqueada: sincronização do checkout não terminou', getFinalSubmitSyncState());
+          return;
+        }
+        submitWooCheckout();
+      });
       }
     });
 
@@ -7944,8 +8501,21 @@
       } catch (e0) {}
 
       if (e && e.originalEvent) {
-        ctwpmlPersistFormSnapshot('input_change');
+        var fieldId = String(this && this.id ? this.id : '');
+        if (fieldId === 'ctwpml-input-email' || fieldId === 'ctwpml-input-fone' || fieldId === 'ctwpml-input-cpf') {
+          ctwpmlFlushFormSnapshot('critical_input:' + fieldId);
+        } else {
+          ctwpmlPersistFormSnapshot('input_change');
+        }
       }
+    });
+
+    $(window).on('pagehide.ctwpml_form_snapshot beforeunload.ctwpml_form_snapshot', function () {
+      ctwpmlFlushFormSnapshot('page_exit');
+    });
+
+    $(document).on('visibilitychange', function () {
+      if (document.visibilityState === 'hidden') ctwpmlFlushFormSnapshot('visibility_hidden');
     });
 
     $(document).on('blur', '#ctwpml-input-nome', function () {
@@ -7953,7 +8523,7 @@
       ctwpmlPersistFormSnapshot('name_blur');
     });
 
-    $(document).on('input change', '#ctwpml-input-email, #billing_email', function () {
+    $(document).on('input change', '#ctwpml-input-email, #billing_email', function (e) {
       try {
         var current = (($(this).val() || '') + '').trim().toLowerCase();
         if (state.confirmedEmailValue && current !== state.confirmedEmailValue) {
@@ -7963,6 +8533,12 @@
           }
         }
       } catch (e0) {}
+      if (this && this.id === 'ctwpml-input-email' && e && e.originalEvent) {
+        try {
+          ctwpmlSynchronizeCriticalContactFields('email_input', null, { overwriteWooFromModal: true });
+          ctwpmlFlushFormSnapshot('email_input');
+        } catch (e1) {}
+      }
     });
 
     // v2.0 [2.1]: Auto-scroll ao focar campos perto do footer fixo (evita sobreposição/teclado).
@@ -8105,7 +8681,7 @@
       // v2.0 [2.3] (novo formato): IMask controla o input; aqui só mantemos sincronização defensiva
       try {
         var phoneFull = ($('#ctwpml-phone-full').val() || '').toString();
-        var digits = phoneFull ? phoneFull.replace(/\D/g, '') : phoneDigits($input.val());
+        var digits = ctwpmlPhoneDigitsForWoo(phoneFull || $input.val(), ctwpmlSelectedPhoneCountry());
         if (digits) $('#billing_cellphone').val(digits).trigger('change');
         return;
       } catch (e0) {}

@@ -2,6 +2,42 @@
 
 Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
+## [v3.2.132] - 2026-09-27
+
+### Fixed
+- Checkout: separa o DDI do número nacional brasileiro nos campos do WooCommerce, metadados de contato e webhook de frete; preserva DDD 55 e números internacionais.
+- Checkout: restaura números completos sem cortar os últimos dígitos, inclusive após recarregamento e login; bloqueia entradas brasileiras longas que não possam ser normalizadas sem perda.
+- Diagnóstico: registra país, origem, comprimentos e conversões do telefone na entrada, sincronização, sessão e pedido, sem salvar os dígitos; compara o telefone do pedido com a referência do contato quando disponível.
+
+#### Protocol: pending
+
+## [v3.2.131] - 2026-09-22
+
+### Fixed
+- Checkout: separa a confirmação do frete da validação de faturamento/pagamento; com frete aplicado e totais prontos, o fluxo avança para pagamento sem exibir o falso erro de demora.
+- Checkout: sincroniza e-mail, telefone e CPF entre o formulário ML, o snapshot de sessão e os campos reais do WooCommerce sem substituir valores já presentes; aceita telefone internacional entre 8 e 15 dígitos.
+- Checkout: grava imediatamente o snapshot de contato ao digitar, ocultar/recarregar a página ou sair dela, e retorna ao formulário quando dados obrigatórios realmente faltam, retomando a revisão após salvar.
+- Diagnóstico: adiciona checkpoints de modo do gate, bloqueios, sincronização e campos ausentes sem registrar conteúdo pessoal; remove também dados de contato do log padrão do PHP.
+
+#### Protocol: pending
+
+## [v3.2.130] - 2026-09-22
+
+### Fixed
+- Diagnóstico: permite salvar checkpoints anonimizados de visitantes e clientes no arquivo isolado quando o modo Debug está ativo; mantém a visualização, limpeza e download restritos ao painel administrativo.
+- Diagnóstico: corrige a autorização inconsistente do endpoint de gravação e adiciona limite de taxa e tamanho para evitar excesso de escrita durante uma sessão pública.
+
+#### Protocol: pending
+
+## [v3.2.129] - 2026-09-22
+
+### Fixed
+- Checkout: impede a corrida entre `update_checkout` e o envio final, aguardando a confirmação de sincronização do WooCommerce antes de disparar o pedido; em caso de timeout, bloqueia o envio incompleto e libera a tentativa com mensagem clara.
+- Diagnóstico: adiciona checkpoints de espera do submit e timeout monitorado do `wc-ajax=checkout`.
+- Logs: cria arquivo isolado em `wp-content/uploads/checkout-tabs-wp-ml-logs/checkout-flow.log`, com proteção de acesso, visualização, cópia, download e limpeza pelo painel Debug; dados pessoais são mascarados antes do armazenamento.
+
+#### Protocol: pending
+
 ## [v3.2.128] - 2026-09-08
 
 ### Fixed
