@@ -73,6 +73,26 @@ if (PPWOO_Config::is_debug()) {
                     $shipping_paid_cost = $is_external ? (isset($order['shipping_paid_cost']) ? $order['shipping_paid_cost'] : '') : ($order instanceof WC_Order ? $order->get_meta('_packing_panel_shipping_paid_cost') : '');
                     $motoboy_whatsapp = $is_external ? (isset($order['motoboy_whatsapp']) ? $order['motoboy_whatsapp'] : '') : ($order instanceof WC_Order ? $order->get_meta('_packing_panel_motoboy_whatsapp') : '');
                     $used_coupons = PPWOO_Utils::get_coupon_codes($order);
+                    $customer_name = trim(PPWOO_Utils::get_billing_first_name($order) . ' ' . PPWOO_Utils::get_billing_last_name($order));
+                    $customer_phone = PPWOO_Utils::get_billing_cellphone($order);
+                    $customer_whatsapp_url = PPWOO_Utils::get_customer_whatsapp_url($order);
+                    $address = PPWOO_Utils::get_billing_address_1($order);
+                    $number = PPWOO_Utils::get_billing_number($order);
+                    $neighborhood = PPWOO_Utils::get_billing_neighborhood($order);
+                    $city = PPWOO_Utils::get_billing_city($order);
+                    $postcode = PPWOO_Utils::get_billing_postcode($order);
+                    $complement = PPWOO_Utils::get_billing_complemento($order);
+                    $address_for_search = $address . ($number ? ', ' . $number : '') . ($neighborhood ? ', ' . $neighborhood : '') . ($city ? ', ' . $city : '');
+                    $address_for_delivery = $address . ($number ? ' nº ' . $number : '') . ($neighborhood ? ', ' . $neighborhood : '') . ($city ? ', ' . $city : '');
+                    $delivery_lines = array('Nome: ' . $customer_name);
+                    if ($customer_whatsapp_url || $customer_phone) {
+                        $delivery_lines[] = 'WhatsApp: ' . ($customer_whatsapp_url ? $customer_whatsapp_url : $customer_phone);
+                    }
+                    $delivery_lines[] = 'Endereço: ' . $address_for_search;
+                    $delivery_lines[] = 'CEP: ' . $postcode;
+                    if ($complement) {
+                        $delivery_lines[] = 'Complemento: ' . $complement;
+                    }
                     ?>
                     <div class="motoboy-order" data-order-id="<?php echo esc_attr($order_id); ?>" data-workflow-step="<?php echo esc_attr($workflow_step ? $workflow_step : 'step1'); ?>">
                         <div class="order-header">
@@ -83,14 +103,18 @@ if (PPWOO_Config::is_debug()) {
                         <div class="order-client-info">
                             <h4><?php esc_html_e('Cliente', 'painel-empacotamento'); ?>:</h4>
                             <p class="client-name-to-copy">
-                                <?php echo esc_html(PPWOO_Utils::get_billing_first_name($order) . ' ' . PPWOO_Utils::get_billing_last_name($order)); ?>
+                                <?php echo esc_html($customer_name); ?>
                                 <button class="copy-button copy-name" title="<?php esc_attr_e('Copiar Nome', 'painel-empacotamento'); ?>">
                                     <span class="dashicons dashicons-admin-page"></span>
                                 </button>
                             </p>
                             <h4><?php esc_html_e('WhatsApp', 'painel-empacotamento'); ?>:</h4>
                             <p class="whatsapp-to-copy">
-                                <?php echo esc_html(PPWOO_Utils::get_billing_cellphone($order)); ?>
+                                <?php if ($customer_whatsapp_url) : ?>
+                                    <a class="ppwoo-whatsapp-link" href="<?php echo esc_url($customer_whatsapp_url); ?>" target="_blank" rel="noopener noreferrer" title="<?php esc_attr_e('Abrir conversa no WhatsApp', 'painel-empacotamento'); ?>"><?php echo esc_html($customer_phone); ?></a>
+                                <?php else : ?>
+                                    <?php echo esc_html($customer_phone); ?>
+                                <?php endif; ?>
                                 <button class="copy-button copy-whatsapp" title="<?php esc_attr_e('Copiar WhatsApp', 'painel-empacotamento'); ?>">
                                     <span class="dashicons dashicons-admin-page"></span>
                                 </button>
@@ -100,24 +124,17 @@ if (PPWOO_Config::is_debug()) {
                         <div class="order-address">
                             <h4><?php esc_html_e('Endereço', 'painel-empacotamento'); ?>:</h4>
                             <p class="address-to-copy">
-                                <?php
-                                $address = PPWOO_Utils::get_billing_address_1($order);
-                                $number = PPWOO_Utils::get_billing_number($order);
-                                $neighborhood = PPWOO_Utils::get_billing_neighborhood($order);
-                                $city = PPWOO_Utils::get_billing_city($order);
-                                echo esc_html(
-                                    $address
-                                    . ($number ? ' nº ' . $number : '')
-                                    . ($neighborhood ? ', ' . $neighborhood : '')
-                                    . ($city ? ', ' . $city : '')
-                                );
-                                ?>
-                                <button class="copy-button copy-address" title="<?php esc_attr_e('Copiar Endereço', 'painel-empacotamento'); ?>">
+                                <?php echo esc_html($address_for_delivery); ?>
+                                <button type="button" class="copy-button copy-address" data-copy-address="<?php echo esc_attr($address_for_search); ?>" title="<?php esc_attr_e('Copiar endereço para busca', 'painel-empacotamento'); ?>">
                                     <span class="dashicons dashicons-admin-page"></span>
                                 </button>
                             </p>
-                            <p class="cep">CEP: <?php echo esc_html(PPWOO_Utils::get_billing_postcode($order)); ?></p>
-                            <p class="billing-complemento"><?php echo esc_html(PPWOO_Utils::get_billing_complemento($order)); ?></p>
+                            <p class="cep">CEP: <?php echo esc_html($postcode); ?></p>
+                            <p class="billing-complemento"><?php echo esc_html($complement); ?></p>
+                            <button type="button" class="ppwoo-copy-delivery" data-copy-message="<?php echo esc_attr(implode("\n", $delivery_lines)); ?>" title="<?php esc_attr_e('Copiar dados para o motoboy', 'painel-empacotamento'); ?>">
+                                <span class="dashicons dashicons-admin-page" aria-hidden="true"></span>
+                                <?php esc_html_e('Copiar dados para motoboy', 'painel-empacotamento'); ?>
+                            </button>
                             <?php if (PPWOO_Utils::get_customer_note($order)) : ?>
                                 <p class="woocommerce-additional-fields__field-wrapper">
                                     <strong><?php esc_html_e('Nota do Cliente:', 'painel-empacotamento'); ?></strong><br>
@@ -264,7 +281,17 @@ if (PPWOO_Config::is_debug()) {
                                 <h4><?php esc_html_e('Cliente', 'painel-empacotamento'); ?>:</h4>
                                 <p><?php echo esc_html(PPWOO_Utils::get_billing_first_name($order) . ' ' . PPWOO_Utils::get_billing_last_name($order)); ?></p>
                                 <h4><?php esc_html_e('WhatsApp', 'painel-empacotamento'); ?>:</h4>
-                                <p><?php echo esc_html(PPWOO_Utils::get_billing_cellphone($order)); ?></p>
+                                <?php
+                                $correios_phone = PPWOO_Utils::get_billing_cellphone($order);
+                                $correios_whatsapp_url = PPWOO_Utils::get_customer_whatsapp_url($order);
+                                ?>
+                                <p>
+                                    <?php if ($correios_whatsapp_url) : ?>
+                                        <a class="ppwoo-whatsapp-link" href="<?php echo esc_url($correios_whatsapp_url); ?>" target="_blank" rel="noopener noreferrer" title="<?php esc_attr_e('Abrir conversa no WhatsApp', 'painel-empacotamento'); ?>"><?php echo esc_html($correios_phone); ?></a>
+                                    <?php else : ?>
+                                        <?php echo esc_html($correios_phone); ?>
+                                    <?php endif; ?>
+                                </p>
                             </div>
 
                             <div class="order-address">

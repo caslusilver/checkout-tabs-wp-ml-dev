@@ -306,6 +306,31 @@ class PPWOO_Utils {
         }
         return '';
     }
+
+    public static function get_customer_whatsapp_url($order) {
+        $phone = trim((string) self::get_billing_cellphone($order));
+        $digits = self::sanitize_phone($phone);
+        if ($digits === '') {
+            return '';
+        }
+
+        $country = $order instanceof WC_Order
+            ? $order->get_billing_country()
+            : (is_array($order) && isset($order['billing']['country']) ? $order['billing']['country'] : 'BR');
+        $country = strtoupper((string) $country);
+
+        if ($country === 'BR' || $country === '') {
+            if (strlen($digits) === 10 || strlen($digits) === 11) {
+                $digits = '55' . $digits;
+            } elseif (!in_array(strlen($digits), array(12, 13), true) || strpos($digits, '55') !== 0) {
+                return '';
+            }
+        } elseif ($phone[0] !== '+' || strlen($digits) < 8 || strlen($digits) > 15) {
+            return '';
+        }
+
+        return 'https://wa.me/' . $digits;
+    }
     
     /**
      * Obtém o endereço 1 do billing

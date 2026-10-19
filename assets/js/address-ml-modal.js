@@ -1036,12 +1036,12 @@
           '        <div class="ctwpml-contact-section">' +
           '          <div class="ctwpml-contact-title">Dados de contato</div>' +
           '          <div class="ctwpml-contact-subtitle">Se houver algum problema no envio, você receberá uma ligação neste número.</div>' +
-          '          <div class="ctwpml-form-group" id="ctwpml-group-nome"><label for="ctwpml-input-nome">Nome completo</label><input id="ctwpml-input-nome" type="text" /><div class="ctwpml-inline-hint" id="ctwpml-nome-hint" style="display:none;"></div></div>' +
+          '          <div class="ctwpml-form-group" id="ctwpml-group-nome"><label for="ctwpml-input-nome">Nome completo</label><input id="ctwpml-input-nome" type="text" enterkeyhint="next" /><div class="ctwpml-inline-hint" id="ctwpml-nome-hint" style="display:none;"></div></div>' +
           '          <div class="ctwpml-form-group" id="ctwpml-group-phone">' +
           '            <label for="ctwpml-input-fone">Telefone / WhatsApp</label>' +
           '            <div class="ctwpml-phone-wrap" id="ctwpml-phone-wrap">' +
           '              <select id="ctwpml-phone-country" autocomplete="off" placeholder="DDI"></select>' +
-          '              <input id="ctwpml-input-fone" type="tel" inputmode="numeric" placeholder="Digite o número" autocomplete="tel" />' +
+          '              <input id="ctwpml-input-fone" type="tel" inputmode="numeric" enterkeyhint="next" placeholder="Digite o número" autocomplete="tel" />' +
           '              <input type="hidden" id="ctwpml-phone-full" name="phone_full" />' +
           '            </div>' +
           '          </div>' +
@@ -1050,12 +1050,13 @@
           '              <label for="ctwpml-input-cpf" style="margin:0;">CPF</label>' +
           '              <a class="ctwpml-link-right" href="#" id="ctwpml-generate-cpf-modal" style="position:static; display:none;">Gerar CPF fictício</a>' +
           '            </div>' +
-          '            <input id="ctwpml-input-cpf" type="text" placeholder="000.000.000-00" inputmode="numeric" autocomplete="off" />' +
+          '            <input id="ctwpml-input-cpf" type="text" placeholder="000.000.000-00" inputmode="numeric" enterkeyhint="next" autocomplete="off" aria-describedby="ctwpml-cpf-error" />' +
+          '            <div class="ctwpml-field-error" id="ctwpml-cpf-error" aria-live="polite" style="display:none;"></div>' +
           '            <div class="ctwpml-inline-hint" id="ctwpml-cpf-hint" style="display:none;">Este CPF é fictício e serve apenas para identificar seus pedidos. Guarde este número caso precise retirar encomendas nos Correios.</div>' +
           '          </div>' +
           '          <div class="ctwpml-form-group" id="ctwpml-group-email">' +
           '            <label for="ctwpml-input-email">E-mail</label>' +
-          '            <input id="ctwpml-input-email" type="email" placeholder="seu@email.com" autocomplete="email" />' +
+          '            <input id="ctwpml-input-email" type="email" placeholder="seu@email.com" autocomplete="email" enterkeyhint="done" />' +
           '          </div>' +
           '          <a href="#" class="ctwpml-delete-link" id="ctwpml-delete-address" style="display:none;">Excluir endereço</a>' +
           '        </div>' +
@@ -4816,6 +4817,8 @@
     function clearFormErrors() {
       $('#ctwpml-view-form .ctwpml-form-group').removeClass('is-error');
       $('#ctwpml-view-form .ctwpml-type-option').removeClass('is-error');
+      $('#ctwpml-cpf-error').hide().text('');
+      $('#ctwpml-input-cpf').removeAttr('aria-invalid');
     }
 
     var formSnapshotDebounce = null;
@@ -4920,6 +4923,23 @@
       if (!$el.length) return;
       if (isError) $el.addClass('is-error');
       else $el.removeClass('is-error');
+    }
+
+    function ctwpmlShowCpfError(showEmpty) {
+      var length = cpfDigitsOnly($('#ctwpml-input-cpf').val()).length;
+      if (length === 11 || (!length && !showEmpty)) {
+        $('#ctwpml-cpf-error').hide().text('');
+        $('#ctwpml-group-cpf').removeClass('is-error');
+        $('#ctwpml-input-cpf').removeAttr('aria-invalid');
+        return '';
+      }
+      var missing = 11 - length;
+      var message = !length ? 'Informe o CPF.' :
+        'CPF incompleto: ' + (missing === 1 ? 'falta um dígito.' : 'faltam ' + missing + ' dígitos.');
+      $('#ctwpml-cpf-error').text(message).show();
+      $('#ctwpml-group-cpf').addClass('is-error');
+      $('#ctwpml-input-cpf').attr('aria-invalid', 'true');
+      return message;
     }
 
     function ctwpmlNormalizeFullName(fullName) {
@@ -5074,9 +5094,8 @@
       // CPF obrigatório no fluxo (se já estiver locked, estará preenchido via checkout).
       var cpf = cpfDigitsOnly($('#ctwpml-input-cpf').val());
       if (cpf.length !== 11) {
-        setFieldError('#ctwpml-group-cpf', true);
         ok = false;
-        errors.push('CPF inválido');
+        errors.push(ctwpmlShowCpfError(true));
       }
 
       var email = ($('#ctwpml-input-email').val() || '').trim();
@@ -6802,6 +6821,7 @@
       var $i = $('#ctwpml-input-cpf');
       var f = formatCpf($i.val());
       if ($i.val() !== f) $i.val(f);
+      if ($('#ctwpml-cpf-error').is(':visible')) ctwpmlShowCpfError(false);
       // Mantém checkout sincronizado
       var $cpf = getBillingCpfInput();
       if ($cpf.length) {
@@ -6809,6 +6829,25 @@
       } else {
         logAny('CPF sync: campo billing_cpf não encontrado no checkout.', { hasCpf: cpfDigitsOnly(f).length === 11 });
       }
+    });
+
+    $(document).on('blur', '#ctwpml-input-cpf', function () {
+      if (cpfDigitsOnly($(this).val()).length > 0) ctwpmlShowCpfError(false);
+    });
+
+    $(document).on('keydown', '#ctwpml-input-nome, #ctwpml-input-fone, #ctwpml-input-cpf, #ctwpml-input-email', function (event) {
+      if (event.key !== 'Enter' && event.which !== 13) return;
+      event.preventDefault();
+      var fields = ['ctwpml-input-nome', 'ctwpml-input-fone', 'ctwpml-input-cpf', 'ctwpml-input-email'];
+      var current = fields.indexOf(this.id);
+      for (var i = current + 1; i < fields.length; i++) {
+        var next = document.getElementById(fields[i]);
+        if (next && !next.disabled && !next.readOnly) {
+          next.focus();
+          return;
+        }
+      }
+      this.blur();
     });
 
     $(document).on('click', '#ctwpml-generate-cpf-modal', function (e) {

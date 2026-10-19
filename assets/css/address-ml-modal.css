@@ -948,6 +948,14 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
   line-height: 1.35;
 }
 
+.ctwpml-modal #ctwpml-cpf-error {
+  margin-top: 6px;
+  color: #b91c1c !important;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
 .ctwpml-link-right {
   position: absolute;
   right: 0;

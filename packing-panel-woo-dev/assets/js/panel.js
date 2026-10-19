@@ -104,7 +104,7 @@
 
     // --- Copy Buttons Helper ---
     function copyTextToClipboard(text, button) {
-        ppDebug.log("Tentando copiar: '" + text + "'");
+        ppDebug.log('Copiando dados do pedido.');
         if (navigator.clipboard && navigator.clipboard.writeText) {
             navigator.clipboard.writeText(text).then(function() {
                 ppDebug.log('Texto copiado.');
@@ -119,8 +119,17 @@
             });
         } else {
             var textarea = $('<textarea>').val(text).appendTo('body').select();
-            document.execCommand('copy');
+            var copied = false;
+            try {
+                copied = document.execCommand('copy');
+            } catch (error) {
+                copied = false;
+            }
             textarea.remove();
+            if (!copied) {
+                alert(PPWOO.copy_error || 'Falha ao copiar.');
+                return;
+            }
             button.addClass('copied');
             var originalContent = button.html();
             button.text(PPWOO.copy_success || 'Copiado!');
@@ -142,8 +151,11 @@
         return textToCopy.trim().replace(/\s{2,}/g, ' ');
     }
 
-    packingPanel.on('click', '#tab-motoboy .copy-address, #tab-motoboy .copy-name, #tab-motoboy .copy-whatsapp', function() {
-        copyTextToClipboard(getTextToCopy($(this)), $(this));
+    packingPanel.on('click', '#tab-motoboy .copy-address, #tab-motoboy .copy-name, #tab-motoboy .copy-whatsapp, #tab-motoboy .ppwoo-copy-delivery', function() {
+        var button = $(this);
+        var text = button.hasClass('copy-address') ? button.attr('data-copy-address') :
+            (button.hasClass('ppwoo-copy-delivery') ? button.attr('data-copy-message') : getTextToCopy(button));
+        copyTextToClipboard(text || '', button);
     });
 
     // --- Slider de confirmação para ações críticas ---

@@ -2,6 +2,14 @@
 
 Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
+## [v3.2.133] - 2026-10-19
+
+### Improved
+- Checkout: explica quando o CPF está incompleto, incluindo a falta de um dígito, e permite avançar pelos campos de contato com Enter sem submeter o pedido.
+- Painel Motoboy: cópia do endereço sem a abreviação `nº`, preservando o número da casa para busca e entrega.
+- Painel de pedidos: números válidos viram links do WhatsApp e um botão copia nome, link, endereço completo, CEP e complemento em linhas separadas para o motoboy.
+- Diagnóstico: a cópia no painel deixa de escrever dados pessoais no log de depuração.
+
 ## [v3.2.132] - 2026-09-27
 
 ### Fixed
