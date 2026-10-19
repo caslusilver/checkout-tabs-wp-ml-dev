@@ -2,6 +2,12 @@
 
 Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
+## [v3.2.134] - 2026-10-19
+
+### Fixed
+- Painel Motoboy: copia os dados consolidados de um campo multilinha do pedido, com tentativa alternativa quando a Clipboard API falha, e mantém contraste do botão mesmo sob estilos do Elementor.
+- Checkout no Android: posiciona Salvar e Voltar acima do teclado usando a área visível da tela e restaura o rodapé quando o teclado fecha.
+
 ## [v3.2.133] - 2026-10-19
 
 ### Improved

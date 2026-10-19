@@ -131,7 +131,8 @@ if (PPWOO_Config::is_debug()) {
                             </p>
                             <p class="cep">CEP: <?php echo esc_html($postcode); ?></p>
                             <p class="billing-complemento"><?php echo esc_html($complement); ?></p>
-                            <button type="button" class="ppwoo-copy-delivery" data-copy-message="<?php echo esc_attr(implode("\n", $delivery_lines)); ?>" title="<?php esc_attr_e('Copiar dados para o motoboy', 'painel-empacotamento'); ?>">
+                            <textarea class="ppwoo-delivery-message" readonly tabindex="-1" aria-hidden="true"><?php echo esc_textarea(implode("\n", $delivery_lines)); ?></textarea>
+                            <button type="button" class="ppwoo-copy-delivery" title="<?php esc_attr_e('Copiar dados para o motoboy', 'painel-empacotamento'); ?>">
                                 <span class="dashicons dashicons-admin-page" aria-hidden="true"></span>
                                 <?php esc_html_e('Copiar dados para motoboy', 'painel-empacotamento'); ?>
                             </button>

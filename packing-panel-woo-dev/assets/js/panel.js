@@ -105,20 +105,32 @@
     // --- Copy Buttons Helper ---
     function copyTextToClipboard(text, button) {
         ppDebug.log('Copiando dados do pedido.');
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-            navigator.clipboard.writeText(text).then(function() {
-                ppDebug.log('Texto copiado.');
-                button.addClass('copied');
-                var originalContent = button.html();
-                button.text(PPWOO.copy_success || 'Copiado!');
-                setTimeout(function() {
-                    button.removeClass('copied').html(originalContent);
-                }, 1500);
-            }).catch(function(err) {
-                alert(PPWOO.copy_error || 'Falha ao copiar.');
-            });
-        } else {
-            var textarea = $('<textarea>').val(text).appendTo('body').select();
+        if (!text || !text.trim()) {
+            alert(PPWOO.copy_error || 'Falha ao copiar.');
+            return;
+        }
+
+        function showSuccess() {
+            ppDebug.log('Texto copiado.');
+            button.addClass('copied');
+            var originalContent = button.html();
+            button.text(PPWOO.copy_success || 'Copiado!');
+            setTimeout(function() {
+                button.removeClass('copied').html(originalContent);
+            }, 1500);
+        }
+
+        function copyWithSelection() {
+            var previousFocus = document.activeElement;
+            var textarea = document.createElement('textarea');
+            textarea.value = text;
+            textarea.setAttribute('readonly', '');
+            textarea.style.position = 'fixed';
+            textarea.style.left = '-9999px';
+            document.body.appendChild(textarea);
+            textarea.focus();
+            textarea.select();
+            textarea.setSelectionRange(0, text.length);
             var copied = false;
             try {
                 copied = document.execCommand('copy');
@@ -126,16 +138,17 @@
                 copied = false;
             }
             textarea.remove();
-            if (!copied) {
-                alert(PPWOO.copy_error || 'Falha ao copiar.');
-                return;
+            if (previousFocus && previousFocus.focus) {
+                try { previousFocus.focus({ preventScroll: true }); } catch (error) { previousFocus.focus(); }
             }
-            button.addClass('copied');
-            var originalContent = button.html();
-            button.text(PPWOO.copy_success || 'Copiado!');
-            setTimeout(function() {
-                button.removeClass('copied').html(originalContent);
-            }, 1500);
+            if (copied) showSuccess();
+            else alert(PPWOO.copy_error || 'Falha ao copiar.');
+        }
+
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).then(showSuccess).catch(copyWithSelection);
+        } else {
+            copyWithSelection();
         }
     }
 
@@ -154,7 +167,7 @@
     packingPanel.on('click', '#tab-motoboy .copy-address, #tab-motoboy .copy-name, #tab-motoboy .copy-whatsapp, #tab-motoboy .ppwoo-copy-delivery', function() {
         var button = $(this);
         var text = button.hasClass('copy-address') ? button.attr('data-copy-address') :
-            (button.hasClass('ppwoo-copy-delivery') ? button.attr('data-copy-message') : getTextToCopy(button));
+            (button.hasClass('ppwoo-copy-delivery') ? button.closest('.motoboy-order').find('.ppwoo-delivery-message').val() : getTextToCopy(button));
         copyTextToClipboard(text || '', button);
     });
 

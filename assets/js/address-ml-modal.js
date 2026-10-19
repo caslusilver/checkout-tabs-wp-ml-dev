@@ -1211,9 +1211,55 @@
       } catch (e2) {}
     }
 
+    var ctwpmlAndroidFormFooterFrame = 0;
+
+    function ctwpmlUpdateAndroidFormFooter() {
+      var overlay = document.getElementById('ctwpml-address-modal-overlay');
+      if (!overlay) return;
+      var form = document.getElementById('ctwpml-view-form');
+      var focused = document.activeElement;
+      var active = /Android/i.test(navigator.userAgent || '') &&
+        currentView === 'form' && form && $(form).is(':visible') &&
+        focused && form.contains(focused) &&
+        /^(INPUT|TEXTAREA|SELECT)$/.test(focused.tagName);
+      if (!active) {
+        overlay.classList.remove('ctwpml-form-android-focus');
+        overlay.style.removeProperty('--ctwpml-form-footer-inset');
+        return;
+      }
+
+      var viewport = window.visualViewport;
+      var layoutBottom = window.innerHeight || document.documentElement.clientHeight;
+      var visibleBottom = viewport ? viewport.offsetTop + viewport.height : layoutBottom;
+      var inset = Math.max(0, Math.round(layoutBottom - visibleBottom));
+      overlay.style.setProperty('--ctwpml-form-footer-inset', inset + 'px');
+      overlay.classList.add('ctwpml-form-android-focus');
+    }
+
+    function ctwpmlScheduleAndroidFormFooter() {
+      if (ctwpmlAndroidFormFooterFrame) return;
+      ctwpmlAndroidFormFooterFrame = window.requestAnimationFrame(function () {
+        ctwpmlAndroidFormFooterFrame = 0;
+        ctwpmlUpdateAndroidFormFooter();
+      });
+    }
+
+    if (/Android/i.test(navigator.userAgent || '')) {
+      $(document).on('focusin focusout', '#ctwpml-view-form input, #ctwpml-view-form textarea, #ctwpml-view-form select', function () {
+        ctwpmlScheduleAndroidFormFooter();
+        setTimeout(ctwpmlScheduleAndroidFormFooter, 300);
+      });
+      if (window.visualViewport) {
+        window.visualViewport.addEventListener('resize', ctwpmlScheduleAndroidFormFooter);
+        window.visualViewport.addEventListener('scroll', ctwpmlScheduleAndroidFormFooter);
+      }
+      $(window).on('resize.ctwpml_form_footer', ctwpmlScheduleAndroidFormFooter);
+    }
+
     function setFooterVisible(visible) {
       if (visible) $('.ctwpml-footer').show();
       else $('.ctwpml-footer').hide();
+      ctwpmlScheduleAndroidFormFooter();
     }
 
     function showInitial() {

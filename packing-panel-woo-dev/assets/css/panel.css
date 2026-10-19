@@ -365,22 +365,31 @@
     text-decoration-thickness: 2px !important;
 }
 
-.painel-empacotamento #tab-motoboy .ppwoo-copy-delivery,
-.painel-empacotamento #tab-motoboy .ppwoo-copy-delivery:hover,
-.painel-empacotamento #tab-motoboy .ppwoo-copy-delivery:focus,
-.painel-empacotamento #tab-motoboy .ppwoo-copy-delivery:active {
-    display: inline-flex;
+.painel-empacotamento #tab-motoboy .ppwoo-delivery-message {
+    display: none !important;
+}
+
+.painel-empacotamento #tab-motoboy button.ppwoo-copy-delivery,
+.painel-empacotamento #tab-motoboy button.ppwoo-copy-delivery:hover,
+.painel-empacotamento #tab-motoboy button.ppwoo-copy-delivery:focus,
+.painel-empacotamento #tab-motoboy button.ppwoo-copy-delivery:active {
+    display: inline-flex !important;
     align-items: center;
     gap: 6px;
     max-width: 100%;
     margin-top: 10px;
     padding: 8px 10px;
-    border: 1px solid #1d2327 !important;
+    border: 2px solid #1d2327 !important;
     border-radius: 3px;
+    background: #fff !important;
     background-color: #fff !important;
+    background-image: none !important;
     color: #1d2327 !important;
+    -webkit-text-fill-color: #1d2327 !important;
     opacity: 1 !important;
-    box-shadow: none !important;
+    visibility: visible !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.16) !important;
+    text-shadow: none !important;
     cursor: pointer;
     font-size: 13px;
     font-weight: 600;
@@ -388,16 +397,26 @@
     text-align: left;
 }
 
-.painel-empacotamento #tab-motoboy .ppwoo-copy-delivery .dashicons,
-.painel-empacotamento #tab-motoboy .ppwoo-copy-delivery .dashicons::before {
+.painel-empacotamento #tab-motoboy button.ppwoo-copy-delivery .dashicons,
+.painel-empacotamento #tab-motoboy button.ppwoo-copy-delivery .dashicons::before {
     color: #1d2327 !important;
+    -webkit-text-fill-color: #1d2327 !important;
     opacity: 1 !important;
 }
 
-.painel-empacotamento #tab-motoboy .ppwoo-copy-delivery.copied {
+.painel-empacotamento #tab-motoboy button.ppwoo-copy-delivery:focus-visible {
+    outline: 2px solid #126345 !important;
+    outline-offset: 2px;
+}
+
+.painel-empacotamento #tab-motoboy button.ppwoo-copy-delivery.copied,
+.painel-empacotamento #tab-motoboy button.ppwoo-copy-delivery.copied:hover,
+.painel-empacotamento #tab-motoboy button.ppwoo-copy-delivery.copied:focus {
+    background: #126345 !important;
     background-color: #126345 !important;
     border-color: #126345 !important;
     color: #fff !important;
+    -webkit-text-fill-color: #fff !important;
 }
 
 /* Workflow Area */

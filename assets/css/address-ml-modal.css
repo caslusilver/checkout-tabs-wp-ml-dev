@@ -364,6 +364,11 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
   backdrop-filter: none;
 }
 
+.ctwpml-modal-overlay.ctwpml-form-android-focus .ctwpml-footer {
+  position: fixed !important;
+  bottom: var(--ctwpml-form-footer-inset, 0px) !important;
+}
+
 /* Link de exclusão (deve ficar evidente e não “sumir” atrás do footer) */
 .ctwpml-delete-link {
   display: block;
