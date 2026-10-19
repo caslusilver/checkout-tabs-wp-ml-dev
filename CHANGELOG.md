@@ -2,6 +2,11 @@
 
 Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
+## [v3.2.135] - 2026-10-19
+
+### Improved
+- Painel Motoboy: acrescenta ao final dos dados copiados um link de rota do Google Maps montado com o endereço e CEP do próprio pedido.
+
 ## [v3.2.134] - 2026-10-19
 
 ### Fixed

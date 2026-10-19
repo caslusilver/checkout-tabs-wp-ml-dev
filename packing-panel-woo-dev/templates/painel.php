@@ -80,10 +80,16 @@ if (PPWOO_Config::is_debug()) {
                     $number = PPWOO_Utils::get_billing_number($order);
                     $neighborhood = PPWOO_Utils::get_billing_neighborhood($order);
                     $city = PPWOO_Utils::get_billing_city($order);
+                    $state = PPWOO_Utils::get_billing_state($order);
                     $postcode = PPWOO_Utils::get_billing_postcode($order);
                     $complement = PPWOO_Utils::get_billing_complemento($order);
                     $address_for_search = $address . ($number ? ', ' . $number : '') . ($neighborhood ? ', ' . $neighborhood : '') . ($city ? ', ' . $city : '');
                     $address_for_delivery = $address . ($number ? ' nº ' . $number : '') . ($neighborhood ? ', ' . $neighborhood : '') . ($city ? ', ' . $city : '');
+                    $maps_url = '';
+                    if ($address && ($city || $postcode)) {
+                        $maps_destination = $address_for_search . ($state ? ', ' . $state : '') . ($postcode ? ', ' . $postcode : '');
+                        $maps_url = 'https://www.google.com/maps/dir/?api=1&destination=' . rawurlencode($maps_destination) . '&dir_action=navigate';
+                    }
                     $delivery_lines = array('Nome: ' . $customer_name);
                     if ($customer_whatsapp_url || $customer_phone) {
                         $delivery_lines[] = 'WhatsApp: ' . ($customer_whatsapp_url ? $customer_whatsapp_url : $customer_phone);
@@ -92,6 +98,9 @@ if (PPWOO_Config::is_debug()) {
                     $delivery_lines[] = 'CEP: ' . $postcode;
                     if ($complement) {
                         $delivery_lines[] = 'Complemento: ' . $complement;
+                    }
+                    if ($maps_url) {
+                        $delivery_lines[] = 'Google Maps: ' . $maps_url;
                     }
                     ?>
                     <div class="motoboy-order" data-order-id="<?php echo esc_attr($order_id); ?>" data-workflow-step="<?php echo esc_attr($workflow_step ? $workflow_step : 'step1'); ?>">
