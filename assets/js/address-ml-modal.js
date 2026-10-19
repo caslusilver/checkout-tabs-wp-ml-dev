@@ -54,6 +54,8 @@
     var suppressBillingCepClearOnce = false;
     var cepConsultedFor = '';
     var cepConsultInFlight = false;
+    var cepLookupRequest = null;
+    var cepLookupSerial = 0;
     var selectedAddressId = null;
     var currentView = 'list'; // initial | list | form | shipping
     var addressesCache = [];
@@ -1211,55 +1213,73 @@
       } catch (e2) {}
     }
 
-    var ctwpmlAndroidFormFooterFrame = 0;
+    var ctwpmlFormFooterFrame = 0;
+    var ctwpmlMobileForm = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '') ||
+      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
-    function ctwpmlUpdateAndroidFormFooter() {
+    function ctwpmlUpdateFormFooter() {
       var overlay = document.getElementById('ctwpml-address-modal-overlay');
       if (!overlay) return;
       var form = document.getElementById('ctwpml-view-form');
       var focused = document.activeElement;
-      var active = /Android/i.test(navigator.userAgent || '') &&
+      var active = ctwpmlMobileForm &&
         currentView === 'form' && form && $(form).is(':visible') &&
         focused && form.contains(focused) &&
         /^(INPUT|TEXTAREA|SELECT)$/.test(focused.tagName);
       if (!active) {
-        overlay.classList.remove('ctwpml-form-android-focus');
+        overlay.classList.remove('ctwpml-form-viewport-focus');
         overlay.style.removeProperty('--ctwpml-form-footer-inset');
         return;
       }
 
       var viewport = window.visualViewport;
-      var layoutBottom = window.innerHeight || document.documentElement.clientHeight;
-      var visibleBottom = viewport ? viewport.offsetTop + viewport.height : layoutBottom;
-      var inset = Math.max(0, Math.round(layoutBottom - visibleBottom));
+      var visibleBottom = viewport ? viewport.offsetTop + viewport.height : window.innerHeight;
+      var inset = 0;
+      if (/Android/i.test(navigator.userAgent || '')) {
+        var layoutBottom = window.innerHeight || document.documentElement.clientHeight;
+        inset = Math.max(0, Math.round(layoutBottom - visibleBottom));
+      } else if (viewport) {
+        // O Safari pode reposicionar um elemento fixed sozinho; meça antes de compensar.
+        overlay.classList.remove('ctwpml-form-viewport-focus');
+        overlay.style.removeProperty('--ctwpml-form-footer-inset');
+        var footer = overlay.querySelector('.ctwpml-footer');
+        if (footer) inset = Math.max(0, Math.round(footer.getBoundingClientRect().bottom - visibleBottom));
+      }
       overlay.style.setProperty('--ctwpml-form-footer-inset', inset + 'px');
-      overlay.classList.add('ctwpml-form-android-focus');
+      overlay.classList.add('ctwpml-form-viewport-focus');
     }
 
-    function ctwpmlScheduleAndroidFormFooter() {
-      if (ctwpmlAndroidFormFooterFrame) return;
-      ctwpmlAndroidFormFooterFrame = window.requestAnimationFrame(function () {
-        ctwpmlAndroidFormFooterFrame = 0;
-        ctwpmlUpdateAndroidFormFooter();
+    function ctwpmlScheduleFormFooter() {
+      if (ctwpmlFormFooterFrame) return;
+      ctwpmlFormFooterFrame = window.requestAnimationFrame(function () {
+        ctwpmlFormFooterFrame = 0;
+        ctwpmlUpdateFormFooter();
       });
     }
 
-    if (/Android/i.test(navigator.userAgent || '')) {
+    if (ctwpmlMobileForm) {
       $(document).on('focusin focusout', '#ctwpml-view-form input, #ctwpml-view-form textarea, #ctwpml-view-form select', function () {
-        ctwpmlScheduleAndroidFormFooter();
-        setTimeout(ctwpmlScheduleAndroidFormFooter, 300);
+        ctwpmlScheduleFormFooter();
+        setTimeout(ctwpmlScheduleFormFooter, 120);
+        setTimeout(ctwpmlScheduleFormFooter, 300);
       });
       if (window.visualViewport) {
-        window.visualViewport.addEventListener('resize', ctwpmlScheduleAndroidFormFooter);
-        window.visualViewport.addEventListener('scroll', ctwpmlScheduleAndroidFormFooter);
+        window.visualViewport.addEventListener('resize', ctwpmlScheduleFormFooter);
+        window.visualViewport.addEventListener('scroll', ctwpmlScheduleFormFooter);
       }
-      $(window).on('resize.ctwpml_form_footer', ctwpmlScheduleAndroidFormFooter);
+      $(window).on('resize.ctwpml_form_footer', ctwpmlScheduleFormFooter);
     }
 
     function setFooterVisible(visible) {
       if (visible) $('.ctwpml-footer').show();
       else $('.ctwpml-footer').hide();
-      ctwpmlScheduleAndroidFormFooter();
+      if (visible && currentView !== 'form') {
+        $('#ctwpml-btn-primary').prop('disabled', false)
+          .removeClass('ctwpml-form-save-disabled').removeAttr('aria-disabled');
+      } else {
+        ctwpmlUpdateFormSaveState();
+      }
+      ctwpmlScheduleFormFooter();
     }
 
     function showInitial() {
@@ -3429,6 +3449,9 @@
             } catch (eCb3) {}
           }
         },
+        complete: function () {
+          ctwpmlUpdateFormSaveState();
+        },
       });
     }
 
@@ -4818,6 +4841,7 @@
       $('#ctwpml-type-work').removeClass('is-active');
       if (label === 'casa') $('#ctwpml-type-home').addClass('is-active');
       if (label === 'trabalho') $('#ctwpml-type-work').addClass('is-active');
+      ctwpmlUpdateFormSaveState();
     }
 
     function setRuaHint(message, visible) {
@@ -4847,17 +4871,15 @@
         else $spinner.hide();
       }
       var $inputs = $('#ctwpml-view-form input, #ctwpml-view-form textarea, #ctwpml-view-form select');
-      var $buttons = $('#ctwpml-btn-primary, #ctwpml-btn-secondary');
       var $types = $('#ctwpml-view-form .ctwpml-type-option');
       if (loading) {
         $inputs.not('#ctwpml-input-cep').prop('disabled', true);
-        $buttons.prop('disabled', true).addClass('is-disabled');
         $types.addClass('is-disabled');
       } else {
         $inputs.prop('disabled', false);
-        $buttons.prop('disabled', false).removeClass('is-disabled');
         $types.removeClass('is-disabled');
       }
+      ctwpmlUpdateFormSaveState();
     }
 
     function clearFormErrors() {
@@ -4935,6 +4957,7 @@
       }
       ctwpmlSetModalValueIfBlank('#ctwpml-input-fone', snapshot.phone);
       ctwpmlSetModalValueIfBlank('#ctwpml-input-cpf', snapshot.cpf ? formatCpf(snapshot.cpf) : '');
+      ctwpmlUpdateFormSaveState();
     }
 
     function ctwpmlFlushFormSnapshot(reason) {
@@ -5057,68 +5080,94 @@
       return true;
     }
 
+    function ctwpmlGetFormStatus() {
+      var cepOnly = cepDigits($('#ctwpml-input-cep').val());
+      var city = ($('#billing_city').val() || '').trim();
+      var st = ($('#billing_state').val() || '').trim();
+      var currentCepResolved = cepOnly.length === 8 && cepConsultedFor === cepOnly;
+      if (currentCepResolved && lastCepLookup) {
+        if (!city) city = lastCepLookup.localidade || lastCepLookup.cidade || lastCepLookup.city || '';
+        if (!st) st = lastCepLookup.uf || lastCepLookup.estado || lastCepLookup.state || '';
+      }
+      if (currentCepResolved && (!city || !st) && $('#ctwpml-cep-confirm').hasClass('is-visible')) {
+        var match = ($('#ctwpml-cep-confirm-text').text() || '').match(/([^,\-]+)\s*-\s*([A-Z]{2})/i);
+        if (match) {
+          if (!city) city = (match[1] || '').trim();
+          if (!st) st = (match[2] || '').trim();
+        }
+      }
+
+      var phoneCountry = ctwpmlSelectedPhoneCountry();
+      var phoneValue = phoneCountry === 'BR' ? $('#ctwpml-input-fone').val() : ($('#ctwpml-phone-full').val() || $('#ctwpml-input-fone').val());
+      var phoneReady = false;
+      try { phoneReady = ctwpmlIsCheckoutPhoneReady(phoneValue, phoneCountry); } catch (e) {}
+      var status = {
+        cep: cepOnly.length === 8,
+        rua: !!($('#ctwpml-input-rua').val() || '').trim(),
+        numero: !!($('#ctwpml-input-numero').val() || '').trim(),
+        bairro: !!($('#ctwpml-input-bairro').val() || '').trim(),
+        city: city,
+        st: st,
+        location: !!(city && st),
+        label: $('#ctwpml-type-home').hasClass('is-active') || $('#ctwpml-type-work').hasClass('is-active'),
+        name: ctwpmlParseFullName($('#ctwpml-input-nome').val()).hasSurname,
+        phone: phoneReady,
+        cpf: cpfDigitsOnly($('#ctwpml-input-cpf').val()).length === 11,
+        email: ctwpmlIsValidEmail($('#ctwpml-input-email').val()),
+      };
+      status.ready = status.cep && status.rua && status.numero && status.bairro && status.location &&
+        status.label && status.name && status.phone && status.cpf && status.email;
+      return status;
+    }
+
+    function ctwpmlUpdateFormSaveState() {
+      if (currentView !== 'form' || !$('#ctwpml-view-form').is(':visible')) return;
+      var disabled = isSavingAddress || cepConsultInFlight || !ctwpmlGetFormStatus().ready;
+      $('#ctwpml-btn-primary').prop('disabled', disabled)
+        .toggleClass('ctwpml-form-save-disabled', disabled)
+        .attr('aria-disabled', disabled ? 'true' : 'false');
+    }
+
     function validateForm() {
       clearFormErrors();
       var ok = true;
       var errors = [];
+      var status = ctwpmlGetFormStatus();
 
-      var cepOnly = cepDigits($('#ctwpml-input-cep').val());
-      if (cepOnly.length !== 8) {
+      if (!status.cep) {
         setFieldError('#ctwpml-input-cep', true);
         ok = false;
         errors.push('CEP inválido');
       }
 
-      var rua = ($('#ctwpml-input-rua').val() || '').trim();
-      if (!rua) {
+      if (!status.rua) {
         setFieldError('#ctwpml-group-rua', true);
         setRuaHint('Não encontramos Rua/Avenida automaticamente. Preencha manualmente com atenção.', true);
         ok = false;
         errors.push('Rua obrigatória');
       }
 
-      var bairroUi = ($('#ctwpml-input-bairro').val() || '').trim();
-      if (!bairroUi) {
+      if (!status.numero) {
+        setFieldError('#ctwpml-input-numero', true);
+        ok = false;
+        errors.push('Número obrigatório');
+      }
+
+      if (!status.bairro) {
         setFieldError('#ctwpml-group-bairro', true);
         ok = false;
         errors.push('Bairro obrigatório');
       }
 
-      // v3.2.13: Verificar cidade/UF com fallback para lastCepLookup (quando billing_* não existir no DOM)
-      var city = '';
-      var st = '';
-      
-      // Tentar do checkout primeiro (se existir)
-      if ($('#billing_city').length) city = ($('#billing_city').val() || '').trim();
-      if ($('#billing_state').length) st = ($('#billing_state').val() || '').trim();
-      
-      // Fallback: usar lastCepLookup (cache da consulta de CEP)
-      if (!city && lastCepLookup) {
-        city = lastCepLookup.localidade || lastCepLookup.cidade || lastCepLookup.city || '';
-      }
-      if (!st && lastCepLookup) {
-        st = lastCepLookup.uf || lastCepLookup.estado || lastCepLookup.state || '';
-      }
-      
-      // Fallback: extrair do texto de confirmação do CEP (setCepConfirm)
-      if (!city || !st) {
-        var confirmText = $('#ctwpml-cep-confirm-text').text() || '';
-        // Formato: "Cidade - UF" ou "Bairro, Cidade - UF"
-        var match = confirmText.match(/([^,\-]+)\s*-\s*([A-Z]{2})/i);
-        if (match) {
-          if (!city) city = (match[1] || '').trim();
-          if (!st) st = (match[2] || '').trim();
-        }
-      }
-      
-      if (!city || !st) {
+      var city = status.city;
+      var st = status.st;
+      if (!status.location) {
         setFieldError('#ctwpml-input-cep', true);
         ok = false;
         errors.push('Cidade/UF ausentes (recarregue o CEP)');
       }
 
-      var labelOk = $('#ctwpml-type-home').hasClass('is-active') || $('#ctwpml-type-work').hasClass('is-active');
-      if (!labelOk) {
+      if (!status.label) {
         $('#ctwpml-type-home, #ctwpml-type-work').addClass('is-error');
         ok = false;
         errors.push('Tipo Casa/Trabalho não selecionado');
@@ -5129,23 +5178,19 @@
         errors.push('Nome completo inválido');
       }
 
-      var phoneCountry = ctwpmlSelectedPhoneCountry();
-      var phoneValue = phoneCountry === 'BR' ? $('#ctwpml-input-fone').val() : ($('#ctwpml-phone-full').val() || $('#ctwpml-input-fone').val());
-      if (!ctwpmlIsCheckoutPhoneReady(phoneValue, phoneCountry)) {
+      if (!status.phone) {
         setFieldError('#ctwpml-input-fone', true);
         ok = false;
         errors.push('WhatsApp inválido');
       }
 
       // CPF obrigatório no fluxo (se já estiver locked, estará preenchido via checkout).
-      var cpf = cpfDigitsOnly($('#ctwpml-input-cpf').val());
-      if (cpf.length !== 11) {
+      if (!status.cpf) {
         ok = false;
         errors.push(ctwpmlShowCpfError(true));
       }
 
-      var email = ($('#ctwpml-input-email').val() || '').trim();
-      if (!ctwpmlIsValidEmail(email)) {
+      if (!status.email) {
         setFieldError('#ctwpml-group-email', true);
         ok = false;
         errors.push('E-mail inválido');
@@ -5499,7 +5544,7 @@
         return;
       }
       isSavingAddress = true;
-      $('#ctwpml-btn-primary').prop('disabled', true);
+      ctwpmlUpdateFormSaveState();
       var spinnerManagedByCaller = !!(opts && opts.spinnerManagedByCaller);
       if (!spinnerManagedByCaller) ctwpmlSpinnerAcquire('save_address_flow');
 
@@ -5562,7 +5607,7 @@
           var normalized = normalizeApiPayload(webhookData);
           if (normalized && normalized.whatsappValido === false) {
             isSavingAddress = false;
-            $('#ctwpml-btn-primary').prop('disabled', false);
+            ctwpmlUpdateFormSaveState();
             if (!spinnerManagedByCaller) ctwpmlSpinnerRelease('save_address_flow');
             setFieldError('#ctwpml-input-fone', true);
             showNotification('Por favor, confira o seu número de WhatsApp.', 'error', 5000);
@@ -5647,7 +5692,7 @@
         },
         success: function (resp) {
           isSavingAddress = false;
-          $('#ctwpml-btn-primary').prop('disabled', false);
+          ctwpmlUpdateFormSaveState();
 
           if (resp && resp.success && resp.data) {
             // Sucesso: atualiza cache e timestamp
@@ -5679,7 +5724,7 @@
         },
         error: function () {
           isSavingAddress = false;
-          $('#ctwpml-btn-primary').prop('disabled', false);
+          ctwpmlUpdateFormSaveState();
           showNotification('Erro ao salvar endereço. Tente novamente.', 'error', 4000);
           done({ ok: false, message: 'Erro ao salvar endereço.' });
         },
@@ -5787,6 +5832,7 @@
       if (dados.complemento) $('#billing_complemento').val(String(dados.complemento)).trigger('change');
 
       refreshFromCheckoutFields();
+      ctwpmlUpdateFormSaveState();
       
       // v3.2.13: Após preencher rua automaticamente, mover cursor para o campo número
       if (ruaPreenchida && !$('#ctwpml-input-numero').val()) {
@@ -5798,6 +5844,17 @@
 
     // v3.2.13: Cache da última consulta de CEP para uso na validação (fallback quando billing_* não existir)
     var lastCepLookup = null;
+
+    function ctwpmlCancelCepLookup() {
+      if (cepDebounceTimer) clearTimeout(cepDebounceTimer);
+      cepDebounceTimer = null;
+      cepLookupSerial++;
+      var request = cepLookupRequest;
+      cepLookupRequest = null;
+      cepConsultInFlight = false;
+      if (request && request.readyState !== 4) request.abort();
+      setCepConsultLoading(false);
+    }
 
     function consultCepAndFillForm() {
       var cepOnlyDigits = cepDigits($('#ctwpml-input-cep').val());
@@ -5820,7 +5877,8 @@
 
       cepConsultInFlight = true;
       setCepConsultLoading(true);
-      $.ajax({
+      var lookupSerial = ++cepLookupSerial;
+      cepLookupRequest = $.ajax({
         url: state.params.webhook_url,
         type: 'POST',
         contentType: 'application/json',
@@ -5830,8 +5888,11 @@
         xhrFields: { withCredentials: false },
         data: JSON.stringify(payload),
         success: function (data) {
+          if (lookupSerial !== cepLookupSerial) return;
+          cepLookupRequest = null;
           cepConsultInFlight = false;
           setCepConsultLoading(false);
+          if (currentView !== 'form' || cepOnlyDigits !== cepDigits($('#ctwpml-input-cep').val())) return;
           cepConsultedFor = cepOnlyDigits;
           if (typeof state.log === 'function') state.log('WEBHOOK_IN (ML) [consultaCep] Resposta recebida.', data, 'WEBHOOK_IN');
           
@@ -5839,12 +5900,20 @@
           lastCepLookup = normalizeApiPayload(data);
           
           fillFormFromApiData(data);
+          if (!ctwpmlGetFormStatus().location) {
+            cepConsultedFor = '';
+            showNotification('Não encontramos a cidade e o estado deste CEP. Confira o CEP e tente novamente.', 'error', 4000);
+          }
           ctwpmlPersistFormSnapshot('cep_lookup');
           // NÃO persiste no perfil aqui — isso será feito no Salvar com evento completo
         },
         error: function (jqXHR, textStatus, errorThrown) {
+          if (lookupSerial !== cepLookupSerial) return;
+          cepLookupRequest = null;
           cepConsultInFlight = false;
           setCepConsultLoading(false);
+          if (textStatus === 'abort') return;
+          if (currentView === 'form') showNotification('Não foi possível consultar o CEP. Confira o número e tente novamente.', 'error', 4000);
           if (typeof state.log === 'function')
             state.log(
               'WEBHOOK_IN (ML) [consultaCep] Erro (' + textStatus + ').',
@@ -5952,6 +6021,7 @@
       if (isClearingCep) return;
       isClearingCep = true;
       try {
+        if (cepConsultInFlight) ctwpmlCancelCepLookup();
         // Modal inputs
         $('#ctwpml-input-rua').val('');
         $('#ctwpml-input-numero').val('');
@@ -5976,9 +6046,11 @@
         $('#billing_complemento').val('').trigger('change');
         cepConsultedFor = '';
         cepConsultInFlight = false;
+        lastCepLookup = null;
       } finally {
         isClearingCep = false;
       }
+      ctwpmlUpdateFormSaveState();
     }
 
     function onBillingCepChanged() {
@@ -6798,6 +6870,7 @@
             return;
           }
         }
+        ctwpmlCancelCepLookup();
         state.__ctwpmlResumeAfterBilling = false;
         if (!hasSavedAddresses()) {
           var cartUrl0 = (state.params && state.params.cart_url) ? String(state.params.cart_url) : '';
@@ -6930,6 +7003,7 @@
       } else {
         logAny('CPF fictício (modal): NÃO encontrou campo billing_cpf no checkout.', { hasCpf: true });
       }
+      ctwpmlUpdateFormSaveState();
 
       // Salvar imediatamente no servidor e aplicar lock
       saveContactMeta(function(response) {
@@ -6984,6 +7058,7 @@
             return;
           }
         }
+        ctwpmlCancelCepLookup();
         state.__ctwpmlResumeAfterBilling = false;
         if (!hasSavedAddresses()) {
           var cartUrl1 = (state.params && state.params.cart_url) ? String(state.params.cart_url) : '';
@@ -8570,10 +8645,11 @@
     });
 
     // Ao editar qualquer campo, remove estado de erro para feedback imediato.
-    $(document).on('input change', '#ctwpml-view-form input, #ctwpml-view-form textarea', function (e) {
+    $(document).on('input change', '#ctwpml-view-form input, #ctwpml-view-form textarea, #ctwpml-view-form select', function (e) {
       $(this).closest('.ctwpml-form-group').removeClass('is-error');
       if ($(this).is('#ctwpml-input-rua')) setRuaHint('', false);
       if ($(this).is('#ctwpml-input-nome')) setNomeHint('', false);
+      ctwpmlUpdateFormSaveState();
 
       // Dirty state (somente em interações do usuário; eventos programáticos não contam).
       try {

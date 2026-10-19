@@ -364,7 +364,7 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
   backdrop-filter: none;
 }
 
-.ctwpml-modal-overlay.ctwpml-form-android-focus .ctwpml-footer {
+.ctwpml-modal-overlay.ctwpml-form-viewport-focus .ctwpml-footer {
   position: fixed !important;
   bottom: var(--ctwpml-form-footer-inset, 0px) !important;
 }
@@ -489,6 +489,17 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
   outline: none !important;
   box-shadow: none !important;
   opacity: 0.9;
+}
+
+.ctwpml-modal-overlay .ctwpml-footer .ctwpml-btn-primary.ctwpml-form-save-disabled,
+.ctwpml-modal-overlay .ctwpml-footer .ctwpml-btn-primary.ctwpml-form-save-disabled:hover,
+.ctwpml-modal-overlay .ctwpml-footer .ctwpml-btn-primary.ctwpml-form-save-disabled:focus,
+.ctwpml-modal-overlay .ctwpml-footer .ctwpml-btn-primary.ctwpml-form-save-disabled:active {
+  background: #cbd2da !important;
+  color: #344054 !important;
+  -webkit-text-fill-color: #344054 !important;
+  opacity: 1 !important;
+  cursor: not-allowed !important;
 }
 
 .ctwpml-btn-secondary {

@@ -2,6 +2,12 @@
 
 Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
+## [v3.2.136] - 2026-10-19
+
+### Improved
+- Formulário de endereço: mantém Salvar cinza e desabilitado até CEP, endereço, tipo e contato obrigatórios estarem válidos; Voltar permanece disponível durante a consulta de CEP.
+- Checkout no iPhone: posiciona Salvar e Voltar junto à área visível assim que o teclado abre no primeiro campo, preservando o comportamento no Android.
+
 ## [v3.2.135] - 2026-10-19
 
 ### Improved
