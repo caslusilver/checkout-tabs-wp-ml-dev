@@ -332,7 +332,7 @@
       thumbHtml +
       '  </div>' +
       optionsHtml +
-      (shippingOptions.some(function (opt) { return opt.id === 'flat_rate:3'; }) ? '<div class="ctwpml-dispatch-notice" role="status">' + escapeHtml(options.dispatchNotice || 'Horários de saída ainda não configurados. Consulte a loja sobre o próximo despacho.') + '</div>' : '') +
+      '<div class="ctwpml-dispatch-notice" id="ctwpml-shipping-dispatch" role="status" style="display:none"></div>' +
       '</div>' +
       '' +
       '<div class="ctwpml-shipping-footer">' +

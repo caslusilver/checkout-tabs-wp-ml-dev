@@ -105,9 +105,6 @@
           $('.cep-erro').hide();
         }
 
-        if (dados.whatsappValido === false) $('.whatsapp-invalido').show();
-        else $('.whatsapp-invalido').hide();
-
         var temDadosFreteValidos =
           (dados.fretePACMini && typeof dados.fretePACMini.valor !== 'undefined' && parseFloat(dados.fretePACMini.valor) > 0) ||
           (dados.freteSedex && typeof dados.freteSedex.valor !== 'undefined' && parseFloat(dados.freteSedex.valor) > 0) ||
@@ -149,9 +146,10 @@
           cpf: cpf,
           nome: nomeCompleto,
         };
+        if ($('#billing_country').val() === 'BR' && /^(?:\d{10}|\d{11})$/.test(whatsapp)) payload.dial_code = '+55';
 
         state.currentPhase = 'WEBHOOK_OUT';
-        state.log('WEBHOOK_OUT Iniciando consulta de endereço e frete via webhook...', payload, 'WEBHOOK_OUT');
+        state.log('WEBHOOK_OUT Iniciando consulta de endereço e frete via webhook...', { hasPhone: !!whatsapp, hasDialCode: !!payload.dial_code }, 'WEBHOOK_OUT');
         state.ajaxWebhookStartTime = performance.now();
 
         $.ajax({

@@ -799,6 +799,21 @@
     background: var(--cor-aviso);
 }
 
+#tab-pagamentos .ppwoo-pending-badges {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 4px;
+}
+
+#tab-pagamentos .metodo-envio.motoboy {
+    background: var(--cor-erro);
+}
+
+#tab-pagamentos .metodo-envio.correios {
+    background: var(--cor-primaria);
+}
+
 #tab-pagamentos .order-actions {
     margin-top: auto;
     padding-top: var(--spacing-medium);

@@ -299,7 +299,7 @@ class PPWOO_Utils {
      */
     public static function get_billing_cellphone($order) {
         if ($order instanceof WC_Order) {
-            return $order->get_meta('_billing_cellphone');
+            return $order->get_meta('_billing_cellphone') ?: $order->get_billing_phone();
         }
         if (is_array($order) && isset($order['billing']['cellphone'])) {
             return $order['billing']['cellphone'];
@@ -311,6 +311,18 @@ class PPWOO_Utils {
         $phone = trim((string) self::get_billing_cellphone($order));
         $digits = self::sanitize_phone($phone);
         if ($digits === '') {
+            return '';
+        }
+
+        $dial_code = $order instanceof WC_Order ? (string) $order->get_meta('_ctwpml_dial_code') : '';
+        if (preg_match('/^\+[1-9][0-9]{0,3}$/D', $dial_code)) {
+            $prefix = substr($dial_code, 1);
+            if ($dial_code === '+55' && in_array(strlen($digits), [10, 11], true)) {
+                $digits = $prefix . $digits;
+            }
+            if (strpos($digits, $prefix) === 0 && strlen($digits) >= 8 && strlen($digits) <= 15) {
+                return 'https://wa.me/' . $digits;
+            }
             return '';
         }
 
@@ -530,6 +542,16 @@ class PPWOO_Utils {
             return $order['shipping_methods'];
         }
         return array();
+    }
+
+    public static function get_first_shipping_method_title($order): string {
+        $methods = self::get_shipping_methods($order);
+        $first_method = reset($methods);
+        return (string) ($first_method['method_title'] ?? '');
+    }
+
+    public static function is_motoboy_shipping($order): bool {
+        return stripos(self::get_first_shipping_method_title($order), 'motoboy') !== false;
     }
     
     /**

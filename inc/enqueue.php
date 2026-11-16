@@ -295,6 +295,8 @@ add_action('wp_enqueue_scripts', function () {
 		'addresses_nonce' => wp_create_nonce('ctwpml_addresses'),
 		'address_payload_nonce' => wp_create_nonce('ctwpml_address_payload'),
 		'shipping_options_nonce' => wp_create_nonce('ctwpml_shipping_options'),
+		'show_address_extra_info' => ctwpml_address_field_enabled('extra_info') ? '1' : '0',
+		'show_address_label' => ctwpml_address_field_enabled('label') ? '1' : '0',
 		'set_shipping_nonce' => wp_create_nonce('ctwpml_set_shipping'),
 		'cart_thumbs_nonce' => wp_create_nonce('ctwpml_cart_thumbs'),
 		'checkout_blocks_nonce' => wp_create_nonce('ctwpml_checkout_blocks'),

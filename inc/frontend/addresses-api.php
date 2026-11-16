@@ -547,6 +547,13 @@ add_action('wp_ajax_ctwpml_save_address', function () {
 
 	$payload = isset($_POST['address']) && is_array($_POST['address']) ? (array) $_POST['address'] : [];
 	$item = ctwpml_addresses_sanitize_item($payload);
+	$hidden_fields = [];
+	foreach (['extra_info', 'label'] as $field) {
+		if (!ctwpml_address_field_enabled($field)) {
+			$item[$field] = '';
+			$hidden_fields[] = $field;
+		}
+	}
 
 	if ($item['cep'] === '' || strlen($item['cep']) !== 8) {
 		wp_send_json_error('CEP inválido. Informe 8 dígitos.');
@@ -564,6 +571,9 @@ add_action('wp_ajax_ctwpml_save_address', function () {
 	if ($item['id'] !== '') {
 		foreach ($items as $idx => $existing) {
 			if (is_array($existing) && isset($existing['id']) && (string) $existing['id'] === $item['id']) {
+				foreach ($hidden_fields as $field) {
+					$item[$field] = (string) ($existing[$field] ?? '');
+				}
 				$items[$idx] = array_merge($existing, $item, [
 					'updated_at' => current_time('mysql'),
 				]);
@@ -582,6 +592,9 @@ add_action('wp_ajax_ctwpml_save_address', function () {
 			}
 			if (ctwpml_addresses_fingerprint($existing) === $fp) {
 				$item['id'] = (string) ($existing['id'] ?? '');
+				foreach ($hidden_fields as $field) {
+					$item[$field] = (string) ($existing[$field] ?? '');
+				}
 				$items[$idx] = array_merge($existing, $item, [
 					'updated_at' => current_time('mysql'),
 				]);
@@ -958,12 +971,11 @@ function ctwpml_handle_get_shipping_options() {
 		error_log('[CTWPML] get_shipping_options - Total de opções: ' . count($options));
 	}
 
-	wp_send_json_success([
+	wp_send_json_success(array_merge([
 		'options'     => $options,
-		'dispatch_notice' => ctwpml_dispatch_notice(),
 		'captured_at' => $payload['captured_at'] ?? '',
 		'address_id'  => $address_id,
-	]);
+	], ctwpml_dispatch_notice()));
 }
 
 add_action('wp_ajax_ctwpml_get_shipping_options', 'ctwpml_handle_get_shipping_options');
@@ -1312,6 +1324,16 @@ function ctwpml_contact_phone_for_woo(string $whatsapp, string $phone_full, stri
 	];
 }
 
+function ctwpml_contact_dial_code(string $dial_code, string $phone_full): string {
+	$dial_code = trim($dial_code);
+	if (!preg_match('/^\+[1-9][0-9]{0,3}$/D', $dial_code)) {
+		return '';
+	}
+	$digits = preg_replace('/\D+/', '', $phone_full);
+	$prefix = substr($dial_code, 1);
+	return strpos($digits, $prefix) === 0 && strlen($digits) > strlen($prefix) ? $dial_code : '';
+}
+
 function ctwpml_log_contact_phone_shape(string $stage, array $shape): void {
 	if (!function_exists('ctwpml_write_isolated_debug_log')) {
 		return;
@@ -1365,12 +1387,12 @@ function ctwpml_apply_contact_meta_to_user(int $user_id, array $input, bool $is_
 			$updated = true;
 		}
 	}
-	if (!empty($dial_code)) {
-		$dc = preg_replace('/[^\d\+]+/', '', (string) $dial_code);
-		$dc_digits = preg_replace('/\D+/', '', $dc);
-		if ($dc_digits !== '' && strlen($dc_digits) <= 4) {
-			update_user_meta($user_id, '_ctwpml_dial_code', '+' . $dc_digits);
-			$updated = true;
+	if (!empty($full_shape['valid'])) {
+		$valid_dial_code = ctwpml_contact_dial_code($dial_code, $pf);
+		if ($valid_dial_code === '') {
+			delete_user_meta($user_id, '_ctwpml_dial_code');
+		} else {
+			update_user_meta($user_id, '_ctwpml_dial_code', $valid_dial_code);
 		}
 	}
 
@@ -1499,6 +1521,7 @@ add_action('wp_ajax_ctwpml_save_contact_meta', function (): void {
 				? ($full_shape['country'] === 'BR' ? '+55' . $full_shape['woo_digits'] : '+' . preg_replace('/\D+/', '', (string) $guest['phone_full']))
 				: '';
 		}
+		$guest['dial_code'] = ctwpml_contact_dial_code($guest['dial_code'], $guest['phone_full']);
 		ctwpml_guest_contact_meta_set($guest);
 		wp_send_json_success([
 			'message' => 'Dados processados',

@@ -76,7 +76,7 @@ function checkout_tabs_wp_ml_render_admin_page(): void {
 	}
 
 	$tab = isset($_GET['tab']) ? sanitize_key((string) $_GET['tab']) : 'integracoes';
-	if (!in_array($tab, ['integracoes', 'horarios', 'styles', 'debug'], true)) {
+	if (!in_array($tab, ['integracoes', 'horarios', 'campos', 'styles', 'debug'], true)) {
 		$tab = 'integracoes';
 	}
 
@@ -112,6 +112,7 @@ function checkout_tabs_wp_ml_render_admin_page(): void {
 
 	echo '<div class="wrap">';
 	echo '<h1>Checkout Tabs ML</h1>';
+	settings_errors('checkout_tabs_wp_ml_dispatch_grace');
 
 	echo '<nav class="nav-tab-wrapper">';
 	echo '<a href="' .
@@ -129,6 +130,11 @@ function checkout_tabs_wp_ml_render_admin_page(): void {
 		'" class="nav-tab ctwpml-admin-tab ' .
 		($tab === 'horarios' ? 'nav-tab-active' : '') .
 		'" data-tab="horarios">Horários</a>';
+	echo '<a href="' .
+		esc_url(admin_url('admin.php?page=' . CHECKOUT_TABS_WP_ML_SETTINGS_PAGE . '&tab=campos')) .
+		'" class="nav-tab ctwpml-admin-tab ' .
+		($tab === 'campos' ? 'nav-tab-active' : '') .
+		'" data-tab="campos">Campos do checkout</a>';
 	echo '<a href="' .
 		esc_url(admin_url('admin.php?page=' . CHECKOUT_TABS_WP_ML_SETTINGS_PAGE . '&tab=debug')) .
 		'" class="nav-tab ctwpml-admin-tab ' .
@@ -298,14 +304,29 @@ function checkout_tabs_wp_ml_render_admin_page(): void {
 	echo '<div class="ctwpml-admin-tab-panel" data-tab="horarios" style="' . esc_attr($style_horarios) . '">';
 	echo '<h2 class="title">Horários de saída da loja</h2>';
 	echo '<p>Informe uma ou várias saídas por dia no formato 15:00, 18:00. Deixe o dia vazio se não houver despacho. A configuração começa vazia; o prazo de entrega do frete não é alterado.</p>';
-	echo '<p>Pedidos entram na saída até quatro minutos e cinquenta e nove segundos após o horário indicado. No minuto cinco, passam para a próxima saída configurada.</p>';
+	echo '<p>Fuso horário do WordPress: <strong>' . esc_html(wp_timezone_string()) . '</strong>.</p>';
 	echo '<table class="form-table" role="presentation">';
+	echo '<tr><th scope="row"><label for="ctwpml-dispatch-grace">Tolerância após a saída (minutos)</label></th><td>';
+	echo '<input type="number" id="ctwpml-dispatch-grace" name="checkout_tabs_wp_ml_dispatch_grace" value="' . esc_attr((string) get_option('checkout_tabs_wp_ml_dispatch_grace', 5)) . '" min="0" step="1" />';
+	echo '<p class="description">Use 0 para encerrar a janela no horário da saída. Com 5 minutos, um pedido às 18h04 entra na saída das 18h e às 18h05 passa para a próxima.</p></td></tr>';
 	$dispatch_schedule = get_option('checkout_tabs_wp_ml_dispatch_schedule', []);
 	foreach (ctwpml_dispatch_days() as $day => $label) {
 		$times = is_array($dispatch_schedule) && isset($dispatch_schedule[$day]) && is_array($dispatch_schedule[$day]) ? $dispatch_schedule[$day] : [];
 		echo '<tr><th scope="row"><label for="ctwpml-dispatch-' . esc_attr($day) . '">' . esc_html($label) . '</label></th><td>';
 		echo '<input type="text" class="regular-text" id="ctwpml-dispatch-' . esc_attr($day) . '" name="checkout_tabs_wp_ml_dispatch_schedule[' . esc_attr($day) . ']" value="' . esc_attr(implode(', ', $times)) . '" placeholder="15:00, 18:00" />';
 		echo '</td></tr>';
+	}
+	echo '</table></div>';
+
+	$style_campos = ($tab === 'campos') ? '' : 'display:none;';
+	echo '<div class="ctwpml-admin-tab-panel" data-tab="campos" style="' . esc_attr($style_campos) . '">';
+	echo '<h2 class="title">Campos do formulário de endereço</h2>';
+	echo '<table class="form-table" role="presentation">';
+	foreach (['extra_info' => 'Informações adicionais', 'label' => 'Este é o seu trabalho ou sua casa?'] as $field => $label) {
+		$option = 'checkout_tabs_wp_ml_show_address_' . $field;
+		echo '<tr><th scope="row"><label for="' . esc_attr($option) . '">' . esc_html($label) . '</label></th><td>';
+		echo '<input type="hidden" name="' . esc_attr($option) . '" value="0" />';
+		echo '<label><input type="checkbox" role="switch" id="' . esc_attr($option) . '" name="' . esc_attr($option) . '" value="1" ' . checked(ctwpml_address_field_enabled($field), true, false) . ' /> Exibir no formulário</label></td></tr>';
 	}
 	echo '</table></div>';
 
