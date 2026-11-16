@@ -191,7 +191,7 @@
         var progress = swipe.maxOffset > 0 ? (boundedOffset / swipe.maxOffset) * 100 : 0;
 
         swipe.offset = boundedOffset;
-        $action.css('--ppwoo-swipe-offset', boundedOffset + 'px');
+        $action.css('--ppwoo-swipe-offset', (swipe.direction * boundedOffset) + 'px');
         $action.css('--ppwoo-swipe-progress', progress + '%');
         $action.attr('aria-valuenow', Math.round(progress));
     }
@@ -202,6 +202,7 @@
         $action.css('--ppwoo-swipe-offset', '0px');
         $action.css('--ppwoo-swipe-progress', '0%');
         $action.attr('aria-valuenow', '0');
+        $action.siblings('.ppwoo-swipe-action').removeClass('is-peer-hidden');
         $action.find('.ppwoo-swipe-label').text($action.attr('data-swipe-label') || 'Deslize para confirmar');
     }
 
@@ -237,7 +238,7 @@
             return;
         }
 
-        var offset = getPointerClientX(event) - activeSwipe.startX;
+        var offset = (getPointerClientX(event) - activeSwipe.startX) * activeSwipe.direction;
         updateSwipePosition(activeSwipe, offset);
         if (Math.abs(offset) > 2) {
             event.preventDefault();
@@ -274,10 +275,12 @@
             pointerId: nativeEvent.pointerId,
             startX: getPointerClientX(event),
             maxOffset: maxOffset,
-            offset: 0
+            offset: 0,
+            direction: $action.attr('data-swipe-direction') === 'left' ? -1 : 1
         };
 
         $action.addClass('is-dragging').attr('aria-valuenow', '0');
+        $action.siblings('.ppwoo-swipe-action').addClass('is-peer-hidden');
         document.addEventListener('pointermove', handleSwipeMove, { passive: false });
         document.addEventListener('pointerup', handleSwipeUp, { passive: false });
         document.addEventListener('pointercancel', handleSwipeCancel, { passive: false });
@@ -567,6 +570,7 @@
             },
             success: function(response) {
                 if (response.success) {
+                    $actionArea.find('.loading-indicator').text('Pedido atualizado.');
                     $card.addClass('removing').on('transitionend', function() {
                         $(this).remove();
                         updateCounts();
@@ -575,23 +579,23 @@
                 } else {
                     alert('Erro ao atualizar pagamento: ' + (response.data || 'Erro desconhecido'));
                     $actionArea.find('.loading-indicator').hide();
-                    $actionArea.find('button').prop('disabled', false);
+                    $actionArea.find('button').prop('disabled', false).each(function() { resetSwipeAction(this); });
                 }
             },
             error: function(jqXHR) {
                 ppDebug.log('Erro AJAX ao atualizar pagamento: ' + jqXHR.responseText);
                 alert('Erro na requisição AJAX para atualizar pagamento.');
                 $actionArea.find('.loading-indicator').hide();
-                $actionArea.find('button').prop('disabled', false);
+                $actionArea.find('button').prop('disabled', false).each(function() { resetSwipeAction(this); });
             }
         });
     }
 
-    packingPanel.on('click', '#tab-pagamentos .ppwoo-btn-confirm-payment', function() {
+    packingPanel.on('ppwoo:slide-complete', '#tab-pagamentos .ppwoo-btn-confirm-payment', function() {
         handlePaymentAction(this, 'payment_confirm');
     });
 
-    packingPanel.on('click', '#tab-pagamentos .ppwoo-btn-deny-payment', function() {
+    packingPanel.on('ppwoo:slide-complete', '#tab-pagamentos .ppwoo-btn-deny-payment', function() {
         handlePaymentAction(this, 'payment_deny');
     });
 

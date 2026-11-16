@@ -7,6 +7,14 @@ if (!defined('ABSPATH')) {
 const CHECKOUT_TABS_WP_ML_SETTINGS_GROUP = 'checkout_tabs_wp_ml';
 const CHECKOUT_TABS_WP_ML_SETTINGS_PAGE  = 'checkout-tabs-wp-ml';
 
+add_action('admin_init', function () {
+	register_setting(CHECKOUT_TABS_WP_ML_SETTINGS_GROUP, 'checkout_tabs_wp_ml_dispatch_schedule', [
+		'type' => 'array',
+		'sanitize_callback' => 'ctwpml_sanitize_dispatch_schedule',
+		'default' => [],
+	]);
+});
+
 function checkout_tabs_wp_ml_get_option(string $key, $default = null) {
 	return get_option('checkout_tabs_wp_ml_' . $key, $default);
 }

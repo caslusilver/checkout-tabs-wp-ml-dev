@@ -24,6 +24,7 @@ class PPWOO_Admin_Connection_Tab {
      */
     const OPTION_PAYMENTS_WEBHOOK_URL = 'ppwoo_payments_webhook_url';
     const OPTION_PAYMENTS_AUTH_KEY_NAME = 'ppwoo_payments_auth_key_name';
+    const OPTION_PAYMENT_ACTION_MODE = 'ppwoo_payment_action_mode';
     
     /**
      * Renderiza o formulário da aba Conexão
@@ -47,6 +48,7 @@ class PPWOO_Admin_Connection_Tab {
 
         $payments_webhook_url = get_option(self::OPTION_PAYMENTS_WEBHOOK_URL, PPWOO_Config::get_payments_webhook_url());
         $payments_auth_key_name = get_option(self::OPTION_PAYMENTS_AUTH_KEY_NAME, PPWOO_Config::get_payments_auth_key_name());
+        $payment_action_mode = get_option(self::OPTION_PAYMENT_ACTION_MODE, 'external');
         
         ?>
         <form method="post" action="">
@@ -73,6 +75,12 @@ class PPWOO_Admin_Connection_Tab {
             <hr>
             
             <h2><?php esc_html_e('Pagamentos Manuais (Webhook)', 'painel-empacotamento'); ?></h2>
+            <p><label for="ppwoo_payment_action_mode"><strong><?php esc_html_e('Ação da aba Pagamentos Pendentes', 'painel-empacotamento'); ?></strong></label><br>
+            <select id="ppwoo_payment_action_mode" name="ppwoo_payment_action_mode">
+                <option value="external" <?php selected($payment_action_mode, 'external'); ?>><?php esc_html_e('Fluxo externo atual (webhook)', 'painel-empacotamento'); ?></option>
+                <option value="local" <?php selected($payment_action_mode, 'local'); ?>><?php esc_html_e('Confirmação manual no WooCommerce', 'painel-empacotamento'); ?></option>
+            </select></p>
+            <p class="description"><?php esc_html_e('No modo manual, confirme somente após conferir o recebimento: o pedido vai para Processando. Cancelar muda o pedido para Cancelado e pode devolver itens ao estoque. O modo externo permanece disponível.', 'painel-empacotamento'); ?></p>
             <table class="form-table">
                 <tr>
                     <th scope="row">
@@ -306,6 +314,10 @@ class PPWOO_Admin_Connection_Tab {
      * Salva configurações do webhook de pagamentos manuais
      */
     private static function save_payments_webhook_settings() {
+        if (isset($_POST['ppwoo_payment_action_mode'])) {
+            $mode = sanitize_key(wp_unslash($_POST['ppwoo_payment_action_mode']));
+            update_option(self::OPTION_PAYMENT_ACTION_MODE, $mode === 'local' ? 'local' : 'external');
+        }
         if (isset($_POST['ppwoo_payments_webhook_url'])) {
             $url = esc_url_raw($_POST['ppwoo_payments_webhook_url']);
 

@@ -440,8 +440,15 @@ if (PPWOO_Config::is_debug()) {
                             </div>
 
                             <div class="order-actions">
-                                <button class="slide-button ppwoo-btn-confirm-payment"><?php esc_html_e('Confirmar pagamento', 'painel-empacotamento'); ?></button>
-                                <button class="slide-button ppwoo-btn-deny-payment"><?php esc_html_e('Negar pagamento', 'painel-empacotamento'); ?></button>
+                                <?php $local_payment_mode = get_option('ppwoo_payment_action_mode', 'external') === 'local'; ?>
+                                <button type="button" class="slide-button ppwoo-swipe-action ppwoo-btn-confirm-payment" data-swipe-label="<?php esc_attr_e('Deslize para confirmar pagamento', 'painel-empacotamento'); ?>" data-swipe-complete-label="<?php esc_attr_e('Solte para confirmar', 'painel-empacotamento'); ?>" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                                    <span class="ppwoo-swipe-label"><?php esc_html_e('Deslize para confirmar pagamento', 'painel-empacotamento'); ?></span>
+                                    <span class="ppwoo-swipe-thumb" aria-hidden="true"><span class="dashicons dashicons-arrow-right-alt2"></span></span>
+                                </button>
+                                <button type="button" class="slide-button ppwoo-swipe-action ppwoo-btn-deny-payment" data-swipe-direction="left" data-swipe-label="<?php echo esc_attr($local_payment_mode ? 'Deslize para cancelar pedido' : 'Deslize para negar pagamento'); ?>" data-swipe-complete-label="<?php echo esc_attr($local_payment_mode ? 'Solte para cancelar' : 'Solte para negar'); ?>" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                                    <span class="ppwoo-swipe-label"><?php echo esc_html($local_payment_mode ? 'Deslize para cancelar pedido' : 'Deslize para negar pagamento'); ?></span>
+                                    <span class="ppwoo-swipe-thumb" aria-hidden="true"><span class="dashicons dashicons-arrow-left-alt2"></span></span>
+                                </button>
                                 <div class="loading-indicator" style="display: none;">
                                     <span class="dashicons dashicons-update spin"></span>
                                     <?php esc_html_e('Processando...', 'painel-empacotamento'); ?>

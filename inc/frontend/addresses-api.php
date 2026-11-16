@@ -960,6 +960,7 @@ function ctwpml_handle_get_shipping_options() {
 
 	wp_send_json_success([
 		'options'     => $options,
+		'dispatch_notice' => ctwpml_dispatch_notice(),
 		'captured_at' => $payload['captured_at'] ?? '',
 		'address_id'  => $address_id,
 	]);
