@@ -42,33 +42,17 @@ class PPWOO_Orders {
      */
     private static function classify_order($order) {
         $status = '';
-        $shipping_method_title = '';
-        
         if ($order instanceof WC_Order) {
             $status = $order->get_status();
-            $shipping_methods = $order->get_shipping_methods();
-            if (!empty($shipping_methods)) {
-                $first_method = reset($shipping_methods);
-                $shipping_method_title = $first_method->get_method_title();
-            }
         } elseif (is_array($order) && isset($order['_is_external'])) {
             $status = isset($order['status']) ? $order['status'] : '';
-            if (!empty($order['shipping_methods']) && is_array($order['shipping_methods'])) {
-                $first_method = reset($order['shipping_methods']);
-                $shipping_method_title = isset($first_method['method_title']) ? $first_method['method_title'] : '';
-            }
         }
-        
-        // Motoboy: status 'processing' + method_title contém 'motoboy'
-        if ($status === 'processing' && stripos($shipping_method_title, 'motoboy') !== false) {
+        $is_motoboy = PPWOO_Utils::is_motoboy_shipping($order);
+        if ($status === 'processing' && $is_motoboy) {
             return 'motoboy';
         }
-        
-        // Correios: status 'on-hold' + (sem método OU method_title não contém 'motoboy')
-        if ($status === 'on-hold') {
-            if (empty($shipping_method_title) || stripos($shipping_method_title, 'motoboy') === false) {
-                return 'correios';
-            }
+        if ($status === 'on-hold' && !$is_motoboy) {
+            return 'correios';
         }
         
         return null;
@@ -92,12 +76,8 @@ class PPWOO_Orders {
         ));
         
         foreach ($orders_raw as $order) {
-            $shipping_methods = $order->get_shipping_methods();
-            if (!empty($shipping_methods)) {
-                $first_method = reset($shipping_methods);
-                if (stripos($first_method->get_method_title(), 'motoboy') !== false) {
-                    $motoboy_orders[] = $order;
-                }
+            if (PPWOO_Utils::is_motoboy_shipping($order)) {
+                $motoboy_orders[] = $order;
             }
         }
         
@@ -138,8 +118,7 @@ class PPWOO_Orders {
         ));
         
         foreach ($orders_raw as $order) {
-            $shipping_methods = $order->get_shipping_methods();
-            if (empty($shipping_methods) || stripos(reset($shipping_methods)->get_method_title(), 'motoboy') === false) {
+            if (!PPWOO_Utils::is_motoboy_shipping($order)) {
                 $correios_orders[] = $order;
             }
         }

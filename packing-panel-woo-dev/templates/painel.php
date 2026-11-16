@@ -415,16 +415,41 @@ if (PPWOO_Config::is_debug()) {
                         $created_display = $created ? $created->date_i18n('d/m/Y H:i') : '';
                         $client_name = trim(PPWOO_Utils::get_billing_first_name($order) . ' ' . PPWOO_Utils::get_billing_last_name($order));
                         $pix_identifier = PPWOO_Utils::get_pix_identifier($order);
+                        $shipping_title = PPWOO_Utils::get_first_shipping_method_title($order);
+                        $is_motoboy = PPWOO_Utils::is_motoboy_shipping($order);
+                        $customer_phone = PPWOO_Utils::get_billing_cellphone($order);
+                        $customer_whatsapp_url = PPWOO_Utils::get_customer_whatsapp_url($order);
                         ?>
                         <div class="pedido-container carousel-item" data-order-id="<?php echo esc_attr($order_id); ?>">
                             <div class="order-header">
                                 <h3>Pedido #<?php echo esc_html($order_id); ?></h3>
-                                <span class="metodo-envio pagamentos"><?php esc_html_e('Pagamento Pendente', 'painel-empacotamento'); ?></span>
+                                <div class="ppwoo-pending-badges">
+                                    <span class="metodo-envio pagamentos"><?php esc_html_e('Pagamento Pendente', 'painel-empacotamento'); ?></span>
+                                    <span class="metodo-envio <?php echo $is_motoboy ? 'motoboy' : 'correios'; ?>"><?php
+                                        if ($is_motoboy) {
+                                            esc_html_e('Motoboy', 'painel-empacotamento');
+                                        } elseif ($shipping_title !== '') {
+                                            echo esc_html($shipping_title);
+                                        } else {
+                                            esc_html_e('Frete não especificado', 'painel-empacotamento');
+                                        }
+                                    ?></span>
+                                </div>
                             </div>
 
                             <div class="order-client-info">
                                 <h4><?php esc_html_e('Cliente', 'painel-empacotamento'); ?>:</h4>
                                 <p><?php echo esc_html($client_name); ?></p>
+                                <?php if ($customer_phone) : ?>
+                                    <h4><?php esc_html_e('WhatsApp', 'painel-empacotamento'); ?>:</h4>
+                                    <p>
+                                        <?php if ($customer_whatsapp_url) : ?>
+                                            <a class="ppwoo-whatsapp-link" href="<?php echo esc_url($customer_whatsapp_url); ?>" target="_blank" rel="noopener noreferrer" title="<?php esc_attr_e('Abrir conversa no WhatsApp', 'painel-empacotamento'); ?>"><?php echo esc_html($customer_phone); ?></a>
+                                        <?php else : ?>
+                                            <?php echo esc_html($customer_phone); ?>
+                                        <?php endif; ?>
+                                    </p>
+                                <?php endif; ?>
                                 <h4><?php esc_html_e('Data/Hora', 'painel-empacotamento'); ?>:</h4>
                                 <p><?php echo esc_html($created_display); ?></p>
                             </div>

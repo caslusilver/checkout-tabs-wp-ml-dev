@@ -60,7 +60,7 @@ class PPWOO_Webhook {
     private static function prepare_order_payload($order) {
         $items_payload = PPWOO_Utils::prepare_order_items_payload($order);
         
-        return array(
+        $payload = array(
             'status' => $order->get_status(),
             'total' => wc_format_decimal($order->get_total(), 2),
             'shipping_total' => wc_format_decimal($order->get_shipping_total(), 2),
@@ -82,6 +82,11 @@ class PPWOO_Webhook {
             'items' => $items_payload,
             'coupons' => $order->get_coupon_codes(),
         );
+        $dial_code = (string) $order->get_meta('_ctwpml_dial_code');
+        if ($dial_code !== '') {
+            $payload['dial_code'] = $dial_code;
+        }
+        return $payload;
     }
     
     /**

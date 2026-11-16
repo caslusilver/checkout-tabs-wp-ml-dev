@@ -109,6 +109,54 @@ add_action('woocommerce_checkout_update_user_meta', function ($user_id): void {
 	}
 }, 20, 1);
 
+add_action('woocommerce_checkout_create_order', function (WC_Order $order, array $data): void {
+	$user_id = (int) $order->get_customer_id();
+	if (isset($_POST['ctwpml_checkout_phone_full']) && is_string($_POST['ctwpml_checkout_phone_full']) && $_POST['ctwpml_checkout_phone_full'] !== '') {
+		$contact = [
+			'phone_full' => sanitize_text_field(wp_unslash($_POST['ctwpml_checkout_phone_full'])),
+			'country_code' => isset($_POST['ctwpml_checkout_phone_country']) && is_string($_POST['ctwpml_checkout_phone_country'])
+				? sanitize_text_field(wp_unslash($_POST['ctwpml_checkout_phone_country'])) : '',
+			'dial_code' => isset($_POST['ctwpml_checkout_dial_code']) && is_string($_POST['ctwpml_checkout_dial_code'])
+				? sanitize_text_field(wp_unslash($_POST['ctwpml_checkout_dial_code'])) : '',
+		];
+	} elseif ($user_id > 0) {
+		$contact = [
+			'phone_full' => get_user_meta($user_id, '_ctwpml_phone_full', true),
+			'country_code' => get_user_meta($user_id, '_ctwpml_country_code', true),
+			'dial_code' => get_user_meta($user_id, '_ctwpml_dial_code', true),
+		];
+	} else {
+		$contact = ctwpml_guest_contact_meta_get();
+	}
+
+	$full = (string) ($contact['phone_full'] ?? '');
+	$dial_code = ctwpml_contact_dial_code((string) ($contact['dial_code'] ?? ''), $full);
+	$shape = ctwpml_contact_phone_for_woo('', $full, (string) ($contact['country_code'] ?? ''));
+	$phone = preg_replace('/\D+/', '', (string) ($data['billing_cellphone'] ?? $order->get_meta('_billing_cellphone')));
+	if ($phone === '') {
+		$phone = preg_replace('/\D+/', '', (string) $order->get_billing_phone());
+	}
+
+	// Um pedido reaproveitado pelo WooCommerce pode ter sido iniciado com outro telefone.
+	if ($dial_code === '' || !$shape['valid'] || $shape['woo_digits'] !== $phone) {
+		$order->delete_meta_data('_ctwpml_dial_code');
+		return;
+	}
+	$order->update_meta_data('_ctwpml_dial_code', $dial_code);
+}, 20, 2);
+
+add_filter('woocommerce_webhook_payload', function ($payload, $resource, $resource_id) {
+	if ($resource !== 'order' || !is_array($payload)) {
+		return $payload;
+	}
+	$order = wc_get_order($resource_id);
+	$dial_code = $order instanceof WC_Order ? (string) $order->get_meta('_ctwpml_dial_code') : '';
+	if ($dial_code !== '') {
+		$payload['dial_code'] = $dial_code;
+	}
+	return $payload;
+}, 10, 3);
+
 add_action('woocommerce_checkout_process', function (): void {
 	$session = function_exists('ctwpml_get_wc_session') ? ctwpml_get_wc_session() : null;
 	if (!$session) {

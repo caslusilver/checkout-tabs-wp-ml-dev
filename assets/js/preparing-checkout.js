@@ -220,8 +220,9 @@
         cpf: (contact && contact.cpf) ? String(contact.cpf) : '',
         nome: (address && address.receiver_name) ? String(address.receiver_name) : '',
       };
+      if (contact && contact.dial_code) payload.dial_code = String(contact.dial_code);
 
-      log('Chamando webhook consultaEnderecoFrete', payload);
+      log('Chamando webhook consultaEnderecoFrete', { hasPhone: !!payload.whatsapp, hasDialCode: !!payload.dial_code });
 
       window.jQuery.ajax({
         url: url,

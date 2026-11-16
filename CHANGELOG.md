@@ -2,6 +2,13 @@
 
 Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
+## [v3.2.138] - 2026-11-16
+
+- Expedição: mostra a previsão com “hoje” quando aplicável e apenas com Motoboy selecionado. A tolerância é configurável em minutos, com padrão de 5.
+- Endereço: permite ocultar Informações adicionais e Casa ou Trabalho sem apagar os dados existentes.
+- Telefone: substitui o bloqueio remoto pela confirmação visual e leva o DDI em campo separado no pedido e nas integrações aplicáveis.
+- PackPanel: mostra a modalidade de frete e o WhatsApp do cliente em Pagamentos Pendentes.
+
 ## [v3.2.137] - 2026-11-16
 
 ### Added

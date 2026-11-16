@@ -7,12 +7,30 @@ if (!defined('ABSPATH')) {
 const CHECKOUT_TABS_WP_ML_SETTINGS_GROUP = 'checkout_tabs_wp_ml';
 const CHECKOUT_TABS_WP_ML_SETTINGS_PAGE  = 'checkout-tabs-wp-ml';
 
+function ctwpml_address_field_enabled(string $field): bool {
+	return (string) get_option('checkout_tabs_wp_ml_show_address_' . $field, '1') === '1';
+}
+
 add_action('admin_init', function () {
 	register_setting(CHECKOUT_TABS_WP_ML_SETTINGS_GROUP, 'checkout_tabs_wp_ml_dispatch_schedule', [
 		'type' => 'array',
 		'sanitize_callback' => 'ctwpml_sanitize_dispatch_schedule',
 		'default' => [],
 	]);
+	register_setting(CHECKOUT_TABS_WP_ML_SETTINGS_GROUP, 'checkout_tabs_wp_ml_dispatch_grace', [
+		'type' => 'integer',
+		'sanitize_callback' => 'ctwpml_sanitize_dispatch_grace',
+		'default' => 5,
+	]);
+	foreach (['extra_info', 'label'] as $field) {
+		register_setting(CHECKOUT_TABS_WP_ML_SETTINGS_GROUP, 'checkout_tabs_wp_ml_show_address_' . $field, [
+			'type' => 'integer',
+			'sanitize_callback' => static function ($value): int {
+				return $value === '0' || $value === 0 ? 0 : 1;
+			},
+			'default' => 1,
+		]);
+	}
 });
 
 function checkout_tabs_wp_ml_get_option(string $key, $default = null) {
