@@ -357,6 +357,20 @@ class PPWOO_PackingPanel {
 
             case 'payment_confirm':
             case 'payment_deny':
+                if ($order->get_status() !== 'pending') {
+                    wp_send_json_error('O pedido já não está com pagamento pendente. Atualize o painel.', 409);
+                }
+                if (get_option('ppwoo_payment_action_mode', 'external') === 'local') {
+                    $new_status = $webhook_type === 'payment_confirm' ? 'processing' : 'cancelled';
+                    $note = $webhook_type === 'payment_confirm'
+                        ? 'Pagamento conferido manualmente pelo operador no Painel de Empacotamento.'
+                        : 'Pedido cancelado manualmente pelo operador no Painel de Empacotamento.';
+                    $saved = $order->update_status($new_status, $note, true);
+                    if (!$saved || $order->get_status() !== $new_status) {
+                        wp_send_json_error('Não foi possível atualizar o status do pedido. Atualize o painel e tente novamente.', 500);
+                    }
+                    wp_send_json_success(['status' => $new_status, 'mode' => 'local']);
+                }
                 $status = $webhook_type === 'payment_confirm' ? 'confirm' : 'deny';
                 $result = PPWOO_Payments_Action_Service::send_payment_status($order, $status);
 

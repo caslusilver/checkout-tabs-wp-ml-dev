@@ -1916,8 +1916,10 @@
               }
 
               if (hasRenderOptions) {
+                state.dispatchNotice = String(resp.data.dispatch_notice || '');
                 var html = window.CCCheckoutTabs.AddressMlScreens.renderShippingOptions(it, resp.data.options, {
                   productThumbUrls: productThumbUrls,
+                  dispatchNotice: state.dispatchNotice,
                 });
                 $('#ctwpml-view-shipping').html(html);
               } else {
@@ -2787,6 +2789,8 @@
           if (methodId === 'flat_rate:3') $eta.addClass('is-motoboy');
         }
       } catch (eEta) {}
+
+      $('#ctwpml-review-dispatch').text(methodId === 'flat_rate:3' ? String(state.dispatchNotice || '') : '').toggle(methodId === 'flat_rate:3' && !!state.dispatchNotice);
 
       // Ícone dinâmico da modalidade: Motoboy vs Correios
       try {

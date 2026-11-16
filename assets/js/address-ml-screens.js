@@ -332,6 +332,7 @@
       thumbHtml +
       '  </div>' +
       optionsHtml +
+      (shippingOptions.some(function (opt) { return opt.id === 'flat_rate:3'; }) ? '<div class="ctwpml-dispatch-notice" role="status">' + escapeHtml(options.dispatchNotice || 'Horários de saída ainda não configurados. Consulte a loja sobre o próximo despacho.') + '</div>' : '') +
       '</div>' +
       '' +
       '<div class="ctwpml-shipping-footer">' +
@@ -638,6 +639,7 @@
       '      <div class="ctwpml-review-shipment-info">' +
       '        <div class="ctwpml-review-shipment-title" id="ctwpml-review-shipment-title"></div>' +
       '        <div class="ctwpml-review-shipment-eta ctwpml-shipping-option-label" id="ctwpml-review-shipment-eta"></div>' +
+      '        <div class="ctwpml-dispatch-notice" id="ctwpml-review-dispatch" style="display:none"></div>' +
       '        <div class="ctwpml-review-shipment-product" id="ctwpml-review-product-name"></div>' +
       '        <div class="ctwpml-review-shipment-qty" id="ctwpml-review-product-qty"></div>' +
       '      </div>' +

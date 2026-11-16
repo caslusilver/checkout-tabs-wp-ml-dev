@@ -947,6 +947,20 @@
     box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.28), 0 2px 5px rgba(0, 0, 0, 0.16);
 }
 
+.painel-empacotamento .ppwoo-swipe-action.is-peer-hidden {
+    display: none !important;
+}
+
+#tab-pagamentos .ppwoo-swipe-action[data-swipe-direction="left"] .ppwoo-swipe-thumb {
+    left: auto;
+    right: 4px;
+}
+
+#tab-pagamentos .ppwoo-swipe-action[data-swipe-direction="left"]::before {
+    left: auto;
+    right: 0;
+}
+
 .painel-empacotamento .ppwoo-swipe-action::before {
     position: absolute;
     top: 0;

@@ -2,6 +2,16 @@
 
 Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
+## [v3.2.137] - 2026-11-16
+
+### Added
+- Painel: confirmação manual de pagamento e cancelamento do pedido por gestos opostos, com opção para alternar entre atualização local do WooCommerce e webhook existente.
+- Checkout: configuração de saídas por dia da semana e aviso destacado da próxima saída de Motoboy, separado do prazo de entrega retornado pelo frete.
+
+### Changed
+- Ações da aba Pagamentos Pendentes exigem deslizar até o fim, evitando toques acidentais. O modo externo continua sendo o padrão.
+- Horários começam vazios e são definidos pelo operador na nova aba Horários; corte de cinco minutos após cada saída, usando o fuso do WordPress.
+
 ## [v3.2.136] - 2026-10-19
 
 ### Improved
