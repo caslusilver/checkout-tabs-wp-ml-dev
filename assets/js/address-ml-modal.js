@@ -5225,7 +5225,10 @@
       var $dialog = $('<dialog class="ctwpml-phone-confirmation" aria-labelledby="ctwpml-phone-confirm-title">' +
         '<strong id="ctwpml-phone-confirm-title">Seu número está correto?</strong>' +
         '<p class="ctwpml-phone-confirm-number"></p>' +
-        '<label class="ctwpml-phone-confirm-editor" hidden><span>Corrija o telefone, incluindo o código do país se necessário</span><input type="tel" autocomplete="tel" inputmode="tel" aria-label="Corrigir telefone"></label>' +
+        '<div class="ctwpml-phone-confirm-editor" hidden>' +
+          '<label><span>DDI</span><input class="ctwpml-phone-confirm-dial" type="tel" inputmode="numeric" autocomplete="tel-country-code" maxlength="4" aria-label="Código do país"></label>' +
+          '<label><span>Número de telefone</span><input class="ctwpml-phone-confirm-national" type="tel" inputmode="tel" autocomplete="tel-national" aria-label="Número de telefone"></label>' +
+        '</div>' +
         '<p class="ctwpml-phone-confirm-error" role="alert" hidden></p>' +
         '<div class="ctwpml-phone-confirm-actions">' +
         '<button type="button" class="ctwpml-phone-edit">Não está certo</button>' +
@@ -5241,7 +5244,12 @@
       }
       phoneConfirmationPending = true;
       $dialog.find('.ctwpml-phone-confirm-number').text(phone.display);
-      $dialog.find('.ctwpml-phone-confirm-editor input').val(phone.full || phone.display.replace(/^\+?\d+\s*/, ''));
+      var initialPhoneDigits = String(phone.key || '').split('|')[1] || '';
+      var initialNationalDisplay = phone.country === 'BR'
+        ? formatPhone(initialPhoneDigits)
+        : (initialPhoneDigits.match(/.{1,3}/g) || []).join(' ');
+      $dialog.find('.ctwpml-phone-confirm-dial').val(phone.dialCode || '');
+      $dialog.find('.ctwpml-phone-confirm-national').val(initialNationalDisplay);
       $dialog.on('click', '.ctwpml-phone-edit', function () {
         var $editor = $dialog.find('.ctwpml-phone-confirm-editor');
         $editor.prop('hidden', false);
@@ -5249,26 +5257,25 @@
         $dialog.find('.ctwpml-phone-confirm-error').prop('hidden', true).text('');
         $dialog.find('.ctwpml-phone-edit').prop('hidden', true);
         $dialog.find('.ctwpml-phone-confirm').text('Salvar e confirmar');
-        $editor.find('input').trigger('focus');
+        $editor.find('.ctwpml-phone-confirm-national').trigger('focus');
       });
       $dialog.on('click', '.ctwpml-phone-confirm', function () {
         if (!$dialog.find('.ctwpml-phone-confirm-editor').prop('hidden')) {
-          var editedValue = String($dialog.find('.ctwpml-phone-confirm-editor input').val() || '').trim();
+          var editedDialCode = String($dialog.find('.ctwpml-phone-confirm-dial').val() || '').trim();
+          var editedNational = String($dialog.find('.ctwpml-phone-confirm-national').val() || '').trim();
+          var editedDialDigits = editedDialCode.replace(/\D/g, '');
+          var editedNationalDigits = editedNational.replace(/\D/g, '');
+          var editedValue = editedDialDigits ? ('+' + editedDialDigits + editedNationalDigits) : '';
           var editedShape = window.CCCheckoutTabs.normalizePhoneForCheckout(editedValue, phone.country);
-          if (!editedShape.valid || !ctwpmlIsCheckoutPhoneReady(editedValue, phone.country)) {
+          if (!editedDialDigits || editedDialDigits.length > 3 || !editedShape.valid || !ctwpmlIsCheckoutPhoneReady(editedValue, phone.country)) {
             $dialog.find('.ctwpml-phone-confirm-error').text('Confira o número e tente novamente.').prop('hidden', false);
             return;
           }
           var widget = window.ctwpmlPhoneWidget;
-          if (widget && editedValue.charAt(0) === '+' && typeof widget.setPhoneFull === 'function') {
+          if (widget && typeof widget.setPhoneFull === 'function') {
             widget.setPhoneFull(editedValue);
-          } else if (widget && typeof widget.setNationalDigits === 'function') {
-            widget.setNationalDigits(phone.country, editedValue.replace(/\D/g, ''));
           } else {
-            var fullEditedValue = editedValue.charAt(0) === '+'
-              ? '+' + editedValue.replace(/\D/g, '')
-              : phone.dialCode + editedShape.wooDigits;
-            $('#ctwpml-phone-full').val(fullEditedValue).trigger('input').trigger('change');
+            $('#ctwpml-phone-full').val(editedValue).trigger('input').trigger('change');
             $('#ctwpml-input-fone').val(editedShape.country === 'BR' ? formatPhone(editedShape.wooDigits) : (editedShape.wooDigits.match(/.{1,3}/g) || []).join(' ')).trigger('input').trigger('change');
             $('#billing_cellphone').val(editedShape.wooDigits).trigger('change');
             $('#billing_phone').val(editedShape.wooDigits).trigger('change');
@@ -8978,43 +8985,36 @@
         var viewportH = vv ? (vv.height || window.innerHeight) : window.innerHeight;
         var viewportBottom = vv ? ((vv.offsetTop || 0) + viewportH) : window.innerHeight;
 
-        var padding = 16;
-        // v3.2.52 (UX): auto-scroll por proporção
-        // Objetivo: deixar ~80% de espaço abaixo do campo (campo perto de ~20% do topo do viewport).
-        // Mantemos compat com topOffsetPx (assinatura antiga), mas a regra principal é proporcional.
-        var desiredTop = viewportTop + Math.round(viewportH * 0.2);
-        var minTop = Math.max(bodyRect.top, viewportTop) + 12;
-        var maxTop = Math.min(bodyRect.bottom, viewportBottom) - footerH - padding - 40;
-        if (maxTop < minTop) maxTop = minTop + 10;
-        if (desiredTop < minTop) desiredTop = minTop;
-        if (desiredTop > maxTop) desiredTop = maxTop;
-        var visibleTop = desiredTop;
+        var padding = 12;
+        var visibleTop = Math.max(bodyRect.top, viewportTop) + padding;
         var visibleBottom = Math.min(bodyRect.bottom, viewportBottom) - footerH - padding;
-        if (visibleBottom < visibleTop) visibleBottom = visibleTop + 10;
+        if (visibleBottom <= visibleTop) return;
+        var visibleHeight = visibleBottom - visibleTop;
+        var targetHeight = Math.min(Math.max(1, tRect.height), visibleHeight);
+        var minCenter = visibleTop + (targetHeight / 2);
+        var maxCenter = visibleBottom - (targetHeight / 2);
+        var desiredCenter = visibleTop + (visibleHeight / 2);
+        desiredCenter = Math.max(minCenter, Math.min(maxCenter, desiredCenter));
+        var desiredTop = desiredCenter - (targetHeight / 2);
 
         var shouldScroll = false;
         var nextTop = bodyEl.scrollTop;
         var delta = 0;
 
-        // Para foco: só ajusta se sair da janela visível (evita “pulos” desnecessários).
-        // Para cliques no DDI/wrap: preferimos alinhar o input no topo desejado para sobrar espaço para o dropdown abrir para baixo.
+        // No foco do teclado, mantém o controle no centro da área visível entre cabeçalho,
+        // teclado e rodapé. Para o DDI, preserva espaço abaixo para o menu do seletor.
         var forceAlign = String(reason || '').indexOf('ddi') >= 0;
         if (forceAlign) {
-          delta = (tRect.top - visibleTop);
+          delta = (tRect.top - (visibleTop + 8));
           if (Math.abs(delta) > 10) {
-            nextTop = Math.max(0, bodyEl.scrollTop + delta);
+            nextTop = Math.max(0, Math.min(bodyEl.scrollHeight - bodyEl.clientHeight, bodyEl.scrollTop + delta));
             shouldScroll = true;
           }
         } else {
-          if (tRect.top < visibleTop) {
-            delta = (tRect.top - visibleTop) - 12;
-            nextTop = Math.max(0, bodyEl.scrollTop + delta);
-            shouldScroll = true;
-          } else if (tRect.bottom > visibleBottom) {
-            // Em vez de “empurrar” só até caber, alinhamos o topo no ponto desejado (20%).
-            delta = (tRect.top - visibleTop);
-            nextTop = Math.max(0, bodyEl.scrollTop + delta);
-            shouldScroll = true;
+          delta = ((tRect.top + tRect.bottom) / 2) - desiredCenter;
+          if (Math.abs(delta) > 10) {
+            nextTop = Math.max(0, Math.min(bodyEl.scrollHeight - bodyEl.clientHeight, bodyEl.scrollTop + delta));
+            shouldScroll = Math.abs(nextTop - bodyEl.scrollTop) > 2;
           }
         }
 
@@ -9066,6 +9066,23 @@
         }, 260);
       } catch (e3) {}
     });
+
+    var ctwpmlFocusCenterTimer = 0;
+    function ctwpmlScheduleFocusedFieldCentering() {
+      if (!ctwpmlMobileForm) return;
+      if (ctwpmlFocusCenterTimer) clearTimeout(ctwpmlFocusCenterTimer);
+      ctwpmlFocusCenterTimer = setTimeout(function () {
+        ctwpmlFocusCenterTimer = 0;
+        var active = document.activeElement;
+        if (active && $('#ctwpml-view-form').is(':visible') && $('#ctwpml-view-form').has(active).length) {
+          ctwpmlAutoScrollInModal(active, 'viewport_settled');
+        }
+      }, 120);
+    }
+
+    if (ctwpmlMobileForm && window.visualViewport) {
+      window.visualViewport.addEventListener('resize', ctwpmlScheduleFocusedFieldCentering);
+    }
 
     // Auto-scroll também ao tocar no seletor de DDI (TomSelect) - faz parte do mesmo campo.
     $(document).on('click', '.ctwpml-phone-wrap, .ctwpml-phone-wrap .ts-control, .ctwpml-phone-wrap .ts-wrapper', function (e) {

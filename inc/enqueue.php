@@ -4,6 +4,32 @@ if (!defined('ABSPATH')) {
 	exit;
 }
 
+add_action('wp_head', function () {
+	if (!function_exists('is_checkout') || !is_checkout() || (function_exists('is_wc_endpoint_url') && is_wc_endpoint_url())) {
+		return;
+	}
+	?>
+	<script id="ctwpml-checkout-viewport">
+	(function () {
+		try {
+			var viewport = document.querySelector('meta[name="viewport"]');
+			if (!viewport) {
+				viewport = document.createElement('meta');
+				viewport.setAttribute('name', 'viewport');
+				document.head.appendChild(viewport);
+			}
+			var content = viewport.getAttribute('content') || 'width=device-width, initial-scale=1';
+			var settings = content.split(',').map(function (setting) { return setting.trim(); }).filter(function (setting) {
+				return !/^(maximum-scale|user-scalable)\s*=/i.test(setting);
+			});
+			settings.push('maximum-scale=1', 'user-scalable=no');
+			viewport.setAttribute('content', settings.join(', '));
+		} catch (error) {}
+	})();
+	</script>
+	<?php
+}, 99);
+
 add_action('wp_enqueue_scripts', function () {
 	if (!function_exists('is_checkout') || !is_checkout() || (function_exists('is_wc_endpoint_url') && is_wc_endpoint_url())) {
 		return;

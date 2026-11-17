@@ -55,7 +55,13 @@ add_action('wp_footer', function () {
 						<input type="email" id="ctwpml-login-email" autocomplete="username">
 
 						<label for="ctwpml-login-password" class="ctwpml-popup-h3">Senha</label>
-						<input type="password" id="ctwpml-login-password" autocomplete="current-password">
+						<div class="ctwpml-password-field">
+							<input type="password" id="ctwpml-login-password" autocomplete="current-password">
+							<button type="button" class="ctwpml-password-toggle" aria-label="Mostrar senha" aria-controls="ctwpml-login-password" aria-pressed="false" title="Mostrar senha">
+								<svg class="ctwpml-password-eye ctwpml-password-eye-show" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 5c-5 0-9.27 3.11-11 7 1.73 3.89 6 7 11 7s9.27-3.11 11-7c-1.73-3.89-6-7-11-7Zm0 12a5 5 0 1 1 0-10 5 5 0 0 1 0 10Zm0-2.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z"/></svg>
+								<svg class="ctwpml-password-eye ctwpml-password-eye-hide" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m3.27 2 18.7 18.7-1.42 1.42-3.23-3.23A12.2 12.2 0 0 1 12 20C7 20 2.73 16.89 1 13c.77-1.73 2.03-3.25 3.64-4.44L1.86 3.42 3.27 2Zm8.73 4c5 0 9.27 3.11 11 7a12.4 12.4 0 0 1-4.16 4.77l-2.9-2.9a5 5 0 0 0-6.8-6.8L7.4 6.33A12.2 12.2 0 0 1 12 6Zm0 2.5a4.5 4.5 0 0 1 4.5 4.5c0 .46-.07.9-.2 1.31l-5.61-5.61c.41-.13.85-.2 1.31-.2Z"/></svg>
+							</button>
+						</div>
 
 						<div class="ctwpml-auth-footer" style="text-align: left; margin: 10px 0 8px;">
 							<a href="<?php echo esc_url(site_url('wp-login.php?action=lostpassword', 'login')); ?>" class="ctwpml-auth-link">Perdeu a senha?</a>

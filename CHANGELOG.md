@@ -2,6 +2,12 @@
 
 Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
+## [v3.2.140] - 2026-11-17
+
+- Checkout mobile: mantém o campo em foco centralizado na área visível após a abertura do teclado e evita o zoom automático e por pinça.
+- Login: adiciona controle acessível para mostrar ou ocultar a senha.
+- Confirmação do telefone: separa o DDI do número e apresenta os dígitos agrupados para facilitar a leitura.
+
 ## [v3.2.139] - 2026-11-17
 
 - Checkout: confirmação do telefone pode ser editada no próprio diálogo e fica lembrada durante o login, sem repetir para o mesmo número.

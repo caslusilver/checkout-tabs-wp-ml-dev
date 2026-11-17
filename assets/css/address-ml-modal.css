@@ -690,12 +690,23 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
 
 .ctwpml-phone-confirm-editor {
   display: grid;
-  gap: 8px;
+  grid-template-columns: minmax(76px, 96px) minmax(0, 1fr);
+  gap: 10px;
   margin: 14px 0;
   text-align: left;
   color: #222 !important;
   font-size: 14px;
   font-weight: 600;
+}
+
+.ctwpml-phone-confirm-editor label {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  margin: 0;
+  color: #222 !important;
+  font-size: 13px;
+  font-weight: 700;
 }
 
 .ctwpml-phone-confirm-editor[hidden],
@@ -713,7 +724,14 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
   border-radius: 8px !important;
   background: #fff !important;
   color: #171717 !important;
-  font: inherit;
+  font-family: inherit;
+  font-weight: 500;
+  font-size: 16px !important;
+  line-height: 1.35 !important;
+}
+
+.ctwpml-phone-confirm-editor label:first-child input {
+  text-align: center;
 }
 
 .ctwpml-phone-confirm-editor input:focus {
@@ -755,6 +773,17 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
 .ctwpml-phone-confirm-actions button:focus-visible {
   outline: 3px solid #111 !important;
   outline-offset: 3px;
+}
+
+@media (max-width: 380px) {
+  .ctwpml-phone-confirmation {
+    padding: 20px !important;
+  }
+
+  .ctwpml-phone-confirm-editor {
+    grid-template-columns: minmax(68px, 82px) minmax(0, 1fr);
+    gap: 8px;
+  }
 }
 
 .ctwpml-shipping-package {
@@ -957,6 +986,15 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
 #ctwpml-view-form .ctwpml-form-group input,
 #ctwpml-view-form .ctwpml-form-group textarea {
   border: 2px solid #bbbbbb !important;
+  font-size: 16px !important;
+  line-height: 1.4 !important;
+}
+
+#ctwpml-view-form .ctwpml-phone-wrap input,
+#ctwpml-view-form .ctwpml-phone-wrap .ts-control,
+#ctwpml-view-form .ctwpml-phone-wrap .ts-control input {
+  font-size: 16px !important;
+  line-height: 1.4 !important;
 }
 
 #ctwpml-view-form .ctwpml-phone-wrap {
