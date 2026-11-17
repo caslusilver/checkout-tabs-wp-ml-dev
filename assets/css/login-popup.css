@@ -184,6 +184,62 @@
   background-color: #fff !important;
 }
 
+.ctwpml-password-field {
+  position: relative;
+  width: 100%;
+}
+
+.ctwpml-auth-form .ctwpml-password-field input#ctwpml-login-password {
+  box-sizing: border-box !important;
+  padding-right: 48px !important;
+  font-size: 16px !important;
+  line-height: 1.4 !important;
+}
+
+.ctwpml-password-toggle,
+.ctwpml-password-toggle:hover,
+.ctwpml-password-toggle:focus,
+.ctwpml-password-toggle:active {
+  position: absolute !important;
+  top: 50% !important;
+  right: 6px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 36px !important;
+  height: 36px !important;
+  margin: 0 !important;
+  padding: 6px !important;
+  transform: translateY(-50%) !important;
+  border: 1px solid #6b7280 !important;
+  border-radius: 6px !important;
+  background: #fff !important;
+  color: #1d2327 !important;
+  box-shadow: none !important;
+  opacity: 1 !important;
+  cursor: pointer !important;
+}
+
+.ctwpml-password-toggle:focus-visible {
+  outline: 2px solid #005fcc !important;
+  outline-offset: 2px !important;
+}
+
+.ctwpml-password-eye {
+  width: 20px;
+  height: 20px;
+  fill: currentColor;
+}
+
+.ctwpml-password-eye-hide,
+.ctwpml-password-toggle[aria-pressed="true"] .ctwpml-password-eye-show {
+  display: none;
+}
+
+.ctwpml-password-toggle[aria-pressed="true"] .ctwpml-password-eye-hide {
+  display: block;
+}
+
 .ctwpml-auth-cpf-row {
   display: flex;
   align-items: center;
