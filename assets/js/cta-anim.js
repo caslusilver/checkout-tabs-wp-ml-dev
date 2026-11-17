@@ -57,8 +57,6 @@
       enabled = !!(window.cc_params.cta_anim === 1 || window.cc_params.cta_anim === '1' || window.cc_params.cta_anim === true);
     }
   } catch (e) { }
-  if (!enabled) return;
-
   var SELECTOR = '#ctwpml-review-confirm, #ctwpml-review-confirm-sticky';
   var CLS_LOADING = 'ctwpml-cta-loading';
   var CLS_SUCCESS = 'ctwpml-cta-success';
@@ -145,7 +143,7 @@
     if (document.getElementById(OVERLAY_ID)) return;
     $('body').append(
       '' +
-      '<div id="' + OVERLAY_ID + '" aria-hidden="true">' +
+      '<div id="' + OVERLAY_ID + '" role="status" aria-live="assertive" aria-hidden="true" tabindex="-1">' +
       '  <div class="ctwpml-success-message">' +
       '    <h1>Pedido Confirmado!</h1>' +
       '    <p>Você será redirecionado para efetuar o pagamento...</p>' +
@@ -156,6 +154,15 @@
       '  </div>' +
       '</div>'
     );
+    var overlay = document.getElementById(OVERLAY_ID);
+    if (overlay) {
+      overlay.addEventListener('keydown', function (event) {
+        if (event.key === 'Tab') {
+          event.preventDefault();
+          overlay.focus();
+        }
+      });
+    }
   }
 
   function showOverlay(source) {
@@ -167,6 +174,7 @@
       return;
     }
     $ov.addClass(OVERLAY_VISIBLE);
+    $ov.attr('aria-hidden', 'false');
     anim.overlayShownAt = Date.now();
     startOverlayProgress();
     var afterClick = msSinceClick();
@@ -185,6 +193,7 @@
     if (!$ov.length) return;
     stopOverlayProgress();
     $ov.removeClass(OVERLAY_VISIBLE);
+    $ov.attr('aria-hidden', 'true');
   }
 
   function startAnimation($btn) {
@@ -216,8 +225,8 @@
         log('CTA expand state', { afterClickMs: t2 });
 
         anim.t3 = setTimeout(function () {
-          // Só mostra a tela de sucesso após a expansão completar.
-          showOverlay('expand_done');
+          // A tela verde só aparece quando o WooCommerce confirmar o pedido.
+          checkpoint('CHK_CTA_ANIMATION_READY_FOR_CHECKOUT_RESULT', true, { afterClickMs: msSinceClick() });
         }, DUR_EXPAND_MS);
       }, DUR_SUCCESS_MS);
     }, DUR_LOADING_MS);
@@ -228,6 +237,7 @@
     try {
       var $btn = $(this);
       var s = getState();
+      if (!enabled) return;
       if (s && s.ctaManual === true) return;
       if ($btn.is(':disabled')) return;
       if ($btn.hasClass(CLS_LOADING) || $btn.hasClass(CLS_SUCCESS)) return;
@@ -239,6 +249,9 @@
   $(document.body).on('checkout_error', function () {
     checkpoint('CHK_CTA_CHECKOUT_ERROR_EVENT', true, {});
     resetCtas();
+    try {
+      if (window.CTWPMLPrepare && typeof window.CTWPMLPrepare.hidePreparingOverlay === 'function') window.CTWPMLPrepare.hidePreparingOverlay();
+    } catch (e0) {}
   });
 
   // Se o usuário voltar e re-renderizar a tela, garantir que o estado visual não fique preso.
@@ -303,6 +316,8 @@
         status: jqXHR ? jqXHR.status : null,
         statusText: jqXHR ? String(jqXHR.statusText || '') : '',
       });
+      resetCtas();
+      if (window.CTWPMLPrepare && typeof window.CTWPMLPrepare.hidePreparingOverlay === 'function') window.CTWPMLPrepare.hidePreparingOverlay();
     } catch (e) { }
   });
 
@@ -341,6 +356,7 @@
       // Se o Woo respondeu com failure, não mantém a tela verde.
       if (parsed && parsed.result && String(parsed.result).toLowerCase() === 'failure') {
         hideOverlay();
+        if (window.CTWPMLPrepare && typeof window.CTWPMLPrepare.hidePreparingOverlay === 'function') window.CTWPMLPrepare.hidePreparingOverlay();
         // Não resetamos tudo aqui porque o handler do modal já lida com checkout_error,
         // mas se não vier checkout_error, garantimos que o overlay não fique preso.
         resetCtas();
@@ -366,6 +382,18 @@
     try {
       var $btn = btn && btn.jquery ? btn : $(btn);
       startAnimation($btn && $btn.length ? $btn : null);
+    } catch (e) {}
+  };
+  window.CTWPMLCtaAnim.completeSuccess = function () {
+    try {
+      clearTimers();
+      anim.active = false;
+      $(SELECTOR).removeClass(CLS_LOADING + ' ' + CLS_SUCCESS + ' ' + CLS_EXPAND);
+      showOverlay('checkout_success');
+      stopOverlayProgress();
+      setOverlayProgress(100);
+      var overlay = document.getElementById(OVERLAY_ID);
+      if (overlay && typeof overlay.focus === 'function') overlay.focus();
     } catch (e) {}
   };
   window.CTWPMLCtaAnim.reset = resetCtas;
