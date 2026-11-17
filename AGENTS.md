@@ -111,6 +111,14 @@ O CSS do plugin deve vencer conflitos do WordPress, Elementor, tema e estilos in
 - Endpoints AJAX devem validar nonce e capacidade do usuário no servidor, mesmo quando a interface já bloqueia o acesso.
 - Nunca registrar dados sensíveis, tokens, CPFs, e-mails completos ou payloads de pagamento em logs de debug.
 
+## Padrão de experiência no checkout
+
+- Em componentes do plugin, as cores próprias e o contraste precisam prevalecer sobre Elementor, tema e estilos inline; escopar regras ao componente, usar `!important` nas propriedades críticas e cobrir hover, foco e ativo.
+- Pedidos de confirmação devem permitir corrigir o dado no mesmo diálogo quando isso for viável; ao confirmar, sincronizar o valor corrigido com o campo original e com o checkout antes de continuar.
+- Confirmações concluídas antes do login devem sobreviver ao retorno da autenticação durante a sessão, associadas ao valor confirmado; pedir novamente somente se o dado mudar ou expirar.
+- Distinguir visualmente “processando” de “concluído”: manter um indicador neutro e bloqueante durante o envio lento, e exibir a animação verde de sucesso apenas depois de uma resposta de sucesso do WooCommerce. Erro deve liberar a tela e permitir nova tentativa.
+- Preservar animações e feedback existentes. Antes de removê-los, rastrear seu acionamento e corrigir a integração entre estados.
+
 ## Validação mínima
 
 Executar o que estiver disponível e relatar claramente o que não for possível:

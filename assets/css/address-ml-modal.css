@@ -662,11 +662,13 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
   box-sizing: border-box;
   width: min(360px, calc(100% - 32px));
   padding: 24px;
-  border: 0;
-  border-radius: 16px;
-  background: #fff;
-  color: #222;
+  border: 0 !important;
+  border-radius: 16px !important;
+  background: #fff !important;
+  color: #222 !important;
   text-align: center;
+  font-family: inherit;
+  box-shadow: 0 18px 60px rgba(0, 0, 0, .28) !important;
 }
 
 .ctwpml-phone-confirmation::backdrop {
@@ -686,19 +688,73 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
   gap: 8px;
 }
 
-.ctwpml-phone-confirm-actions button {
-  padding: 8px 12px;
-  border: 1px solid #333;
-  border-radius: 8px;
-  color: #222;
-  background: #fff;
+.ctwpml-phone-confirm-editor {
+  display: grid;
+  gap: 8px;
+  margin: 14px 0;
+  text-align: left;
+  color: #222 !important;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.ctwpml-phone-confirm-editor[hidden],
+.ctwpml-phone-confirm-error[hidden],
+.ctwpml-phone-confirm-actions button[hidden] {
+  display: none !important;
+}
+
+.ctwpml-phone-confirm-editor input {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 46px;
+  padding: 10px 12px;
+  border: 2px solid #555 !important;
+  border-radius: 8px !important;
+  background: #fff !important;
+  color: #171717 !important;
+  font: inherit;
+}
+
+.ctwpml-phone-confirm-editor input:focus {
+  outline: 3px solid #2458a6 !important;
+  outline-offset: 2px;
+}
+
+.ctwpml-phone-confirm-error {
+  margin: 8px 0;
+  color: #a40000 !important;
+  font-weight: 700;
+}
+
+.ctwpml-phone-confirm-actions button,
+.ctwpml-phone-confirm-actions button:hover,
+.ctwpml-phone-confirm-actions button:focus,
+.ctwpml-phone-confirm-actions button:active {
+  min-height: 44px;
+  padding: 9px 14px;
+  border: 2px solid #2458a6 !important;
+  border-radius: 8px !important;
+  color: #174074 !important;
+  background: #fff !important;
+  opacity: 1 !important;
+  box-shadow: none !important;
   cursor: pointer;
 }
 
-.ctwpml-phone-confirm-actions .ctwpml-phone-confirm {
-  color: #fff;
-  background: #2458a6;
-  border-color: #2458a6;
+.ctwpml-phone-confirm-actions .ctwpml-phone-confirm,
+.ctwpml-phone-confirm-actions .ctwpml-phone-confirm:hover,
+.ctwpml-phone-confirm-actions .ctwpml-phone-confirm:focus,
+.ctwpml-phone-confirm-actions .ctwpml-phone-confirm:active {
+  border-color: #174074 !important;
+  color: #fff !important;
+  background: #174074 !important;
+  opacity: 1 !important;
+}
+
+.ctwpml-phone-confirm-actions button:focus-visible {
+  outline: 3px solid #111 !important;
+  outline-offset: 3px;
 }
 
 .ctwpml-shipping-package {
@@ -1737,9 +1793,11 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
   inset: 0;
   z-index: 10000000;
   display: none;
-  background: #00a650;
-  color: #fff;
+  background: #00a650 !important;
+  color: #fff !important;
   font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  pointer-events: auto;
+  cursor: wait;
 }
 
 #ctwpml-success-overlay.ctwpml-success-overlay--visible {
@@ -1757,14 +1815,14 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
 #ctwpml-success-overlay .ctwpml-success-message h1 {
   font-size: 24px;
   margin: 0 0 10px;
-  color: #fff;
+  color: #fff !important;
 }
 
 #ctwpml-success-overlay .ctwpml-success-message p {
   font-size: 16px;
   opacity: 0.9;
   margin: 0;
-  color: #fff;
+  color: #fff !important;
 }
 
 #ctwpml-success-overlay .ctwpml-success-progress {

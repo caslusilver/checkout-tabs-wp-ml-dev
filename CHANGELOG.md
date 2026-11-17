@@ -2,6 +2,12 @@
 
 Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
+## [v3.2.139] - 2026-11-17
+
+- Checkout: confirmação do telefone pode ser editada no próprio diálogo e fica lembrada durante o login, sem repetir para o mesmo número.
+- Checkout: mantém um indicador de carregamento neutro durante o envio e só mostra a tela verde após a resposta de sucesso do WooCommerce.
+- Interface: reforça contraste e prioridade visual dos botões de confirmação do telefone diante dos estilos do tema e do Elementor.
+
 ## [v3.2.138] - 2026-11-16
 
 - Expedição: mostra a previsão com “hoje” quando aplicável e apenas com Motoboy selecionado. A tolerância é configurável em minutos, com padrão de 5.

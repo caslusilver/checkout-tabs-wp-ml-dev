@@ -197,7 +197,9 @@
     var CTWPML_ORDER_COMPLETED_KEY = 'ctwpml_ml_order_completed_v1';
     var CTWPML_AUTH_RESUME_KEY = 'ctwpml_auth_resume_v1';
     var CTWPML_FORM_STATE_KEY = 'ctwpml_ml_form_state_v1';
+    var CTWPML_CONFIRMED_PHONE_KEY = 'ctwpml_confirmed_phone_v1';
     var CTWPML_ORDER_COMPLETED_TTL_MS = 5 * 60 * 1000;
+    var CTWPML_CONFIRMED_PHONE_TTL_MS = 4 * 60 * 60 * 1000;
     var restoreStateOnOpen = null;
     var authResumeContext = null;
 
@@ -227,6 +229,36 @@
         var base = payload && typeof payload === 'object' ? payload : {};
         base.ts = Date.now();
         window.sessionStorage.setItem(CTWPML_AUTH_RESUME_KEY, JSON.stringify(base));
+      } catch (e) {}
+    }
+
+    function readConfirmedCheckoutPhone() {
+      try {
+        if (!window.sessionStorage) return '';
+        var raw = window.sessionStorage.getItem(CTWPML_CONFIRMED_PHONE_KEY);
+        if (!raw) return '';
+        var saved = JSON.parse(raw);
+        var age = Date.now() - Number(saved && saved.ts || 0);
+        if (!saved || !saved.key || age < 0 || age > CTWPML_CONFIRMED_PHONE_TTL_MS) {
+          window.sessionStorage.removeItem(CTWPML_CONFIRMED_PHONE_KEY);
+          return '';
+        }
+        return String(saved.key);
+      } catch (e) {
+        return '';
+      }
+    }
+
+    function saveConfirmedCheckoutPhone(phoneKey) {
+      try {
+        if (!window.sessionStorage || !phoneKey) return;
+        window.sessionStorage.setItem(CTWPML_CONFIRMED_PHONE_KEY, JSON.stringify({ key: String(phoneKey), ts: Date.now() }));
+      } catch (e) {}
+    }
+
+    function clearConfirmedCheckoutPhone() {
+      try {
+        if (window.sessionStorage) window.sessionStorage.removeItem(CTWPML_CONFIRMED_PHONE_KEY);
       } catch (e) {}
     }
 
@@ -294,6 +326,7 @@
           meta: meta || {},
         };
         window.sessionStorage.setItem(CTWPML_ORDER_COMPLETED_KEY, JSON.stringify(payload));
+        clearConfirmedCheckoutPhone();
         clearModalState();
         clearFormSnapshot();
         if (typeof state.checkpoint === 'function') {
@@ -4265,6 +4298,8 @@
           var wooDigits = phoneShape.wooDigits;
           var phoneKey = (ddiStr ? '+' + ddiStr : '') + '|' + wooDigits;
           if (state.confirmedPhoneValue !== phoneKey) state.confirmedPhoneValue = '';
+          var storedConfirmedPhone = readConfirmedCheckoutPhone();
+          if (storedConfirmedPhone && storedConfirmedPhone !== phoneKey) clearConfirmedCheckoutPhone();
           if (wooDigits) {
             var $cellphone = ctwpmlBillingField$('#billing_cellphone', 'billing_cellphone');
             var $phone = ctwpmlBillingField$('#billing_phone', 'billing_phone');
@@ -5181,14 +5216,19 @@
         onEdit();
         return false;
       }
-      if (state.confirmedPhoneValue === phone.key) return true;
+      if (state.confirmedPhoneValue === phone.key || readConfirmedCheckoutPhone() === phone.key) {
+        state.confirmedPhoneValue = phone.key;
+        return true;
+      }
       if (phoneConfirmationPending) return false;
 
       var $dialog = $('<dialog class="ctwpml-phone-confirmation" aria-labelledby="ctwpml-phone-confirm-title">' +
         '<strong id="ctwpml-phone-confirm-title">Seu número está correto?</strong>' +
         '<p class="ctwpml-phone-confirm-number"></p>' +
+        '<label class="ctwpml-phone-confirm-editor" hidden><span>Corrija o telefone, incluindo o código do país se necessário</span><input type="tel" autocomplete="tel" inputmode="tel" aria-label="Corrigir telefone"></label>' +
+        '<p class="ctwpml-phone-confirm-error" role="alert" hidden></p>' +
         '<div class="ctwpml-phone-confirm-actions">' +
-        '<button type="button" class="ctwpml-phone-edit">Editar número</button>' +
+        '<button type="button" class="ctwpml-phone-edit">Não está certo</button>' +
         '<button type="button" class="ctwpml-phone-confirm">Confirmar</button></div></dialog>');
       if (typeof $dialog[0].showModal !== 'function') {
         if (!window.confirm('Seu número está correto?\n\n' + phone.display)) {
@@ -5196,18 +5236,63 @@
           return false;
         }
         state.confirmedPhoneValue = phone.key;
+        saveConfirmedCheckoutPhone(phone.key);
         return true;
       }
       phoneConfirmationPending = true;
       $dialog.find('.ctwpml-phone-confirm-number').text(phone.display);
-      $dialog.on('click', '.ctwpml-phone-edit', function () { $dialog[0].close('edit'); });
-      $dialog.on('click', '.ctwpml-phone-confirm', function () { $dialog[0].close('confirm'); });
+      $dialog.find('.ctwpml-phone-confirm-editor input').val(phone.full || phone.display.replace(/^\+?\d+\s*/, ''));
+      $dialog.on('click', '.ctwpml-phone-edit', function () {
+        var $editor = $dialog.find('.ctwpml-phone-confirm-editor');
+        $editor.prop('hidden', false);
+        $dialog.find('.ctwpml-phone-confirm-number').hide();
+        $dialog.find('.ctwpml-phone-confirm-error').prop('hidden', true).text('');
+        $dialog.find('.ctwpml-phone-edit').prop('hidden', true);
+        $dialog.find('.ctwpml-phone-confirm').text('Salvar e confirmar');
+        $editor.find('input').trigger('focus');
+      });
+      $dialog.on('click', '.ctwpml-phone-confirm', function () {
+        if (!$dialog.find('.ctwpml-phone-confirm-editor').prop('hidden')) {
+          var editedValue = String($dialog.find('.ctwpml-phone-confirm-editor input').val() || '').trim();
+          var editedShape = window.CCCheckoutTabs.normalizePhoneForCheckout(editedValue, phone.country);
+          if (!editedShape.valid || !ctwpmlIsCheckoutPhoneReady(editedValue, phone.country)) {
+            $dialog.find('.ctwpml-phone-confirm-error').text('Confira o número e tente novamente.').prop('hidden', false);
+            return;
+          }
+          var widget = window.ctwpmlPhoneWidget;
+          if (widget && editedValue.charAt(0) === '+' && typeof widget.setPhoneFull === 'function') {
+            widget.setPhoneFull(editedValue);
+          } else if (widget && typeof widget.setNationalDigits === 'function') {
+            widget.setNationalDigits(phone.country, editedValue.replace(/\D/g, ''));
+          } else {
+            var fullEditedValue = editedValue.charAt(0) === '+'
+              ? '+' + editedValue.replace(/\D/g, '')
+              : phone.dialCode + editedShape.wooDigits;
+            $('#ctwpml-phone-full').val(fullEditedValue).trigger('input').trigger('change');
+            $('#ctwpml-input-fone').val(editedShape.country === 'BR' ? formatPhone(editedShape.wooDigits) : (editedShape.wooDigits.match(/.{1,3}/g) || []).join(' ')).trigger('input').trigger('change');
+            $('#billing_cellphone').val(editedShape.wooDigits).trigger('change');
+            $('#billing_phone').val(editedShape.wooDigits).trigger('change');
+          }
+          var updatedPhone = ctwpmlCheckoutPhoneDetails();
+          if (!updatedPhone.valid) {
+            $dialog.find('.ctwpml-phone-confirm-error').text('Confira o número e tente novamente.').prop('hidden', false);
+            return;
+          }
+          phone = updatedPhone;
+          $dialog.find('.ctwpml-phone-confirm-number').text(phone.display).show();
+          $dialog[0].close('confirm');
+          return;
+        }
+        $dialog[0].close('confirm');
+      });
       $dialog.on('close', function () {
         var confirmed = this.returnValue === 'confirm';
         $dialog.remove();
         phoneConfirmationPending = false;
         if (confirmed) {
+          phone = ctwpmlCheckoutPhoneDetails();
           state.confirmedPhoneValue = phone.key;
+          saveConfirmedCheckoutPhone(phone.key);
           onConfirm();
         } else {
           onEdit();
@@ -8503,17 +8588,15 @@
       proceedToCheckoutSubmit();
 
       function proceedToCheckoutSubmit() {
-      // v2.0 [2.2]: overlay de preparação ao tentar finalizar compra (intenção de compra).
-      // Importante: só mostra após validar termos + gateway para não “piscar” com erro imediato.
+      // Indicador neutro durante sincronização e envio; a tela verde é reservada para sucesso real.
       var prep = window.CTWPMLPrepare || null;
-      // Garantir que o overlay NÃO apareça ao confirmar compra (cinto de segurança).
       try {
-        if (prep && typeof prep.hidePreparingOverlay === 'function') {
-          prep.hidePreparingOverlay();
+        if (prep && typeof prep.showPreparingOverlay === 'function') {
+          prep.showPreparingOverlay('Finalizando seu pedido...');
         }
       } catch (eP0) {}
       if (typeof state.checkpoint === 'function') {
-        try { state.checkpoint('CHK_PREPARE_OVERLAY_FORCE_HIDE_ON_CONFIRM', true, {}); } catch (eC) {}
+        try { state.checkpoint('CHK_CHECKOUT_LOADING_SHOWN', true, {}); } catch (eC) {}
       }
       log('CTA click: iniciando finalização', { overlayShown: false, gateway: woo.getSelectedGatewayId ? woo.getSelectedGatewayId() : '' });
 
@@ -8725,6 +8808,7 @@
               var $cta = $('#ctwpml-review-confirm, #ctwpml-review-confirm-sticky');
               if ($cta.length && $cta.is(':disabled')) {
                 $cta.prop('disabled', false).css('opacity', '');
+                if (window.CTWPMLCtaAnim && typeof window.CTWPMLCtaAnim.reset === 'function') window.CTWPMLCtaAnim.reset();
                 if (prep && typeof prep.hidePreparingOverlay === 'function') prep.hidePreparingOverlay();
                 log('Watchdog: liberando CTA após timeout', { ms: 25000 });
                 if (typeof state.checkpoint === 'function') state.checkpoint('CHK_CTA_WATCHDOG_RELEASE', true, { ms: 25000 });
@@ -8781,6 +8865,10 @@
           result: result,
           redirect: payload && payload.redirect ? String(payload.redirect) : '',
         });
+        try {
+          if (window.CTWPMLPrepare && typeof window.CTWPMLPrepare.hidePreparingOverlay === 'function') window.CTWPMLPrepare.hidePreparingOverlay();
+          if (window.CTWPMLCtaAnim && typeof window.CTWPMLCtaAnim.completeSuccess === 'function') window.CTWPMLCtaAnim.completeSuccess();
+        } catch (e1) {}
       } catch (e0) {}
     });
 
