@@ -103,23 +103,74 @@ add_filter('woocommerce_checkout_customer_id', function ($customer_id, $checkout
 	return $user_id;
 }, 10, 2);
 
+function ctwpml_submitted_checkout_phone(): ?array {
+	if (!array_key_exists('ctwpml_checkout_phone_full', $_POST)) {
+		return null;
+	}
+	$read = static function (string $name): string {
+		$value = $_POST[$name] ?? null;
+		return is_string($value) ? sanitize_text_field(wp_unslash($value)) : '';
+	};
+	$full = $read('ctwpml_checkout_phone_full');
+	$country = strtoupper($read('ctwpml_checkout_phone_country'));
+	$dial = $read('ctwpml_checkout_dial_code');
+	if (!preg_match('/^\+[1-9]\d{7,14}$/D', $full) ||
+		!preg_match('/^[A-Z]{2}$/D', $country) ||
+		!preg_match('/^\+[1-9]\d{0,2}$/D', $dial) || ctwpml_contact_dial_code($dial, $full) === '') {
+		return [];
+	}
+
+	$shape = ctwpml_contact_phone_for_woo('', $full, $country, $dial);
+	if (!$shape['valid'] || $full !== $dial . $shape['woo_digits'] || ($dial === '+55') !== ($country === 'BR')) {
+		return [];
+	}
+
+	return [
+		'phone_full' => $full,
+		'country_code' => $country,
+		'dial_code' => $dial,
+		'whatsapp' => $shape['woo_digits'],
+	];
+}
+
+add_filter('woocommerce_checkout_posted_data', function (array $data): array {
+	$phone = ctwpml_submitted_checkout_phone();
+	if ($phone) {
+		$data['billing_cellphone'] = $phone['whatsapp'];
+		$data['billing_phone'] = $phone['whatsapp'];
+	}
+	return $data;
+}, PHP_INT_MAX);
+
+add_action('woocommerce_after_checkout_validation', function ($data, $errors): void {
+	if (ctwpml_submitted_checkout_phone() === []) {
+		$errors->add('ctwpml_invalid_checkout_phone', 'Confira o DDI e o número do telefone.', ['id' => 'billing_cellphone']);
+	}
+}, 20, 2);
+
 add_action('woocommerce_checkout_update_user_meta', function ($user_id): void {
 	if ($user_id && function_exists('ctwpml_migrate_guest_data_to_user')) {
 		ctwpml_migrate_guest_data_to_user((int) $user_id);
 	}
+	$phone = ctwpml_submitted_checkout_phone();
+	if ($user_id && $phone) {
+		ctwpml_apply_contact_meta_to_user((int) $user_id, $phone);
+		update_user_meta((int) $user_id, 'billing_phone', $phone['whatsapp']);
+	}
 }, 20, 1);
 
 add_action('woocommerce_checkout_create_order', function (WC_Order $order, array $data): void {
+	$submitted = ctwpml_submitted_checkout_phone();
+	if ($submitted) {
+		$order->set_billing_phone($submitted['whatsapp']);
+		$order->update_meta_data('_billing_cellphone', $submitted['whatsapp']);
+		$order->update_meta_data('_ctwpml_dial_code', $submitted['dial_code']);
+		$order->update_meta_data('_ctwpml_phone_is_national', 'yes');
+		return;
+	}
+
 	$user_id = (int) $order->get_customer_id();
-	if (isset($_POST['ctwpml_checkout_phone_full']) && is_string($_POST['ctwpml_checkout_phone_full']) && $_POST['ctwpml_checkout_phone_full'] !== '') {
-		$contact = [
-			'phone_full' => sanitize_text_field(wp_unslash($_POST['ctwpml_checkout_phone_full'])),
-			'country_code' => isset($_POST['ctwpml_checkout_phone_country']) && is_string($_POST['ctwpml_checkout_phone_country'])
-				? sanitize_text_field(wp_unslash($_POST['ctwpml_checkout_phone_country'])) : '',
-			'dial_code' => isset($_POST['ctwpml_checkout_dial_code']) && is_string($_POST['ctwpml_checkout_dial_code'])
-				? sanitize_text_field(wp_unslash($_POST['ctwpml_checkout_dial_code'])) : '',
-		];
-	} elseif ($user_id > 0) {
+	if ($user_id > 0) {
 		$contact = [
 			'phone_full' => get_user_meta($user_id, '_ctwpml_phone_full', true),
 			'country_code' => get_user_meta($user_id, '_ctwpml_country_code', true),
@@ -131,7 +182,7 @@ add_action('woocommerce_checkout_create_order', function (WC_Order $order, array
 
 	$full = (string) ($contact['phone_full'] ?? '');
 	$dial_code = ctwpml_contact_dial_code((string) ($contact['dial_code'] ?? ''), $full);
-	$shape = ctwpml_contact_phone_for_woo('', $full, (string) ($contact['country_code'] ?? ''));
+	$shape = ctwpml_contact_phone_for_woo('', $full, (string) ($contact['country_code'] ?? ''), $dial_code);
 	$phone = preg_replace('/\D+/', '', (string) ($data['billing_cellphone'] ?? $order->get_meta('_billing_cellphone')));
 	if ($phone === '') {
 		$phone = preg_replace('/\D+/', '', (string) $order->get_billing_phone());
@@ -143,13 +194,56 @@ add_action('woocommerce_checkout_create_order', function (WC_Order $order, array
 		return;
 	}
 	$order->update_meta_data('_ctwpml_dial_code', $dial_code);
-}, 20, 2);
+}, PHP_INT_MAX, 2);
+
+function ctwpml_apply_order_phone_to_payload(array $payload, WC_Order $order): array {
+	if ($order->get_meta('_ctwpml_phone_is_national') !== 'yes') {
+		return $payload;
+	}
+	$national = (string) $order->get_meta('_billing_cellphone');
+	if (isset($payload['cellphone'])) {
+		$payload['cellphone'] = $national;
+	}
+	if (isset($payload['billing']['cellphone'])) {
+		$payload['billing']['cellphone'] = $national;
+	}
+	if (isset($payload['meta_data']) && is_array($payload['meta_data'])) {
+		$metadata = [];
+		foreach ($payload['meta_data'] as $meta) {
+			$key = is_array($meta) ? ($meta['key'] ?? '') : ($meta->key ?? '');
+			if ($key === '_ctwpml_phone_is_national') {
+				continue;
+			}
+			if ($key === '_billing_cellphone') {
+				if (is_array($meta)) {
+					$meta['value'] = $national;
+				} else {
+					$meta = clone $meta;
+					$meta->value = $national;
+				}
+			}
+			$metadata[] = $meta;
+		}
+		$payload['meta_data'] = $metadata;
+	}
+	return $payload;
+}
+
+add_filter('woocommerce_rest_prepare_shop_order_object', function ($response, $order) {
+	if ($order instanceof WC_Order && is_array($response->get_data())) {
+		$response->set_data(ctwpml_apply_order_phone_to_payload($response->get_data(), $order));
+	}
+	return $response;
+}, PHP_INT_MAX, 2);
 
 add_filter('woocommerce_webhook_payload', function ($payload, $resource, $resource_id) {
 	if ($resource !== 'order' || !is_array($payload)) {
 		return $payload;
 	}
 	$order = wc_get_order($resource_id);
+	if ($order instanceof WC_Order) {
+		$payload = ctwpml_apply_order_phone_to_payload($payload, $order);
+	}
 	$dial_code = $order instanceof WC_Order ? (string) $order->get_meta('_ctwpml_dial_code') : '';
 	if ($dial_code !== '') {
 		$payload['dial_code'] = $dial_code;
