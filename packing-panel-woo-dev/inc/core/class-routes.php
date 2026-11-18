@@ -13,60 +13,6 @@ final class PPWOO_Routes {
     public static function init(): void {
         add_action('wp_ajax_ppwoo_routes', [__CLASS__, 'ajax']);
         add_action(self::WORKER, [__CLASS__, 'work'], 10, 1);
-        add_action('admin_menu', [__CLASS__, 'admin_menu']);
-    }
-
-    public static function admin_menu(): void {
-        add_submenu_page('woocommerce', 'Rotas do Pack Panel', 'Rotas do Pack Panel', 'manage_woocommerce',
-            'ppwoo-routes', [__CLASS__, 'settings']);
-    }
-
-    public static function settings(): void {
-        if (!PPWOO_Security::can_manage_panel()) return;
-        $notice = '';
-        $error = '';
-        if (isset($_POST['ppwoo_routes_save'])) {
-            check_admin_referer('ppwoo_routes_settings');
-            $url = esc_url_raw(self::field($_POST, 'routes_url'), ['https']);
-            if (self::field($_POST, 'routes_url') !== '' && (!$url || !wp_http_validate_url($url))) {
-                $error = 'Informe um endereço HTTPS válido e acessível para o webhook do n8n.';
-            } else {
-                try {
-                    $enabled = isset($_POST['routes_enabled']);
-                    if ($enabled) PPWOO_Routes_Store::install();
-                    update_option('ppwoo_routes_origin', self::field($_POST, 'routes_origin', 512), false);
-                    update_option('ppwoo_routes_url', $url, false);
-                    update_option('ppwoo_routes_maps_key', self::field($_POST, 'routes_maps_key', 160), false);
-                    update_option('ppwoo_routes_deduplicated', isset($_POST['routes_deduplicated']) ? 'yes' : 'no', false);
-                    update_option('ppwoo_routes_enabled', $enabled ? 'yes' : 'no', false);
-                    $notice = 'Configurações salvas.';
-                } catch (Throwable $exception) {
-                    $error = 'Não foi possível inicializar o armazenamento de rotas.';
-                }
-            }
-        }
-        ?>
-        <div class="wrap">
-            <h1>Rotas do Pack Panel</h1>
-            <?php if ($notice): ?><div class="notice notice-success"><p><?php echo esc_html($notice); ?></p></div><?php endif; ?>
-            <?php if ($error): ?><div class="notice notice-error"><p><?php echo esc_html($error); ?></p></div><?php endif; ?>
-            <form method="post">
-                <?php wp_nonce_field('ppwoo_routes_settings'); ?>
-                <table class="form-table">
-                    <tr><th scope="row">Gestão em lote</th><td><label><input type="checkbox" name="routes_enabled" <?php checked(self::enabled()); ?>> Habilitar as abas de rotas</label></td></tr>
-                    <tr><th scope="row"><label for="ppwoo-routes-origin">Endereço de saída</label></th><td><input id="ppwoo-routes-origin" class="large-text" name="routes_origin" maxlength="512" value="<?php echo esc_attr(PPWOO_Route_Calculation::origin()); ?>" placeholder="Rua, número, bairro, cidade, UF e CEP"></td></tr>
-                    <tr><th scope="row"><label for="ppwoo-routes-url">Webhook de cálculo (n8n)</label></th><td><input id="ppwoo-routes-url" type="url" class="large-text" name="routes_url" value="<?php echo esc_attr(get_option('ppwoo_routes_url', '')); ?>"><p class="description">Use o endpoint HTTPS de cálculo. Configure o bearer token do n8n em <code>PPWOO_ROUTES_N8N_TOKEN</code> no wp-config.php.</p></td></tr>
-                    <tr><th scope="row"><label for="ppwoo-routes-maps">Chave de navegador do Google Maps</label></th><td><input id="ppwoo-routes-maps" class="regular-text" name="routes_maps_key" value="<?php echo esc_attr(get_option('ppwoo_routes_maps_key', '')); ?>"><p class="description">Restrinja a chave ao domínio do painel e à Maps JavaScript API.</p></td></tr>
-                    <tr><th scope="row">Reenvio de resultado incerto</th><td><label><input type="checkbox" name="routes_deduplicated" <?php checked(get_option('ppwoo_routes_deduplicated'), 'yes'); ?>> O webhook de despacho foi validado com deduplicação pela chave Idempotency-Key</label></td></tr>
-                </table>
-                <?php submit_button('Salvar configurações', 'primary', 'ppwoo_routes_save'); ?>
-            </form>
-        </div>
-        <?php
-    }
-
-    private static function field(array $input, string $key, int $limit = 2048): string {
-        return is_string($input[$key] ?? null) ? sanitize_text_field(wp_unslash(substr($input[$key], 0, $limit * 4))) : '';
     }
 
     private static function conflict(string $message = 'A rota mudou em outra aba. Atualize o painel e tente novamente.'): void {
@@ -305,7 +251,7 @@ final class PPWOO_Routes {
                 $route['state'] = 'dispatched';
                 $route['details']['departed_at'] = gmdate('c', $now);
                 $route['details']['departed_by'] = get_current_user_id();
-                $route['details']['origin'] = $calc['origin_address'];
+                $route['details']['origin'] = $calc['origin_postcode'];
             }
             PPWOO_Routes_Store::save_route($route);
             return $route['id'];
@@ -338,6 +284,7 @@ final class PPWOO_Routes {
     }
 
     private static function can_retry_uncertain(): bool {
+        // Preserva somente a autorização explícita registrada na primeira versão.
         return get_option('ppwoo_routes_deduplicated', 'no') === 'yes';
     }
 

@@ -95,6 +95,7 @@ require_once plugin_dir_path(__FILE__) . 'inc/core/class-style.php';
 require_once plugin_dir_path(__FILE__) . 'inc/admin/class-admin-menu.php';
 require_once plugin_dir_path(__FILE__) . 'inc/admin/class-admin-style-tab.php';
 require_once plugin_dir_path(__FILE__) . 'inc/admin/class-admin-connection-tab.php';
+require_once plugin_dir_path(__FILE__) . 'inc/admin/class-admin-routes-tab.php';
 require_once plugin_dir_path(__FILE__) . 'inc/integrations/class-webhook-client.php';
 
 // Inicializa menu admin

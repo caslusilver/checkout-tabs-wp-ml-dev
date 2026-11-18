@@ -55,6 +55,10 @@ class PPWOO_Admin_Menu {
                    class="nav-tab <?php echo $current_tab === 'connection' ? 'nav-tab-active' : ''; ?>">
                     <?php esc_html_e('Conexão', 'painel-empacotamento'); ?>
                 </a>
+                <a href="?page=<?php echo esc_attr(self::PAGE_SLUG); ?>&tab=routes"
+                   class="nav-tab <?php echo $current_tab === 'routes' ? 'nav-tab-active' : ''; ?>">
+                    <?php esc_html_e('Rotas', 'painel-empacotamento'); ?>
+                </a>
             </nav>
             
             <div class="ppwoo-admin-content">
@@ -65,6 +69,9 @@ class PPWOO_Admin_Menu {
                         break;
                     case 'connection':
                         PPWOO_Admin_Connection_Tab::render();
+                        break;
+                    case 'routes':
+                        PPWOO_Admin_Routes_Tab::render();
                         break;
                     default:
                         PPWOO_Admin_Style_Tab::render();
@@ -127,7 +134,7 @@ class PPWOO_Admin_Menu {
         $tab = isset($_POST['tab']) ? sanitize_text_field($_POST['tab']) : 'style';
         
         // Valida tab
-        if (!in_array($tab, ['style', 'connection'], true)) {
+        if (!in_array($tab, ['style', 'connection', 'routes'], true)) {
             $tab = 'style';
         }
         
@@ -140,6 +147,9 @@ class PPWOO_Admin_Menu {
                 break;
             case 'connection':
                 PPWOO_Admin_Connection_Tab::render();
+                break;
+            case 'routes':
+                PPWOO_Admin_Routes_Tab::render();
                 break;
             default:
                 PPWOO_Admin_Style_Tab::render();

@@ -26,8 +26,19 @@ test('routing preserves edits and copies the correct stop in both tabs', async t
     const { window } = new JSDOM(markup, { runScripts: 'outside-only', pretendToBeVisual: true, url: 'https://test.example.test/pack' });
     t.after(() => window.close());
     const $ = window.$ = window.jQuery = jquery(window);
+    const visible = $.expr.pseudos.visible;
+    $.expr.pseudos.visible = node => node.classList.contains('ppwoo-route-map') || visible(node);
+    const mapLabels = [];
+    const draw = () => {};
+    window.HTMLCanvasElement.prototype.getContext = () => ({
+        scale: draw, beginPath: draw, moveTo: draw, lineTo: draw, stroke: draw, arc: draw, fill: draw,
+        fillText: label => mapLabels.push(label)
+    });
+    const origin = { lat: -23.55, lng: -46.63 };
+    const locations = orders.map((_, index) => ({ lat: -23.56 + index / 1000, lng: -46.62 + index / 1000 }));
     const calculation = { token: 'one', issues: [], distance_meters: 1500, duration_seconds: 450,
-        stops: orders.map(order => ({ order_id: order.id, eta_seconds: order.position * 100 })) };
+        origin, path: [origin, ...locations],
+        stops: orders.map((order, index) => ({ order_id: order.id, eta_seconds: order.position * 100, location: locations[index] })) };
     let state = { routes: [] };
     const requests = [];
     const clipboard = [];
@@ -42,7 +53,10 @@ test('routing preserves edits and copies the correct stop in both tabs', async t
             const stops = [...(state.routes[0]?.stops || []), orders.find(order => order.id === input.order_id)];
             state = { routes: [{ id: 1, slot: 1, revision: stops.length, state: 'draft', calculation, stops }] };
         }
-        if (command === 'dispatch') state.routes[0].state = 'dispatched';
+        if (command === 'dispatch') {
+            state.routes[0].state = 'dispatched';
+            state.routes[0].stops[0].event_state = 'uncertain';
+        }
         if (command === 'close') state.routes[0].stops[0].delivery_state = 'closed';
         return { success: true, data: state };
     };
@@ -62,6 +76,9 @@ test('routing preserves edits and copies the correct stop in both tabs', async t
     $('[data-calculate-selected]').trigger('click');
     await until(() => $('[data-group-order="101"]').length === 1);
     assert.deepEqual(requests.find(r => r.command === 'plan').input.order_ids, [101, 102, 103, 104]);
+    await until(() => $('[data-routes-preview] canvas').length === 1);
+    assert.deepEqual(mapLabels, ['O', '1', '2', '3', '4']);
+    assert.equal($('script[src*="maps.googleapis.com"]').length, 0);
 
     async function group(id, count) {
         $('[data-group-order="' + id + '"]').val('1').trigger('change');
@@ -99,6 +116,8 @@ test('routing preserves edits and copies the correct stop in both tabs', async t
     slide(send, 300);
     await until(() => $('[data-routes-active] .ppwoo-copy-delivery').length === 4);
     assert.equal(requests.filter(r => r.command === 'dispatch').length, 1);
+    assert.match($('[data-routes-active]').text(), /Envio sem confirmação/);
+    assert.equal($('[data-retry-order], [data-resume-route]').length, 0);
     $('[data-routes-active] .ppwoo-copy-delivery').last().trigger('click');
     assert.equal(clipboard.pop(), orders[3].delivery_message);
     $('[data-close-order="101"]').prop('checked', true).trigger('change');
