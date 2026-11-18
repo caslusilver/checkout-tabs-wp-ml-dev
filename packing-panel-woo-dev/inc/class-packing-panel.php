@@ -204,6 +204,17 @@ class PPWOO_PackingPanel {
             true
         );
 
+        if (PPWOO_Routes::enabled() && PPWOO_Security::can_manage_panel()) {
+            wp_enqueue_style('ppwoo-routes', plugin_dir_url(__FILE__) . '../assets/css/routes.css',
+                ['packing-panel-woo'], $version);
+            wp_enqueue_script('ppwoo-routes', plugin_dir_url(__FILE__) . '../assets/js/routes.js',
+                ['packing-panel-woo'], $version, true);
+            wp_localize_script('ppwoo-routes', 'PPWOO_ROUTES', [
+                'maps_key' => (string) get_option('ppwoo_routes_maps_key', ''),
+                'max_batch' => PPWOO_Route_Calculation::LIMIT,
+            ]);
+        }
+
         // Localiza script com dados necessários
         wp_localize_script('packing-panel-woo', 'packingPanelVars', [
             'ajaxurl' => admin_url('admin-ajax.php'),
@@ -317,6 +328,11 @@ class PPWOO_PackingPanel {
         $order = wc_get_order($order_id);
         if (!$order) {
             wp_send_json_error('Pedido não encontrado.', 404);
+        }
+
+        if (PPWOO_Routes::enabled() && PPWOO_Routes_Store::ready() &&
+            in_array($webhook_type, ['accepted', 'shipped'], true) && PPWOO_Routes_Store::stop($order_id)) {
+            wp_send_json_error('O pedido pertence a uma rota. Atualize o painel e use a aba de rotas.', 409);
         }
 
         if (PPWOO_Config::is_debug()) {

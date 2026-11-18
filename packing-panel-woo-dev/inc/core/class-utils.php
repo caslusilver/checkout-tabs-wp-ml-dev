@@ -7,6 +7,22 @@
 if (!defined('ABSPATH')) exit;
 
 class PPWOO_Utils {
+    public static function delivery_message(string $name, string $contact, string $address, string $postcode, string $complement, string $maps_destination): string {
+        $lines = ['Nome: ' . $name];
+        if ($contact !== '') {
+            $lines[] = 'WhatsApp: ' . $contact;
+        }
+        $lines[] = 'Endereço: ' . $address;
+        $lines[] = 'CEP: ' . $postcode;
+        if ($complement !== '') {
+            $lines[] = 'Complemento: ' . $complement;
+        }
+        if ($maps_destination !== '') {
+            $lines[] = 'Google Maps: https://www.google.com/maps/dir/?api=1&destination=' . rawurlencode($maps_destination) . '&dir_action=navigate';
+        }
+        return implode("\n", $lines);
+    }
+
     
     /**
      * Obtém o CPF do pedido sanitizado (apenas dígitos)

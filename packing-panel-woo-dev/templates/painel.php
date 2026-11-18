@@ -18,6 +18,7 @@ $motoboy_orders = $panel_data['motoboy_orders'];
 $correios_orders = $panel_data['correios_orders'];
 $pending_payment_orders = $panel_data['pending_payment_orders'];
 $total_pending_orders = $panel_data['total_pending_orders'];
+$routes_enabled = PPWOO_Routes::enabled() && PPWOO_Routes_Store::ready();
 
 // Painel de debug se ativo
 if (PPWOO_Config::is_debug()) {
@@ -46,12 +47,24 @@ if (PPWOO_Config::is_debug()) {
 
     <div class="painel-tabs">
         <button class="tab-button" data-tab="motoboy"><?php esc_html_e('Motoboy', 'painel-empacotamento'); ?> (<?php echo count($motoboy_orders); ?>)</button>
+        <?php if ($routes_enabled) : ?>
+            <button class="tab-button" data-tab="rotas">Rotas</button>
+            <button class="tab-button" data-tab="em-rota">Pedidos em rota</button>
+        <?php endif; ?>
         <button class="tab-button" data-tab="correios"><?php esc_html_e('Correios', 'painel-empacotamento'); ?> (<?php echo count($correios_orders); ?>)</button>
         <button class="tab-button" data-tab="pagamentos"><?php esc_html_e('Pagamentos Pendentes', 'painel-empacotamento'); ?> (<?php echo count($pending_payment_orders); ?>)</button>
     </div>
 
     <!-- Aba Motoboy -->
     <div id="tab-motoboy" class="tab-content">
+        <?php if ($routes_enabled && $motoboy_orders) : ?>
+            <div class="ppwoo-route-select-tools" aria-label="Seleção para cálculo">
+                <button type="button" class="ppwoo-routes-button" data-fold-all>Recolher todos</button>
+                <label><input type="checkbox" data-select-motoboy-all> Selecionar todos</label>
+                <button type="button" class="ppwoo-routes-button ppwoo-routes-primary" data-calculate-selected disabled>Calcular rotas</button>
+            </div>
+            <p class="ppwoo-route-feedback" aria-live="polite" data-route-feedback></p>
+        <?php endif; ?>
         <?php if (!empty($motoboy_orders)) : ?>
             <div class="motoboy-orders">
                 <?php
@@ -85,25 +98,26 @@ if (PPWOO_Config::is_debug()) {
                     $complement = PPWOO_Utils::get_billing_complemento($order);
                     $address_for_search = $address . ($number ? ', ' . $number : '') . ($neighborhood ? ', ' . $neighborhood : '') . ($city ? ', ' . $city : '');
                     $address_for_delivery = $address . ($number ? ' nº ' . $number : '') . ($neighborhood ? ', ' . $neighborhood : '') . ($city ? ', ' . $city : '');
-                    $maps_url = '';
+                    $maps_destination = '';
                     if ($address && ($city || $postcode)) {
                         $maps_destination = $address_for_search . ($state ? ', ' . $state : '') . ($postcode ? ', ' . $postcode : '');
-                        $maps_url = 'https://www.google.com/maps/dir/?api=1&destination=' . rawurlencode($maps_destination) . '&dir_action=navigate';
                     }
-                    $delivery_lines = array('Nome: ' . $customer_name);
-                    if ($customer_whatsapp_url || $customer_phone) {
-                        $delivery_lines[] = 'WhatsApp: ' . ($customer_whatsapp_url ? $customer_whatsapp_url : $customer_phone);
-                    }
-                    $delivery_lines[] = 'Endereço: ' . $address_for_search;
-                    $delivery_lines[] = 'CEP: ' . $postcode;
-                    if ($complement) {
-                        $delivery_lines[] = 'Complemento: ' . $complement;
-                    }
-                    if ($maps_url) {
-                        $delivery_lines[] = 'Google Maps: ' . $maps_url;
-                    }
+                    $delivery_message = PPWOO_Utils::delivery_message($customer_name, $customer_whatsapp_url ?: $customer_phone,
+                        $address_for_search, $postcode, $complement, $maps_destination);
                     ?>
                     <div class="motoboy-order" data-order-id="<?php echo esc_attr($order_id); ?>" data-workflow-step="<?php echo esc_attr($workflow_step ? $workflow_step : 'step1'); ?>">
+                        <?php if ($routes_enabled) : ?>
+                            <div class="ppwoo-fold-head">
+                                <?php if (!$is_external) : ?>
+                                    <input type="checkbox" class="ppwoo-route-pick" aria-label="<?php echo esc_attr('Selecionar pedido ' . $order_id); ?>">
+                                <?php endif; ?>
+                                <div class="ppwoo-fold-summary">
+                                    <strong>#<?php echo esc_html($order_id); ?> · <?php echo esc_html($customer_name); ?></strong>
+                                    <small><?php echo esc_html($address_for_delivery); ?></small>
+                                </div>
+                                <button type="button" class="ppwoo-routes-button ppwoo-fold-button" aria-expanded="true">Recolher</button>
+                            </div>
+                        <?php endif; ?>
                         <div class="order-header">
                             <h3>Pedido #<?php echo esc_html($order_id); ?></h3>
                             <span class="metodo-envio motoboy"><?php esc_html_e('Motoboy', 'painel-empacotamento'); ?></span>
@@ -140,7 +154,7 @@ if (PPWOO_Config::is_debug()) {
                             </p>
                             <p class="cep">CEP: <?php echo esc_html($postcode); ?></p>
                             <p class="billing-complemento"><?php echo esc_html($complement); ?></p>
-                            <textarea class="ppwoo-delivery-message" readonly tabindex="-1" aria-hidden="true"><?php echo esc_textarea(implode("\n", $delivery_lines)); ?></textarea>
+                            <textarea class="ppwoo-delivery-message" readonly tabindex="-1" aria-hidden="true"><?php echo esc_textarea($delivery_message); ?></textarea>
                             <button type="button" class="ppwoo-copy-delivery" title="<?php esc_attr_e('Copiar dados para o motoboy', 'painel-empacotamento'); ?>">
                                 <span class="dashicons dashicons-admin-page" aria-hidden="true"></span>
                                 <?php esc_html_e('Copiar dados para motoboy', 'painel-empacotamento'); ?>
@@ -256,6 +270,28 @@ if (PPWOO_Config::is_debug()) {
             <p class="sem-pedidos"><?php esc_html_e('Nenhum pedido de Motoboy pendente para empacotamento.', 'painel-empacotamento'); ?></p>
         <?php endif; ?>
     </div>
+
+    <?php if ($routes_enabled) : ?>
+        <section id="tab-rotas" class="tab-content">
+            <div class="ppwoo-routes-toolbar">
+                <h2>Rotas em preparação</h2>
+                <button type="button" class="ppwoo-routes-button" data-reload-routes>Atualizar rotas</button>
+            </div>
+            <p class="ppwoo-route-feedback" aria-live="polite" data-route-feedback></p>
+            <div data-routes-preview></div>
+            <div data-routes-drafts></div>
+        </section>
+        <section id="tab-em-rota" class="tab-content">
+            <div class="ppwoo-routes-toolbar">
+                <h2>Pedidos em rota</h2>
+                <button type="button" class="ppwoo-routes-button" data-reload-routes>Atualizar rotas</button>
+            </div>
+            <p class="ppwoo-route-feedback" aria-live="polite" data-route-feedback></p>
+            <div data-routes-active></div>
+            <button type="button" class="ppwoo-routes-button" data-routes-history>Ver histórico</button>
+            <div data-routes-history-list></div>
+        </section>
+    <?php endif; ?>
 
     <!-- Aba Correios -->
     <div id="tab-correios" class="tab-content">

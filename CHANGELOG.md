@@ -2,6 +2,13 @@
 
 Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
+## [v3.3.0] - 2026-11-18
+
+- Pack Panel: cartões de Motoboy recolhíveis, seleção em lote, prévia de rota pelo n8n, mapa com paradas numeradas e agrupamento por pedido.
+- Pack Panel: ficha por rota, custo negociado e prazo por pedido, código somente na última parada, fila de disparos individuais, progresso e reenvio controlado.
+- Pack Panel: aba Pedidos em rota, baixa por seleção e gesto, histórico e configuração que permite habilitar a V1 separadamente.
+- Pack Panel: mantém a cópia manual dos dados de entrega no detalhe individual de cada pedido da rota.
+
 ## [v3.2.141] - 2026-11-18
 
 - Checkout: preserva o telefone confirmado ao voltar do login e destaca os campos que precisam de correção quando faltam dados de faturamento.

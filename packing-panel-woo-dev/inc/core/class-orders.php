@@ -75,8 +75,11 @@ class PPWOO_Orders {
             'order' => 'ASC',
         ));
         
+        $routed = PPWOO_Routes::enabled() ? PPWOO_Routes_Store::listed_order_ids(array_map(static function ($order) {
+            return $order->get_id();
+        }, $orders_raw)) : [];
         foreach ($orders_raw as $order) {
-            if (PPWOO_Utils::is_motoboy_shipping($order)) {
+            if (!isset($routed[$order->get_id()]) && PPWOO_Utils::is_motoboy_shipping($order)) {
                 $motoboy_orders[] = $order;
             }
         }

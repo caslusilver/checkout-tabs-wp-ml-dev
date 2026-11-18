@@ -164,10 +164,10 @@
         return textToCopy.trim().replace(/\s{2,}/g, ' ');
     }
 
-    packingPanel.on('click', '#tab-motoboy .copy-address, #tab-motoboy .copy-name, #tab-motoboy .copy-whatsapp, #tab-motoboy .ppwoo-copy-delivery', function() {
+    packingPanel.on('click', '#tab-motoboy .copy-address, #tab-motoboy .copy-name, #tab-motoboy .copy-whatsapp, .ppwoo-copy-delivery', function() {
         var button = $(this);
         var text = button.hasClass('copy-address') ? button.attr('data-copy-address') :
-            (button.hasClass('ppwoo-copy-delivery') ? button.closest('.motoboy-order').find('.ppwoo-delivery-message').val() : getTextToCopy(button));
+            (button.hasClass('ppwoo-copy-delivery') ? button.closest('.motoboy-order, .ppwoo-route-order').find('.ppwoo-delivery-message').val() : getTextToCopy(button));
         copyTextToClipboard(text || '', button);
     });
 
@@ -269,6 +269,7 @@
         var rect = this.getBoundingClientRect();
         var thumbWidth = $action.find('.ppwoo-swipe-thumb').outerWidth() || 50;
         var maxOffset = Math.max(0, rect.width - thumbWidth - 8);
+        if (maxOffset < 24) return;
 
         activeSwipe = {
             action: this,
@@ -663,7 +664,7 @@
             var orderId = String($order.data('order-id'));
             editableOrders[orderId] = {};
 
-            $order.find('input, textarea, select').each(function() {
+            $order.find('input, textarea, select').not('[readonly]').each(function() {
                 var $field = $(this);
                 var key = getEditableFieldKey($field);
                 if (!key) {
@@ -738,6 +739,7 @@
         refreshCorreiosCarousel(previousState.correiosOrderId);
         refreshPagamentosCarousel(previousState.pagamentosOrderId);
         updateCounts();
+        packingPanel.trigger('ppwoo:panel-refreshed');
         return true;
     }
 
@@ -804,19 +806,15 @@
         input.value = value;
     }
 
-    packingPanel.on('input', '#tab-motoboy .motoboy-whatsapp', function() {
+    packingPanel.on('input', '#tab-motoboy .motoboy-whatsapp, .ppwoo-route-sheet .motoboy-whatsapp', function() {
         applyWhatsAppMask(this);
     });
 
     // --- Limpeza automática do link de rastreio ao colar ---
-    packingPanel.on('paste', '#tab-motoboy .tracking-link', function(e) {
+    packingPanel.on('paste', '#tab-motoboy .tracking-link, .ppwoo-route-sheet .tracking-link', function(e) {
         e.preventDefault();
 
         var pastedText = (e.originalEvent.clipboardData || window.clipboardData).getData('text');
-        if (debugEnabled) {
-            ppDebug.log('Texto colado detectado: "' + pastedText + '"');
-        }
-
         var urlRegex = /(https?:\/\/[^\s"']+|www\.[^\s"']+)/i;
         var match = pastedText.match(urlRegex);
 
@@ -827,9 +825,9 @@
                 extractedUrl = 'https://' + extractedUrl;
             }
 
-            $(this).val(extractedUrl);
+            $(this).val(extractedUrl).trigger('input');
             if (debugEnabled) {
-                ppDebug.log('URL extraída e definida no campo: "' + extractedUrl + '"');
+                ppDebug.log('Link de rastreio extraído do texto colado.');
             }
         } else {
             if (debugEnabled) {
