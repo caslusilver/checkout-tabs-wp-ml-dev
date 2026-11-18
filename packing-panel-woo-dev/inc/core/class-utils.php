@@ -317,7 +317,8 @@ class PPWOO_Utils {
         $dial_code = $order instanceof WC_Order ? (string) $order->get_meta('_ctwpml_dial_code') : '';
         if (preg_match('/^\+[1-9][0-9]{0,3}$/D', $dial_code)) {
             $prefix = substr($dial_code, 1);
-            if ($dial_code === '+55' && in_array(strlen($digits), [10, 11], true)) {
+            if ($order->get_meta('_ctwpml_phone_is_national') === 'yes' ||
+                ($dial_code === '+55' && in_array(strlen($digits), [10, 11], true))) {
                 $digits = $prefix . $digits;
             }
             if (strpos($digits, $prefix) === 0 && strlen($digits) >= 8 && strlen($digits) <= 15) {

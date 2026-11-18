@@ -2,6 +2,12 @@
 
 Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
+## [v3.2.141] - 2026-11-18
+
+- Checkout: preserva o telefone confirmado ao voltar do login e destaca os campos que precisam de correção quando faltam dados de faturamento.
+- Telefone: salva o número nacional nos campos do WooCommerce antes da criação do pedido. Mantém `dial_code` separado no formato já usado pelos webhooks.
+- Mobile: ancora o seletor de DDI ao telefone, posiciona o campo abaixo do cabeçalho ao abrir o menu e limita a lista ao espaço acima dos botões.
+
 ## [v3.2.140] - 2026-11-17
 
 - Checkout mobile: mantém o campo em foco centralizado na área visível após a abertura do teclado e evita o zoom automático e por pinça.

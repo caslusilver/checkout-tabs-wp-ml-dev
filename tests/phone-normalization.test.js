@@ -47,6 +47,21 @@ test('does not guess Brazilian DDI for an explicit foreign country', () => {
   assert.equal(normalize('+351 912 345 678', 'BR').wooDigits, '351912345678');
 });
 
+test('separates the selected French DDI exactly once without applying a Brazilian mask', () => {
+  const result = normalize('+33 336 123 456', 'FR', '+33');
+  assert.equal(result.country, 'FR');
+  assert.equal(result.wooDigits, '336123456');
+  assert.equal(result.ddiCount, 1);
+  assert.equal(normalize('336 123 456', 'FR', '+33').wooDigits, '336123456');
+});
+
+test('supports a foreign number when the checkout was previously set to Brazil', () => {
+  const result = normalize('+351 912 345 678', 'BR', '+351');
+  assert.equal(result.valid, true);
+  assert.equal(result.wooDigits, '912345678');
+  assert.equal(normalize('+351 912 345 678', 'PT', '+33').valid, false);
+});
+
 test('rejects an overlong Brazilian number instead of cutting its tail', () => {
   const result = normalize('55119123456789', 'BR');
   assert.equal(result.valid, false);

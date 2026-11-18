@@ -1021,7 +1021,7 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
   align-items: center;
   min-height: 46px;
   box-sizing: border-box;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .ctwpml-phone-wrap:focus-within {
@@ -1052,22 +1052,40 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
   white-space: nowrap;
 }
 
-.ts-dropdown {
-  z-index: 9999999 !important;
-  margin-top: 5px;
+#ctwpml-phone-wrap > .ts-dropdown {
+  position: absolute !important;
+  top: 100% !important;
+  left: 0 !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  z-index: 2 !important;
+  margin: 0 !important;
   border-radius: 8px;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
   border: 1px solid #ccc;
   background: #fff;
-  padding-bottom: 20px !important;
-  min-width: 250px;
 }
 
-.ts-dropdown .dropdown-input {
-  font-size: 18px !important;
-  padding: 12px !important;
-  color: #000 !important;
-  border-bottom: 2px solid #eee !important;
+#ctwpml-phone-wrap .ts-dropdown-content {
+  overscroll-behavior: contain;
+  overflow-y: auto;
+}
+
+#ctwpml-phone-wrap #ctwpml-phone-other-dial {
+  flex: 0 0 64px;
+  width: 64px !important;
+  padding: 6px !important;
+  text-align: center;
+}
+
+#ctwpml-phone-wrap #ctwpml-phone-other-dial[hidden],
+#ctwpml-phone-error[hidden] {
+  display: none !important;
+}
+
+#ctwpml-view-form #ctwpml-group-phone.is-error #ctwpml-phone-wrap {
+  border-color: #b42318 !important;
+  box-shadow: 0 0 0 1px #b42318 !important;
 }
 
 /* Input telefone (visível) */
