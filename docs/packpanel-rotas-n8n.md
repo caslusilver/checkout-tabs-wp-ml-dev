@@ -1,19 +1,21 @@
 # Pack Panel — Contrato da gestão de rotas V1
 
-O fluxo de cálculo é independente do webhook de despacho. **WooCommerce → Rotas do Pack Panel** tem a chave de ativação, o endereço de saída, a URL HTTPS de cálculo e a chave de navegador do Google Maps. Configure o bearer token do cálculo em `PPWOO_ROUTES_N8N_TOKEN` no `wp-config.php`. Use no navegador uma chave restrita ao domínio do painel e à Maps JavaScript API. As credenciais do Google para cálculo ficam nas credenciais do n8n.
+O fluxo de cálculo é independente do webhook de despacho. Em **WordPress → PackPanel → Rotas**, habilite as abas de rotas e preencha o CEP de saída, a URL HTTPS de cálculo e o nome cadastrado no gerenciador de chaves. O nome sugerido é `authorization`. Também é possível escolher um nome exclusivo para o cálculo, como `authorization_rotas`. Ao trocar da v3.3.0, o webhook salvo é reaproveitado. Se o endereço anterior incluir um CEP reconhecível, o campo aproveita esse CEP.
+
+O Google é configurado nas credenciais do n8n para resolver endereços e calcular trajetos. O painel desenha o percurso e as paradas numeradas com os dados do retorno. Se já houver uma chave pública de mapa cadastrada na v3.3.0, o painel pode exibir também o mapa com ruas. O segredo do webhook é consultado apenas no WordPress.
 
 Habilite primeiro em sandbox. Para pausar a V1, desative a chave no painel. Isso preserva os registros e pausa a fila de eventos. Ao reativar, use **Retomar pedidos na fila** para continuar os envios que ficaram pendentes.
 
 ## 1. Cálculo, WordPress → n8n
 
-`POST` com JSON e `Authorization: Bearer <token>`. Retorno síncrono HTTP 200 e JSON em até 25 segundos.
+`POST` com JSON. No Webhook do n8n, use autenticação por cabeçalho `Authorization` com o valor cadastrado no gerenciador do WordPress. O plugin busca esse valor com `sakm_get_key(nome_da_chave)` e o envia exatamente como salvo, inclusive o prefixo `Bearer ` se fizer parte do valor. Para a origem, resolva `body.origin.postcode` no n8n. O CEP tem oito dígitos em texto e preserva zeros à esquerda. O retorno é síncrono, HTTP 200 e JSON em até 25 segundos. [Webhook do n8n](https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.webhook/)
 
 ~~~json
 {
   "schema_version": 1,
   "request_id": "11111111-1111-4111-8111-111111111111",
   "revision": 0,
-  "origin": { "address": "Endereço completo configurado no painel" },
+  "origin": { "postcode": "01234567", "country": "BR" },
   "destination_strategy": "farthest_road_distance",
   "stops": [
     { "ref": "stop_1", "location": { "lat": -23.551, "lng": -46.631 } },
@@ -42,7 +44,7 @@ A [resposta de exemplo](../tests/fixtures/packpanel-route-calculation.json) usa 
 
 ### Primeiro fluxo no n8n
 
-1. Validar o cabeçalho de autenticação e a versão do corpo. Resolver só as paradas sem coordenada ou Place ID confiável.
+1. Validar o cabeçalho de autenticação e a versão do corpo. Resolver o CEP de partida e as paradas sem coordenada ou Place ID confiável.
 2. Medir a distância viária da origem aos destinos com uma matriz de uma origem por N destinos. Sugerir o destino mais distante. Conferir no Google Cloud a cobertura do modo moto, o SKU e o limite utilizados.
 3. Calcular a rota com o destino sugerido e as intermediárias. Nas etapas de cálculo n8n, remapear o índice retornado pelo Google à referência original de cada parada e somar a duração dos trechos até cada uma. Informar distância e duração totais.
 4. Devolver o trajeto e qualquer parada que não pôde entrar. Cotas, rejeições e endereços inválidos ficam visíveis por pedido. Testar os quatro pontos, reagrupamento e retorno parcial antes de usar pedidos reais.
@@ -53,9 +55,9 @@ Referências: [Routes API](https://developers.google.com/maps/documentation/rout
 
 Ao deslizar **Concluir Envio**, o painel registra a saída, congela os dados de despacho e agenda a fila do WooCommerce. A fila emite um `mtb_packing_panel_shipped` por pedido. O corpo mantém o contrato legado. O custo é o valor negociado para aquele pedido. O prazo é a hora da saída mais a previsão daquela parada, em texto no fuso do WordPress. Link e WhatsApp são comuns. O código só é gravado no pedido final. Nos demais, o campo recebe zero, a representação que o formulário atual grava ao deixar o código vazio.
 
-Cada tentativa envia também o cabeçalho `Idempotency-Key`. O valor é estável para o mesmo pedido e despacho. Um HTTP 2xx indica recebimento pelo webhook, conforme o contrato atual. Para informar uma rejeição segura para reenvio, retorne `{"accepted":false}` somente quando o evento não produziu efeitos. Conexão interrompida e outros status fora da faixa 2xx ficam **A conferir**.
+Cada tentativa envia também o cabeçalho `Idempotency-Key`. O valor é estável para o mesmo pedido e despacho. Um HTTP 2xx indica recebimento pelo webhook, conforme o contrato atual. Para informar uma rejeição segura para reenvio, retorne `{"accepted":false}` somente quando o evento não produziu efeitos. Conexão interrompida e outros status fora da faixa 2xx ficam **Envio sem confirmação**.
 
-Para habilitar reenvio de resultado incerto, configure e valide antes a deduplicação no n8n. A mesma chave deve recuperar o resultado já registrado ou reservar atomicamente o processamento antes da escrita no banco de custos e dos disparos. Uma nova tentativa não deve adicionar uma segunda linha de custo nem avisar o cliente duas vezes. Enquanto essa garantia estiver desativada no painel, resultados incertos exigem conferência. Falhas confirmadas podem ser reenviadas pelo painel.
+Se o envio ficou sem confirmação, confira se o n8n recebeu o evento. O painel permite reenviar falhas confirmadas. Um reenvio seguro de respostas incertas depende de o n8n deduplicar pela mesma chave antes de gravar custos e enviar mensagens. Instalações que já tinham ativado essa validação na v3.3.0 preservam a configuração.
 
 ### Roteiro de aceite em sandbox
 

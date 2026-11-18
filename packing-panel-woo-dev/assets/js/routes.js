@@ -347,7 +347,7 @@
 
         const eventLabels = {
             queued: 'Na fila de envio', sending: 'Enviando', accepted: 'Recebido pelo webhook',
-            failed: 'Falha de envio', uncertain: 'A conferir', waiting: 'Aguardando'
+            failed: 'Falha de envio', uncertain: 'Envio sem confirmação', waiting: 'Aguardando'
         };
         const resultLabels = {
             order_unavailable: 'Pedido indisponível para despacho.',
@@ -382,9 +382,11 @@
                     el('small', {}, (order.delivery_state === 'closed' ? 'Baixa registrada · ' : '') +
                         (eventLabels[order.event_state] || 'Aguardando') + (order.attempt ? ' · tentativa ' + order.attempt : '')),
                     order.code ? el('small', {}, resultLabels[order.code] || (/^http_\d+$/.test(order.code) ? order.code.replace('http_', 'HTTP ') : '')) : null,
+                    order.event_state === 'uncertain' && !canRetry
+                        ? el('small', {}, 'Confira se o n8n recebeu o evento para evitar enviar o pedido duas vezes.') : null,
                     canRetry ? button('Reenviar este pedido', { 'data-retry-order': order.id, 'data-route-id': route.id }) : null));
             });
-            if (route.stops.some(order => order.event_state === 'queued' || order.event_state === 'uncertain')) {
+            if (route.stops.some(order => order.event_state === 'queued')) {
                 body.append(button('Retomar pedidos na fila', { 'data-resume-route': route.id }));
             }
             if (open.length) body.append(swipe('Deslize para finalizar selecionados', { 'data-close-route': route.id }));
@@ -444,7 +446,6 @@
 
         function loadMaps() {
             if (window.google?.maps?.Map) return Promise.resolve(window.google.maps);
-            if (!config.maps_key) return Promise.reject(new Error('Configure a chave do Google Maps nas configurações de rotas.'));
             if (!mapsLibrary) {
                 mapsLibrary = new Promise((resolve, reject) => {
                     const script = document.createElement('script');
@@ -488,6 +489,61 @@
             });
         }
 
+        function drawRouteDiagram(node, calc) {
+            const canvas = el('canvas', { role: 'img', 'aria-label': 'Trajeto com origem e paradas numeradas' });
+            const context = canvas.getContext('2d');
+            if (!context) {
+                node.textContent = 'Consulte as paradas na lista da rota.';
+                return;
+            }
+
+            const width = node.clientWidth || 320;
+            const height = node.clientHeight || 200;
+            const density = Math.min(window.devicePixelRatio || 1, 2);
+            canvas.width = Math.round(width * density);
+            canvas.height = Math.round(height * density);
+            context.scale(density, density);
+
+            const points = [calc.origin, ...calc.stops.map(stop => stop.location), ...calc.path];
+            const latitudes = points.map(point => point.lat);
+            const longitudes = points.map(point => point.lng);
+            const minLat = Math.min(...latitudes);
+            const maxLat = Math.max(...latitudes);
+            const minLng = Math.min(...longitudes);
+            const maxLng = Math.max(...longitudes);
+            const lngScale = Math.max(.01, Math.cos(calc.origin.lat * Math.PI / 180));
+            const scale = Math.min(Math.max(1, width - 48) / Math.max(.00001, (maxLng - minLng) * lngScale),
+                Math.max(1, height - 48) / Math.max(.00001, maxLat - minLat));
+            const centerLat = (minLat + maxLat) / 2;
+            const centerLng = (minLng + maxLng) / 2;
+            const position = point => [width / 2 + (point.lng - centerLng) * scale * lngScale,
+                height / 2 - (point.lat - centerLat) * scale];
+
+            context.beginPath();
+            context.moveTo(...position(calc.path[0]));
+            calc.path.slice(1).forEach(point => context.lineTo(...position(point)));
+            context.strokeStyle = '#1658b8';
+            context.lineWidth = 3;
+            context.lineJoin = 'round';
+            context.stroke();
+
+            context.font = 'bold 12px sans-serif';
+            context.textAlign = 'center';
+            context.textBaseline = 'middle';
+            [calc.origin, ...calc.stops.map(stop => stop.location)].forEach((point, index) => {
+                const [x, y] = position(point);
+                context.beginPath();
+                context.arc(x, y, 12, 0, Math.PI * 2);
+                context.fillStyle = index ? '#124eaa' : '#17624e';
+                context.fill();
+                context.fillStyle = '#fff';
+                context.fillText(index ? String(index) : 'O', x, y);
+            });
+            node.replaceChildren(canvas);
+            node.after(el('p', { class: 'ppwoo-route-diagram-caption' }, 'Esquema do trajeto · ',
+                el('span', { translate: 'no' }, 'Google Maps')));
+        }
+
         function drawVisibleMaps() {
             window.requestAnimationFrame(() => {
                 $panel.find('.ppwoo-route-map:visible').each(function () {
@@ -495,6 +551,10 @@
                     const node = this;
                     node.dataset.drawn = '1';
                     const calc = node.routeCalculation;
+                    if (!config.maps_key && !window.google?.maps?.Map) {
+                        drawRouteDiagram(node, calc);
+                        return;
+                    }
                     loadMaps().then(maps => {
                         if (!node.isConnected || !$(node).is(':visible')) {
                             delete node.dataset.drawn;
@@ -513,7 +573,10 @@
                             new maps.Polyline({ map, path: calc.path, strokeColor: '#1658b8', strokeOpacity: 0.9, strokeWeight: 4 })
                         ];
                         map.fitBounds(bounds, 28);
-                    }).catch(error => { node.textContent = error.message; });
+                    }).catch(() => {
+                        if (node.isConnected && $(node).is(':visible')) drawRouteDiagram(node, calc);
+                        else delete node.dataset.drawn;
+                    });
                 });
             });
         }

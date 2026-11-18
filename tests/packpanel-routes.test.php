@@ -3,7 +3,6 @@
 if (PHP_SAPI !== 'cli') exit;
 define('ABSPATH', __DIR__);
 define('MINUTE_IN_SECONDS', 60);
-define('PPWOO_ROUTES_N8N_TOKEN', 'fixture-token');
 
 function expect($actual, $expected, string $description): void {
     if ($actual !== $expected) {
@@ -21,12 +20,28 @@ function rejects(callable $call, int $code): void {
     throw new RuntimeException('A operação deveria ter sido rejeitada.');
 }
 
-$options = ['ppwoo_routes_enabled' => 'yes', 'ppwoo_routes_origin' => 'Origem fictícia',
+$options = ['ppwoo_routes_enabled' => 'yes', 'ppwoo_routes_origin' => 'Origem fictícia, CEP 01234-567',
     'ppwoo_routes_url' => 'https://calculo.example.test/rotas'];
 $cache = $calls = $jobs = $orders = [];
+$keys = ['authorization' => 'Bearer fixture-default', 'authorization_rotas' => 'fixture-route-token'];
+$can_administer = true;
 $remote_mode = 'accepted';
 
 function get_option($name, $default = false) { return $GLOBALS['options'][$name] ?? $default; }
+function update_option($name, $value, $autoload) { $GLOBALS['options'][$name] = $value; }
+function sakm_get_key($name) { return $GLOBALS['keys'][$name] ?? null; }
+function wp_unslash($value) { return stripslashes($value); }
+function current_user_can($capability) { return $capability === 'manage_options' && $GLOBALS['can_administer']; }
+function check_admin_referer($action, $field) {
+    if ($action !== 'ppwoo_routes_settings' || ($_POST[$field] ?? '') !== 'fixture-nonce') throw new DomainException('Nonce inválido.', 403);
+}
+function esc_html($value) { return htmlspecialchars($value, ENT_QUOTES, 'UTF-8'); }
+function esc_attr($value) { return esc_html($value); }
+function esc_url($value) { return esc_attr($value); }
+function admin_url($path) { return 'https://sandbox.example.test/wp-admin/' . $path; }
+function wp_nonce_field($action, $field) {}
+function checked($value) {}
+function submit_button(...$args) {}
 function wp_is_uuid($value, $version) { return (bool) preg_match('/^[a-f0-9-]{36}$/D', $value); }
 function wp_generate_uuid4() { return '11111111-1111-4111-8111-111111111111'; }
 function get_current_user_id() { return 123; }
@@ -53,6 +68,7 @@ function wp_safe_remote_post($url, $data) {
     $body = json_decode($data['body'], true, 24, JSON_THROW_ON_ERROR);
     $GLOBALS['calls'][] = ['url' => $url, 'body' => $body, 'headers' => $data['headers']];
     if ($url === $GLOBALS['options']['ppwoo_routes_url']) {
+        if ($GLOBALS['remote_mode'] === 'auth_rejected') return ['status' => 401, 'body' => '{}'];
         $fixture = $GLOBALS['fixture'];
         $fixture['revision'] = $body['revision'];
         return ['status' => 200, 'body' => json_encode($fixture)];
@@ -114,6 +130,7 @@ class PPWOO_Routes_Store {
     public static array $routes = [];
     public static array $stops = [];
     public static function ready() { return true; }
+    public static function install() {}
     public static function route($id, $lock = false) { return self::$routes[$id] ?? null; }
     public static function stop($id, $lock = false) { return self::$stops[$id] ?? null; }
     public static function route_stops($id) {
@@ -149,6 +166,8 @@ class PPWOO_Routes_Store {
 
 $core = dirname(__DIR__) . '/packing-panel-woo-dev/inc/core/';
 foreach (['class-route-calculation.php', 'class-utils.php', 'class-routes.php', 'class-webhook.php'] as $file) require $core . $file;
+require $core . '../admin/class-admin-menu.php';
+require $core . '../admin/class-admin-routes-tab.php';
 
 function action(string $method, array $payload, ...$args): void {
     (new ReflectionMethod(PPWOO_Routes::class, $method))->invoke(null, $payload, ...$args);
@@ -177,6 +196,45 @@ rejects(static function () use ($fixture, $refs, $request_id) {
 expect(PPWOO_Route_Calculation::point(['lat' => 100, 'lng' => 20]), null, 'Latitude fora do intervalo rejeitada');
 
 foreach ($refs as $id) $orders[$id] = new WC_Order($id);
+expect(PPWOO_Route_Calculation::origin_postcode(), '01234567', 'CEP passa da configuração antiga para o novo campo');
+expect(PPWOO_Route_Calculation::auth_key_name(), 'authorization', 'Nome padrão da chave');
+$options['ppwoo_routes_origin_postcode'] = '';
+rejects(static function () use ($orders) { PPWOO_Route_Calculation::calculate($orders, 0); }, 422);
+expect(count($calls), 0, 'CEP vazio não usa a origem antiga nem faz chamadas');
+
+$_POST = ['ppwoo_routes_save' => '1', 'routes_postcode' => '01234-567', 'routes_auth_key' => 'authorization_rotas',
+    'routes_url' => 'https://calculo.example.test/rotas', 'routes_enabled' => 'on'];
+$can_administer = false;
+PPWOO_Admin_Routes_Tab::render();
+expect($options['ppwoo_routes_origin_postcode'], '', 'Usuário sem permissão não grava alterações');
+$can_administer = true;
+rejects([PPWOO_Admin_Routes_Tab::class, 'render'], 403);
+$_POST['ppwoo_routes_nonce'] = 'fixture-nonce';
+$_POST['routes_postcode'] = '1234';
+ob_start();
+PPWOO_Admin_Routes_Tab::render();
+expect(str_contains(ob_get_clean(), 'Informe um CEP com oito dígitos.'), true, 'Formulário identifica CEP inválido');
+expect($options['ppwoo_routes_origin_postcode'], '', 'CEP inválido não sobrescreve a opção');
+$_POST['routes_postcode'] = '01234-567';
+ob_start();
+PPWOO_Admin_Routes_Tab::render();
+$settings_html = ob_get_clean();
+$_POST = [];
+expect(str_contains($settings_html, 'ppwoo-settings&amp;tab=routes'), true, 'Formulário grava na aba Rotas do PackPanel');
+expect(str_contains($settings_html, $keys['authorization_rotas']), false, 'Segredo fica fora do HTML');
+expect($options['ppwoo_routes_origin_postcode'], '01234567', 'CEP salvo como oito dígitos');
+expect(PPWOO_Route_Calculation::auth_key_name(), 'authorization_rotas', 'Rotas usa a chave escolhida');
+$valid_key = $keys['authorization_rotas'];
+unset($keys['authorization_rotas']);
+rejects(static function () use ($orders) { PPWOO_Route_Calculation::calculate($orders, 0); }, 422);
+$keys['authorization_rotas'] = "invalid\r\nheader";
+rejects(static function () use ($orders) { PPWOO_Route_Calculation::calculate($orders, 0); }, 422);
+expect(count($calls), 0, 'Segredo ausente ou inválido falha antes da chamada');
+$keys['authorization_rotas'] = $valid_key;
+$remote_mode = 'auth_rejected';
+rejects(static function () use ($orders) { PPWOO_Route_Calculation::calculate($orders, 0); }, 502);
+$remote_mode = 'accepted';
+$cache = $calls = [];
 $summary = new ReflectionMethod(PPWOO_Routes::class, 'summary');
 $message = $summary->invoke(null, 101)['delivery_message'];
 expect(explode("\n", $message), [
@@ -192,7 +250,11 @@ $preview = PPWOO_Route_Calculation::calculate($orders, 0);
 $sent_for_calculation = array_shift($calls);
 expect($sent_for_calculation['body']['stops'][0]['ref'], 'stop_1', 'Ref de parada sem ID interno');
 expect(isset($sent_for_calculation['body']['stops'][0]['address']['first_name']), false, 'Nome fica fora da requisição');
-expect($sent_for_calculation['headers']['Authorization'], 'Bearer fixture-token', 'Autenticação da requisição de cálculo');
+expect($sent_for_calculation['body']['origin'], ['postcode' => '01234567', 'country' => 'BR'], 'Origem envia somente CEP e país');
+expect($sent_for_calculation['headers']['Authorization'], $valid_key, 'Autenticação usa o valor exato sem acrescentar prefixo');
+expect(str_contains(json_encode($sent_for_calculation['body']), $valid_key), false, 'Segredo fica fora do corpo');
+expect(str_contains(json_encode(PPWOO_Route_Calculation::public_result($preview)), $valid_key), false, 'Segredo fica fora da resposta para o navegador');
+expect($preview['origin_postcode'], '01234567', 'A prévia guarda o CEP usado no cálculo');
 foreach ($refs as $id) {
     $target = PPWOO_Routes_Store::by_slot(1);
     action('change_group', ['order_id' => $id, 'slot' => 1, 'preview' => $preview['token'], 'source_id' => 0,

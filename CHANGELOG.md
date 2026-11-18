@@ -2,6 +2,11 @@
 
 Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
+## [v3.3.1] - 2026-11-18
+
+- PackPanel: reúne as configurações em uma aba Rotas, usa apenas o CEP de saída e busca a credencial pelo nome no mesmo gerenciador de chaves da aba Conexão.
+- PackPanel: exibe o trajeto e as paradas numeradas sem exigir uma chave de mapa no navegador e sinaliza os envios que precisam ser conferidos no n8n.
+
 ## [v3.3.0] - 2026-11-18
 
 - Pack Panel: cartões de Motoboy recolhíveis, seleção em lote, prévia de rota pelo n8n, mapa com paradas numeradas e agrupamento por pedido.

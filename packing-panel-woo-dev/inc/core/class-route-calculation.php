@@ -4,10 +4,27 @@ if (!defined('ABSPATH')) exit;
 
 final class PPWOO_Route_Calculation {
     public const LIMIT = 100;
+    public const DEFAULT_AUTH_KEY = 'authorization';
     private const LIFETIME = 30 * MINUTE_IN_SECONDS;
 
-    public static function origin(): string {
-        return trim((string) get_option('ppwoo_routes_origin', ''));
+    public static function normalize_postcode(string $value): string {
+        return preg_match('/^[0-9]{5}-?[0-9]{3}$/D', $value) ? str_replace('-', '', $value) : '';
+    }
+
+    public static function origin_postcode(): string {
+        $saved = get_option('ppwoo_routes_origin_postcode');
+        if (is_string($saved)) return self::normalize_postcode($saved);
+
+        $legacy = (string) get_option('ppwoo_routes_origin', '');
+        if (preg_match('/(?<![0-9])[0-9]{5}-?[0-9]{3}(?![0-9])/', $legacy, $matches)) {
+            return self::normalize_postcode($matches[0]);
+        }
+        return '';
+    }
+
+    public static function auth_key_name(): string {
+        $name = trim((string) get_option('ppwoo_routes_auth_key_name', self::DEFAULT_AUTH_KEY));
+        return $name !== '' ? $name : self::DEFAULT_AUTH_KEY;
     }
 
     /** O endereço histórico do pedido tem prioridade sobre o perfil atual do cliente. */
@@ -56,11 +73,11 @@ final class PPWOO_Route_Calculation {
         return ['address' => $address];
     }
 
-    public static function fingerprint(array $orders, ?string $origin = null): string {
+    public static function fingerprint(array $orders, ?string $postcode = null): string {
         $addresses = [];
         foreach ($orders as $order) $addresses[$order->get_id()] = self::address($order);
         ksort($addresses);
-        return hash('sha256', wp_json_encode([$origin ?? self::origin(), $addresses]));
+        return hash('sha256', wp_json_encode(['origin_postcode' => $postcode ?? self::origin_postcode(), 'orders' => $addresses]));
     }
 
     public static function cache_key(string $token): string {
@@ -70,21 +87,23 @@ final class PPWOO_Route_Calculation {
     public static function get(string $token): ?array {
         if (!wp_is_uuid($token, 4)) return null;
         $value = get_transient(self::cache_key($token));
-        return is_array($value) ? $value : null;
+        return is_array($value) && isset($value['origin_postcode']) ? $value : null;
     }
 
     public static function calculate(array $orders, int $revision): array {
         $url = (string) get_option('ppwoo_routes_url', '');
-        $token = defined('PPWOO_ROUTES_N8N_TOKEN') ? (string) PPWOO_ROUTES_N8N_TOKEN : '';
-        $origin = self::origin();
-        if (!$origin || !$url || !$token || preg_match('/[\r\n]/', $token) ||
-            wp_parse_url($url, PHP_URL_SCHEME) !== 'https' || !wp_http_validate_url($url)) {
-            throw new DomainException('Configure a origem, a URL HTTPS do n8n e a credencial de cálculo no Pack Panel.', 422);
+        $postcode = self::origin_postcode();
+        if ($postcode === '' || wp_parse_url($url, PHP_URL_SCHEME) !== 'https' || !wp_http_validate_url($url)) {
+            throw new DomainException('Preencha o CEP de saída e a URL HTTPS de cálculo em PackPanel → Rotas.', 422);
+        }
+        $key = function_exists('sakm_get_key') ? sakm_get_key(self::auth_key_name()) : null;
+        if (!is_string($key) || trim($key) === '' || preg_match('/[\x00-\x1F\x7F]/', $key)) {
+            throw new DomainException('Confira o nome cadastrado no plugin de chaves e em PackPanel → Rotas.', 422);
         }
 
         $request_id = wp_generate_uuid4();
         $owner = get_current_user_id();
-        $fingerprint = self::fingerprint($orders, $origin);
+        $fingerprint = self::fingerprint($orders, $postcode);
         $throttle = 'ppwoo_route_throttle_' . $owner;
         if (get_transient($throttle)) throw new DomainException('Aguarde alguns segundos para calcular de novo.', 429);
         set_transient($throttle, 1, 3);
@@ -99,18 +118,22 @@ final class PPWOO_Route_Calculation {
         PPWOO_Debug::info('Rotas: cálculo solicitado', ['request_id' => $request_id, 'stops' => count($stops)]);
         $response = wp_safe_remote_post($url, [
             'timeout' => 25, 'redirection' => 0, 'limit_response_size' => 786432,
-            'headers' => ['Content-Type' => 'application/json', 'Authorization' => 'Bearer ' . $token],
+            'headers' => ['Content-Type' => 'application/json', 'Authorization' => $key],
             'body' => wp_json_encode([
                 'schema_version' => 1, 'request_id' => $request_id, 'revision' => $revision,
-                'origin' => ['address' => $origin], 'destination_strategy' => 'farthest_road_distance',
+                'origin' => ['postcode' => $postcode, 'country' => 'BR'], 'destination_strategy' => 'farthest_road_distance',
                 'stops' => $stops,
             ], JSON_THROW_ON_ERROR),
         ]);
-        if (is_wp_error($response) || (int) wp_remote_retrieve_response_code($response) !== 200) {
+        $status = is_wp_error($response) ? 0 : (int) wp_remote_retrieve_response_code($response);
+        if ($status !== 200) {
             PPWOO_Debug::warn('Rotas: falha no cálculo', [
                 'request_id' => $request_id,
-                'status' => is_wp_error($response) ? 'connection' : wp_remote_retrieve_response_code($response),
+                'status' => $status ?: 'connection',
             ]);
+            if ($status === 401 || $status === 403) {
+                throw new DomainException('O n8n recusou a autenticação. Confira a chave do webhook de cálculo.', 502);
+            }
             throw new DomainException('Não foi possível calcular a rota no n8n. Sua seleção foi mantida.', 502);
         }
 
@@ -124,7 +147,7 @@ final class PPWOO_Route_Calculation {
         $result['token'] = $request_id;
         $result['owner'] = $owner;
         $result['fingerprint'] = $fingerprint;
-        $result['origin_address'] = $origin;
+        $result['origin_postcode'] = $postcode;
         $result['input_ids'] = array_values($refs);
         if (!set_transient(self::cache_key($request_id), $result, self::LIFETIME)) {
             throw new DomainException('O cálculo voltou, mas não foi possível guardar a prévia. Tente novamente.', 503);
