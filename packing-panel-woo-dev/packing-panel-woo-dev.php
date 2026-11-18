@@ -81,6 +81,10 @@ require_once plugin_dir_path(__FILE__) . 'inc/core/class-payments-action-service
 require_once plugin_dir_path(__FILE__) . 'inc/core/class-webhook.php';
 require_once plugin_dir_path(__FILE__) . 'inc/core/class-orders.php';
 require_once plugin_dir_path(__FILE__) . 'inc/core/class-debug.php';
+require_once plugin_dir_path(__FILE__) . 'inc/core/class-routes-store.php';
+require_once plugin_dir_path(__FILE__) . 'inc/core/class-route-calculation.php';
+require_once plugin_dir_path(__FILE__) . 'inc/core/class-routes.php';
+PPWOO_Routes::init();
 
 // Carrega classe principal
 require_once plugin_dir_path(__FILE__) . 'inc/class-packing-panel.php';

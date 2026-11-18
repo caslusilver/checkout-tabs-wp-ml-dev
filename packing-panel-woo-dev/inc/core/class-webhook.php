@@ -23,20 +23,7 @@ class PPWOO_Webhook {
             return;
         }
         
-        // Prepara payload do pedido
-        $order_data_payload = self::prepare_order_payload($order);
-        
-        // Prepara dados do evento
-        $event_data_payload = self::prepare_event_payload($order);
-        
-        // Payload final
-        $payload = array(
-            'order_id' => $order->get_id(),
-            'webhook_event' => $event_name,
-            'timestamp' => current_time('timestamp'),
-            'order_data' => $order_data_payload,
-            'event_data' => $event_data_payload,
-        );
+        $payload = self::payload($event_name, $order, current_time('timestamp'));
         
         // Envia requisição
         $remote_response = wp_remote_post($webhook_url, array(
@@ -49,6 +36,40 @@ class PPWOO_Webhook {
         
         // Log do resultado
         self::log_webhook_response($event_name, $order->get_id(), $remote_response);
+    }
+
+    private static function payload(string $event_name, WC_Order $order, int $timestamp): array {
+        return [
+            'order_id' => $order->get_id(),
+            'webhook_event' => $event_name,
+            'timestamp' => $timestamp,
+            'order_data' => self::prepare_order_payload($order),
+            'event_data' => self::prepare_event_payload($order),
+        ];
+    }
+
+    public static function send_route_dispatch(WC_Order $order, string $key, string $departed_at): array {
+        $url = PPWOO_Config::get_webhook_url();
+        if (wp_parse_url($url, PHP_URL_SCHEME) !== 'https' || !wp_http_validate_url($url)) {
+            return ['state' => 'failed', 'code' => 'webhook_setup'];
+        }
+        $departure = new DateTimeImmutable($departed_at);
+        $timestamp = $departure->getTimestamp() + wp_timezone()->getOffset($departure);
+        $response = wp_safe_remote_post($url, [
+            'body' => wp_json_encode(self::payload('mtb_packing_panel_shipped', $order, $timestamp), JSON_THROW_ON_ERROR),
+            'headers' => ['Content-Type' => 'application/json', 'Idempotency-Key' => $key],
+            'timeout' => 20, 'redirection' => 0, 'limit_response_size' => 65536,
+        ]);
+        if (is_wp_error($response)) return ['state' => 'uncertain', 'code' => 'connection'];
+        $status = (int) wp_remote_retrieve_response_code($response);
+        $body = json_decode(wp_remote_retrieve_body($response), true, 8);
+        if (is_array($body) && ($body['accepted'] ?? null) === false) {
+            return ['state' => 'failed', 'code' => 'rejected'];
+        }
+        if ($status >= 200 && $status < 300) {
+            return ['state' => 'accepted', 'code' => 'http_' . $status];
+        }
+        return ['state' => 'uncertain', 'code' => 'http_' . $status];
     }
     
     /**

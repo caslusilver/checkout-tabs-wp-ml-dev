@@ -1,0 +1,236 @@
+.painel-empacotamento .ppwoo-route-select-tools,
+.painel-empacotamento .ppwoo-routes-toolbar,
+.painel-empacotamento .ppwoo-fold-head {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: .65rem;
+}
+
+@media (max-width: 640px) {
+    .painel-empacotamento .painel-tabs:has([data-tab="rotas"]) {
+        overflow-x: auto;
+    }
+    .painel-empacotamento .painel-tabs:has([data-tab="rotas"]) .tab-button {
+        flex: 0 0 auto;
+    }
+}
+
+.painel-empacotamento .ppwoo-route-select-tools,
+.painel-empacotamento .ppwoo-routes-toolbar {
+    margin-block: .75rem;
+}
+
+.painel-empacotamento [data-calculate-selected] {
+    margin-inline-start: auto !important;
+}
+
+.painel-empacotamento .ppwoo-routes-button,
+.painel-empacotamento .ppwoo-routes-button:hover,
+.painel-empacotamento .ppwoo-routes-button:focus,
+.painel-empacotamento .ppwoo-routes-button:active {
+    min-height: 40px;
+    padding: .45rem .75rem;
+    background: #fff !important;
+    color: #17242d !important;
+    border: 1px solid #566879 !important;
+    border-radius: .45rem;
+    line-height: 1.3;
+    box-shadow: none !important;
+    cursor: pointer;
+    font-size: .92rem;
+}
+
+.painel-empacotamento .ppwoo-routes-primary,
+.painel-empacotamento .ppwoo-routes-primary:hover,
+.painel-empacotamento .ppwoo-routes-primary:focus,
+.painel-empacotamento .ppwoo-routes-primary:active {
+    background: #124eaa !important;
+    color: #fff !important;
+    border-color: #124eaa !important;
+}
+
+.painel-empacotamento .ppwoo-routes-button:disabled,
+.painel-empacotamento .ppwoo-route-slide:disabled {
+    background: #e3e8ee !important;
+    color: #283947 !important;
+    opacity: 1 !important;
+    cursor: not-allowed;
+}
+
+.painel-empacotamento .ppwoo-routes-button:focus-visible,
+.painel-empacotamento #tab-rotas summary:focus-visible,
+.painel-empacotamento #tab-em-rota summary:focus-visible {
+    outline: 2px solid #145bc1 !important;
+    outline-offset: 2px;
+}
+
+.painel-empacotamento .ppwoo-fold-head {
+    margin-block-end: .65rem;
+}
+
+.painel-empacotamento .ppwoo-fold-summary {
+    display: none;
+    flex: 1 1 130px;
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.painel-empacotamento .ppwoo-fold-summary small {
+    display: block;
+    font-size: .8rem;
+}
+
+.painel-empacotamento .ppwoo-fold-button {
+    margin-inline-start: auto !important;
+}
+
+.painel-empacotamento .ppwoo-card-collapsed > :not(.ppwoo-fold-head),
+.painel-empacotamento #tab-motoboy .motoboy-order[hidden] {
+    display: none !important;
+}
+
+.painel-empacotamento .ppwoo-card-collapsed .ppwoo-fold-head {
+    margin: 0;
+}
+
+.painel-empacotamento .ppwoo-card-collapsed .ppwoo-fold-summary {
+    display: block;
+}
+
+.painel-empacotamento #tab-rotas,
+.painel-empacotamento #tab-em-rota {
+    min-width: 0;
+}
+
+.painel-empacotamento .ppwoo-route-card {
+    background: #fff !important;
+    color: #17242d !important;
+    border: 1px solid #a1afbc;
+    border-radius: .65rem;
+    padding: .85rem;
+    margin-block: .75rem;
+}
+
+.painel-empacotamento .ppwoo-route-card :is(h3,h4,summary,label,p,small) {
+    color: inherit;
+}
+
+.painel-empacotamento .ppwoo-route-card summary {
+    cursor: pointer;
+    font-weight: 650;
+    min-height: 32px;
+}
+
+.painel-empacotamento .ppwoo-route-row {
+    display: grid;
+    justify-items: start;
+    gap: .35rem;
+    padding: .55rem 0;
+    border-block-end: 1px solid #dce3e9;
+}
+
+.painel-empacotamento .ppwoo-route-order {
+    min-width: 0;
+    width: 100%;
+    overflow-wrap: anywhere;
+}
+
+.painel-empacotamento .ppwoo-route-order .ppwoo-delivery-message[hidden] {
+    display: none !important;
+}
+
+.painel-empacotamento .ppwoo-routes-private .dashicons {
+    margin-inline-end: .35rem;
+    color: inherit !important;
+    vertical-align: middle;
+}
+
+.painel-empacotamento .ppwoo-route-card :is(p,h3,h4) {
+    margin-block: .4rem;
+}
+
+.painel-empacotamento .ppwoo-route-sheet,
+.painel-empacotamento .ppwoo-route-costs {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr));
+    gap: .75rem;
+    margin-block: .8rem;
+}
+
+.painel-empacotamento .ppwoo-route-sheet :is(h4, .ppwoo-routes-toolbar, .ppwoo-routes-warning, .ppwoo-route-slide, .ppwoo-route-costs) {
+    grid-column: 1 / -1;
+}
+
+.painel-empacotamento .ppwoo-route-sheet label {
+    display: grid;
+    gap: .3rem;
+    min-width: 0;
+}
+
+.painel-empacotamento .ppwoo-route-sheet input,
+.painel-empacotamento #tab-rotas select[data-group-order] {
+    max-width: 100%;
+    box-sizing: border-box;
+    background: #fff !important;
+    color: #17242d !important;
+    border: 1px solid #7a8b99 !important;
+    border-radius: .35rem;
+    min-height: 42px;
+    padding: .45rem .55rem;
+    font-size: 16px;
+}
+
+.painel-empacotamento .ppwoo-route-map {
+    display: grid;
+    place-items: center;
+    height: clamp(200px, 46vw, 350px);
+    min-width: 0;
+    background: #e9f1f8;
+    border-radius: .5rem;
+    overflow: hidden;
+    text-align: center;
+}
+
+.painel-empacotamento .ppwoo-route-marker {
+    position: absolute;
+    translate: -50% -50%;
+    display: grid;
+    place-items: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    color: #fff !important;
+    background: #124eaa !important;
+    border: 2px solid #fff;
+    font-weight: 700;
+    pointer-events: none;
+}
+
+.painel-empacotamento .ppwoo-route-marker.is-origin {
+    background: #17624e !important;
+}
+
+.painel-empacotamento.ppwoo-hide-route-recipient .ppwoo-route-private-recipient,
+.painel-empacotamento.ppwoo-hide-route-values .ppwoo-route-private-values {
+    display: none !important;
+}
+
+.painel-empacotamento .ppwoo-route-feedback.is-error,
+.painel-empacotamento .ppwoo-route-card .ppwoo-routes-warning {
+    color: #922518 !important;
+}
+
+.painel-empacotamento .ppwoo-route-feedback:empty {
+    display: none;
+}
+
+.painel-empacotamento .ppwoo-route-card progress {
+    display: block;
+    width: 100%;
+    accent-color: #124eaa;
+}
+
+.painel-empacotamento.ppwoo-routes-busy :is(#tab-rotas,#tab-em-rota) :is(input,select,button,summary) {
+    pointer-events: none;
+}
