@@ -1,8 +1,14 @@
-# PackPanel — experiência de rotas 3.3.4
+# PackPanel — experiência de rotas 3.3.5
 
 Origem e decisões: [Blueprint V1 da entrevista](https://app.notion.com/p/41d4347fa2c281ddac19efb9e3cf4a7e). A transcrição integral está vinculada no Notion. O usuário confirmou o cálculo n8n no painel antes desta revisão. Esta versão ainda depende de aceite da interface real após atualização.
 
 ## Operação
+
+Desde 3.3.5, pedidos atribuídos na prévia saem da lista aberta e entram em **Pedidos atribuídos (N)**, um único grupo recolhido que pode ser reaberto para revisar todos. O mapa geral permanece. Os grupos por rota continuam abaixo e não se abrem automaticamente ao receber pedidos. O cabeçalho tem um slider azul compacto para calcular/recalcular sem abrir o cartão: somente deslizar até o fim solicita o cálculo; toque ou gesto incompleto não executam. A indicação Cálculo pendente/atualizado ajuda a conferir o resultado com o grupo fechado.
+
+Dentro de **Paradas e pedidos**, **Desmarcar** retira o pedido da rota e volta a **Sem rota**. Os demais pedidos e ficha do grupo são mantidos, e o cálculo do grupo fica pendente. O botão anterior **Desmarcar** da prévia continua retirando só da visualização, sem desfazer o agrupamento, conforme seu título de ajuda. Pedidos em rota já despachados não recebem a nova ação de retirada.
+
+Rollback desta micro melhoria: **v3.3.4**, commit de integração `840c2035ef78d9ff00ad4668cb75509463fb1237`.
 
 1. Pedidos sem rota e em rotas em preparação continuam na aba Motoboy. Os agrupados são recolhidos e identificados pela rota/parada. Pedidos já despachados seguem na aba Pedidos em rota.
 2. Selecione todos ou alguns e use **Visualizar rota da seleção**. A prévia compara também pedidos novos, mantendo a atribuição existente. Altere o seletor apenas dos pedidos que deseja mover.

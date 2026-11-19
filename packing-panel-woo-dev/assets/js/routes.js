@@ -331,17 +331,27 @@
                 mapPanel(preview.calculation, container.querySelector('.ppwoo-route-map-wrap')),
                 el('p', {}, 'Use o seletor de cada pedido para confirmar o grupo. Depois, confira o cálculo do grupo.'));
             const list = el('div', { class: 'ppwoo-route-orders' });
+            const assigned = el('details', { class: 'ppwoo-preview-assigned', 'data-group-key': 'preview-assigned' });
+            const assignedList = el('div', { class: 'ppwoo-route-orders' });
+            assigned.open = openGroups.has('preview-assigned');
+            let assignedCount = 0;
             ordered.forEach(item => {
                 const order = byId.get(item.order_id);
                 if (!order) return;
                 const position = preview.calculation.stops.findIndex(stop => stop.order_id === order.id) + 1;
                 order.is_last = preview.calculation.destination_order_id === order.id;
-                list.append(el('div', { class: 'ppwoo-route-row' }, orderInfo(order, position, 'preview'),
+                const source = dashboard.routes.find(route => route.state === 'draft' && route.stops.some(stop => stop.id === order.id));
+                const row = el('div', { class: 'ppwoo-route-row' }, orderInfo(order, position, 'preview'),
                     item.code ? el('p', { class: 'ppwoo-routes-warning' }, issueMessage(item.code)) : null,
-                    el('div', { class: 'ppwoo-routes-toolbar' }, groupSelect(order,
-                        dashboard.routes.find(route => route.state === 'draft' && route.stops.some(stop => stop.id === order.id)), preview.calculation.token),
-                        button('Desmarcar', { 'data-unselect-preview': order.id }))));
+                    el('div', { class: 'ppwoo-routes-toolbar' }, groupSelect(order, source, preview.calculation.token),
+                        button('Desmarcar', { 'data-unselect-preview': order.id, title: 'Retirar da prévia, mantendo a rota atribuída' })));
+                if (source) { assignedList.append(row); assignedCount++; }
+                else list.append(row);
             });
+            if (assignedCount) {
+                assigned.append(el('summary', {}, 'Pedidos atribuídos (' + assignedCount + ')'), assignedList);
+                list.append(assigned);
+            }
             box.append(list, button('Dispensar prévia', { 'data-dismiss-preview': '' }));
             disposeMaps(container);
             container.replaceChildren(box);
@@ -431,12 +441,19 @@
                     stops.append(el('div', { class: 'ppwoo-route-row' }, orderInfo(order, order.position, key),
                         estimate ? el('small', { class: 'ppwoo-route-estimate' }, 'Estimativa após a saída: ' + duration(estimate.eta_seconds) + distance) : null,
                         issueById.has(order.id) ? el('p', { class: 'ppwoo-routes-warning' }, issueMessage(issueById.get(order.id))) : null,
-                        groupSelect(order, route)));
+                        el('div', { class: 'ppwoo-routes-toolbar' }, groupSelect(order, route),
+                            button('Desmarcar', { 'data-remove-from-route': order.id, 'data-source-route': route.id,
+                                title: 'Tirar desta rota e voltar para Sem rota' }))));
                 });
-                body.append(button(route.calculation ? 'Recalcular rota' : 'Calcular esta rota',
-                    { 'data-recalculate-route': route.id, class: 'ppwoo-routes-button' + (!route.calculation ? ' ppwoo-routes-primary' : '') }),
-                    ...(route.stops.length === 1 ? Array.from(stops.children).slice(1) : [stops]), formFor(route));
-                box.append(el('summary', {}, 'Rota ' + route.slot + ' · ' + route.stops.length + ' pedidos'), body);
+                body.append(...(route.stops.length === 1 ? Array.from(stops.children).slice(1) : [stops]), formFor(route));
+                const calculate = swipe(route.calculation ? 'Deslize: recalcular' : 'Deslize: calcular', {
+                    'data-recalculate-route': route.id,
+                    class: 'slide-button ppwoo-swipe-action ppwoo-route-slide ppwoo-route-calc-slide',
+                    'aria-label': (route.calculation ? 'Recalcular' : 'Calcular') + ' rota ' + route.slot + ': deslize até o fim'
+                });
+                box.append(el('summary', { class: 'ppwoo-route-heading' },
+                    el('span', { class: 'ppwoo-route-heading-title' }, 'Rota ' + route.slot + ' · ' + route.stops.length + ' pedidos',
+                        el('small', {}, route.calculation ? 'Cálculo atualizado' : 'Cálculo pendente')), calculate), body);
                 fragment.append(box);
             });
             disposeMaps(container);
@@ -872,6 +889,21 @@
             preview = null;
             renderPreview();
         });
+        $panel.on('click', '[data-remove-from-route]', function () {
+            const source = currentRoute(this.dataset.sourceRoute);
+            const id = Number(this.dataset.removeFromRoute);
+            if (!source || busy) return;
+            act('group', {
+                order_id: id, slot: 0, source_id: source.id, source_revision: source.revision,
+                target_id: 0, preview: preview?.calculation.token || ''
+            }, {
+                refreshMotoboy: true, message: 'Pedido voltou para Sem rota. Recalcule o grupo alterado.',
+                after: () => {
+                    preview?.removed.delete(id);
+                    openGroups.delete('draft-' + source.id + '-order-' + id);
+                }
+            });
+        });
         $panel.on('change', '[data-group-order]', function () {
             const orderId = Number(this.dataset.groupOrder);
             const source = currentRoute(this.dataset.source);
@@ -884,14 +916,20 @@
             }, { refreshMotoboy: true, message: 'Grupo atualizado.', after: data => {
                 const group = data.routes.find(route => route.state === 'draft' && route.stops.some(order => order.id === orderId));
                 if (group) {
-                    openGroups.add('draft-' + group.id);
+                    openGroups.delete('preview-order-' + orderId);
+                    openGroups.delete('preview-assigned');
                 }
             } });
         });
-        $panel.on('click', '[data-recalculate-route]', function () {
+        $panel.on('click', '[data-recalculate-route]', event => {
+            event.preventDefault();
+            event.stopPropagation();
+        });
+        $panel.on('ppwoo:slide-complete', '[data-recalculate-route]', function () {
             const route = currentRoute(this.dataset.recalculateRoute);
-            if (route) act('recalculate', { route_id: route.id, revision: route.revision, preview: preview?.calculation.token }, {
-                loading: 'Calculando o grupo…', message: 'Cálculo atualizado. Confira as paradas.'
+            if (!route || busy) { resetSwipe(this); return; }
+            act('recalculate', { route_id: route.id, revision: route.revision, preview: preview?.calculation.token }, {
+                loading: 'Calculando o grupo…', message: 'Cálculo atualizado. Abra a rota para conferir as paradas.', slider: this
             });
         });
         $panel.on('input', '[data-sheet-field], [data-sheet-cost]', function () {

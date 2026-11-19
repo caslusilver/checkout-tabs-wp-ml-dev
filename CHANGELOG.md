@@ -2,6 +2,12 @@
 
 Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
+## [v3.3.5] - 2026-11-19
+
+- Rotas: pedidos já atribuídos da prévia se consolidam em uma única lista recolhida, mantendo o mapa geral e os seletores por pedido.
+- Rotas: grupos novos permanecem fechados, com slider azul compacto de calcular/recalcular no cabeçalho, sem ação por toque simples ou gesto incompleto.
+- Rotas: adiciona Desmarcar em Paradas e pedidos para retirar o pedido do grupo e voltar a Sem rota, preservando os demais pedidos e exigindo recálculo do grupo afetado.
+
 ## [v3.3.4] - 2026-11-19
 
 - Mapa de rotas: números das paradas e origem na camada de marcadores, acima da linha do trajeto.

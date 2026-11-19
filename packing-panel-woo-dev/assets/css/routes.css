@@ -375,3 +375,70 @@
     height: 100%;
     width: 100%;
 }
+
+.painel-empacotamento .ppwoo-preview-assigned {
+    width: 100%;
+    margin-block-start: .7rem;
+    border-block-start: 1px solid #dce3e9;
+    padding-block-start: .5rem;
+}
+.painel-empacotamento .ppwoo-route-card > .ppwoo-route-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: .5rem;
+    list-style: none;
+}
+.painel-empacotamento .ppwoo-route-heading::-webkit-details-marker {
+    display: none;
+}
+.painel-empacotamento .ppwoo-route-heading-title {
+    flex: 1 1 110px;
+}
+.painel-empacotamento .ppwoo-route-heading-title::before {
+    content: '▸ ';
+}
+.painel-empacotamento .ppwoo-route-card[open] > summary .ppwoo-route-heading-title::before {
+    content: '▾ ';
+}
+.painel-empacotamento .ppwoo-route-heading-title small {
+    display: block;
+    font-size: .75rem;
+    font-weight: 400;
+}
+.painel-empacotamento .ppwoo-route-calc-slide,
+.painel-empacotamento .ppwoo-route-calc-slide:is(:hover,:focus,:active) {
+    flex: 0 0 190px;
+    width: 190px !important;
+    max-width: 100%;
+    height: 44px !important;
+    min-height: 44px !important;
+    background-color: #124eaa !important;
+    border: 1px solid #124eaa !important;
+    color: #fff !important;
+    opacity: 1 !important;
+}
+.painel-empacotamento .ppwoo-route-calc-slide .ppwoo-swipe-label {
+    color: #fff !important;
+    font-size: 12px;
+    padding: 0 12px 0 44px;
+}
+.painel-empacotamento .ppwoo-route-calc-slide .ppwoo-swipe-thumb {
+    width: 34px;
+    height: 34px;
+    background-color: #fff !important;
+    color: #124eaa !important;
+}
+.painel-empacotamento .ppwoo-route-calc-slide .dashicons,
+.painel-empacotamento .ppwoo-route-calc-slide .dashicons::before {
+    color: #124eaa !important;
+}
+.painel-empacotamento .ppwoo-route-calc-slide:disabled {
+    background-color: #e3e8ee !important;
+    border-color: #7a8b99 !important;
+    color: #566879 !important;
+}
+.painel-empacotamento .ppwoo-route-calc-slide:disabled .ppwoo-swipe-label {
+    color: #566879 !important;
+}

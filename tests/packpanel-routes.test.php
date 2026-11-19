@@ -307,6 +307,16 @@ $before_groups = PPWOO_Routes_Store::$stops;
 $plan = new ReflectionMethod(PPWOO_Routes::class, 'plan');
 expect(count($plan->invoke(null, ['order_ids' => array_values($refs)])['orders']), 4, 'Prévia aceita pedidos já agrupados');
 expect(PPWOO_Routes_Store::$stops, $before_groups, 'Consultar prévia não desfaz grupos nem custos');
+action('save_sheet', ['route_id' => 1, 'revision' => PPWOO_Routes_Store::route(1)['revision'],
+    'sheet' => ['link' => 'https://rastreamento.example.test/rascunho', 'phone' => '', 'code' => '', 'costs' => ['101' => '12']]], false);
+action('change_group', ['order_id' => 102, 'slot' => 0, 'source_id' => 1, 'source_revision' => PPWOO_Routes_Store::route(1)['revision'], 'target_id' => 0]);
+expect(PPWOO_Routes_Store::stop(102), null, 'Desmarcar retira somente o vínculo do pedido');
+expect(count(PPWOO_Routes_Store::route_stops(1)), 3, 'Demais pedidos continuam na rota');
+expect(PPWOO_Routes_Store::stop(101)['details']['cost'], '12.00', 'Custo de outro pedido preservado');
+expect(PPWOO_Routes_Store::route(1)['details']['sheet']['link'], 'https://rastreamento.example.test/rascunho', 'Ficha preservada ao desmarcar');
+expect(isset(PPWOO_Routes_Store::route(1)['details']['calc']), false, 'Grupo alterado exige novo cálculo');
+action('change_group', ['order_id' => 102, 'slot' => 1, 'preview' => $preview['token'], 'source_id' => 0,
+    'target_id' => 1, 'target_revision' => PPWOO_Routes_Store::route(1)['revision']]);
 rejects(static function () use ($preview) {
     action('change_group', ['order_id' => 101, 'slot' => 2, 'preview' => $preview['token'], 'source_id' => 0, 'target_id' => 0]);
 }, 409);
