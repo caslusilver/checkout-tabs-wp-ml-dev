@@ -9,6 +9,8 @@ const jquery = require('jquery');
 test('routing preserves edits and copies the correct stop in both tabs', async t => {
     const orders = [101, 102, 103, 104].map((id, index) => ({
         id, number: String(id), name: 'Pessoa ' + id, address: 'Rua ' + id,
+        address_display: 'Rua ' + id, postcode: '00000-000', complement: 'Apto ' + id,
+        phone: '123456789', dial_code: '+33', whatsapp: 'https://wa.me/33123456789',
         delivery_message: 'Nome: Pessoa ' + id + '\nEndereço: Rua ' + id,
         position: index + 1, shipping_paid: 70, currency: 'BRL', delivery_state: 'on_route'
     }));
@@ -36,7 +38,7 @@ test('routing preserves edits and copies the correct stop in both tabs', async t
     });
     const origin = { lat: -23.55, lng: -46.63 };
     const locations = orders.map((_, index) => ({ lat: -23.56 + index / 1000, lng: -46.62 + index / 1000 }));
-    const calculation = { token: 'one', issues: [], distance_meters: 1500, duration_seconds: 450,
+    const calculation = { token: 'one', issues: [], distance_meters: 1500, duration_seconds: 450, destination_order_id: 104,
         origin, path: [origin, ...locations],
         stops: orders.map((order, index) => ({ order_id: order.id, eta_seconds: order.position * 100, location: locations[index] })) };
     let state = { routes: [] };
@@ -63,7 +65,11 @@ test('routing preserves edits and copies the correct stop in both tabs', async t
         }
         if (command === 'dispatch') {
             state.routes[0].state = 'dispatched';
+            state.routes[0].departed_at = '2026-11-19T16:00:00Z';
+            state.routes[0].trip = { phone: '11900000000', whatsapp: 'https://wa.me/5511900000000', code: '4321', link: input.sheet.link };
+            state.routes[0].stops.forEach(order => { order.event_state = 'accepted'; order.attempt = 1; order.code = 'http_200'; });
             state.routes[0].stops[0].event_state = 'uncertain';
+            state.routes[0].stops[0].code = 'connection';
         }
         if (command === 'close') state.routes[0].stops[0].delivery_state = 'closed';
         return { success: true, data: state };
@@ -86,6 +92,29 @@ test('routing preserves edits and copies the correct stop in both tabs', async t
     assert.deepEqual(requests.find(r => r.command === 'plan').input.order_ids, [101, 102, 103, 104]);
     await until(() => $('[data-routes-preview] canvas').length === 1);
     assert.deepEqual(mapLabels, ['O', '1', '2', '3', '4']);
+    const firstCard = $('[data-routes-preview] .ppwoo-route-order').first();
+    assert.equal(firstCard.find('.order-header h3').text(), 'Pedido #101');
+    assert.equal(firstCard.find('.ppwoo-route-badge').text(), 'Sem rota');
+    assert.equal(firstCard.find('summary .ppwoo-order-address-summary').text(), 'Rua 101');
+    assert.equal(firstCard.find('.cep').text(), 'CEP: 00000-000');
+    assert.equal(firstCard.find('.billing-complemento').text(), 'Complemento: Apto 101');
+    firstCard.find('.client-name-to-copy .copy-button').trigger('click');
+    assert.equal(clipboard.pop(), 'Pessoa 101');
+    firstCard.find('.whatsapp-to-copy .copy-button').trigger('click');
+    assert.equal(clipboard.pop(), '123456789', 'WhatsApp copy excludes the DDI and country label');
+    firstCard.find('.address-to-copy .copy-button').trigger('click');
+    assert.equal(clipboard.pop(), 'Rua 101');
+    const originalWriter = window.navigator.clipboard.writeText;
+    window.navigator.clipboard.writeText = () => Promise.reject(new Error('Fixture: Clipboard API unavailable'));
+    window.document.execCommand = command => {
+        assert.equal(command, 'copy');
+        clipboard.push(window.document.activeElement.value);
+        return true;
+    };
+    firstCard.find('.whatsapp-to-copy .copy-button').trigger('click');
+    await until(() => clipboard.length === 1);
+    assert.equal(clipboard.pop(), '123456789', 'existing clipboard fallback copies only the intended value');
+    window.navigator.clipboard.writeText = originalWriter;
     assert.equal($('script[src*="maps.googleapis.com"]').length, 0);
 
     async function group(id, count) {
@@ -133,11 +162,15 @@ test('routing preserves edits and copies the correct stop in both tabs', async t
     assert.equal(state.routes[0].stops[0].id, 101, 'unmark removes only the selected order from the route');
     assert.equal($('[data-routes-drafts] [data-sheet-field="link"]').val(), 'https://test.example.test/entrega', 'unmark retains the remaining route sheet');
     assert.match($('[data-routes-drafts] .ppwoo-route-heading').text(), /Cálculo pendente/);
+    assert.match($('[data-routes-drafts] .ppwoo-route-destination').text(), /Destino a confirmar/);
+    assert.equal($('[data-recalculate-route]').hasClass('is-calculated'), false);
     assert.equal($('[data-routes-preview] .ppwoo-preview-assigned .ppwoo-route-row').length, 1);
     assert.equal($('[data-routes-preview] [data-group-order="102"]').val(), '0', 'unmarked order returns to Sem rota');
     await group(102, 2);
     await group(103, 3);
     await group(104, 4);
+    assert.equal($('[data-recalculate-route]').hasClass('is-calculated'), true, 'valid calculation has a quieter visual state');
+    assert.match($('[data-routes-drafts] .ppwoo-route-destination').text(), /Pessoa 104.*Rua 104/);
     $('[data-sheet-field="phone"]').val('11900000000').trigger('input');
     $('[data-sheet-field="code"]').val('4321').trigger('input');
     $('[data-sheet-cost]').val('20').trigger('input');
@@ -149,6 +182,15 @@ test('routing preserves edits and copies the correct stop in both tabs', async t
     slide(send, 300);
     await until(() => $('[data-routes-active] .ppwoo-copy-delivery').length === 4);
     assert.equal(requests.filter(r => r.command === 'dispatch').length, 1);
+    assert.match($('[data-routes-active] > details > summary').text(), /Pessoa 104.*Rua 104/);
+    assert.match($('[data-routes-active] .ppwoo-route-pending').text(), /4 entregas pendentes/);
+    assert.match($('[data-routes-active] .ppwoo-trip-code').text(), /4321/);
+    assert.equal($('[data-routes-active] .ppwoo-trip-contact a').attr('href'), 'https://wa.me/5511900000000');
+    assert.equal($('[data-select-delivery-all]').closest('label').prev()[0].className, 'ppwoo-route-departure', 'date and selection have separate consecutive lines');
+    assert.match($('[data-routes-active] .ppwoo-route-event-status.is-success').first().text(), /✓ Evento enviado com sucesso/);
+    assert.doesNotMatch($('[data-routes-active]').text(), /HTTP 200|tentativa 1|eventos recebidos/);
+    $('[data-routes-active] .ppwoo-trip-code-group .copy-button').trigger('click');
+    assert.equal(clipboard.pop(), '4321');
     assert.match($('[data-routes-active]').text(), /Envio sem confirmação/);
     assert.equal($('[data-retry-order], [data-resume-route]').length, 0);
     $('[data-routes-active] .ppwoo-copy-delivery').last().trigger('click');
@@ -158,6 +200,8 @@ test('routing preserves edits and copies the correct stop in both tabs', async t
     await until(() => !$('[data-close-order="101"]').length);
     assert.deepEqual(requests.find(r => r.command === 'close').input.order_ids, [101]);
     assert.equal($('[data-close-order]').length, 3);
+    assert.match($('[data-routes-active] .ppwoo-route-pending').text(), /3 entregas pendentes/);
+    assert.match($('[data-routes-active] .ppwoo-route-order').last().find('summary').text(), /Parada 4 de 4/);
 });
 
 test('autosave serializes edits, exposes failures and preserves a loaded map and global privacy', async t => {
