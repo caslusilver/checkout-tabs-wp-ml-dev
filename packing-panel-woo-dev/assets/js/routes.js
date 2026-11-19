@@ -313,11 +313,59 @@
                     el('span', {}, 'WhatsApp do motoboy: ',
                         /^https:\/\/wa\.me\/\d+$/.test(trip.whatsapp || '')
                             ? el('a', { href: trip.whatsapp, target: '_blank', rel: 'noopener noreferrer' }, trip.phone)
-                            : (trip.phone || 'Não informado'), trip.phone ? copyIcon(trip.phone, 'Copiar WhatsApp do motoboy') : null),
+                            : (trip.phone || 'Não informado')),
                     trip.code ? el('span', { class: 'ppwoo-trip-code-group' }, 'Código ',
-                        el('strong', { class: 'ppwoo-trip-code' }, trip.code), copyIcon(trip.code, 'Copiar código da viagem')) : null),
+                        el('strong', { class: 'ppwoo-trip-code' }, trip.code)) : null),
                 trip.link && /^https?:\/\//.test(trip.link) ? el('p', { class: 'ppwoo-trip-tracking' },
-                    el('a', { href: trip.link, target: '_blank', rel: 'noopener noreferrer' }, trip.link), copyIcon(trip.link, 'Copiar link de rastreio')) : null);
+                    el('a', { href: trip.link, target: '_blank', rel: 'noopener noreferrer' }, trip.link)) : null,
+                route.state === 'dispatched' ? el('div', { class: 'ppwoo-trip-actions' },
+                    button('Compartilhar', { 'data-share-trip': route.id }),
+                    button('⧉', { 'data-copy-trip': route.id, title: 'Copiar mensagem para um destinatário', 'aria-label': 'Copiar mensagem para um destinatário' })) : null);
+        }
+
+        function driverPreview(value) {
+            let digits = String(value || '').replace(/\D/g, '');
+            if (/^55\d{10,11}$/.test(digits)) digits = digits.slice(2);
+            return /^\d{10,11}$/.test(digits) ? 'https://wa.me/55' + digits : '';
+        }
+
+        function chooseTripRecipient(route, copying) {
+            const dialog = el('dialog', { class: 'ppwoo-trip-share-dialog' }, el('h3', {}, copying ? 'Copiar para quem?' : 'Compartilhar com quem?'));
+            const close = () => { dialog.close(); dialog.remove(); };
+            dialog.addEventListener('cancel', close);
+            route.stops.filter(order => order.delivery_state === 'on_route').forEach(order => {
+                const choose = button('Parada ' + order.position + ' · #' + order.number + ' · ' + order.name);
+                choose.addEventListener('click', async () => {
+                    choose.disabled = true;
+                    try {
+                        let result;
+                        try { result = await api('tracking_link', { route_id: route.id, order_id: order.id }); }
+                        catch (error) {
+                            if (!/venceu/.test(error.message) || !window.confirm('O link venceu. Gerar novo acesso de 24 horas e invalidar o anterior?')) throw error;
+                            result = await api('tracking_link', { route_id: route.id, order_id: order.id, renew: true });
+                        }
+                        const last = route.calculation?.destination_order_id === order.id;
+                        const parts = ['Seu pedido #' + order.number + ' está a caminho.',
+                            'Sua parada é a ' + order.position + ' de ' + route.stops.length + '.',
+                            'WhatsApp do motoboy: ' + (route.trip?.whatsapp || ''),
+                            last ? 'Informe este código para finalização da corrida: ' + route.trip.code : 'O motoboy fará uma parada no seu endereço antes de seguir para o destino final.',
+                            'Aqui está o link de rastreio da sua viagem pela Uber: ' + (route.trip?.link || ''),
+                            'Acompanhe seu pedido e confirme o recebimento: ' + result.tracking_url];
+                        const message = parts.join('\n\n');
+                        const text = el('textarea', { readonly: '', rows: '10', 'aria-label': 'Mensagem para o destinatário' }, message);
+                        dialog.replaceChildren(el('h3', {}, 'Parada ' + order.position + ' · ' + order.name), text);
+                        if (copying) dialog.append(copyIcon(message, 'Copiar mensagem completa'));
+                        else if (/^https:\/\/wa\.me\/\d+$/.test(order.whatsapp || '')) dialog.append(el('a', {
+                            class: 'ppwoo-routes-button', href: order.whatsapp + '?text=' + encodeURIComponent(message), target: '_blank', rel: 'noopener noreferrer'
+                        }, 'Abrir WhatsApp com a mensagem'));
+                        else dialog.append(el('p', {}, 'WhatsApp do cliente indisponível. Use Copiar para enviar por outro canal.'));
+                        const done = button('Fechar'); done.addEventListener('click', close); dialog.append(done);
+                    } catch (error) { choose.disabled = false; choose.textContent = error.message; }
+                });
+                dialog.append(choose);
+            });
+            const cancel = button('Fechar'); cancel.addEventListener('click', close); dialog.append(cancel);
+            $panel[0].append(dialog); dialog.showModal();
         }
 
         function phoneCountry(order) {
@@ -415,7 +463,10 @@
                     type: 'text', inputmode: 'url', maxlength: 2048, class: 'tracking-link', 'data-sheet-field': 'link',
                     value: unsaved.link ?? saved.link ?? ''
                 })),
-                el('label', { class: 'ppwoo-route-private-recipient' }, 'WhatsApp do motoboy', el('input', {
+                el('label', { class: 'ppwoo-route-private-recipient' }, 'WhatsApp do motoboy', el('a', {
+                    'data-driver-preview': '', href: driverPreview(unsaved.phone ?? saved.phone),
+                    hidden: driverPreview(unsaved.phone ?? saved.phone) ? null : '', target: '_blank', rel: 'noopener noreferrer'
+                }, 'Conversar com o motoboy ↗'), el('input', {
                     type: 'tel', class: 'motoboy-whatsapp', 'data-sheet-field': 'phone', value: unsaved.phone ?? saved.phone ?? ''
                 })),
                 el('label', { class: 'ppwoo-route-private-recipient' }, 'Código de finalização da última parada', el('input', {
@@ -996,12 +1047,20 @@
         $panel.on('input', '[data-sheet-field], [data-sheet-cost]', function () {
             const card = this.closest('[data-route-id]');
             if (card) {
+                if (this.dataset.sheetField === 'phone') {
+                    const link = card.querySelector('[data-driver-preview]');
+                    if (link) { const href = driverPreview(this.value); link.hidden = !href; link.href = href; }
+                }
                 const id = Number(card.dataset.routeId);
                 sheetInput(id, card);
                 saveStatus(id, 'Alterações aguardando salvamento…');
                 updateReadiness();
                 scheduleSave();
             }
+        });
+        $panel.on('click', '[data-share-trip], [data-copy-trip]', function () {
+            const route = currentRoute(Number(this.dataset.shareTrip || this.dataset.copyTrip));
+            if (route) chooseTripRecipient(route, this.hasAttribute('data-copy-trip'));
         });
         $panel.on('click', '[data-save-sheet]', async function () {
             const id = Number(this.dataset.saveSheet);
