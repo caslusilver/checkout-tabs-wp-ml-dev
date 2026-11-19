@@ -41,6 +41,10 @@ function esc_attr($value) { return esc_html($value); }
 function esc_url($value) { return esc_attr($value); }
 function admin_url($path) { return 'https://sandbox.example.test/wp-admin/' . $path; }
 function wp_nonce_field($action, $field) {}
+function wp_dropdown_pages($args) {}
+function wp_salt($scheme) { return 'fixture-server-secret'; }
+function get_post_status($id) { return 'publish'; }
+function get_permalink($id) { return 'https://sandbox.example.test/entrega/'; }
 function checked($value) {}
 function submit_button(...$args) {}
 function wp_is_uuid($value, $version) { return (bool) preg_match('/^[a-f0-9-]{36}$/D', $value); }
@@ -105,6 +109,7 @@ class WC_Order {
     public function update_meta_data($key, $value) { $this->meta[$key] = $value; }
     public function delete_meta_data($key) { unset($this->meta[$key]); }
     public function save() { return $this->id; }
+    public function save_meta_data() {}
     public function update_status($state, $note) { $this->status = $state; return true; }
     public function get_shipping_address_1() { return 'Rua Fictícia ' . $this->id; }
     public function get_shipping_address_2() { return 'Apto ' . $this->id; }
@@ -179,7 +184,7 @@ class PPWOO_Routes_Store {
 }
 
 $core = dirname(__DIR__) . '/packing-panel-woo-dev/inc/core/';
-foreach (['class-route-calculation.php', 'class-utils.php', 'class-routes.php', 'class-webhook.php'] as $file) require $core . $file;
+foreach (['class-route-calculation.php', 'class-utils.php', 'class-routes.php', 'class-webhook.php', 'class-order-tracking.php'] as $file) require $core . $file;
 require $core . '../admin/class-admin-menu.php';
 require $core . '../admin/class-admin-routes-tab.php';
 
@@ -389,3 +394,40 @@ expect(PPWOO_Routes_Store::stop(102)['delivery_state'], 'on_route', 'Outros pedi
 action('close', ['route_id' => 1, 'revision' => $rev + 1, 'order_ids' => [102, 103, 104]]);
 expect(PPWOO_Routes_Store::route(1)['state'], 'closed', 'A última baixa encerra a rota para o histórico');
 echo "Pack Panel: contrato de cálculo, agrupamento, despacho, reenvio e baixa passaram.\n";
+
+$options['ppwoo_tracking_page'] = 88;
+$orders[201] = new WC_Order(201);
+$link = PPWOO_Order_Tracking::order_link($orders[201]);
+expect(str_contains($link, '#pedido=201&acesso='), true, 'Link já existe com pedido aprovado');
+expect(PPWOO_Order_Tracking::order_link($orders[201]), $link, 'Retry preserva link aprovado');
+$approved_payload = PPWOO_Order_Tracking::webhook_payload(['meta_data' => [['key' => '_ppwoo_tracking_access', 'value' => 'private'], ['key' => 'dial_code', 'value' => '+33']]], 'order', 201);
+expect($approved_payload['order_tracking_url'], $link, 'Webhook nativo recebe link na aprovação');
+expect(array_column($approved_payload['meta_data'], 'key'), ['dial_code'], 'Verificador não sai no webhook e DDI permanece');
+parse_str(parse_url($link, PHP_URL_FRAGMENT), $parts);
+$route = ['id' => 9, 'slot' => 2, 'state' => 'dispatched', 'details' => ['departed_at' => gmdate('c'), 'sheet' => ['code' => '4821', 'phone' => '11999998888', 'link' => 'https://uber.example.test/ride'], 'dispatched_calculation' => ['destination_order_id' => 202, 'origin' => ['lat' => -23.51123, 'lng' => -46.61123], 'stops' => [
+    ['order_id' => 201, 'location' => ['lat' => -23.51234, 'lng' => -46.61234]], ['order_id' => 202, 'location' => ['lat' => -23.54321, 'lng' => -46.64321]]]]]];
+$stop = ['route_id' => 9, 'order_id' => 201, 'position' => 1, 'delivery_state' => 'on_route', 'event_state' => 'accepted', 'attempt' => 0, 'details' => ['last_stop' => false]];
+$route['revision'] = 1;
+PPWOO_Routes_Store::$routes[9] = $route;
+$stop = PPWOO_Order_Tracking::issue($route, $stop);
+expect(PPWOO_Order_Tracking::link($route, $stop), $link, 'Saída não troca o link enviado na aprovação');
+PPWOO_Order_Tracking::authorize($route, $stop, $parts['acesso']);
+rejects(fn() => PPWOO_Order_Tracking::authorize($route, $stop, str_repeat('a', 64)), 403);
+$other = $stop; $other['route_id'] = 10;
+rejects(fn() => PPWOO_Order_Tracking::authorize($route, $other, $parts['acesso']), 403);
+$expired = $stop; $expired['details']['access']['expires'] = time()-1;
+rejects(fn() => PPWOO_Order_Tracking::authorize($route, $expired, $parts['acesso']), 403);
+$data = PPWOO_Order_Tracking::projection($route, $stop);
+expect($data['code'], '', 'Parada intermediária não recebe código');
+expect($data['map']['points'][0]['lat'], -23.51234, 'Próprio endereço preciso');
+expect($data['map']['points'][1]['lat'] !== -23.54321, true, 'Outra parada generalizada no servidor');
+expect(isset($data['map']['path']), false, 'Trajetória privada não é enviada');
+expect(isset($data['sheet']), false, 'Ficha administrativa não é enviada');
+$last = $stop; $last['details']['last_stop'] = true;
+expect(PPWOO_Order_Tracking::projection($route, $last)['code'], '4821', 'Última parada recebe código');
+PPWOO_Routes::close_stops($route, [201], 'customer');
+$closed = PPWOO_Routes_Store::stop(201);
+expect($closed['details']['closed_source'], 'customer', 'Baixa identifica cliente');
+rejects(fn() => PPWOO_Order_Tracking::authorize($route, $closed, $parts['acesso']), 410);
+PPWOO_Order_Tracking::authorize($route, $closed, $parts['acesso'], true);
+echo "Central: link aprovado estável, autorização, expiração, projeção privada e confirmação passaram.\n";

@@ -287,6 +287,9 @@ final class PPWOO_Routes {
                 $route['details']['dispatched_calculation'] = PPWOO_Route_Calculation::public_result($calc);
             }
             PPWOO_Routes_Store::save_route($route);
+            if ($dispatch) {
+                foreach (PPWOO_Routes_Store::route_stops($route['id']) as $member) PPWOO_Order_Tracking::issue($route, $member);
+            }
             return $route['id'];
         });
         PPWOO_Debug::info($dispatch ? 'Rotas: saída registrada' : 'Rotas: ficha salva', ['route_id' => $id]);
@@ -297,23 +300,30 @@ final class PPWOO_Routes {
         $ids = self::ids($input['order_ids'] ?? null);
         $route_id = PPWOO_Routes_Store::transaction(static function () use ($input, $ids) {
             $route = self::route($input, true, 'dispatched');
-            $stops = array_column(PPWOO_Routes_Store::route_stops($route['id']), null, 'order_id');
-            foreach ($ids as $id) {
-                if (($stops[$id]['delivery_state'] ?? '') !== 'on_route') self::conflict('Só pedidos em rota podem receber baixa.');
-                $stops[$id]['delivery_state'] = 'closed';
-                $stops[$id]['details']['closed_at'] = gmdate('c');
-                $stops[$id]['details']['closed_by'] = get_current_user_id();
-                $stops[$id]['details']['closed_source'] = 'operator';
-                PPWOO_Routes_Store::save_stop($stops[$id]);
-            }
-            if (!in_array('on_route', array_column($stops, 'delivery_state'), true)) {
-                $route['state'] = 'closed';
-                $route['details']['closed_at'] = gmdate('c');
-            }
-            PPWOO_Routes_Store::save_route($route);
+            self::close_stops($route, $ids, 'operator');
             return $route['id'];
         });
         PPWOO_Debug::info('Rotas: baixa administrativa', ['route_id' => $route_id, 'order_ids' => $ids]);
+    }
+
+    /** Chamadores devem autorizar e bloquear a rota na mesma transação. */
+    public static function close_stops(array $route, array $ids, string $source): void {
+        if (!in_array($source, ['customer', 'operator'], true) || $route['state'] !== 'dispatched') self::conflict();
+        $stops = array_column(PPWOO_Routes_Store::route_stops($route['id']), null, 'order_id');
+        foreach ($ids as $id) {
+            if (($stops[$id]['delivery_state'] ?? '') !== 'on_route') self::conflict('Só pedidos em rota podem receber baixa.');
+            $stops[$id]['delivery_state'] = 'closed';
+            $stops[$id]['details']['closed_at'] = gmdate('c');
+            $stops[$id]['details']['closed_by'] = $source === 'operator' ? get_current_user_id() : 0;
+            $stops[$id]['details']['closed_source'] = $source;
+            PPWOO_Routes_Store::save_stop($stops[$id]);
+        }
+        if (!in_array('on_route', array_column($stops, 'delivery_state'), true)) {
+            $route['state'] = 'closed';
+            $route['details']['closed_at'] = gmdate('c');
+        }
+        PPWOO_Routes_Store::save_route($route);
+        PPWOO_Debug::info('Central/rotas: recebimento registrado', ['route_id' => $route['id'], 'source' => $source, 'count' => count($ids)]);
     }
 
     private static function can_retry_uncertain(): bool {
@@ -456,6 +466,7 @@ final class PPWOO_Routes {
                 case 'dispatch': self::save_sheet($input, true); break;
                 case 'close': self::close($input); break;
                 case 'retry': self::retry($input); break;
+                case 'tracking_link': $extra = PPWOO_Order_Tracking::admin_link($input); break;
                 case 'resume':
                     $route = self::route($input);
                     if ($route['state'] === 'draft') self::conflict();

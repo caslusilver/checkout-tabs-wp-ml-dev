@@ -84,7 +84,9 @@ require_once plugin_dir_path(__FILE__) . 'inc/core/class-debug.php';
 require_once plugin_dir_path(__FILE__) . 'inc/core/class-routes-store.php';
 require_once plugin_dir_path(__FILE__) . 'inc/core/class-route-calculation.php';
 require_once plugin_dir_path(__FILE__) . 'inc/core/class-routes.php';
+require_once plugin_dir_path(__FILE__) . 'inc/core/class-order-tracking.php';
 PPWOO_Routes::init();
+PPWOO_Order_Tracking::init();
 
 // Carrega classe principal
 require_once plugin_dir_path(__FILE__) . 'inc/class-packing-panel.php';

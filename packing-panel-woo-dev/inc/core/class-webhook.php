@@ -117,7 +117,7 @@ class PPWOO_Webhook {
      * @return array
      */
     private static function prepare_event_payload($order) {
-        return array(
+        $payload = array(
             'tracking_data' => array(
                 'link' => $order->get_meta('_packing_panel_tracking_link'),
                 'deadline' => $order->get_meta('_packing_panel_delivery_deadline'),
@@ -126,6 +126,13 @@ class PPWOO_Webhook {
                 'motoboy_whatsapp' => $order->get_meta('_packing_panel_motoboy_whatsapp'),
             ),
         );
+        if (class_exists('PPWOO_Order_Tracking') && PPWOO_Routes_Store::ready()) {
+            $stop = PPWOO_Routes_Store::stop($order->get_id());
+            $route = $stop ? PPWOO_Routes_Store::route($stop['route_id']) : null;
+            $link = $route && $route['state'] !== 'draft' ? PPWOO_Order_Tracking::link($route, $stop) : PPWOO_Order_Tracking::order_link($order);
+            if ($link !== '') $payload['tracking_data']['order_tracking_url'] = $link;
+        }
+        return $payload;
     }
     
     /**

@@ -2,6 +2,14 @@
 
 Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
+## [v3.3.7] - 2026-11-19
+
+- Central de Entrega por shortcode: página sem header/footer, link individual já disponível no pedido aprovado, estado de preparação e atualização dos dados após despacho, sem exigir outro aviso ao cliente.
+- Acesso limitado ao próprio pedido, sessão HttpOnly, expiração 24h após saída, baixa imediata por confirmação, agradecimento e código somente para a última parada. Mapa do cliente usa referências aproximadas de terceiros, sem trajetória administrativa nem origem exata.
+- Viagem: Compartilhar e um único Copiar com seleção de destinatário; mensagem individual com parada, contato do motoboy, rastreio e Central, com código apenas no destino final. Link WhatsApp do motoboy acompanha a digitação na ficha.
+- Mapa administrativo: controles isolados na camada do mapa para não ultrapassarem o header.
+- Configuração da página na aba Rotas do PackPanel. Webhooks nativos de pedido recebem order_tracking_url; eventos PackPanel recebem event_data.tracking_data.order_tracking_url. Campos existentes preservados.
+
 ## [v3.3.6] - 2026-11-19
 
 - Rotas: detalhes dos pedidos seguem a organização da aba Motoboy, com cliente, WhatsApp, endereço, CEP, complemento e ícones de cópia usando o mesmo helper e fallback existentes. Cartões recolhidos exibem endereço e identificação da rota.

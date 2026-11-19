@@ -28,6 +28,8 @@ test('routing preserves edits and copies the correct stop in both tabs', async t
     const { window } = new JSDOM(markup, { runScripts: 'outside-only', pretendToBeVisual: true, url: 'https://test.example.test/pack' });
     t.after(() => window.close());
     const $ = window.$ = window.jQuery = jquery(window);
+    window.HTMLDialogElement.prototype.showModal = function () { this.open = true; };
+    window.HTMLDialogElement.prototype.close = function () { this.open = false; };
     const visible = $.expr.pseudos.visible;
     $.expr.pseudos.visible = node => node.classList.contains('ppwoo-route-map') || visible(node);
     const mapLabels = [];
@@ -71,6 +73,7 @@ test('routing preserves edits and copies the correct stop in both tabs', async t
             state.routes[0].stops[0].event_state = 'uncertain';
             state.routes[0].stops[0].code = 'connection';
         }
+        if (command === 'tracking_link') return { success: true, data: { ...state, tracking_url: 'https://test.example.test/entrega/#pedido=' + input.order_id + '&acesso=fixture' } };
         if (command === 'close') state.routes[0].stops[0].delivery_state = 'closed';
         return { success: true, data: state };
     };
@@ -189,8 +192,22 @@ test('routing preserves edits and copies the correct stop in both tabs', async t
     assert.equal($('[data-select-delivery-all]').closest('label').prev()[0].className, 'ppwoo-route-departure', 'date and selection have separate consecutive lines');
     assert.match($('[data-routes-active] .ppwoo-route-event-status.is-success').first().text(), /✓ Evento enviado com sucesso/);
     assert.doesNotMatch($('[data-routes-active]').text(), /HTTP 200|tentativa 1|eventos recebidos/);
-    $('[data-routes-active] .ppwoo-trip-code-group .copy-button').trigger('click');
-    assert.equal(clipboard.pop(), '4321');
+    assert.equal($('[data-routes-active] .ppwoo-trip-info .copy-button').length, 0, 'no individual trip copy icons');
+    assert.equal($('[data-routes-active] [data-copy-trip]').length, 1, 'one recipient-aware copy control');
+    $('[data-routes-active] [data-copy-trip]').trigger('click');
+    $('.ppwoo-trip-share-dialog button').first().trigger('click');
+    await until(() => $('.ppwoo-trip-share-dialog textarea').length);
+    assert.doesNotMatch($('.ppwoo-trip-share-dialog textarea').val(), /4321/);
+    assert.match($('.ppwoo-trip-share-dialog textarea').val(), /parada é a 1 de 4/);
+    $('.ppwoo-trip-share-dialog .copy-button').trigger('click');
+    assert.match(clipboard.pop(), /\n\nWhatsApp do motoboy: https:\/\/wa.me\//);
+    $('.ppwoo-trip-share-dialog button').last().trigger('click');
+    $('[data-routes-active] [data-share-trip]').trigger('click');
+    $('.ppwoo-trip-share-dialog button').eq(3).trigger('click');
+    await until(() => $('.ppwoo-trip-share-dialog textarea').length);
+    assert.match($('.ppwoo-trip-share-dialog textarea').val(), /4321/);
+    assert.match($('.ppwoo-trip-share-dialog a').attr('href'), /^https:\/\/wa.me\/33123456789\?text=/);
+    $('.ppwoo-trip-share-dialog button').last().trigger('click');
     assert.match($('[data-routes-active]').text(), /Envio sem confirmação/);
     assert.equal($('[data-retry-order], [data-resume-route]').length, 0);
     $('[data-routes-active] .ppwoo-copy-delivery').last().trigger('click');
