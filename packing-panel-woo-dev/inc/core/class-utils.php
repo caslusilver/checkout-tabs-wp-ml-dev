@@ -20,7 +20,7 @@ class PPWOO_Utils {
         if ($maps_destination !== '') {
             $lines[] = 'Google Maps: https://www.google.com/maps/dir/?api=1&destination=' . rawurlencode($maps_destination) . '&dir_action=navigate';
         }
-        return implode("\n", $lines);
+        return implode("\n\n", $lines);
     }
 
     
@@ -485,12 +485,32 @@ class PPWOO_Utils {
      */
     public static function get_billing_complemento($order) {
         if ($order instanceof WC_Order) {
-            return $order->get_meta('_billing_complemento');
+            $legacy = trim((string) $order->get_meta('_billing_complemento'));
+            return $legacy !== '' ? $legacy : trim((string) $order->get_billing_address_2());
         }
         if (is_array($order) && isset($order['billing']['complement'])) {
             return $order['billing']['complement'];
         }
         return '';
+    }
+
+    /** Resolve o complemento do endereço histórico do pedido, sem usar o perfil atual. */
+    public static function get_delivery_complement($order): string {
+        if (!$order instanceof WC_Order) return (string) self::get_billing_complemento($order);
+        if (trim((string) $order->get_shipping_address_1()) === '') return (string) self::get_billing_complemento($order);
+        $shipping = trim((string) $order->get_shipping_address_2());
+        if ($shipping !== '') return $shipping;
+        $shipping = $order->get_address('shipping');
+        $billing = $order->get_address('billing');
+        $normalize = static function ($value): string { return strtolower(trim(preg_replace('/\s+/', ' ', (string) $value))); };
+        foreach (['address_1', 'city', 'state', 'postcode', 'country'] as $field) {
+            $left = $shipping[$field] ?? '';
+            $right = $billing[$field] ?? '';
+            if ($field === 'postcode') { $left = preg_replace('/\D/', '', $left); $right = preg_replace('/\D/', '', $right); }
+            if ($normalize($left) !== $normalize($right)) return '';
+        }
+        if ((string) $order->get_meta('_shipping_number') !== (string) $order->get_meta('_billing_number')) return '';
+        return (string) self::get_billing_complemento($order);
     }
     
     /**

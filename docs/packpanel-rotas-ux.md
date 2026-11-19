@@ -1,4 +1,6 @@
-# PackPanel — experiência de rotas 3.3.5
+# PackPanel — experiência de rotas 3.3.6
+
+A revisão **3.3.6** aproxima os cartões da aba Motoboy, exibe destino final no cabeçalho e dados da viagem após despacho, acrescenta contadores de entregas e organiza a cópia com complemento e espaçamento. Veja [cartões e dados da viagem](packpanel-rotas-cartoes-viagem.md) para operação, evidências e rollback. A página do cliente por shortcode segue como próxima fase.
 
 Origem e decisões: [Blueprint V1 da entrevista](https://app.notion.com/p/41d4347fa2c281ddac19efb9e3cf4a7e). A transcrição integral está vinculada no Notion. O usuário confirmou o cálculo n8n no painel antes desta revisão. Esta versão ainda depende de aceite da interface real após atualização.
 

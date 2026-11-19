@@ -246,29 +246,78 @@
             catch (_) { return order.shipping_paid.toFixed(2); }
         }
 
-        function orderInfo(order, position, groupKey) {
+        function copyIcon(value, label) {
+            return el('button', { type: 'button', class: 'copy-button ppwoo-copy-value',
+                'data-copy-value': value || '', title: label, 'aria-label': label },
+                el('span', { class: 'dashicons dashicons-admin-page', 'aria-hidden': 'true' }));
+        }
+
+        function pendingLabel(count) {
+            return count === 0 ? 'Todas as entregas finalizadas' : count + (count === 1 ? ' entrega pendente' : ' entregas pendentes');
+        }
+
+        function destinationInfo(route) {
+            const calc = route.calculation;
+            const valid = calc && !calc.issues?.length && calc.stops?.length === route.stops.length &&
+                (route.state !== 'draft' || !calc.expires_at || calc.expires_at * 1000 > Date.now());
+            const last = valid && route.stops.find(order => order.id === calc.destination_order_id);
+            return el('small', { class: 'ppwoo-route-destination', 'data-route-destination': route.id },
+                last ? el('span', { class: 'ppwoo-route-private-recipient' }, 'Destino final: ' + (last.name || 'Pedido #' + last.number) + ' · ' +
+                    (last.address_display || last.address || 'Endereço indisponível'))
+                    : (route.state === 'draft' ? 'Destino a confirmar · recalcule' : 'Destino não disponível'));
+        }
+
+        function orderInfo(order, position, groupKey, context = {}) {
             const key = groupKey + '-order-' + order.id;
+            const address = order.address_display || order.address || 'Endereço indisponível';
+            const badge = el('span', { class: 'ppwoo-route-badge', style: context.slot ? routeStyle(context.slot) : '' },
+                context.slot ? 'Rota ' + context.slot : 'Sem rota');
+            const client = el('div', { class: 'order-client-info' },
+                el('h4', {}, 'Cliente:'),
+                el('p', { class: 'client-name-to-copy' }, el('span', {}, order.name || ''), copyIcon(order.name, 'Copiar nome')),
+                el('h4', {}, 'WhatsApp:'),
+                el('p', { class: 'whatsapp-to-copy' },
+                    order.whatsapp && /^https:\/\/wa\.me\/\d+$/.test(order.whatsapp)
+                        ? el('a', { class: 'ppwoo-whatsapp-link', href: order.whatsapp, target: '_blank', rel: 'noopener noreferrer' }, order.phone)
+                        : el('span', {}, order.phone || ''), copyIcon(order.phone, 'Copiar WhatsApp')), phoneCountry(order));
+            const delivery = el('div', { class: 'order-address' }, el('h4', {}, 'Endereço:'),
+                el('p', { class: 'address-to-copy' }, el('span', {}, address), copyIcon(order.address_copy || address, 'Copiar endereço')),
+                order.postcode ? el('p', { class: 'cep' }, 'CEP: ' + order.postcode) : null,
+                order.complement ? el('p', { class: 'billing-complemento' }, 'Complemento: ' + order.complement) : null);
+            if (order.delivery_message) delivery.append(
+                el('textarea', { class: 'ppwoo-delivery-message', hidden: '', readonly: '', tabindex: '-1' }, order.delivery_message),
+                el('p', { class: 'ppwoo-delivery-copy-line' }, 'Dados para o motoboy',
+                    el('button', { type: 'button', class: 'copy-button ppwoo-copy-delivery', title: 'Copiar dados para o motoboy',
+                        'aria-label': 'Copiar dados para o motoboy' }, el('span', { class: 'dashicons dashicons-admin-page', 'aria-hidden': 'true' }))));
             const details = el('details', { class: 'ppwoo-route-order', 'data-group-key': key },
                 el('summary', {},
-                    position ? 'Parada ' + position + (order.is_last ? ' · Última parada' : '') + ' · ' : '',
+                    el('span', { class: 'ppwoo-stop-position' }, position ? 'Parada ' + position + ' de ' + context.total +
+                        (order.is_last ? ' · Última parada' : '') : 'Parada pendente'),
                     el('span', { class: 'ppwoo-route-identity' }, '#' + order.number,
-                        el('span', { class: 'ppwoo-route-private-recipient' }, order.name ? ' · ' + order.name : ''))),
-                el('div', { class: 'ppwoo-route-private-recipient' },
-                    el('p', {}, [order.address, order.complement].filter(Boolean).join(' · ') || 'Endereço indisponível'),
-                    order.whatsapp && /^https:\/\/wa\.me\/\d+$/.test(order.whatsapp)
-                        ? el('a', { href: order.whatsapp, target: '_blank', rel: 'noopener noreferrer' }, 'WhatsApp ' + order.phone)
-                        : el('span', {}, order.phone || ''),
-                    phoneCountry(order),
-                    el('div', { class: 'ppwoo-routes-toolbar' },
-                        button('Copiar nome', { 'data-copy-contact': order.name || '' }),
-                        button('Copiar telefone', { 'data-copy-contact': order.phone || '' }),
-                        button('Copiar endereço', { 'data-copy-contact': [order.address, order.complement].filter(Boolean).join(' · ') })),
-                    order.delivery_message ? el('div', { class: 'ppwoo-routes-toolbar' },
-                        el('textarea', { class: 'ppwoo-delivery-message', hidden: '', readonly: '', tabindex: '-1' }, order.delivery_message),
-                        button('Copiar dados para o motoboy', { class: 'ppwoo-routes-button ppwoo-copy-delivery' })) : null));
+                        el('span', { class: 'ppwoo-route-private-recipient' }, order.name ? ' · ' + order.name : '')),
+                    el('small', { class: 'ppwoo-route-private-recipient ppwoo-order-address-summary' }, address),
+                    context.pending !== undefined ? el('small', { class: 'ppwoo-order-pending' }, pendingLabel(context.pending)) : null),
+                el('div', { class: 'ppwoo-route-customer-card ppwoo-route-private-recipient' },
+                    el('div', { class: 'order-header' }, el('h3', {}, 'Pedido #' + order.number), badge), client, delivery));
             if (order.deadline) details.append(el('p', {}, 'Previsão: ' + order.deadline));
             details.open = openGroups.has(key);
             return details;
+        }
+
+        function tripInfo(route) {
+            const trip = route.trip;
+            if (!trip) return el('p', { class: 'ppwoo-trip-info' }, 'Dados da viagem não disponíveis.');
+            return el('section', { class: 'ppwoo-trip-info ppwoo-route-private-recipient', 'aria-label': 'Dados da viagem' },
+                el('h4', {}, 'Viagem'),
+                el('div', { class: 'ppwoo-trip-contact' },
+                    el('span', {}, 'WhatsApp do motoboy: ',
+                        /^https:\/\/wa\.me\/\d+$/.test(trip.whatsapp || '')
+                            ? el('a', { href: trip.whatsapp, target: '_blank', rel: 'noopener noreferrer' }, trip.phone)
+                            : (trip.phone || 'Não informado'), trip.phone ? copyIcon(trip.phone, 'Copiar WhatsApp do motoboy') : null),
+                    trip.code ? el('span', { class: 'ppwoo-trip-code-group' }, 'Código ',
+                        el('strong', { class: 'ppwoo-trip-code' }, trip.code), copyIcon(trip.code, 'Copiar código da viagem')) : null),
+                trip.link && /^https?:\/\//.test(trip.link) ? el('p', { class: 'ppwoo-trip-tracking' },
+                    el('a', { href: trip.link, target: '_blank', rel: 'noopener noreferrer' }, trip.link), copyIcon(trip.link, 'Copiar link de rastreio')) : null);
         }
 
         function phoneCountry(order) {
@@ -341,7 +390,7 @@
                 const position = preview.calculation.stops.findIndex(stop => stop.order_id === order.id) + 1;
                 order.is_last = preview.calculation.destination_order_id === order.id;
                 const source = dashboard.routes.find(route => route.state === 'draft' && route.stops.some(stop => stop.id === order.id));
-                const row = el('div', { class: 'ppwoo-route-row' }, orderInfo(order, position, 'preview'),
+                const row = el('div', { class: 'ppwoo-route-row' }, orderInfo(order, position, 'preview', { slot: source?.slot, total: preview.orders.length }),
                     item.code ? el('p', { class: 'ppwoo-routes-warning' }, issueMessage(item.code)) : null,
                     el('div', { class: 'ppwoo-routes-toolbar' }, groupSelect(order, source, preview.calculation.token),
                         button('Desmarcar', { 'data-unselect-preview': order.id, title: 'Retirar da prévia, mantendo a rota atribuída' })));
@@ -412,7 +461,15 @@
                 const reason = dispatchReason(route, sheet);
                 $panel.find('[data-dispatch-reason="' + route.id + '"]').text(reason);
                 $panel.find('[data-dispatch-route="' + route.id + '"]').prop('disabled', !!reason || busy);
-                $panel.find('[data-recalculate-route="' + route.id + '"]').toggleClass('ppwoo-routes-primary', !route.calculation);
+                const calculated = !!route.calculation && !route.calculation.issues?.length &&
+                    route.calculation.stops.length === route.stops.length &&
+                    (!route.calculation.expires_at || route.calculation.expires_at * 1000 > Date.now());
+                $panel.find('[data-recalculate-route="' + route.id + '"]').toggleClass('is-calculated', calculated);
+                $panel.find('[data-calc-status="' + route.id + '"]').text(calculated ? 'Cálculo atualizado' : 'Cálculo pendente');
+                $panel.find('[data-route-destination="' + route.id + '"]').each((_, node) => {
+                    const next = destinationInfo(route);
+                    if (node.textContent !== next.textContent) node.replaceWith(next);
+                });
             });
         }
 
@@ -438,7 +495,7 @@
                     const estimate = calculationByOrder.get(order.id);
                     const distance = Number.isFinite(estimate?.distance_meters)
                         ? ' · ' + (estimate.distance_meters / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + ' km' : '';
-                    stops.append(el('div', { class: 'ppwoo-route-row' }, orderInfo(order, order.position, key),
+                    stops.append(el('div', { class: 'ppwoo-route-row' }, orderInfo(order, order.position, key, { slot: route.slot, total: route.stops.length }),
                         estimate ? el('small', { class: 'ppwoo-route-estimate' }, 'Estimativa após a saída: ' + duration(estimate.eta_seconds) + distance) : null,
                         issueById.has(order.id) ? el('p', { class: 'ppwoo-routes-warning' }, issueMessage(issueById.get(order.id))) : null,
                         el('div', { class: 'ppwoo-routes-toolbar' }, groupSelect(order, route),
@@ -453,7 +510,8 @@
                 });
                 box.append(el('summary', { class: 'ppwoo-route-heading' },
                     el('span', { class: 'ppwoo-route-heading-title' }, 'Rota ' + route.slot + ' · ' + route.stops.length + ' pedidos',
-                        el('small', {}, route.calculation ? 'Cálculo atualizado' : 'Cálculo pendente')), calculate), body);
+                        el('small', { 'data-calc-status': route.id }, route.calculation ? 'Cálculo atualizado' : 'Cálculo pendente'),
+                        destinationInfo(route)), calculate), body);
                 fragment.append(box);
             });
             disposeMaps(container);
@@ -462,7 +520,7 @@
         }
 
         const eventLabels = {
-            queued: 'Na fila de envio', sending: 'Enviando', accepted: 'Recebido pelo webhook',
+            queued: 'Aguardando envio', sending: 'Enviando evento…', accepted: '✓ Evento enviado com sucesso',
             failed: 'Falha de envio', uncertain: 'Envio sem confirmação', waiting: 'Aguardando'
         };
         const resultLabels = {
@@ -482,25 +540,26 @@
             const box = el('details', { class: 'ppwoo-route-card', 'data-group-key': key, 'data-route-id': route.id, style: routeStyle(route.slot) });
             box.open = openGroups.has(key);
             box.append(el('summary', {}, 'Rota ' + route.slot + ' · Saída #' + route.id +
-                (isHistory ? ' · Encerrada' : ' · ' + open.length + ' em rota')));
+                (isHistory ? ' · Encerrada' : ' · ' + pendingLabel(open.length)), destinationInfo(route)));
             const body = el('div', { class: 'ppwoo-group-body' },
-                el('progress', { value: received, max: route.stops.length, 'aria-label': 'Eventos recebidos' }),
-                el('p', {}, received + ' de ' + route.stops.length + ' eventos recebidos'));
-            body.prepend(mapPanel(route.calculation,
-                $panel.find('[data-routes-active] [data-route-id="' + route.id + '"] .ppwoo-route-map-wrap')[0]) || '');
-            if (route.departed_at) body.append(el('small', {}, 'Saída: ' + new Date(route.departed_at).toLocaleString('pt-BR')));
-            if (open.length) body.append(el('label', {},
-                check(false, { 'data-select-delivery-all': route.id }), ' Selecionar todos ainda em rota'));
+                mapPanel(route.calculation, $panel.find('[data-routes-active] [data-route-id="' + route.id + '"] .ppwoo-route-map-wrap')[0]), tripInfo(route));
+            if (route.stops.some(order => ['queued', 'sending'].includes(order.event_state))) body.append(
+                el('progress', { value: received, max: route.stops.length, 'aria-label': 'Envio dos eventos em andamento' }),
+                el('p', {}, 'Enviando eventos · ' + received + ' de ' + route.stops.length));
+            body.append(el('p', { class: 'ppwoo-route-pending', role: 'status' }, pendingLabel(open.length)));
+            if (route.departed_at) body.append(el('p', { class: 'ppwoo-route-departure' }, 'Saída: ' + new Date(route.departed_at).toLocaleString('pt-BR')));
+            if (open.length) body.append(el('label', { class: 'ppwoo-route-select-all' },
+                check(false, { 'data-select-delivery-all': route.id, 'aria-label': 'Selecionar todas as entregas pendentes para finalizar' }), ' Selecionar todos'));
             route.stops.forEach(order => {
                 const canRetry = order.event_state === 'failed' || (order.event_state === 'uncertain' && dashboard.retry_uncertain);
                 order.is_last = route.calculation?.destination_order_id === order.id;
                 body.append(el('div', { class: 'ppwoo-route-row' },
                     order.delivery_state === 'on_route'
                         ? el('label', {}, check(selection.has(order.id), { 'data-close-order': order.id }), ' Incluir na baixa') : null,
-                    orderInfo(order, order.position, key),
-                    el('small', {}, (order.delivery_state === 'closed' ? 'Baixa registrada · ' : '') +
-                        (eventLabels[order.event_state] || 'Aguardando') + (order.attempt ? ' · tentativa ' + order.attempt : '')),
-                    order.code ? el('small', {}, resultLabels[order.code] || (/^http_\d+$/.test(order.code) ? order.code.replace('http_', 'HTTP ') : '')) : null,
+                    orderInfo(order, order.position, key, { slot: route.slot, total: route.stops.length, pending: open.length }),
+                    el('small', { class: 'ppwoo-route-event-status' + (order.event_state === 'accepted' ? ' is-success' : '') },
+                        (order.delivery_state === 'closed' ? 'Entrega finalizada · ' : '') + (eventLabels[order.event_state] || 'Aguardando')),
+                    order.code && order.event_state !== 'accepted' ? el('small', {}, resultLabels[order.code] || '') : null,
                     order.event_state === 'uncertain' && !canRetry
                         ? el('small', {}, 'Confira se o n8n recebeu o evento para evitar enviar o pedido duas vezes.') : null,
                     canRetry ? button('Reenviar este pedido', { 'data-retry-order': order.id, 'data-route-id': route.id }) : null));
@@ -541,7 +600,9 @@
             dashboard = data;
             data.routes.filter(route => route.state === 'dispatched').forEach(route => route.stops.forEach(stop => {
                 if (oldResults.get(stop.id) !== stop.event_state + ':' + stop.attempt) {
-                    debug('disparo', eventLabels[stop.event_state] || 'Aguardando', { route_id: route.id, order_id: stop.id });
+                    debug('disparo', (eventLabels[stop.event_state] || 'Aguardando') +
+                        (stop.attempt ? ' · tentativa ' + stop.attempt : '') +
+                        (/^http_\d+$/.test(stop.code || '') ? ' · ' + stop.code : ''), { route_id: route.id, order_id: stop.id });
                 }
             }));
             updateSelection();
@@ -1015,14 +1076,6 @@
             hidden[key] = !hidden[key];
             $panel.toggleClass('ppwoo-hide-route-' + key, hidden[key]);
             $panel.find('[data-privacy="' + key + '"]').each((_, node) => updatePrivacyButton(node));
-        });
-        $panel.on('click', '[data-copy-contact]', async function () {
-            const text = this.dataset.copyContact;
-            try {
-                if (!navigator.clipboard?.writeText) throw new Error('clipboard');
-                await navigator.clipboard.writeText(text);
-                feedback('Dado copiado.');
-            } catch (_) { feedback('Não foi possível copiar. Selecione o texto e copie manualmente.', true); }
         });
         $panel.on('click', '[data-focus-origin]', function () {
             const node = this.closest('.ppwoo-route-map-stage').querySelector('.ppwoo-route-map');

@@ -442,3 +442,163 @@
 .painel-empacotamento .ppwoo-route-calc-slide:disabled .ppwoo-swipe-label {
     color: #566879 !important;
 }
+
+/* Mesma hierarquia do cartão Motoboy, com seletores limitados às rotas. */
+.painel-empacotamento .ppwoo-route-order > summary > .ppwoo-stop-position,
+.painel-empacotamento .ppwoo-route-order > summary > .ppwoo-route-identity,
+.painel-empacotamento .ppwoo-route-order > summary > small,
+.painel-empacotamento .ppwoo-route-destination {
+    display: block;
+    overflow-wrap: anywhere;
+}
+.painel-empacotamento .ppwoo-route-order .ppwoo-order-address-summary,
+.painel-empacotamento .ppwoo-route-order .ppwoo-order-pending,
+.painel-empacotamento .ppwoo-route-destination {
+    font-size: .8rem;
+    font-weight: 400;
+    line-height: 1.4;
+    margin-block-start: .2rem;
+}
+.painel-empacotamento .ppwoo-route-customer-card {
+    padding: .75rem;
+    border: 1px solid var(--cor-borda, #dce3e9);
+    border-radius: .5rem;
+    margin-block: .5rem;
+    background-color: #fff !important;
+    color: #17242d !important;
+}
+.painel-empacotamento .ppwoo-route-customer-card .order-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: .5rem;
+    border-block-end: 1px dashed var(--cor-borda, #dce3e9);
+    padding-block-end: .5rem;
+    margin-block-end: .75rem;
+}
+.painel-empacotamento .ppwoo-route-customer-card .order-header h3 {
+    color: #124eaa !important;
+    font-size: 1.5em;
+    margin: 0;
+}
+.painel-empacotamento .ppwoo-route-customer-card h4 {
+    font-size: 1em;
+    margin-block: .8rem .25rem;
+}
+.painel-empacotamento .ppwoo-route-customer-card :is(.client-name-to-copy,.whatsapp-to-copy,.address-to-copy),
+.painel-empacotamento .ppwoo-delivery-copy-line,
+.painel-empacotamento .ppwoo-trip-tracking {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: .5rem;
+    overflow-wrap: anywhere;
+}
+.painel-empacotamento .ppwoo-route-customer-card :is(.client-name-to-copy,.whatsapp-to-copy,.address-to-copy) {
+    font-size: 1.2em;
+}
+.painel-empacotamento .ppwoo-route-customer-card .cep,
+.painel-empacotamento .ppwoo-route-customer-card .billing-complemento {
+    font-size: .9em;
+    margin-block: .25rem;
+}
+.painel-empacotamento .ppwoo-route-badge {
+    background-color: var(--ppwoo-route-color, #566879) !important;
+    color: #fff !important;
+    font-size: .8rem;
+    border-radius: 20px;
+    padding: .25rem .6rem;
+    white-space: nowrap;
+}
+.painel-empacotamento :is(.ppwoo-route-customer-card,.ppwoo-trip-info) .copy-button,
+.painel-empacotamento :is(.ppwoo-route-customer-card,.ppwoo-trip-info) .copy-button:is(:hover,:focus,:active) {
+    background-color: #fff !important;
+    color: #37577d !important;
+    border: 1px solid #7a8b99 !important;
+    box-shadow: none !important;
+    opacity: 1 !important;
+    cursor: pointer;
+    padding: 5px 8px;
+    border-radius: 3px;
+    flex: 0 0 auto;
+    min-height: 32px;
+}
+.painel-empacotamento :is(.ppwoo-route-customer-card,.ppwoo-trip-info) .copy-button .dashicons,
+.painel-empacotamento :is(.ppwoo-route-customer-card,.ppwoo-trip-info) .copy-button .dashicons::before {
+    color: inherit !important;
+    font-size: 1em;
+    line-height: 1;
+}
+.painel-empacotamento :is(.ppwoo-route-customer-card,.ppwoo-trip-info) .copy-button.copied {
+    background-color: #17624e !important;
+    color: #fff !important;
+}
+.painel-empacotamento .ppwoo-trip-info {
+    padding: .65rem;
+    border: 1px solid #dce3e9;
+    border-radius: .5rem;
+    margin-block: .75rem;
+}
+.painel-empacotamento .ppwoo-trip-contact,
+.painel-empacotamento .ppwoo-trip-code-group {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: .5rem;
+}
+.painel-empacotamento .ppwoo-trip-contact {
+    justify-content: space-between;
+}
+.painel-empacotamento .ppwoo-trip-code {
+    background-color: #124eaa !important;
+    color: #fff !important;
+    font-size: 1.15rem;
+    font-weight: 800;
+    letter-spacing: .08em;
+    padding: .35rem .65rem;
+    border-radius: 4px;
+}
+.painel-empacotamento .ppwoo-trip-info a,
+.painel-empacotamento .ppwoo-trip-info a:is(:hover,:focus,:active) {
+    color: #124eaa !important;
+    text-decoration: underline;
+    overflow-wrap: anywhere;
+}
+.painel-empacotamento .ppwoo-route-select-all {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: .5rem;
+    width: 100%;
+    margin-block: .75rem;
+}
+.painel-empacotamento .ppwoo-route-select-all input {
+    flex: 0 0 auto;
+    width: auto;
+    margin: 0;
+}
+.painel-empacotamento .ppwoo-route-event-status.is-success {
+    color: #17624e !important;
+}
+.painel-empacotamento .ppwoo-route-calc-slide.is-calculated,
+.painel-empacotamento .ppwoo-route-calc-slide.is-calculated:is(:hover,:focus,:active) {
+    background-color: #e1eaf5 !important;
+    border-color: #8ba1bd !important;
+    color: #37577d !important;
+}
+.painel-empacotamento .ppwoo-route-calc-slide.is-calculated :is(.ppwoo-swipe-label,.dashicons),
+.painel-empacotamento .ppwoo-route-calc-slide.is-calculated .dashicons::before {
+    color: #37577d !important;
+}
+.painel-empacotamento .ppwoo-route-departure {
+    display: block;
+}
+.painel-empacotamento :is(.ppwoo-route-customer-card,.ppwoo-trip-info) .copy-button:focus-visible {
+    outline: 2px solid #124eaa !important;
+    outline-offset: 2px;
+}
+@media (max-width: 640px) {
+    .painel-empacotamento .ppwoo-route-customer-card .order-header h3 {
+        font-size: 1.3em;
+    }
+}

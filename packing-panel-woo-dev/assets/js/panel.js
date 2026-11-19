@@ -164,9 +164,9 @@
         return textToCopy.trim().replace(/\s{2,}/g, ' ');
     }
 
-    packingPanel.on('click', '#tab-motoboy .copy-address, #tab-motoboy .copy-name, #tab-motoboy .copy-whatsapp, .ppwoo-copy-delivery', function() {
+    packingPanel.on('click', '#tab-motoboy .copy-address, #tab-motoboy .copy-name, #tab-motoboy .copy-whatsapp, .ppwoo-copy-delivery, .ppwoo-copy-value', function() {
         var button = $(this);
-        var text = button.hasClass('copy-address') ? button.attr('data-copy-address') :
+        var text = button.hasClass('ppwoo-copy-value') ? button.attr('data-copy-value') : button.hasClass('copy-address') ? button.attr('data-copy-address') :
             (button.hasClass('ppwoo-copy-delivery') ? button.closest('.motoboy-order, .ppwoo-route-order').find('.ppwoo-delivery-message').val() : getTextToCopy(button));
         copyTextToClipboard(text || '', button);
     });

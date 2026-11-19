@@ -108,6 +108,7 @@ class WC_Order {
     public function update_status($state, $note) { $this->status = $state; return true; }
     public function get_shipping_address_1() { return 'Rua Fictícia ' . $this->id; }
     public function get_shipping_address_2() { return 'Apto ' . $this->id; }
+    public function get_billing_address_2() { return ''; }
     public function get_shipping_first_name() { return 'Destinatário'; }
     public function get_shipping_last_name() { return (string) $this->id; }
     public function get_order_number() { return (string) $this->id; }
@@ -138,6 +139,11 @@ class PPWOO_Routes_Store {
     public static array $routes = [];
     public static array $stops = [];
     public static function ready() { return true; }
+    public static function listing($state, $before = 0) {
+        return array_values(array_filter(self::$routes, static function ($route) use ($state) {
+            return $state === 'closed' ? $route['state'] === 'closed' : $route['state'] !== 'closed';
+        }));
+    }
     public static function install() {}
     public static function route($id, $lock = false) { return self::$routes[$id] ?? null; }
     public static function stop($id, $lock = false) { return self::$stops[$id] ?? null; }
@@ -260,7 +266,7 @@ $remote_mode = 'accepted';
 $cache = $calls = [];
 $summary = new ReflectionMethod(PPWOO_Routes::class, 'summary');
 $message = $summary->invoke(null, 101)['delivery_message'];
-expect(explode("\n", $message), [
+expect(explode("\n\n", $message), [
     'Nome: Destinatário 101',
     'WhatsApp: https://wa.me/33123456789',
     'Endereço: Rua Fictícia 101, São Paulo',
@@ -268,6 +274,27 @@ expect(explode("\n", $message), [
     'Complemento: Apto 101',
     'Google Maps: https://www.google.com/maps/dir/?api=1&destination=' . rawurlencode('Rua Fictícia 101, São Paulo, SP, 00000-000, BR') . '&dir_action=navigate',
 ], 'Mensagem de entrega do primeiro pedido');
+$complement_order = new class(999) extends WC_Order {
+    public bool $different = false;
+    public function get_shipping_address_2() { return ''; }
+    public function get_billing_address_2() { return 'Bloco F'; }
+    public function get_address($type) {
+        $address = parent::get_address($type);
+        if ($this->different && $type === 'billing') $address['address_1'] = 'Outro endereço';
+        return $address;
+    }
+};
+expect(PPWOO_Utils::get_billing_complemento($complement_order), 'Bloco F', 'Complemento WooCommerce recuperado sem metadado legado');
+expect(PPWOO_Utils::get_delivery_complement($complement_order), 'Bloco F', 'Mesmo endereço com shipping sem complemento reutiliza billing_address_2');
+$complement_order->update_meta_data('_billing_complemento', 'Fundos');
+expect(PPWOO_Utils::get_delivery_complement($complement_order), 'Fundos', 'Complemento legado preservado para o mesmo endereço');
+$complement_order->different = true;
+expect(PPWOO_Utils::get_delivery_complement($complement_order), '', 'Não mistura complemento de endereço de faturamento diferente');
+$complement_order->different = false;
+$complement_order->update_meta_data('_billing_number', '100');
+$complement_order->update_meta_data('_shipping_number', '200');
+expect(PPWOO_Utils::get_delivery_complement($complement_order), '', 'Não mistura complemento de imóvel com número diferente');
+expect(str_contains(PPWOO_Utils::delivery_message('Pessoa', '', 'Rua', '00000-000', '', ''), 'Complemento:'), false, 'Mensagem não inventa complemento ausente');
 expect(str_contains($summary->invoke(null, 104)['delivery_message'], 'Apto 104'), true, 'Cada pedido tem sua própria mensagem');
 $preview = PPWOO_Route_Calculation::calculate($orders, 0);
 $call_count = count($calls);
@@ -335,6 +362,12 @@ expect(PPWOO_Routes_Store::route(1)['state'], 'dispatched', 'A saída registra o
 expect(count($jobs), 1, 'Agenda o primeiro pedido sem enviar sincronicamente');
 rejects(static function () use ($revision, $sheet) { action('save_sheet', ['route_id' => 1, 'revision' => $revision, 'sheet' => $sheet], true); }, 409);
 while ($jobs) PPWOO_Routes::work(array_shift($jobs));
+$dashboard = (new ReflectionMethod(PPWOO_Routes::class, 'dashboard'))->invoke(null);
+expect($dashboard['routes'][0]['trip']['code'], '4321', 'Código da viagem recuperado após despacho');
+expect($dashboard['routes'][0]['trip']['whatsapp'], 'https://wa.me/5511900000000', 'WhatsApp do motoboy clicável após despacho');
+expect($dashboard['routes'][0]['trip']['link'], $sheet['link'], 'Link da viagem recuperado após despacho');
+expect($dashboard['routes'][0]['sheet'], [], 'Leitura da viagem não reabre edição da ficha despachada');
+expect($dashboard['routes'][0]['stops'][0]['postcode'], '00000-000', 'CEP separado no cartão administrativo');
 expect(array_column(array_column($calls, 'body'), 'order_id'), [102, 101, 103, 104], 'Um evento por pedido, na ordem da rota');
 expect(array_column(array_map(static function ($call) { return $call['body']['event_data']['tracking_data']; }, $calls), 'cost'), [40, 15.5, 12, 25], 'Custo diferente por pedido no evento');
 expect(array_map(static function ($call) { return $call['body']['event_data']['tracking_data']['finalization_code']; }, $calls), [0, 0, 0, 4321], 'Código só na última parada');

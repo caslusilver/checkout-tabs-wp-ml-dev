@@ -2,6 +2,14 @@
 
 Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
+## [v3.3.6] - 2026-11-19
+
+- Rotas: detalhes dos pedidos seguem a organização da aba Motoboy, com cliente, WhatsApp, endereço, CEP, complemento e ícones de cópia usando o mesmo helper e fallback existentes. Cartões recolhidos exibem endereço e identificação da rota.
+- Rotas: cabeçalho fechado identifica nome e endereço do destino final calculado; composição alterada mostra destino a confirmar. Slider calculado tem cor discreta e retorna ao destaque quando o cálculo fica pendente.
+- Viagem: recupera WhatsApp do motoboy, código e rastreio após despacho em visualização administrativa. Código destacado em azul/branco e cópia por ícone.
+- Andamento: Parada X de N e entregas pendentes baseadas na baixa real. Saída/data e Selecionar todos em linhas separadas; status de envio amigável preserva falhas e diagnóstico técnico no debug.
+- Mensagem para motoboy: separa informações por linha em branco e recupera complemento WooCommerce/legado do mesmo endereço histórico, sem misturar imóveis diferentes.
+
 ## [v3.3.5] - 2026-11-19
 
 - Rotas: pedidos já atribuídos da prévia se consolidam em uma única lista recolhida, mantendo o mapa geral e os seletores por pedido.
