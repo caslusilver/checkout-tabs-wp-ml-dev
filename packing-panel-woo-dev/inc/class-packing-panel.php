@@ -210,7 +210,7 @@ class PPWOO_PackingPanel {
             wp_enqueue_script('ppwoo-routes', plugin_dir_url(__FILE__) . '../assets/js/routes.js',
                 ['packing-panel-woo'], $version, true);
             wp_localize_script('ppwoo-routes', 'PPWOO_ROUTES', [
-                'maps_key' => (string) get_option('ppwoo_routes_maps_key', ''),
+                'maps_key' => PPWOO_Route_Calculation::maps_browser_key(),
                 'max_batch' => PPWOO_Route_Calculation::LIMIT,
             ]);
         }

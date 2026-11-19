@@ -28,6 +28,7 @@ $can_administer = true;
 $remote_mode = 'accepted';
 
 function get_option($name, $default = false) { return $GLOBALS['options'][$name] ?? $default; }
+function delete_option($name) { unset($GLOBALS['options'][$name]); return true; }
 function update_option($name, $value, $autoload) { $GLOBALS['options'][$name] = $value; }
 function sakm_get_key($name) { return $GLOBALS['keys'][$name] ?? null; }
 function wp_unslash($value) { return stripslashes($value); }
@@ -223,12 +224,26 @@ PPWOO_Admin_Routes_Tab::render();
 expect(str_contains(ob_get_clean(), 'Informe um CEP com oito dígitos.'), true, 'Formulário identifica CEP inválido');
 expect($options['ppwoo_routes_origin_postcode'], '', 'CEP inválido não sobrescreve a opção');
 $_POST['routes_postcode'] = '01234-567';
+$keys['mapa_rotas'] = 'AIza' . str_repeat('X', 35);
+$options['ppwoo_routes_maps_key'] = 'old-direct-key-fixture';
+$_POST['routes_maps_key_name'] = 'mapa_rotas';
 ob_start();
 PPWOO_Admin_Routes_Tab::render();
 $settings_html = ob_get_clean();
 $_POST = [];
 expect(str_contains($settings_html, 'ppwoo-settings&amp;tab=routes'), true, 'Formulário grava na aba Rotas do PackPanel');
 expect(str_contains($settings_html, $keys['authorization_rotas']), false, 'Segredo fica fora do HTML');
+expect(PPWOO_Route_Calculation::maps_key_name(), 'mapa_rotas', 'Configuração guarda somente nome da chave do mapa');
+expect(PPWOO_Route_Calculation::maps_browser_key(), $keys['mapa_rotas'], 'Mapa resolve a chave pelo gerenciador');
+expect(str_contains($settings_html, $keys['mapa_rotas']), false, 'Formulário não exibe o valor resolvido da chave do mapa');
+expect(str_contains($settings_html, 'mapa_rotas'), true, 'Formulário exibe o nome de referência');
+expect(isset($options['ppwoo_routes_maps_key']), false, 'Cópia direta antiga removida ao salvar');
+$map_key = $keys['mapa_rotas'];
+unset($keys['mapa_rotas']);
+expect(PPWOO_Route_Calculation::maps_browser_key(), '', 'Nome ausente no gerenciador mantém o mapa sem chave');
+$keys['mapa_rotas'] = "invalid\r\nkey";
+expect(PPWOO_Route_Calculation::maps_browser_key(), '', 'Valor inválido não é enviado ao navegador');
+$keys['mapa_rotas'] = $map_key;
 expect($options['ppwoo_routes_origin_postcode'], '01234567', 'CEP salvo como oito dígitos');
 expect(PPWOO_Route_Calculation::auth_key_name(), 'authorization_rotas', 'Rotas usa a chave escolhida');
 $valid_key = $keys['authorization_rotas'];
