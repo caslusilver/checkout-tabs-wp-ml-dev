@@ -322,3 +322,56 @@
     color: #124eaa !important;
     text-decoration: underline;
 }
+
+.painel-empacotamento .ppwoo-route-map-stage {
+    position: relative;
+    min-width: 0;
+}
+.painel-empacotamento .ppwoo-map-controls {
+    position: absolute;
+    inset-block-start: 10px;
+    inset-inline-end: 10px;
+    z-index: 10;
+    display: flex;
+    gap: 6px;
+}
+.painel-empacotamento .ppwoo-map-controls .ppwoo-routes-button,
+.painel-empacotamento .ppwoo-map-controls .ppwoo-routes-button:is(:hover,:focus,:active) {
+    background-color: #fff !important;
+    color: #124eaa !important;
+    border: 1px solid #124eaa !important;
+    box-shadow: 0 2px 6px #0003 !important;
+    opacity: 1 !important;
+    font-size: 14px;
+}
+.painel-empacotamento .ppwoo-map-controls .ppwoo-routes-button:disabled {
+    background-color: #e3e8ee !important;
+    color: #566879 !important;
+    border-color: #7a8b99 !important;
+    cursor: not-allowed;
+}
+.painel-empacotamento .ppwoo-map-dialog[open] {
+    display: block;
+    position: fixed;
+    inset: 0;
+    margin: auto;
+    padding: 10px;
+    width: calc(100vw - 24px);
+    height: calc(100dvh - 24px);
+    max-width: 1400px;
+    max-height: calc(100dvh - 24px);
+    box-sizing: border-box;
+    border: 1px solid #566879 !important;
+    border-radius: 10px;
+    background-color: #fff !important;
+    color: #17242d !important;
+    z-index: 2147483647;
+}
+.painel-empacotamento .ppwoo-map-dialog::backdrop {
+    background-color: #0009;
+}
+.painel-empacotamento .ppwoo-map-dialog .ppwoo-route-map-stage,
+.painel-empacotamento .ppwoo-map-dialog .ppwoo-route-map {
+    height: 100%;
+    width: 100%;
+}

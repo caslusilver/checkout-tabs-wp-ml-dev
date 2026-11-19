@@ -148,12 +148,25 @@ test('autosave serializes edits, exposes failures and preserves a loaded map and
     const $ = window.$ = window.jQuery = jquery(window);
     $.expr.pseudos.visible = () => true;
     let fitted = 0;
+    const markerPane = window.document.createElement('div');
+    const linePane = window.document.createElement('div');
+    const views = [];
     window.google = { maps: {
-        Map: class { fitBounds() { fitted++; } },
-        OverlayView: class { setMap() {} },
+        Map: class {
+            constructor(node, options) { this.center = options.center; this.zoom = options.zoom; views.push(this); }
+            fitBounds() { fitted++; }
+            panTo(point) { this.center = point; }
+            getCenter() { return this.center; }
+            setCenter(point) { this.center = point; }
+            setZoom(zoom) { this.zoom = zoom; }
+        },
+        OverlayView: class {
+            getPanes() { return { markerLayer: markerPane, overlayLayer: linePane }; }
+            setMap(map) { if (map) this.onAdd?.(); else this.onRemove?.(); }
+        },
         Polyline: class { setMap() {} },
         LatLngBounds: class { extend() {} },
-        event: { clearInstanceListeners() {} }
+        event: { clearInstanceListeners() {}, trigger() {} }
     } };
     const order = { id: 101, number: '101', name: 'Pessoa fictícia', address: 'Endereço fictício',
         phone: '123456789', dial_code: '+33', phone_country: 'FR', position: 1, cost: '', shipping_paid: 70 };
@@ -197,6 +210,26 @@ test('autosave serializes edits, exposes failures and preserves a loaded map and
     $('[data-route-id="1"]')[0].open = true;
     await until(() => fitted === 1);
     const mapNode = $('.ppwoo-route-map')[0];
+    assert.equal(markerPane.children.length, 2, 'origin and stop are in markerLayer above the route');
+    assert.equal(linePane.children.length, 0, 'numbered markers are not placed in the polyline pane');
+    const initialCalls = calls.length;
+    $('[data-focus-origin]').trigger('click');
+    assert.deepEqual(views[0].center, calc.origin, 'focus moves to departure');
+    assert.equal(views[0].zoom, 16);
+    $('[data-expand-map]').trigger('click');
+    assert.equal($('.ppwoo-map-dialog[open]').length, 1);
+    assert.equal($('.ppwoo-map-dialog .ppwoo-route-map')[0], mapNode, 'expansion keeps the same Google map');
+    assert.equal($('[data-expand-map]').text(), 'Recolher');
+    assert.equal(window.document.body.style.overflow, 'hidden');
+    $('[data-expand-map]').trigger('click');
+    assert.equal($('.ppwoo-map-dialog').length, 0);
+    assert.equal($('.ppwoo-route-map')[0], mapNode, 'collapse restores the original map');
+    assert.equal(views[0].zoom, 16, 'collapse preserves zoom');
+    assert.equal(window.document.body.style.overflow, '');
+    $('[data-expand-map]').trigger('click');
+    $('.ppwoo-map-dialog').trigger($.Event('keydown', { key: 'Escape' }));
+    assert.equal($('.ppwoo-map-dialog').length, 0, 'Escape closes expanded view');
+    assert.equal(calls.length, initialCalls, 'map controls do not make API calls');
     assert.equal($('.ppwoo-route-stops').length, 0, 'single stop has no redundant outer fold');
     assert.match($('.ppwoo-route-metrics').text(), /2 h 11 min/);
     assert.match($('.ppwoo-phone-country').text(), /França/);
