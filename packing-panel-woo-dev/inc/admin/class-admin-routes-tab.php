@@ -53,6 +53,24 @@ final class PPWOO_Admin_Routes_Tab {
                         <p class="description">Informe o nome cadastrado no seu plugin de chaves. O valor é buscado no servidor e enviado no cabeçalho Authorization.</p>
                     </td>
                 </tr>
+                <tr>
+                    <th scope="row"><label for="ppwoo-routes-maps-key">Chave do mapa Google (navegador)</label></th>
+                    <td>
+                        <input id="ppwoo-routes-maps-key" type="text" class="regular-text" name="routes_maps_key" maxlength="128" autocomplete="off"
+                               value="<?php echo esc_attr(get_option('ppwoo_routes_maps_key', '')); ?>">
+                        <p class="description">Gerada pelo Google Cloud. Usada pelo navegador para mostrar ruas, zoom e o trajeto já calculado. Não use aqui a chave Authorization do webhook.</p>
+                        <details><summary>Como obter e configurar a chave</summary>
+                            <ol>
+                                <li>Abra o <a href="https://console.cloud.google.com/google/maps-apis/credentials" target="_blank" rel="noopener noreferrer">Google Cloud → Google Maps Platform → Chaves e credenciais</a> no projeto com faturamento ativo.</li>
+                                <li>Na Biblioteca, habilite <strong>Maps JavaScript API</strong>. Ela exibe o mapa; a Routes API continua sendo usada pelo n8n.</li>
+                                <li>Crie uma chave de API para o navegador. Em restrições de aplicativo, escolha Sites e autorize o domínio do painel (por exemplo, https://sualoja.com.br/*).</li>
+                                <li>Restrinja a chave à Maps JavaScript API, copie a chave para este campo e salve. Essa chave é visível no navegador e deve estar restrita ao seu domínio.</li>
+                                <li>Abra uma rota calculada no painel. O mapa deve mostrar ruas e aceitar zoom. Se aparecer apenas o esquema, confira as restrições, faturamento e o aviso mostrado junto ao mapa.</li>
+                            </ol>
+                            <p>O carregamento do mapa tem cobrança própria do Google. Configure cotas e alertas no projeto. Sem chave, a lista e o esquema do trajeto continuam disponíveis.</p>
+                        </details>
+                    </td>
+                </tr>
             </table>
             <?php submit_button('Salvar configurações', 'primary', 'ppwoo_routes_save'); ?>
         </form>
@@ -76,11 +94,14 @@ final class PPWOO_Admin_Routes_Tab {
         }
 
         $enabled = isset($_POST['routes_enabled']);
+        $maps_key = self::field('routes_maps_key');
+        if ($maps_key !== '' && !preg_match('/^[A-Za-z0-9_-]{20,128}$/D', $maps_key)) throw new DomainException('Confira a chave de navegador gerada pelo Google Cloud.');
         if ($enabled) PPWOO_Routes_Store::install();
         update_option('ppwoo_routes_origin_postcode', $postcode, false);
         update_option('ppwoo_routes_url', $url, false);
         update_option('ppwoo_routes_auth_key_name', $key_name === '' ? PPWOO_Route_Calculation::DEFAULT_AUTH_KEY : $key_name, false);
         update_option('ppwoo_routes_enabled', $enabled ? 'yes' : 'no', false);
+        update_option('ppwoo_routes_maps_key', $maps_key, false);
     }
 
     private static function field(string $name): string {

@@ -323,6 +323,23 @@ class PPWOO_Utils {
         return '';
     }
 
+    public static function get_customer_phone_parts($order): array {
+        $digits = self::sanitize_phone((string) self::get_billing_cellphone($order));
+        $dial = $order instanceof WC_Order ? (string) $order->get_meta('_ctwpml_dial_code') : '';
+        $country = $order instanceof WC_Order ? strtoupper((string) $order->get_meta('_ctwpml_phone_country')) : '';
+        if (!preg_match('/^\+[1-9][0-9]{0,3}$/D', $dial)) $dial = '';
+        if ($order instanceof WC_Order && $order->get_meta('_ctwpml_phone_is_national') !== 'yes') {
+            $international = self::get_customer_whatsapp_url($order);
+            if ($international && $dial && strpos($international, 'https://wa.me/' . substr($dial, 1)) === 0) {
+                $digits = substr($international, strlen('https://wa.me/') + strlen($dial) - 1);
+            } elseif ($international && !$dial && $order->get_billing_country() === 'BR') {
+                $dial = '+55';
+                $digits = substr($international, strlen('https://wa.me/55'));
+            }
+        }
+        return ['national' => $digits, 'dial_code' => $dial, 'country' => preg_match('/^[A-Z]{2}$/D', $country) ? $country : ''];
+    }
+
     public static function get_customer_whatsapp_url($order) {
         $phone = trim((string) self::get_billing_cellphone($order));
         $digits = self::sanitize_phone($phone);
@@ -333,8 +350,11 @@ class PPWOO_Utils {
         $dial_code = $order instanceof WC_Order ? (string) $order->get_meta('_ctwpml_dial_code') : '';
         if (preg_match('/^\+[1-9][0-9]{0,3}$/D', $dial_code)) {
             $prefix = substr($dial_code, 1);
-            if ($order->get_meta('_ctwpml_phone_is_national') === 'yes' ||
-                ($dial_code === '+55' && in_array(strlen($digits), [10, 11], true))) {
+            if ($order->get_meta('_ctwpml_phone_is_national') === 'yes') {
+                $international = $prefix . $digits;
+                return strlen($international) >= 8 && strlen($international) <= 15 ? 'https://wa.me/' . $international : '';
+            }
+            if ($dial_code === '+55' && in_array(strlen($digits), [10, 11], true)) {
                 $digits = $prefix . $digits;
             }
             if (strpos($digits, $prefix) === 0 && strlen($digits) >= 8 && strlen($digits) <= 15) {

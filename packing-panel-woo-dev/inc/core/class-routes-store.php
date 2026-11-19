@@ -131,7 +131,7 @@ final class PPWOO_Routes_Store {
         foreach (array_chunk($candidate_ids, 200) as $ids) {
             $markers = implode(',', array_fill(0, count($ids), '%d'));
             $found = array_merge($found, $wpdb->get_col($wpdb->prepare(
-                'SELECT order_id FROM ' . self::stops() . " WHERE order_id IN ($markers)", $ids
+                'SELECT s.order_id FROM ' . self::stops() . ' s INNER JOIN ' . self::routes() . " r ON r.id = s.route_id WHERE s.order_id IN ($markers) AND r.state <> 'draft'", $ids
             )));
         }
         return array_fill_keys(array_map('intval', $found), true);
@@ -143,6 +143,14 @@ final class PPWOO_Routes_Store {
             'slot' => $slot, 'draft_slot' => $slot, 'details' => '{}', 'created_at' => gmdate('Y-m-d H:i:s'),
         ], ['%d', '%d', '%s', '%s']));
         return (int) $wpdb->insert_id;
+    }
+
+    /** Conexão dedicada à requisição; não mantém transação aberta durante HTTP. */
+    public static function calculation_lock(bool $release = false): bool {
+        global $wpdb;
+        $name = 'ppwoo_calc_' . md5($wpdb->prefix . home_url('/'));
+        $sql = $release ? 'SELECT RELEASE_LOCK(%s)' : 'SELECT GET_LOCK(%s, 0)';
+        return (int) $wpdb->get_var($wpdb->prepare($sql, $name)) === 1;
     }
 
     public static function save_route(array $route): void {
