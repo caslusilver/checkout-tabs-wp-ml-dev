@@ -27,6 +27,18 @@ final class PPWOO_Route_Calculation {
         return $name !== '' ? $name : self::DEFAULT_AUTH_KEY;
     }
 
+    public static function maps_key_name(): string {
+        return trim((string) get_option('ppwoo_routes_maps_key_name', ''));
+    }
+
+    /** A chave de navegador é resolvida no servidor, mas precisa chegar ao SDK do Google. */
+    public static function maps_browser_key(): string {
+        $name = self::maps_key_name();
+        if ($name === '' || strlen($name) > 128 || preg_match('/[\x00-\x1F\x7F]/', $name) || !function_exists('sakm_get_key')) return '';
+        $key = sakm_get_key($name);
+        return is_string($key) && preg_match('/^[A-Za-z0-9_-]{20,128}$/D', $key) ? $key : '';
+    }
+
     /** O endereço histórico do pedido tem prioridade sobre o perfil atual do cliente. */
     public static function address(WC_Order $order): array {
         $shipping = (string) $order->get_shipping_address_1() !== '';

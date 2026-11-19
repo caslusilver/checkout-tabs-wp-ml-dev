@@ -1,4 +1,4 @@
-# PackPanel — experiência de rotas 3.3.2
+# PackPanel — experiência de rotas 3.3.3
 
 Origem e decisões: [Blueprint V1 da entrevista](https://app.notion.com/p/41d4347fa2c281ddac19efb9e3cf4a7e). A transcrição integral está vinculada no Notion. O usuário confirmou o cálculo n8n no painel antes desta revisão. Esta versão ainda depende de aceite da interface real após atualização.
 
@@ -14,15 +14,15 @@ Origem e decisões: [Blueprint V1 da entrevista](https://app.notion.com/p/41d434
 
 ## Google Maps com ruas
 
-Em **WordPress → PackPanel → Rotas**, abra **Como obter e configurar a chave**.
+Em **WordPress → PackPanel → Rotas**, no campo **Nome da chave do mapa Google**, abra **Como obter e configurar a chave**.
 
 1. No [Google Cloud](https://console.cloud.google.com/google/maps-apis/credentials), selecione o projeto com faturamento ativo.
 2. Habilite **Maps JavaScript API**. O cálculo do n8n permanece na Routes API.
 3. Crie uma chave de API para navegador. Em restrições de aplicativo, selecione Sites e cadastre o domínio do painel, por exemplo `https://sualoja.com.br/*`. Autorize também o domínio com www somente se usado pelo painel.
-4. Restrinja essa chave à **Maps JavaScript API**. Salve e copie a chave no campo **Chave do mapa Google (navegador)** do PackPanel.
+4. Restrinja essa chave à **Maps JavaScript API**. Guarde o valor no seu gerenciador de chaves e dê um nome, por exemplo `mapa_rotas`. No campo **Nome da chave do mapa Google** do PackPanel, informe somente `mapa_rotas` e salve. O plugin resolve o valor por `sakm_get_key('mapa_rotas')`. Ao salvar, a antiga opção de chave direta do PackPanel é removida.
 5. Abra uma rota calculada. Confira ruas, numeração, trajeto e zoom. Um aviso acompanhado de esquema indica ausência da chave ou falha do Google. Confira API habilitada, domínio permitido e faturamento. Restrições podem demorar alguns minutos a propagar.
 
-A chave é criada pelo Google, não inventada. Ela é disponibilizada ao navegador por definição dessa integração. Restrinja-a por domínio e API. Não use o segredo Authorization do webhook nem exponha a chave de servidor do n8n. O carregamento de mapas tem cobrança própria: confira cotas e alertas no projeto Google.
+A chave é criada pelo Google, não inventada. O nome de referência é definido por você no gerenciador. Centralizar o valor no gerenciador evita uma cópia direta nas opções do plugin e facilita rotação, mas a chave do mapa ainda é disponibilizada ao navegador por definição dessa integração. Restrinja-a por domínio e API. Não use o segredo Authorization do webhook nem exponha a chave de servidor do n8n. O carregamento de mapas tem cobrança própria: confira cotas e alertas no projeto Google.
 
 Referência: [configuração oficial da Maps JavaScript API](https://developers.google.com/maps/documentation/javascript/get-api-key).
 
@@ -45,4 +45,4 @@ O [roteiro n8n efetivo](packpanel-rotas-n8n-validado.md) guarda os nodes, expres
 
 ## Rollback
 
-Versão anterior **v3.3.1**, commit de integração `56ba773a4bcfe412d8c13165675ff81f99762b66`. Selecionar essa tag no Git Updater para reverter o código. As tabelas existentes são mantidas e não há migração destrutiva. Reverter código não cancela despachos/eventos já enviados.
+Versão anterior a esta correção do campo **v3.3.2**, commit de integração `f63404e4c044edad61b79a45be48aa13d277d329`. Ao voltar a 3.3.2, será necessário preencher novamente o campo de chave direta do mapa dessa versão. O valor criptografado no gerenciador é preservado. Para voltar à experiência anterior à revisão visual, a tag **v3.3.1** também continua disponível. Reverter código não cancela despachos/eventos já enviados.

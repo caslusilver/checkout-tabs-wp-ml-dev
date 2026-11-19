@@ -54,20 +54,20 @@ final class PPWOO_Admin_Routes_Tab {
                     </td>
                 </tr>
                 <tr>
-                    <th scope="row"><label for="ppwoo-routes-maps-key">Chave do mapa Google (navegador)</label></th>
+                    <th scope="row"><label for="ppwoo-routes-maps-key">Nome da chave do mapa Google</label></th>
                     <td>
-                        <input id="ppwoo-routes-maps-key" type="text" class="regular-text" name="routes_maps_key" maxlength="128" autocomplete="off"
-                               value="<?php echo esc_attr(get_option('ppwoo_routes_maps_key', '')); ?>">
-                        <p class="description">Gerada pelo Google Cloud. Usada pelo navegador para mostrar ruas, zoom e o trajeto já calculado. Não use aqui a chave Authorization do webhook.</p>
+                        <input id="ppwoo-routes-maps-key" type="text" class="regular-text" name="routes_maps_key_name" maxlength="128" autocomplete="off" placeholder="google_maps"
+                               value="<?php echo esc_attr(PPWOO_Route_Calculation::maps_key_name()); ?>">
+                        <p class="description">Informe somente o nome cadastrado no seu plugin de chaves, por exemplo google_maps. O valor é buscado no servidor pelo mesmo gerenciador da autenticação. Não cole a chave Google aqui.</p>
                         <details><summary>Como obter e configurar a chave</summary>
                             <ol>
                                 <li>Abra o <a href="https://console.cloud.google.com/google/maps-apis/credentials" target="_blank" rel="noopener noreferrer">Google Cloud → Google Maps Platform → Chaves e credenciais</a> no projeto com faturamento ativo.</li>
                                 <li>Na Biblioteca, habilite <strong>Maps JavaScript API</strong>. Ela exibe o mapa; a Routes API continua sendo usada pelo n8n.</li>
                                 <li>Crie uma chave de API para o navegador. Em restrições de aplicativo, escolha Sites e autorize o domínio do painel (por exemplo, https://sualoja.com.br/*).</li>
-                                <li>Restrinja a chave à Maps JavaScript API, copie a chave para este campo e salve. Essa chave é visível no navegador e deve estar restrita ao seu domínio.</li>
+                                <li>Restrinja a chave à Maps JavaScript API. Cadastre o valor no seu gerenciador de chaves com um nome, por exemplo google_maps. Neste campo do PackPanel, informe somente esse nome e salve.</li>
                                 <li>Abra uma rota calculada no painel. O mapa deve mostrar ruas e aceitar zoom. Se aparecer apenas o esquema, confira as restrições, faturamento e o aviso mostrado junto ao mapa.</li>
                             </ol>
-                            <p>O carregamento do mapa tem cobrança própria do Google. Configure cotas e alertas no projeto. Sem chave, a lista e o esquema do trajeto continuam disponíveis.</p>
+                            <p>O mapa precisa receber o valor da chave no navegador, mesmo com o armazenamento no gerenciador. As restrições de domínio e API são indispensáveis. Se o nome não existir no gerenciador, o painel mostrará o esquema do trajeto. O carregamento do mapa tem cobrança própria do Google: configure cotas e alertas no projeto.</p>
                         </details>
                     </td>
                 </tr>
@@ -94,14 +94,15 @@ final class PPWOO_Admin_Routes_Tab {
         }
 
         $enabled = isset($_POST['routes_enabled']);
-        $maps_key = self::field('routes_maps_key');
-        if ($maps_key !== '' && !preg_match('/^[A-Za-z0-9_-]{20,128}$/D', $maps_key)) throw new DomainException('Confira a chave de navegador gerada pelo Google Cloud.');
+        $maps_key_name = self::field('routes_maps_key_name');
+        if (strlen($maps_key_name) > 128 || preg_match('/[\x00-\x1F\x7F]/', $maps_key_name)) throw new DomainException('Confira o nome da chave do mapa cadastrado no gerenciador.');
         if ($enabled) PPWOO_Routes_Store::install();
         update_option('ppwoo_routes_origin_postcode', $postcode, false);
         update_option('ppwoo_routes_url', $url, false);
         update_option('ppwoo_routes_auth_key_name', $key_name === '' ? PPWOO_Route_Calculation::DEFAULT_AUTH_KEY : $key_name, false);
         update_option('ppwoo_routes_enabled', $enabled ? 'yes' : 'no', false);
-        update_option('ppwoo_routes_maps_key', $maps_key, false);
+        update_option('ppwoo_routes_maps_key_name', $maps_key_name, false);
+        delete_option('ppwoo_routes_maps_key');
     }
 
     private static function field(string $name): string {

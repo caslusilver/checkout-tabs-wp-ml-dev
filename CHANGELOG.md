@@ -2,6 +2,11 @@
 
 Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
+## [v3.3.3] - 2026-11-19
+
+- PackPanel → Rotas: o campo do mapa recebe somente o nome de referência da chave cadastrada no gerenciador e resolve seu valor por `sakm_get_key()`, seguindo a arquitetura da autenticação existente. Ao salvar, remove a antiga cópia direta das opções do plugin.
+- A ajuda explica o cadastro no gerenciador e a necessidade de restrições de domínio/API, pois a chave do mapa continua sendo utilizada no navegador.
+
 ## [v3.3.2] - 2026-11-19
 
 - Rotas: mantém pedidos em preparação na aba Motoboy e permite comparar seleções novas com pedidos já agrupados, sem zerar rotas ou fichas.
