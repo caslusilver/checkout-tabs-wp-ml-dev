@@ -50,8 +50,11 @@ test('routing preserves edits and copies the correct stop in both tabs', async t
         requests.push({ command, input });
         if (command === 'plan') return { success: true, data: { ...state, calculation, orders } };
         if (command === 'group') {
-            const stops = [...(state.routes[0]?.stops || []), orders.find(order => order.id === input.order_id)];
-            state = { routes: [{ ...state.routes[0], id: 1, slot: 1, revision: stops.length, state: 'draft', calculation, stops }] };
+            const members = state.routes[0]?.stops || [];
+            const stops = input.slot === 0 ? members.filter(order => order.id !== input.order_id)
+                : [...members, orders.find(order => order.id === input.order_id)];
+            state = { routes: [{ ...state.routes[0], id: 1, slot: 1, revision: (state.routes[0]?.revision || 0) + 1,
+                state: 'draft', calculation: input.slot === 0 ? null : calculation, stops }] };
         }
         if (command === 'save') {
             state.routes[0].sheet = input.sheet;
@@ -90,6 +93,10 @@ test('routing preserves edits and copies the correct stop in both tabs', async t
         await until(() => $('[data-routes-drafts] .ppwoo-route-order').length === count);
     }
     await group(101, 1);
+    assert.equal($('[data-routes-drafts] > details')[0].open, false, 'new route stays collapsed');
+    assert.equal($('[data-routes-preview] .ppwoo-preview-assigned').length, 1);
+    assert.equal($('[data-routes-preview] .ppwoo-preview-assigned')[0].open, false, 'assigned orders are consolidated and collapsed');
+    assert.equal($('[data-routes-preview] .ppwoo-preview-assigned .ppwoo-route-row').length, 1);
     $('[data-sheet-field="link"]').val('https://test.example.test/entrega').trigger('input');
     await group(102, 2);
     assert.equal($('[data-sheet-field="link"]').val(), 'https://test.example.test/entrega');
@@ -113,6 +120,22 @@ test('routing preserves edits and copies the correct stop in both tabs', async t
             target.dispatchEvent(pointer);
         }
     }
+    const calculate = $('[data-recalculate-route]')[0];
+    calculate.click();
+    slide(calculate, 0);
+    slide(calculate, 90);
+    assert.equal(requests.filter(r => r.command === 'recalculate').length, 0, 'tap and incomplete gesture do not calculate');
+    slide(calculate, 300);
+    await until(() => requests.filter(r => r.command === 'recalculate').length === 1 && !$('.painel-empacotamento').hasClass('ppwoo-routes-busy'));
+    assert.equal($('[data-routes-drafts] > details')[0].open, false, 'calculation does not open the route');
+    $('[data-remove-from-route="102"]').trigger('click');
+    await until(() => $('[data-routes-drafts] .ppwoo-route-order').length === 1);
+    assert.equal(state.routes[0].stops[0].id, 101, 'unmark removes only the selected order from the route');
+    assert.equal($('[data-routes-drafts] [data-sheet-field="link"]').val(), 'https://test.example.test/entrega', 'unmark retains the remaining route sheet');
+    assert.match($('[data-routes-drafts] .ppwoo-route-heading').text(), /Cálculo pendente/);
+    assert.equal($('[data-routes-preview] .ppwoo-preview-assigned .ppwoo-route-row').length, 1);
+    assert.equal($('[data-routes-preview] [data-group-order="102"]').val(), '0', 'unmarked order returns to Sem rota');
+    await group(102, 2);
     await group(103, 3);
     await group(104, 4);
     $('[data-sheet-field="phone"]').val('11900000000').trigger('input');
@@ -272,7 +295,7 @@ test('autosave serializes edits, exposes failures and preserves a loaded map and
     $('#tab-rotas [data-privacy="recipient"]').trigger('click');
     assert.equal($('.painel-empacotamento').hasClass('ppwoo-hide-route-recipient'), true);
     assert.equal($('[data-privacy="recipient"][aria-pressed="true"]').length, 2, 'controls synchronized between tabs');
-    $('[data-recalculate-route]').trigger('click');
+    $('[data-recalculate-route]').trigger('ppwoo:slide-complete');
     await until(() => calls.some(call => call.command === 'recalculate'));
     await until(() => !$('.painel-empacotamento').hasClass('ppwoo-routes-busy'));
     assert.equal($('.ppwoo-route-map')[0], mapNode, 'same calculation retains the actual map node');
