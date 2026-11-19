@@ -1,4 +1,4 @@
-# PackPanel — experiência de rotas 3.3.3
+# PackPanel — experiência de rotas 3.3.4
 
 Origem e decisões: [Blueprint V1 da entrevista](https://app.notion.com/p/41d4347fa2c281ddac19efb9e3cf4a7e). A transcrição integral está vinculada no Notion. O usuário confirmou o cálculo n8n no painel antes desta revisão. Esta versão ainda depende de aceite da interface real após atualização.
 
@@ -25,6 +25,14 @@ Em **WordPress → PackPanel → Rotas**, no campo **Nome da chave do mapa Googl
 A chave é criada pelo Google, não inventada. O nome de referência é definido por você no gerenciador. Centralizar o valor no gerenciador evita uma cópia direta nas opções do plugin e facilita rotação, mas a chave do mapa ainda é disponibilizada ao navegador por definição dessa integração. Restrinja-a por domínio e API. Não use o segredo Authorization do webhook nem exponha a chave de servidor do n8n. O carregamento de mapas tem cobrança própria: confira cotas e alertas no projeto Google.
 
 Referência: [configuração oficial da Maps JavaScript API](https://developers.google.com/maps/documentation/javascript/get-api-key).
+
+### Controles do mapa — 3.3.4
+
+No canto superior direito, **Focar saída** centraliza a origem e aproxima para o nível de ruas (zoom 16). **Expandir** abre o mesmo mapa numa janela ampliada, mantendo o zoom e o centro. O mesmo botão vira **Recolher**, que devolve o mapa ao cartão. Escape também fecha, o foco retorna ao botão e a rolagem da página é restaurada. Os controles não fazem chamadas de cálculo ou despacho. Focar saída fica indisponível quando há somente o esquema alternativo, sem mapa Google.
+
+Números e origem usam `MapPanes.markerLayer` (camada 2), acima do trajeto em `overlayLayer` (camada 1). A ampliação não depende do fullscreen nativo do navegador e mantém a biblioteca Google carregada uma única vez. Testes DOM simulam camadas, foco, zoom, expansão/recolhimento, Escape e ausência de novas chamadas. Validar o comportamento real em celular/PWA após atualizar.
+
+Rollback desta correção: **v3.3.3**, commit de integração `eaf8ecbd2c2e6be62a782885cc6a621cf9da025a`. Não muda o cadastro da chave no gerenciador.
 
 ## Proteção e persistência
 

@@ -17,6 +17,7 @@
         let busy = false;
         let pollRequest = null;
         let mapsLibrary;
+        let expandedMap = null;
         let saveTimer;
         let saveRequest = null;
         let lastReload = 0;
@@ -291,7 +292,10 @@
             wrap.dataset.calculation = calc.token;
             const map = el('div', { class: 'ppwoo-route-map', 'aria-label': 'Mapa da rota com paradas numeradas' });
             map.routeCalculation = calc;
-            wrap.append(map, el('details', { class: 'ppwoo-route-metrics', open: '' },
+            const controls = el('div', { class: 'ppwoo-map-controls', 'aria-label': 'Visualização do mapa' },
+                button('Focar saída', { 'data-focus-origin': '', disabled: '' }),
+                button('Expandir', { 'data-expand-map': '', 'aria-expanded': 'false', 'aria-label': 'Expandir mapa' }));
+            wrap.append(el('div', { class: 'ppwoo-route-map-stage' }, map, controls), el('details', { class: 'ppwoo-route-metrics', open: '' },
                 el('summary', {}, 'Distância e duração'),
                 el('p', {}, (calc.distance_meters / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + ' km · ' +
                     duration(calc.duration_seconds) + ' estimados')));
@@ -558,6 +562,8 @@
                             if (!this.routeMap) return;
                             (this.routeOverlays || []).forEach(overlay => overlay.setMap(null));
                             delete this.routeMap;
+                            const focus = this.closest('.ppwoo-route-map-stage')?.querySelector('[data-focus-origin]');
+                            if (focus) focus.disabled = true;
                             drawRouteDiagram(this, this.routeCalculation);
                             if (!this.parentNode.querySelector('.ppwoo-map-notice')) this.after(el('p', { class: 'ppwoo-map-notice' },
                                 'O Google recusou a chave do mapa. Confira as restrições e o faturamento em PackPanel → Rotas.'));
@@ -584,7 +590,7 @@
             const marker = new maps.OverlayView();
             const node = el('span', { class: isOrigin ? 'ppwoo-route-marker is-origin' : 'ppwoo-route-marker',
                 title: isOrigin ? 'Origem' : 'Parada ' + label }, label);
-            marker.onAdd = function () { this.getPanes().overlayLayer.appendChild(node); };
+            marker.onAdd = function () { this.getPanes().markerLayer.appendChild(node); };
             marker.draw = function () {
                 const pixel = this.getProjection()?.fromLatLngToDivPixel(new maps.LatLng(point.lat, point.lng));
                 if (pixel) Object.assign(node.style, { left: pixel.x + 'px', top: pixel.y + 'px' });
@@ -595,10 +601,62 @@
         }
 
         function disposeMaps(container) {
+            if (expandedMap && container.contains(expandedMap.placeholder)) closeExpandedMap();
             container.querySelectorAll('.ppwoo-route-map').forEach(node => {
                 (node.routeOverlays || []).forEach(overlay => overlay.setMap(null));
                 if (node.routeMap) window.google?.maps?.event?.clearInstanceListeners(node.routeMap);
             });
+        }
+
+        function resizeMap(stage) {
+            const node = stage.querySelector('.ppwoo-route-map');
+            const map = node?.routeMap;
+            if (map) {
+                const center = map.getCenter();
+                window.requestAnimationFrame(() => {
+                    window.google?.maps?.event?.trigger?.(map, 'resize');
+                    if (center) map.setCenter(center);
+                });
+            } else if (node?.routeCalculation) {
+                node.parentNode.querySelectorAll('.ppwoo-route-diagram-caption').forEach(caption => caption.remove());
+                drawRouteDiagram(node, node.routeCalculation);
+            }
+        }
+
+        function closeExpandedMap() {
+            if (!expandedMap) return;
+            const { dialog, stage, placeholder, control, overflow } = expandedMap;
+            expandedMap = null;
+            placeholder.replaceWith(stage);
+            if (dialog.open && typeof dialog.close === 'function') dialog.close();
+            dialog.remove();
+            document.body.style.overflow = overflow;
+            control.textContent = 'Expandir';
+            control.setAttribute('aria-expanded', 'false');
+            control.setAttribute('aria-label', 'Expandir mapa');
+            resizeMap(stage);
+            control.focus({ preventScroll: true });
+        }
+
+        function expandMap(control) {
+            if (expandedMap) { closeExpandedMap(); return; }
+            const stage = control.closest('.ppwoo-route-map-stage');
+            const placeholder = el('span', { hidden: '' });
+            const dialog = el('dialog', { class: 'ppwoo-map-dialog', 'aria-label': 'Mapa ampliado da rota', 'aria-modal': 'true' });
+            stage.before(placeholder);
+            dialog.append(stage);
+            $panel[0].append(dialog);
+            expandedMap = { dialog, stage, placeholder, control, overflow: document.body.style.overflow };
+            document.body.style.overflow = 'hidden';
+            control.textContent = 'Recolher';
+            control.setAttribute('aria-expanded', 'true');
+            control.setAttribute('aria-label', 'Recolher mapa');
+            dialog.addEventListener('cancel', event => { event.preventDefault(); closeExpandedMap(); });
+            dialog.addEventListener('close', () => { if (expandedMap?.dialog === dialog) closeExpandedMap(); });
+            if (typeof dialog.showModal === 'function') dialog.showModal();
+            else dialog.setAttribute('open', '');
+            control.focus({ preventScroll: true });
+            resizeMap(stage);
         }
 
         function drawRouteDiagram(node, calc) {
@@ -675,9 +733,10 @@
                         }
                         const map = new maps.Map(node, {
                             center: calc.origin, zoom: 12, clickableIcons: false, gestureHandling: 'cooperative',
-                            mapTypeControl: false, streetViewControl: false, fullscreenControl: true, zoomControl: true
+                            mapTypeControl: false, streetViewControl: false, fullscreenControl: false, zoomControl: true
                         });
                         node.routeMap = map;
+                        node.closest('.ppwoo-route-map-stage').querySelector('[data-focus-origin]').disabled = false;
                         const bounds = new maps.LatLngBounds();
                         calc.path.forEach(point => bounds.extend(point));
                         node.routeOverlays = [
@@ -926,6 +985,23 @@
                 await navigator.clipboard.writeText(text);
                 feedback('Dado copiado.');
             } catch (_) { feedback('Não foi possível copiar. Selecione o texto e copie manualmente.', true); }
+        });
+        $panel.on('click', '[data-focus-origin]', function () {
+            const node = this.closest('.ppwoo-route-map-stage').querySelector('.ppwoo-route-map');
+            if (!node.routeMap) return;
+            node.routeMap.panTo(node.routeCalculation.origin);
+            node.routeMap.setZoom(16);
+        });
+        $panel.on('click', '[data-expand-map]', function () { expandMap(this); });
+        $panel.on('keydown', '.ppwoo-map-dialog', function (event) {
+            if (event.key === 'Escape') { event.preventDefault(); closeExpandedMap(); }
+            if (event.key !== 'Tab') return;
+            const controls = Array.from(this.querySelectorAll('button:not(:disabled), [tabindex="0"], a[href]'))
+                .filter(node => $(node).is(':visible'));
+            const first = controls[0];
+            const last = controls[controls.length - 1];
+            if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+            else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
         });
         $panel.on('click', '[data-reload-routes]', () => poll(true));
         $panel.on('click', '.tab-button[data-tab="rotas"], .tab-button[data-tab="em-rota"]', drawVisibleMaps);

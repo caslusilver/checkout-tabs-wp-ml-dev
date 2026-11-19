@@ -2,6 +2,11 @@
 
 Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
+## [v3.3.4] - 2026-11-19
+
+- Mapa de rotas: números das paradas e origem na camada de marcadores, acima da linha do trajeto.
+- Mapa de rotas: controles Focar saída e Expandir/Recolher no canto superior direito. A visualização ampliada preserva o mapa e zoom, fecha também com Escape e não recalcula a rota.
+
 ## [v3.3.3] - 2026-11-19
 
 - PackPanel → Rotas: o campo do mapa recebe somente o nome de referência da chave cadastrada no gerenciador e resolve seu valor por `sakm_get_key()`, seguindo a arquitetura da autenticação existente. Ao salvar, remove a antiga cópia direta das opções do plugin.
