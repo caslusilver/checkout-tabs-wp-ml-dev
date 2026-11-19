@@ -3,6 +3,14 @@
     const root = document.getElementById('ppwoo-tracking');
     const script = document.getElementById('ppwoo-tracking-script');
     if (!root || !script) return;
+    const mobileTouch = window.matchMedia?.('(pointer: coarse)').matches || navigator.maxTouchPoints > 0;
+    if (mobileTouch) {
+        // Bloqueia a ampliação do documento; os eventos do mapa continuam no SDK.
+        for (const name of ['gesturestart', 'gesturechange', 'gestureend']) document.addEventListener(name, event => event.preventDefault(), { passive: false });
+        document.addEventListener('touchmove', event => {
+            if (event.touches.length > 1 && !event.target.closest?.('.tracking-map')) event.preventDefault();
+        }, { passive: false });
+    }
     const params = new URLSearchParams(location.hash.slice(1));
     const id = params.get('pedido');
     let token = params.get('acesso');
@@ -52,22 +60,29 @@
         try {
             const maps = await mapsLibrary(data.maps_key);
             if (finished || !container.isConnected) return;
-            map = new maps.Map(container, { mapTypeControl: false, streetViewControl: false, fullscreenControl: true, gestureHandling: 'cooperative' });
+            map = new maps.Map(container, { mapTypeControl: false, streetViewControl: false, fullscreenControl: true, gestureHandling: mobileTouch ? 'greedy' : 'cooperative' });
             const bounds = new maps.LatLngBounds();
             const points = data.map.points;
             points.forEach(point => {
                 const position = { lat: point.lat, lng: point.lng };
                 bounds.extend(position);
-                if (!point.own) new maps.Circle({ map, center: position, radius: 1000, strokeWeight: 0, fillColor: '#1765d8', fillOpacity: .09 });
+                if (!point.own) new maps.Circle({ map, center: position, radius: 2500, strokeWeight: 0, fillColor: '#1765d8', fillOpacity: .09 });
                 new maps.Marker({ map, position, label: { text: String(point.position), color: point.own ? '#fff' : '#1765d8', fontWeight: '700' },
                     zIndex: point.own ? 10 : 5, title: point.own ? 'Sua parada' : 'Parada aproximada',
                     icon: { path: maps.SymbolPath.CIRCLE, scale: point.own ? 19 : 15, fillColor: point.own ? '#1765d8' : '#fff', fillOpacity: 1, strokeColor: '#1765d8', strokeWeight: 2 } });
             });
             if (data.map.origin) {
-                new maps.Circle({ map, center: data.map.origin, radius: 5000, strokeWeight: 0, fillColor: '#64748b', fillOpacity: .1 });
-                bounds.extend(data.map.origin);
+                const originCircle = new maps.Circle({ map, center: data.map.origin, radius: 10000, strokeWeight: 2,
+                    strokeColor: '#946013', strokeOpacity: .7, fillColor: '#e6bc68', fillOpacity: .18, zIndex: 0 });
+                bounds.union(originCircle.getBounds());
+                new maps.Marker({ map, position: data.map.origin, title: 'Região aproximada de saída', zIndex: 4,
+                    icon: { path: maps.SymbolPath.CIRCLE, scale: 0, strokeWeight: 0 },
+                    label: { text: 'Região de saída', color: '#61400b', fontWeight: '700' } });
             }
-            new maps.Polyline({ map, path: points, strokeOpacity: 0, icons: [{ icon: { path: 'M 0,-1 0,1', strokeOpacity: .7, strokeColor: '#1765d8', scale: 3 }, offset: '0', repeat: '15px' }] });
+            for (const path of data.map.paths || []) {
+                new maps.Polyline({ map, path, strokeColor: '#1765d8', strokeOpacity: .85, strokeWeight: 5, zIndex: 1 });
+                path.forEach(point => bounds.extend(point));
+            }
             map.fitBounds(bounds, 50);
             maps.event.addListenerOnce(map, 'idle', () => { if (map.getZoom() > 15) map.setZoom(15); });
             mapSignature = signature;
@@ -83,7 +98,7 @@
         if (!root.querySelector('.tracking-content')) {
             root.replaceChildren(node('div', '', { class: 'tracking-map', role: 'region', 'aria-label': 'Mapa da sua entrega' }), node('div', '', { class: 'tracking-content' }));
             const content = root.querySelector('.tracking-content');
-            content.append(node('p', 'Paradas aproximadas · sem localização ao vivo do motoboy', { class: 'tracking-map-note' }));
+            content.append(node('p', 'Trajeto calculado · trechos privados ocultos · sem localização ao vivo', { class: 'tracking-map-note' }));
             const heading = node('div', null, { class: 'tracking-heading' });
             const title = node('div', null);
             title.append(node('p', '', { class: 'tracking-reference' }), node('h1', 'Seu pedido está a caminho'));
@@ -96,10 +111,26 @@
             const receipt = node('section', null, { class: 'tracking-receipt' });
             const label = node('label', 'Recebeu seu pedido? Deslize para confirmar.', { for: 'tracking-slide' });
             const range = node('input', null, { type: 'range', id: 'tracking-slide', min: '0', max: '100', value: '0', 'aria-label': 'Deslize até o fim para confirmar o recebimento' });
-            range.addEventListener('change', () => { if (Number(range.value) >= 98) confirmReceipt(); else range.value = 0; });
-            const accessible = node('button', 'Confirmar recebimento por botão', { type: 'button', class: 'tracking-accessible-confirm' });
-            accessible.addEventListener('click', () => { if (window.confirm('Você já recebeu este pedido?')) confirmReceipt(); });
-            receipt.append(label, range, accessible, node('p', '', { class: 'tracking-status', role: 'status' }));
+            let drag = null, keyboard = false;
+            range.addEventListener('pointerdown', event => {
+                keyboard = false;
+                const rect = range.getBoundingClientRect();
+                drag = event.clientX <= rect.left + 55 ? { x: event.clientX, id: event.pointerId, width: rect.width } : null;
+                try { range.setPointerCapture(event.pointerId); } catch (_) { /* captura nativa pode estar indisponível */ }
+            });
+            range.addEventListener('pointerup', event => {
+                const completed = drag && drag.id === event.pointerId && event.clientX - drag.x >= Math.max(40, drag.width * .6) && Number(range.value) >= 98;
+                drag = null;
+                if (completed) confirmReceipt(); else range.value = 0;
+            });
+            range.addEventListener('pointercancel', () => { drag = null; range.value = 0; });
+            range.addEventListener('change', () => { if (!drag && !confirming && !keyboard) range.value = 0; });
+            range.addEventListener('keydown', event => {
+                keyboard = true;
+                // Acessibilidade pelo próprio slider, sem botão de confirmação por toque.
+                if (event.key === 'Enter' && Number(range.value) >= 98) { event.preventDefault(); confirmReceipt(); }
+            });
+            receipt.append(label, range, node('p', '', { class: 'tracking-status', role: 'status' }));
             content.append(receipt, node('p', '', { class: 'tracking-expiry' }));
         }
         root.querySelector('.tracking-reference').textContent = 'PEDIDO #' + data.number + ' · ROTA ' + data.route;
