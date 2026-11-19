@@ -165,6 +165,7 @@ add_action('woocommerce_checkout_create_order', function (WC_Order $order, array
 		$order->set_billing_phone($submitted['whatsapp']);
 		$order->update_meta_data('_billing_cellphone', $submitted['whatsapp']);
 		$order->update_meta_data('_ctwpml_dial_code', $submitted['dial_code']);
+		$order->update_meta_data('_ctwpml_phone_country', $submitted['country_code']);
 		$order->update_meta_data('_ctwpml_phone_is_national', 'yes');
 		return;
 	}
@@ -191,9 +192,11 @@ add_action('woocommerce_checkout_create_order', function (WC_Order $order, array
 	// Um pedido reaproveitado pelo WooCommerce pode ter sido iniciado com outro telefone.
 	if ($dial_code === '' || !$shape['valid'] || $shape['woo_digits'] !== $phone) {
 		$order->delete_meta_data('_ctwpml_dial_code');
+		$order->delete_meta_data('_ctwpml_phone_country');
 		return;
 	}
 	$order->update_meta_data('_ctwpml_dial_code', $dial_code);
+	$order->update_meta_data('_ctwpml_phone_country', strtoupper((string) ($contact['country_code'] ?? '')));
 }, PHP_INT_MAX, 2);
 
 function ctwpml_apply_order_phone_to_payload(array $payload, WC_Order $order): array {

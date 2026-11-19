@@ -2,6 +2,16 @@
 
 Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
+## [v3.3.2] - 2026-11-19
+
+- Rotas: mantém pedidos em preparação na aba Motoboy e permite comparar seleções novas com pedidos já agrupados, sem zerar rotas ou fichas.
+- Rotas: salva a ficha automaticamente, preserva edições em falha e durante respostas concorrentes, mostra pendências específicas do despacho e destaca o slider de envio apto em verde.
+- Rotas: configura Google Maps em PackPanel → Rotas com instruções para gerar e restringir a chave, trajeto sobre ruas, zoom preservado e diagnóstico do esquema alternativo.
+- Rotas: controles globais de privacidade, cores discretas por grupo, métricas em azul, duração em horas/minutos, última parada identificada e menos recolhimentos em rota com um pedido.
+- Contato: copia telefone nacional separadamente do DDI e preserva o prefixo no WhatsApp internacional. Registra país telefônico nos pedidos novos para exibir nome e bandeira sem usar o endereço como referência.
+- Proteção: reaproveita cálculo válido idêntico, serializa cálculos no servidor e limita atualizações repetidas do painel. Contratos de cálculo n8n e eventos individuais de despacho preservados.
+- Documentação: consolida o fluxo n8n aceito pelo usuário, decisões, configuração, testes e rollback para v3.3.1.
+
 ## [v3.3.1] - 2026-11-18
 
 - PackPanel: reúne as configurações em uma aba Rotas, usa apenas o CEP de saída e busca a credencial pelo nome no mesmo gerenciador de chaves da aba Conexão.

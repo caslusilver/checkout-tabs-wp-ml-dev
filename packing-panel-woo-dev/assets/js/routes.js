@@ -17,6 +17,24 @@
         let busy = false;
         let pollRequest = null;
         let mapsLibrary;
+        let saveTimer;
+        let saveRequest = null;
+        let lastReload = 0;
+        const saveErrors = new Map();
+        const editRevisions = new Map();
+        const saveConflicts = new Set();
+        const seenMemberships = new Map();
+        const routeColors = ['#1658b8', '#7550a4', '#197365', '#96511d', '#9a4267', '#476475'];
+
+        function routeStyle(slot) {
+            return '--ppwoo-route-color:' + routeColors[(Math.max(1, Number(slot)) - 1) % routeColors.length];
+        }
+
+        function duration(seconds) {
+            const minutes = Math.ceil((Number(seconds) || 0) / 60);
+            if (minutes < 60) return minutes + ' min';
+            return Math.floor(minutes / 60) + ' h' + (minutes % 60 ? ' ' + minutes % 60 + ' min' : '');
+        }
 
         function el(tag, attrs, ...content) {
             const node = document.createElement(tag);
@@ -84,8 +102,10 @@
                 return response.data;
             } catch (error) {
                 debug(command, 'falha' + (error.status ? ' HTTP ' + error.status : ''), data);
-                throw new Error(error.responseJSON?.data?.message || error.message ||
-                    'A resposta não chegou. Atualize as rotas para conferir o estado.');
+                const failure = new Error(error.responseJSON?.data?.message || error.message ||
+                    'A resposta não chegou. Atualize o painel para conferir o estado.');
+                failure.status = error.status;
+                throw failure;
             }
         }
 
@@ -104,6 +124,13 @@
             let errorMessage = '';
             try {
                 if (pollRequest) await pollRequest;
+                const revisions = new Map(dashboard.routes.map(route => [route.id, route.revision]));
+                if (!await flushAutosaves(true)) throw new Error('Confira a ficha que não foi salva antes de continuar.');
+                for (const [idKey, revisionKey] of [['route_id', 'revision'], ['source_id', 'source_revision'], ['target_id', 'target_revision']]) {
+                    if (payload[idKey] && revisions.get(payload[idKey]) === payload[revisionKey]) {
+                        payload[revisionKey] = currentRoute(payload[idKey])?.revision ?? payload[revisionKey];
+                    }
+                }
                 const data = await api(command, payload);
                 if (options.after) options.after(data);
                 if (command !== 'history') update(data, true);
@@ -119,6 +146,7 @@
                 if (options.slider) resetSwipe(options.slider);
                 updateSelection();
                 updateDeliverySelections();
+                updateReadiness();
             }
             return !errorMessage;
         }
@@ -134,13 +162,29 @@
         }
 
         function updateSelection() {
-            const grouped = new Set(dashboard.routes.flatMap(route => route.stops.map(stop => stop.id)));
+            const grouped = new Map(dashboard.routes.flatMap(route => route.stops.map(stop => [stop.id, { route, stop }])));
             $panel.find('#tab-motoboy .motoboy-order').each(function () {
                 const checkbox = this.querySelector('.ppwoo-route-pick');
                 if (checkbox) {
-                    const reserved = grouped.has(Number(this.dataset.orderId));
-                    this.hidden = reserved;
-                    checkbox.disabled = reserved;
+                    const membership = grouped.get(Number(this.dataset.orderId));
+                    const reserved = membership && membership.route.state !== 'draft';
+                    const badge = this.querySelector('.ppwoo-membership') || el('small', { class: 'ppwoo-membership' });
+                    if (!badge.isConnected) this.querySelector('.ppwoo-fold-head')?.append(badge);
+                    badge.textContent = membership ? 'Rota ' + membership.route.slot + ' · Parada ' + membership.stop.position : 'Sem rota';
+                    badge.setAttribute('style', routeStyle(membership?.route.slot || 1));
+                    this.classList.toggle('ppwoo-in-draft', !!membership && !reserved);
+                    const orderId = Number(this.dataset.orderId);
+                    if (membership && !reserved && seenMemberships.get(orderId) !== membership.route.id) collapsed.add(orderId);
+                    if (membership) seenMemberships.set(orderId, membership.route.id);
+                    else seenMemberships.delete(orderId);
+                    const contact = membership?.stop;
+                    if (contact) {
+                        const phoneLine = this.querySelector('.whatsapp-to-copy');
+                        const info = phoneLine?.querySelector('.ppwoo-phone-country');
+                        if (phoneLine && !info) phoneLine.append(phoneCountry(contact));
+                    }
+                    this.hidden = !!reserved;
+                    checkbox.disabled = !!reserved;
                     if (reserved) checkbox.checked = false;
                 }
                 applyCollapsed(this);
@@ -155,7 +199,8 @@
             $panel.find('[data-fold-all]').text($cards.length && $cards.filter('.ppwoo-card-collapsed').length === $cards.length
                 ? 'Abrir todos' : 'Recolher todos');
             $panel.find('[data-calculate-selected]').prop('disabled', busy || !count)
-                .text(count ? 'Calcular rotas (' + count + ')' : 'Calcular rotas');
+                .text(count ? 'Visualizar rota da seleção (' + count + ')' : 'Visualizar rota da seleção')
+                .addClass('ppwoo-routes-button ppwoo-routes-primary');
         }
 
         function groupSelect(order, source, previewToken) {
@@ -169,6 +214,7 @@
             options.forEach(slot => select.append(el('option', { value: slot }, 'Rota ' + slot)));
             if (slots.length >= 4) select.append(el('option', { value: -1 }, 'Nova rota'));
             select.value = String(source ? source.slot : 0);
+            if (source) select.setAttribute('style', routeStyle(source.slot));
             return select;
         }
 
@@ -176,8 +222,10 @@
             const key = node.dataset.privacy;
             node.setAttribute('aria-pressed', String(hidden[key]));
             node.querySelector('.dashicons').className = 'dashicons dashicons-' + (hidden[key] ? 'hidden' : 'visibility');
-            node.querySelector('[data-privacy-label]').textContent = (hidden[key] ? 'Mostrar ' : 'Ocultar ') +
-                (key === 'recipient' ? 'destinatário' : 'valores');
+            const label = key === 'recipient' ? 'Destinatário' : 'Valores';
+            node.querySelector('[data-privacy-label]').textContent = label;
+            node.setAttribute('aria-label', (hidden[key] ? 'Mostrar ' : 'Ocultar ') + label.toLowerCase() + ' em todas as rotas');
+            node.title = node.getAttribute('aria-label');
         }
 
         function privateControls() {
@@ -201,20 +249,39 @@
             const key = groupKey + '-order-' + order.id;
             const details = el('details', { class: 'ppwoo-route-order', 'data-group-key': key },
                 el('summary', {},
-                    position ? 'Parada ' + position + ' · ' : '',
-                    '#' + order.number,
-                    el('span', { class: 'ppwoo-route-private-recipient' }, order.name ? ' · ' + order.name : '')),
+                    position ? 'Parada ' + position + (order.is_last ? ' · Última parada' : '') + ' · ' : '',
+                    el('span', { class: 'ppwoo-route-identity' }, '#' + order.number,
+                        el('span', { class: 'ppwoo-route-private-recipient' }, order.name ? ' · ' + order.name : ''))),
                 el('div', { class: 'ppwoo-route-private-recipient' },
                     el('p', {}, [order.address, order.complement].filter(Boolean).join(' · ') || 'Endereço indisponível'),
                     order.whatsapp && /^https:\/\/wa\.me\/\d+$/.test(order.whatsapp)
                         ? el('a', { href: order.whatsapp, target: '_blank', rel: 'noopener noreferrer' }, 'WhatsApp ' + order.phone)
                         : el('span', {}, order.phone || ''),
+                    phoneCountry(order),
+                    el('div', { class: 'ppwoo-routes-toolbar' },
+                        button('Copiar nome', { 'data-copy-contact': order.name || '' }),
+                        button('Copiar telefone', { 'data-copy-contact': order.phone || '' }),
+                        button('Copiar endereço', { 'data-copy-contact': [order.address, order.complement].filter(Boolean).join(' · ') })),
                     order.delivery_message ? el('div', { class: 'ppwoo-routes-toolbar' },
                         el('textarea', { class: 'ppwoo-delivery-message', hidden: '', readonly: '', tabindex: '-1' }, order.delivery_message),
                         button('Copiar dados para o motoboy', { class: 'ppwoo-routes-button ppwoo-copy-delivery' })) : null));
             if (order.deadline) details.append(el('p', {}, 'Previsão: ' + order.deadline));
             details.open = openGroups.has(key);
             return details;
+        }
+
+        function phoneCountry(order) {
+            let country = order.phone_country;
+            // Só inferir prefixos inequívocos já conhecidos; não usar o país de entrega.
+            if (!country) country = ({ '+33': 'FR', '+351': 'PT', '+49': 'DE', '+39': 'IT', '+34': 'ES', '+81': 'JP' })[order.dial_code];
+            let label = order.dial_code || '';
+            if (country && country !== 'BR') {
+                let name = country;
+                try { name = new Intl.DisplayNames(['pt-BR'], { type: 'region' }).of(country); } catch (_) { /* DDI continua visível */ }
+                const flag = Array.from(country, letter => String.fromCodePoint(127397 + letter.charCodeAt(0))).join('');
+                label += ' · ' + flag + ' ' + name;
+            }
+            return el('small', { class: 'ppwoo-phone-country' }, label);
         }
 
         function mapPanel(calc, previous) {
@@ -227,7 +294,7 @@
             wrap.append(map, el('details', { class: 'ppwoo-route-metrics', open: '' },
                 el('summary', {}, 'Distância e duração'),
                 el('p', {}, (calc.distance_meters / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + ' km · ' +
-                    Math.ceil(calc.duration_seconds / 60) + ' min estimados')));
+                    duration(calc.duration_seconds) + ' estimados')));
             return wrap;
         }
 
@@ -246,8 +313,7 @@
                 container.replaceChildren();
                 return;
             }
-            const grouped = new Set(dashboard.routes.flatMap(route => route.stops.map(stop => stop.id)));
-            const remaining = preview.orders.filter(order => !grouped.has(order.id) && !preview.removed.has(order.id));
+            const remaining = preview.orders.filter(order => !preview.removed.has(order.id));
             if (!remaining.length) {
                 // Mantém o token para reaproveitar o cálculo se um grupo tiver os mesmos pedidos.
                 disposeMaps(container);
@@ -257,7 +323,7 @@
             const byId = new Map(remaining.map(order => [order.id, order]));
             const ordered = [...preview.calculation.stops, ...preview.calculation.issues];
             const box = el('section', { class: 'ppwoo-route-card' },
-                el('h3', {}, 'Prévia da seleção'), privateControls(),
+                el('h3', {}, 'Prévia da seleção'),
                 mapPanel(preview.calculation, container.querySelector('.ppwoo-route-map-wrap')),
                 el('p', {}, 'Use o seletor de cada pedido para confirmar o grupo. Depois, confira o cálculo do grupo.'));
             const list = el('div', { class: 'ppwoo-route-orders' });
@@ -265,9 +331,11 @@
                 const order = byId.get(item.order_id);
                 if (!order) return;
                 const position = preview.calculation.stops.findIndex(stop => stop.order_id === order.id) + 1;
+                order.is_last = preview.calculation.destination_order_id === order.id;
                 list.append(el('div', { class: 'ppwoo-route-row' }, orderInfo(order, position, 'preview'),
                     item.code ? el('p', { class: 'ppwoo-routes-warning' }, issueMessage(item.code)) : null,
-                    el('div', { class: 'ppwoo-routes-toolbar' }, groupSelect(order, null, preview.calculation.token),
+                    el('div', { class: 'ppwoo-routes-toolbar' }, groupSelect(order,
+                        dashboard.routes.find(route => route.state === 'draft' && route.stops.some(stop => stop.id === order.id)), preview.calculation.token),
                         button('Desmarcar', { 'data-unselect-preview': order.id }))));
             });
             box.append(list, button('Dispensar prévia', { 'data-dismiss-preview': '' }));
@@ -280,11 +348,11 @@
             const unsaved = sheets.get(route.id) || {};
             const fields = el('div', { class: 'ppwoo-route-sheet' },
                 el('h4', {}, 'Ficha da rota'),
-                el('label', {}, 'Link de rastreio', el('input', {
+                el('label', { class: 'ppwoo-route-private-recipient' }, 'Link de rastreio', el('input', {
                     type: 'text', inputmode: 'url', maxlength: 2048, class: 'tracking-link', 'data-sheet-field': 'link',
                     value: unsaved.link ?? saved.link ?? ''
                 })),
-                el('label', {}, 'WhatsApp do motoboy', el('input', {
+                el('label', { class: 'ppwoo-route-private-recipient' }, 'WhatsApp do motoboy', el('input', {
                     type: 'tel', class: 'motoboy-whatsapp', 'data-sheet-field': 'phone', value: unsaved.phone ?? saved.phone ?? ''
                 })),
                 el('label', { class: 'ppwoo-route-private-recipient' }, 'Código de finalização da última parada', el('input', {
@@ -301,13 +369,37 @@
                         class: 'ppwoo-route-private-values', 'aria-label': 'Custo negociado do pedido ' + order.number,
                         value: unsaved.costs?.[order.id] ?? order.cost ?? ''
                     })))));
-            fields.append(el('div', { class: 'ppwoo-routes-toolbar' }, button('Salvar ficha', { 'data-save-sheet': route.id })));
-            const ready = route.calculation?.stops?.length === route.stops.length && !route.calculation.issues.length;
+            fields.append(el('p', { class: 'ppwoo-sheet-status', 'data-sheet-status': route.id, role: 'status' },
+                sheets.has(route.id) ? (saveErrors.get(route.id) || 'Alterações aguardando salvamento…') : 'Rascunho salvo'),
+                button('Tentar salvar novamente', { 'data-save-sheet': route.id, hidden: saveErrors.has(route.id) ? null : '' }));
             const control = swipe('Deslize para concluir envio', { 'data-dispatch-route': route.id });
-            control.disabled = !ready;
-            if (!ready) fields.append(el('p', { class: 'ppwoo-routes-warning' }, 'Calcule a rota e resolva as paradas pendentes para despachar.'));
+            fields.append(el('p', { class: 'ppwoo-routes-warning', 'data-dispatch-reason': route.id, role: 'status' }));
             fields.append(control);
             return fields;
+        }
+
+        function dispatchReason(route, sheet) {
+            const calc = route.calculation;
+            if (!calc || (calc.expires_at && calc.expires_at * 1000 <= Date.now())) return 'Recalcule esta rota: a composição mudou ou o cálculo expirou.';
+            if (calc.issues.length) return 'Confira as paradas com aviso e recalcule esta rota.';
+            if (calc.stops.length !== route.stops.length) return 'Recalcule esta rota para incluir todos os pedidos.';
+            if (!/^https?:\/\//i.test(sheet.link || '')) return 'Preencha um link de rastreio válido.';
+            if (!/^\d{10,11}$/.test((sheet.phone || '').replace(/\D/g, ''))) return 'Preencha o WhatsApp do motoboy com DDD.';
+            if (!/^\d{1,10}$/.test(sheet.code || '') || Number(sheet.code) < 1) return 'Preencha o código de finalização da última parada.';
+            if (route.stops.some(order => !/^\d{1,7}(?:[.,]\d{1,2})?$/.test(String(sheet.costs?.[order.id] ?? order.cost ?? '').trim()))) {
+                return 'Preencha o custo negociado de cada pedido.';
+            }
+            return '';
+        }
+
+        function updateReadiness() {
+            dashboard.routes.filter(route => route.state === 'draft').forEach(route => {
+                const sheet = sheets.get(route.id) || { ...route.sheet, costs: Object.fromEntries(route.stops.map(order => [order.id, order.cost])) };
+                const reason = dispatchReason(route, sheet);
+                $panel.find('[data-dispatch-reason="' + route.id + '"]').text(reason);
+                $panel.find('[data-dispatch-route="' + route.id + '"]').prop('disabled', !!reason || busy);
+                $panel.find('[data-recalculate-route="' + route.id + '"]').toggleClass('ppwoo-routes-primary', !route.calculation);
+            });
         }
 
         function renderDrafts() {
@@ -318,9 +410,9 @@
             if (!drafts.length) fragment.append(el('p', {}, 'Nenhuma rota em preparação.'));
             drafts.forEach(route => {
                 const key = 'draft-' + route.id;
-                const box = el('details', { class: 'ppwoo-route-card', 'data-group-key': key, 'data-route-id': route.id });
+                const box = el('details', { class: 'ppwoo-route-card', 'data-group-key': key, 'data-route-id': route.id, style: routeStyle(route.slot) });
                 box.open = openGroups.has(key);
-                const body = el('div', { class: 'ppwoo-group-body' }, privateControls(),
+                const body = el('div', { class: 'ppwoo-group-body' },
                     mapPanel(route.calculation, previous.get(String(route.id))?.querySelector('.ppwoo-route-map-wrap')));
                 const issueById = new Map((route.calculation?.issues || []).map(issue => [issue.order_id, issue.code]));
                 const calculationByOrder = new Map((route.calculation?.stops || []).map(stop => [stop.order_id, stop]));
@@ -328,21 +420,24 @@
                     el('summary', {}, 'Paradas e pedidos (' + route.stops.length + ')'));
                 stops.open = openGroups.has(key + '-stops');
                 route.stops.forEach(order => {
+                    order.is_last = route.calculation?.destination_order_id === order.id;
                     const estimate = calculationByOrder.get(order.id);
                     const distance = Number.isFinite(estimate?.distance_meters)
                         ? ' · ' + (estimate.distance_meters / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + ' km' : '';
                     stops.append(el('div', { class: 'ppwoo-route-row' }, orderInfo(order, order.position, key),
-                        estimate ? el('small', {}, 'Estimativa após a saída: ' + Math.ceil(estimate.eta_seconds / 60) + ' min' + distance) : null,
+                        estimate ? el('small', { class: 'ppwoo-route-estimate' }, 'Estimativa após a saída: ' + duration(estimate.eta_seconds) + distance) : null,
                         issueById.has(order.id) ? el('p', { class: 'ppwoo-routes-warning' }, issueMessage(issueById.get(order.id))) : null,
                         groupSelect(order, route)));
                 });
                 body.append(button(route.calculation ? 'Recalcular rota' : 'Calcular esta rota',
-                    { 'data-recalculate-route': route.id }), stops, formFor(route));
+                    { 'data-recalculate-route': route.id, class: 'ppwoo-routes-button' + (!route.calculation ? ' ppwoo-routes-primary' : '') }),
+                    ...(route.stops.length === 1 ? Array.from(stops.children).slice(1) : [stops]), formFor(route));
                 box.append(el('summary', {}, 'Rota ' + route.slot + ' · ' + route.stops.length + ' pedidos'), body);
                 fragment.append(box);
             });
             disposeMaps(container);
             container.replaceChildren(fragment);
+            updateReadiness();
         }
 
         const eventLabels = {
@@ -363,18 +458,21 @@
             const selection = closeSelections.get(route.id) || new Set();
             const open = route.stops.filter(order => order.delivery_state === 'on_route');
             const received = route.stops.filter(order => order.event_state === 'accepted').length;
-            const box = el('details', { class: 'ppwoo-route-card', 'data-group-key': key, 'data-route-id': route.id });
+            const box = el('details', { class: 'ppwoo-route-card', 'data-group-key': key, 'data-route-id': route.id, style: routeStyle(route.slot) });
             box.open = openGroups.has(key);
             box.append(el('summary', {}, 'Rota ' + route.slot + ' · Saída #' + route.id +
                 (isHistory ? ' · Encerrada' : ' · ' + open.length + ' em rota')));
-            const body = el('div', { class: 'ppwoo-group-body' }, privateControls(),
+            const body = el('div', { class: 'ppwoo-group-body' },
                 el('progress', { value: received, max: route.stops.length, 'aria-label': 'Eventos recebidos' }),
                 el('p', {}, received + ' de ' + route.stops.length + ' eventos recebidos'));
+            body.prepend(mapPanel(route.calculation,
+                $panel.find('[data-routes-active] [data-route-id="' + route.id + '"] .ppwoo-route-map-wrap')[0]) || '');
             if (route.departed_at) body.append(el('small', {}, 'Saída: ' + new Date(route.departed_at).toLocaleString('pt-BR')));
             if (open.length) body.append(el('label', {},
                 check(false, { 'data-select-delivery-all': route.id }), ' Selecionar todos ainda em rota'));
             route.stops.forEach(order => {
                 const canRetry = order.event_state === 'failed' || (order.event_state === 'uncertain' && dashboard.retry_uncertain);
+                order.is_last = route.calculation?.destination_order_id === order.id;
                 body.append(el('div', { class: 'ppwoo-route-row' },
                     order.delivery_state === 'on_route'
                         ? el('label', {}, check(selection.has(order.id), { 'data-close-order': order.id }), ' Incluir na baixa') : null,
@@ -397,8 +495,9 @@
         function renderActive() {
             const parent = $panel.find('[data-routes-active]')[0];
             const active = dashboard.routes.filter(route => route.state === 'dispatched');
-            parent.replaceChildren(...(active.length ? active.map(route => deliveryGroup(route, false))
-                : [el('p', {}, 'Nenhum pedido em rota.')]));
+            const nodes = active.length ? active.map(route => deliveryGroup(route, false)) : [el('p', {}, 'Nenhum pedido em rota.')];
+            disposeMaps(parent);
+            parent.replaceChildren(...nodes);
             updateDeliverySelections();
         }
 
@@ -434,14 +533,17 @@
         }
 
         async function poll(full) {
-            if (document.hidden || pollRequest || busy || $panel.find('.ppwoo-route-slide.is-dragging').length) return;
+            if (document.hidden || pollRequest || busy || saveRequest || $panel.find('.ppwoo-route-slide.is-dragging').length) return;
             const tab = activeTab().attr('id');
             if (!full && tab !== 'tab-em-rota') return;
+            if (full && Date.now() - lastReload < 5000) { feedback('Painel atualizado há poucos segundos.'); return; }
+            if (full) { feedback('Atualizando painel…'); $panel.find('[data-reload-routes]').prop('disabled', true); }
             pollRequest = api('list', {}).then(data => {
                 if (!busy && !$panel.find('.ppwoo-route-slide.is-dragging').length) update(data, full);
+                if (full) { lastReload = Date.now(); feedback('Painel atualizado.'); }
             }).catch(error => feedback(error.message, true));
             try { await pollRequest; }
-            finally { pollRequest = null; }
+            finally { pollRequest = null; $panel.find('[data-reload-routes]').prop('disabled', false); }
         }
 
         function loadMaps() {
@@ -450,7 +552,17 @@
                 mapsLibrary = new Promise((resolve, reject) => {
                     const script = document.createElement('script');
                     const callback = 'ppwooRoutesMapsReady';
-                    const fail = () => reject(new Error('O mapa não carregou. Use a lista de paradas ou confira a configuração do Google Maps.'));
+                    const fail = () => {
+                        reject(new Error('O mapa não carregou. Confira a configuração do Google Maps.'));
+                        $panel.find('.ppwoo-route-map').each(function () {
+                            if (!this.routeMap) return;
+                            (this.routeOverlays || []).forEach(overlay => overlay.setMap(null));
+                            delete this.routeMap;
+                            drawRouteDiagram(this, this.routeCalculation);
+                            if (!this.parentNode.querySelector('.ppwoo-map-notice')) this.after(el('p', { class: 'ppwoo-map-notice' },
+                                'O Google recusou a chave do mapa. Confira as restrições e o faturamento em PackPanel → Rotas.'));
+                        });
+                    };
                     const timer = setTimeout(fail, 12000);
                     window[callback] = () => {
                         clearTimeout(timer);
@@ -553,6 +665,7 @@
                     const calc = node.routeCalculation;
                     if (!config.maps_key && !window.google?.maps?.Map) {
                         drawRouteDiagram(node, calc);
+                        node.after(el('p', { class: 'ppwoo-map-notice' }, 'Para ver ruas e zoom, configure a chave Google Maps em PackPanel → Rotas.'));
                         return;
                     }
                     loadMaps().then(maps => {
@@ -562,7 +675,7 @@
                         }
                         const map = new maps.Map(node, {
                             center: calc.origin, zoom: 12, clickableIcons: false, gestureHandling: 'cooperative',
-                            mapTypeControl: false, streetViewControl: false, fullscreenControl: false
+                            mapTypeControl: false, streetViewControl: false, fullscreenControl: true, zoomControl: true
                         });
                         node.routeMap = map;
                         const bounds = new maps.LatLngBounds();
@@ -574,7 +687,11 @@
                         ];
                         map.fitBounds(bounds, 28);
                     }).catch(() => {
-                        if (node.isConnected && $(node).is(':visible')) drawRouteDiagram(node, calc);
+                        if (node.isConnected && $(node).is(':visible')) {
+                            drawRouteDiagram(node, calc);
+                            node.after(el('p', { class: 'ppwoo-map-notice' }, 'Google Maps não carregou. Confira a chave, domínio autorizado e faturamento em PackPanel → Rotas. O esquema abaixo não mostra ruas.'));
+                            debug('mapa', 'falha de carregamento');
+                        }
                         else delete node.dataset.drawn;
                     });
                 });
@@ -589,8 +706,57 @@
             const sheet = { costs: {} };
             card.querySelectorAll('[data-sheet-field]').forEach(input => { sheet[input.dataset.sheetField] = input.value; });
             card.querySelectorAll('[data-sheet-cost]').forEach(input => { sheet.costs[input.dataset.sheetCost] = input.value; });
+            if (!sheets.has(id)) editRevisions.set(id, currentRoute(id)?.revision);
             sheets.set(id, sheet);
+            saveErrors.delete(id);
             return sheet;
+        }
+
+        function saveStatus(id, message, failed = false) {
+            $panel.find('[data-sheet-status="' + id + '"]').text(message).toggleClass('is-error', failed);
+            $panel.find('[data-save-sheet="' + id + '"]').prop('hidden', !failed);
+        }
+
+        function flushAutosaves(force = false) {
+            if (saveRequest) return saveRequest.then(ok => ok && force && sheets.size ? flushAutosaves(force) : ok);
+            if (busy && !force) { scheduleSave(); return Promise.resolve(false); }
+            const pending = Array.from(sheets.entries()).find(([id]) => currentRoute(id)?.state === 'draft' && !saveErrors.has(id));
+            if (!pending) return Promise.resolve(!Array.from(sheets.keys()).some(id => currentRoute(id)?.state === 'draft' && saveErrors.has(id)));
+            const [id, snapshot] = pending;
+            saveStatus(id, 'Salvando…');
+            saveRequest = (async () => {
+                try {
+                    if (pollRequest) await pollRequest;
+                    const route = currentRoute(id);
+                    if (!route || route.state !== 'draft') return true;
+                    const data = await api('save', { route_id: id, revision: editRevisions.get(id) ?? route.revision, sheet: snapshot });
+                    const saved = data.routes.find(item => item.id === id);
+                    if (!saved || saved.state !== 'draft') throw new Error('A rota mudou. Atualize o painel para conferir.');
+                    // Não renderizar o formulário enquanto o operador digita.
+                    dashboard.routes = dashboard.routes.map(item => item.id === id ? saved : item);
+                    editRevisions.set(id, saved.revision);
+                    if (JSON.stringify(sheets.get(id)) === JSON.stringify(snapshot)) {
+                        sheets.delete(id);
+                        saveStatus(id, 'Rascunho salvo');
+                    } else saveStatus(id, 'Alterações aguardando salvamento…');
+                    updateReadiness();
+                    return true;
+                } catch (error) {
+                    if (error.status === 409) saveConflicts.add(id);
+                    saveErrors.set(id, 'Não foi possível salvar: ' + error.message);
+                    saveStatus(id, saveErrors.get(id), true);
+                    return false;
+                } finally { saveRequest = null; }
+            })();
+            return saveRequest.then(ok => {
+                if (ok && sheets.size) return flushAutosaves(force);
+                return ok;
+            });
+        }
+
+        function scheduleSave() {
+            clearTimeout(saveTimer);
+            saveTimer = setTimeout(() => { if (!document.hidden) flushAutosaves(); }, 1000);
         }
 
         $panel[0].addEventListener('toggle', event => {
@@ -652,7 +818,6 @@
             const source = currentRoute(this.dataset.source);
             const slot = Number(this.value);
             const target = dashboard.routes.find(route => route.state === 'draft' && route.slot === slot);
-            const transfer = source && sheets.get(source.id)?.costs?.[orderId];
             this.value = String(source?.slot || 0);
             act('group', {
                 order_id: orderId, slot, preview: this.dataset.previewToken || '', source_id: source?.id || 0,
@@ -661,10 +826,6 @@
                 const group = data.routes.find(route => route.state === 'draft' && route.stops.some(order => order.id === orderId));
                 if (group) {
                     openGroups.add('draft-' + group.id);
-                    if (transfer != null) {
-                        const saved = sheets.get(group.id) || {};
-                        sheets.set(group.id, { ...saved, costs: { ...saved.costs, [orderId]: transfer } });
-                    }
                 }
             } });
         });
@@ -676,15 +837,30 @@
         });
         $panel.on('input', '[data-sheet-field], [data-sheet-cost]', function () {
             const card = this.closest('[data-route-id]');
-            if (card) sheetInput(Number(card.dataset.routeId), card);
+            if (card) {
+                const id = Number(card.dataset.routeId);
+                sheetInput(id, card);
+                saveStatus(id, 'Alterações aguardando salvamento…');
+                updateReadiness();
+                scheduleSave();
+            }
         });
-        $panel.on('click', '[data-save-sheet]', function () {
-            const route = currentRoute(this.dataset.saveSheet);
-            if (!route) return;
-            const sheet = sheetInput(route.id, this.closest('[data-route-id]'));
-            act('save', { route_id: route.id, revision: route.revision, sheet }, {
-                message: 'Ficha salva.', after: () => sheets.delete(route.id)
-            });
+        $panel.on('click', '[data-save-sheet]', async function () {
+            const id = Number(this.dataset.saveSheet);
+            if (busy || saveRequest) return;
+            if (saveConflicts.has(id)) {
+                if (!window.confirm('A rota mudou em outra sessão. Deseja tentar salvar os dados que você está vendo sobre o rascunho atual?')) return;
+                try {
+                    const data = await api('list', {});
+                    const route = data.routes.find(item => item.id === id && item.state === 'draft');
+                    if (!route) throw new Error('A rota não está mais em preparação. Confira o painel.');
+                    dashboard.routes = dashboard.routes.map(item => item.id === id ? route : item);
+                    editRevisions.set(id, route.revision);
+                    saveConflicts.delete(id);
+                } catch (error) { saveStatus(id, error.message, true); return; }
+            }
+            saveErrors.delete(id);
+            flushAutosaves();
         });
         $panel.on('ppwoo:slide-complete', '[data-dispatch-route]', function () {
             const route = currentRoute(this.dataset.dispatchRoute);
@@ -743,6 +919,14 @@
             $panel.toggleClass('ppwoo-hide-route-' + key, hidden[key]);
             $panel.find('[data-privacy="' + key + '"]').each((_, node) => updatePrivacyButton(node));
         });
+        $panel.on('click', '[data-copy-contact]', async function () {
+            const text = this.dataset.copyContact;
+            try {
+                if (!navigator.clipboard?.writeText) throw new Error('clipboard');
+                await navigator.clipboard.writeText(text);
+                feedback('Dado copiado.');
+            } catch (_) { feedback('Não foi possível copiar. Selecione o texto e copie manualmente.', true); }
+        });
         $panel.on('click', '[data-reload-routes]', () => poll(true));
         $panel.on('click', '.tab-button[data-tab="rotas"], .tab-button[data-tab="em-rota"]', drawVisibleMaps);
         $panel.on('click', '[data-routes-history]', function () {
@@ -760,8 +944,16 @@
             } });
         });
 
+        $panel.find('#tab-rotas, #tab-em-rota').each(function () { this.prepend(privateControls()); });
+        $panel.find('[data-calculate-selected]').addClass('ppwoo-routes-button ppwoo-routes-primary');
+        window.addEventListener('beforeunload', event => {
+            if (!sheets.size && !saveRequest) return;
+            event.preventDefault();
+            event.returnValue = '';
+        });
+        document.addEventListener('visibilitychange', () => { if (!document.hidden && sheets.size) scheduleSave(); });
         updateSelection();
         poll(true);
-        setInterval(() => poll(false), 6000);
+        setInterval(() => { poll(false); updateReadiness(); }, 6000);
     });
 })(jQuery, window.PPWOO_ROUTES, window.PPWOO);

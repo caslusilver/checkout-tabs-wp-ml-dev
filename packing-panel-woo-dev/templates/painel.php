@@ -275,7 +275,7 @@ if (PPWOO_Config::is_debug()) {
         <section id="tab-rotas" class="tab-content">
             <div class="ppwoo-routes-toolbar">
                 <h2>Rotas em preparação</h2>
-                <button type="button" class="ppwoo-routes-button" data-reload-routes>Atualizar rotas</button>
+                <button type="button" class="ppwoo-routes-button" data-reload-routes>Atualizar painel</button>
             </div>
             <p class="ppwoo-route-feedback" aria-live="polite" data-route-feedback></p>
             <div data-routes-preview></div>
@@ -284,7 +284,7 @@ if (PPWOO_Config::is_debug()) {
         <section id="tab-em-rota" class="tab-content">
             <div class="ppwoo-routes-toolbar">
                 <h2>Pedidos em rota</h2>
-                <button type="button" class="ppwoo-routes-button" data-reload-routes>Atualizar rotas</button>
+                <button type="button" class="ppwoo-routes-button" data-reload-routes>Atualizar painel</button>
             </div>
             <p class="ppwoo-route-feedback" aria-live="polite" data-route-feedback></p>
             <div data-routes-active></div>

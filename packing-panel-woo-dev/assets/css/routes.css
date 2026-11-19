@@ -246,3 +246,79 @@
 .painel-empacotamento.ppwoo-routes-busy :is(#tab-rotas,#tab-em-rota) :is(input,select,button,summary) {
     pointer-events: none;
 }
+
+.painel-empacotamento .ppwoo-route-card[data-route-id] {
+    border-inline-start: 5px solid var(--ppwoo-route-color, #1658b8) !important;
+}
+.painel-empacotamento .ppwoo-route-card[data-route-id] > summary,
+.painel-empacotamento .ppwoo-membership {
+    color: var(--ppwoo-route-color, #1658b8) !important;
+    font-weight: 700;
+}
+.painel-empacotamento #tab-rotas select[data-group-order][style] {
+    border: 2px solid var(--ppwoo-route-color) !important;
+    background-color: color-mix(in srgb, var(--ppwoo-route-color) 10%, white) !important;
+    color: var(--ppwoo-route-color) !important;
+}
+.painel-empacotamento .ppwoo-route-identity,
+.painel-empacotamento .ppwoo-route-identity *,
+.painel-empacotamento .ppwoo-route-estimate,
+.painel-empacotamento .ppwoo-route-metrics p {
+    color: #124eaa !important;
+    font-weight: 650;
+}
+.painel-empacotamento .ppwoo-routes-private {
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: nowrap;
+}
+.painel-empacotamento .ppwoo-routes-private button {
+    flex: 1 1 0;
+    min-width: 0;
+}
+.painel-empacotamento .ppwoo-route-sheet .ppwoo-sheet-status {
+    grid-column: 1 / -1;
+    font-size: .85rem;
+}
+.painel-empacotamento .ppwoo-sheet-status.is-error,
+.painel-empacotamento .ppwoo-map-notice {
+    color: #922518 !important;
+}
+.painel-empacotamento [data-save-sheet][hidden] {
+    display: none !important;
+}
+.painel-empacotamento [data-dispatch-route]:not(:disabled),
+.painel-empacotamento [data-dispatch-route]:not(:disabled):is(:hover,:focus,:active) {
+    background-color: #17624e !important;
+    color: #fff !important;
+    border-color: #17624e !important;
+    opacity: 1 !important;
+}
+.painel-empacotamento [data-dispatch-route]:not(:disabled) .ppwoo-swipe-label {
+    color: #fff !important;
+}
+.painel-empacotamento [data-dispatch-route]:not(:disabled) .ppwoo-swipe-thumb,
+.painel-empacotamento [data-dispatch-route]:not(:disabled) .dashicons,
+.painel-empacotamento [data-dispatch-route]:not(:disabled) .dashicons::before {
+    background-color: #fff !important;
+    color: #17624e !important;
+}
+.painel-empacotamento .ppwoo-in-draft .workflow-area {
+    display: none !important;
+}
+.painel-empacotamento .ppwoo-route-map {
+    display: block;
+    height: clamp(280px, 62vw, 450px);
+}
+.painel-empacotamento .ppwoo-route-order .ppwoo-phone-country {
+    display: block;
+    margin-block: .4rem;
+}
+.painel-empacotamento .ppwoo-route-card[data-route-id] .ppwoo-route-order > summary {
+    color: var(--ppwoo-route-color, #1658b8) !important;
+}
+.painel-empacotamento .ppwoo-route-order a,
+.painel-empacotamento .ppwoo-route-order a:is(:hover,:focus,:active) {
+    color: #124eaa !important;
+    text-decoration: underline;
+}

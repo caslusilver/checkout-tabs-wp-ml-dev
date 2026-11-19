@@ -60,11 +60,12 @@ final class PPWOO_Routes {
         ], 'strlen'));
         $complement = $order->get_shipping_address_1() !== '' ? $order->get_shipping_address_2() : PPWOO_Utils::get_billing_complemento($order);
         $phone = (string) PPWOO_Utils::get_billing_cellphone($order);
+        $contact = PPWOO_Utils::get_customer_phone_parts($order);
         $whatsapp = PPWOO_Utils::get_customer_whatsapp_url($order);
         return [
             'id' => $id, 'number' => $order->get_order_number(),
             'name' => $name, 'address' => $destination, 'complement' => $complement,
-            'phone' => $phone, 'whatsapp' => $whatsapp,
+            'phone' => $contact['national'], 'dial_code' => $contact['dial_code'], 'phone_country' => $contact['country'], 'whatsapp' => $whatsapp,
             'delivery_message' => PPWOO_Utils::delivery_message($name, $whatsapp ?: $phone, $street_address, $address['postcode'],
                 $complement, $address['street'] && ($address['city'] || $address['postcode']) ? $destination : ''),
             'shipping_paid' => (float) $order->get_shipping_total() + (float) $order->get_shipping_tax(),
@@ -98,7 +99,7 @@ final class PPWOO_Routes {
                 'id' => $route['id'], 'slot' => $route['slot'], 'state' => $route['state'], 'revision' => $route['revision'],
                 'sheet' => $route['state'] === 'draft' ? ($details['sheet'] ?? []) : [],
                 'departed_at' => $details['departed_at'] ?? '',
-                'calculation' => PPWOO_Route_Calculation::public_result(PPWOO_Route_Calculation::get($details['calc'] ?? '')),
+                'calculation' => $route['state'] === 'draft' ? self::current_calculation($details['calc'] ?? '', $stops) : ($details['dispatched_calculation'] ?? PPWOO_Route_Calculation::public_result(PPWOO_Route_Calculation::get($details['calc'] ?? ''))),
                 'stops' => $stops,
             ];
         }
@@ -109,11 +110,25 @@ final class PPWOO_Routes {
         $ids = self::ids($input['order_ids'] ?? null);
         $orders = [];
         foreach ($ids as $id) {
-            if (PPWOO_Routes_Store::stop($id)) self::conflict('Um pedido já pertence a uma rota.');
+            $stop = PPWOO_Routes_Store::stop($id);
+            if ($stop) {
+                $route = PPWOO_Routes_Store::route($stop['route_id']);
+                if (!$route || $route['state'] !== 'draft') self::conflict('Um pedido já saiu para entrega.');
+            }
             $orders[] = self::order($id);
         }
         $calc = PPWOO_Route_Calculation::calculate($orders, 0);
         return ['calculation' => PPWOO_Route_Calculation::public_result($calc), 'orders' => array_map([__CLASS__, 'summary'], $ids)];
+    }
+
+    private static function current_calculation(string $token, array $stops): ?array {
+        $calc = PPWOO_Route_Calculation::get($token);
+        if (!$calc) return null;
+        try {
+            $orders = array_map([__CLASS__, 'order'], array_column($stops, 'id'));
+            if ($calc['fingerprint'] !== PPWOO_Route_Calculation::fingerprint($orders)) return null;
+        } catch (DomainException $error) { return null; }
+        return PPWOO_Route_Calculation::public_result($calc);
     }
 
     private static function change_group(array $input): void {
@@ -252,6 +267,7 @@ final class PPWOO_Routes {
                 $route['details']['departed_at'] = gmdate('c', $now);
                 $route['details']['departed_by'] = get_current_user_id();
                 $route['details']['origin'] = $calc['origin_postcode'];
+                $route['details']['dispatched_calculation'] = PPWOO_Route_Calculation::public_result($calc);
             }
             PPWOO_Routes_Store::save_route($route);
             return $route['id'];
@@ -407,7 +423,10 @@ final class PPWOO_Routes {
             if (!is_string($command)) throw new DomainException('Ação inválida.', 422);
             $extra = [];
             switch ($command) {
-                case 'list': break;
+                case 'list':
+                    $cached = get_transient('ppwoo_routes_list_' . get_current_user_id());
+                    if (is_array($cached)) { wp_send_json_success($cached); return; }
+                    break;
                 case 'history':
                     $before = $input['before'] ?? 0;
                     if (!is_int($before) || $before < 0) throw new DomainException('Página do histórico inválida.', 422);
@@ -427,7 +446,9 @@ final class PPWOO_Routes {
                     break;
                 default: throw new DomainException('Ação inválida.', 422);
             }
-            wp_send_json_success(array_merge(self::dashboard(), $extra));
+            $data = self::dashboard();
+            set_transient('ppwoo_routes_list_' . get_current_user_id(), $data, 3);
+            wp_send_json_success(array_merge($data, $extra));
         } catch (DomainException $error) {
             wp_send_json_error(['message' => $error->getMessage()], $error->getCode() ?: 422);
         } catch (Throwable $error) {

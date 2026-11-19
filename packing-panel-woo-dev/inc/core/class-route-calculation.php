@@ -91,6 +91,26 @@ final class PPWOO_Route_Calculation {
     }
 
     public static function calculate(array $orders, int $revision): array {
+        $fingerprint = self::fingerprint($orders);
+        $index = 'ppwoo_calc_match_' . md5(get_current_user_id() . '|' . get_option('ppwoo_routes_url', '') . '|' . $fingerprint);
+        $cached = self::get((string) get_transient($index));
+        if ($cached && $cached['owner'] === get_current_user_id() && $cached['fingerprint'] === $fingerprint && !$cached['issues']) {
+            PPWOO_Debug::info('Rotas: cálculo válido reaproveitado');
+            return $cached;
+        }
+        if (!PPWOO_Routes_Store::calculation_lock()) {
+            throw new DomainException('Há um cálculo em andamento. Aguarde a conclusão e tente novamente.', 429);
+        }
+        try {
+            $result = self::calculate_remote($orders, $revision);
+            if (!$result['issues']) set_transient($index, $result['token'], self::LIFETIME);
+            return $result;
+        } finally {
+            PPWOO_Routes_Store::calculation_lock(true);
+        }
+    }
+
+    private static function calculate_remote(array $orders, int $revision): array {
         $url = (string) get_option('ppwoo_routes_url', '');
         $postcode = self::origin_postcode();
         if ($postcode === '' || wp_parse_url($url, PHP_URL_SCHEME) !== 'https' || !wp_http_validate_url($url)) {
@@ -149,6 +169,7 @@ final class PPWOO_Route_Calculation {
         $result['fingerprint'] = $fingerprint;
         $result['origin_postcode'] = $postcode;
         $result['input_ids'] = array_values($refs);
+        $result['expires_at'] = time() + self::LIFETIME;
         if (!set_transient(self::cache_key($request_id), $result, self::LIFETIME)) {
             throw new DomainException('O cálculo voltou, mas não foi possível guardar a prévia. Tente novamente.', 503);
         }

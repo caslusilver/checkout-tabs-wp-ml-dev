@@ -127,6 +127,13 @@ class WC_Order {
 
 // Simula somente a persistência. A fila, a validação e os payloads usam as classes reais.
 class PPWOO_Routes_Store {
+    public static bool $locked = false;
+    public static function calculation_lock($release = false) {
+        if ($release) { self::$locked = false; return true; }
+        if (self::$locked) return false;
+        self::$locked = true;
+        return true;
+    }
     public static array $routes = [];
     public static array $stops = [];
     public static function ready() { return true; }
@@ -233,6 +240,7 @@ expect(count($calls), 0, 'Segredo ausente ou inválido falha antes da chamada');
 $keys['authorization_rotas'] = $valid_key;
 $remote_mode = 'auth_rejected';
 rejects(static function () use ($orders) { PPWOO_Route_Calculation::calculate($orders, 0); }, 502);
+expect(PPWOO_Routes_Store::$locked, false, 'Trava liberada após falha de autenticação do n8n');
 $remote_mode = 'accepted';
 $cache = $calls = [];
 $summary = new ReflectionMethod(PPWOO_Routes::class, 'summary');
@@ -247,6 +255,26 @@ expect(explode("\n", $message), [
 ], 'Mensagem de entrega do primeiro pedido');
 expect(str_contains($summary->invoke(null, 104)['delivery_message'], 'Apto 104'), true, 'Cada pedido tem sua própria mensagem');
 $preview = PPWOO_Route_Calculation::calculate($orders, 0);
+$call_count = count($calls);
+expect(PPWOO_Route_Calculation::calculate(array_reverse($orders), 9)['token'], $preview['token'], 'Mesma composição reaproveita cálculo independentemente da ordem da seleção');
+expect(count($calls), $call_count, 'Prévia idêntica não repete a chamada externa');
+expect(PPWOO_Routes_Store::$locked, false, 'Trava de cálculo liberada após sucesso');
+PPWOO_Routes_Store::$locked = true;
+$subset = array_slice($orders, 0, 2);
+rejects(static function () use ($subset) { PPWOO_Route_Calculation::calculate($subset, 0); }, 429);
+expect(count($calls), $call_count, 'Cálculo simultâneo recusado antes do HTTP');
+PPWOO_Routes_Store::$locked = false;
+$phone_order = $orders[101];
+$phone_order->update_meta_data('_ctwpml_dial_code', '+33');
+$phone_order->update_meta_data('_ctwpml_phone_is_national', 'yes');
+$phone_order->update_meta_data('_ctwpml_phone_country', 'FR');
+$phone_order->update_meta_data('_billing_cellphone', '331234567');
+expect(PPWOO_Utils::get_customer_whatsapp_url($phone_order), 'https://wa.me/33331234567', 'Número nacional começando com o mesmo DDI não perde seu prefixo');
+expect(PPWOO_Utils::get_customer_phone_parts($phone_order), ['national' => '331234567', 'dial_code' => '+33', 'country' => 'FR'], 'Cópia nacional, DDI e país distintos');
+$phone_order->delete_meta_data('_ctwpml_dial_code');
+$phone_order->delete_meta_data('_ctwpml_phone_is_national');
+$phone_order->delete_meta_data('_ctwpml_phone_country');
+$phone_order->delete_meta_data('_billing_cellphone');
 $sent_for_calculation = array_shift($calls);
 expect($sent_for_calculation['body']['stops'][0]['ref'], 'stop_1', 'Ref de parada sem ID interno');
 expect(isset($sent_for_calculation['body']['stops'][0]['address']['first_name']), false, 'Nome fica fora da requisição');
@@ -260,6 +288,10 @@ foreach ($refs as $id) {
     action('change_group', ['order_id' => $id, 'slot' => 1, 'preview' => $preview['token'], 'source_id' => 0,
         'target_id' => $target['id'] ?? 0, 'target_revision' => $target['revision'] ?? null]);
 }
+$before_groups = PPWOO_Routes_Store::$stops;
+$plan = new ReflectionMethod(PPWOO_Routes::class, 'plan');
+expect(count($plan->invoke(null, ['order_ids' => array_values($refs)])['orders']), 4, 'Prévia aceita pedidos já agrupados');
+expect(PPWOO_Routes_Store::$stops, $before_groups, 'Consultar prévia não desfaz grupos nem custos');
 rejects(static function () use ($preview) {
     action('change_group', ['order_id' => 101, 'slot' => 2, 'preview' => $preview['token'], 'source_id' => 0, 'target_id' => 0]);
 }, 409);
@@ -268,6 +300,11 @@ expect(count($calls), 0, 'O grupo igual à prévia reaproveita o cálculo');
 $revision = PPWOO_Routes_Store::route(1)['revision'];
 $sheet = ['link' => 'https://rastreamento.example.test/rota', 'phone' => '(11) 90000-0000', 'code' => '4321',
     'costs' => ['101' => '15,50', '102' => '40', '103' => '12,00', '104' => '25,00']];
+action('save_sheet', ['route_id' => 1, 'revision' => $revision, 'sheet' => ['link' => '', 'phone' => '', 'code' => '', 'costs' => []]], false);
+expect(PPWOO_Routes_Store::route(1)['state'], 'draft', 'Rascunho incompleto permanece em preparação');
+expect(count($jobs), 0, 'Salvar rascunho não agenda despacho');
+rejects(static function () use ($revision, $sheet) { action('save_sheet', ['route_id' => 1, 'revision' => $revision, 'sheet' => $sheet], false); }, 409);
+$revision = PPWOO_Routes_Store::route(1)['revision'];
 action('save_sheet', ['route_id' => 1, 'revision' => $revision, 'sheet' => $sheet], true);
 expect(PPWOO_Routes_Store::route(1)['state'], 'dispatched', 'A saída registra o grupo despachado');
 expect(count($jobs), 1, 'Agenda o primeiro pedido sem enviar sincronicamente');
