@@ -2,6 +2,13 @@
 
 Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
+## [v3.3.8] - 2026-11-19
+
+- Central: bloqueia o zoom do documento no celular e mantém gestos de navegação no mapa, sem ampliar o restante da página.
+- Mapa público: utiliza os trechos do trajeto calculado, em vez de retas entre paradas. Remove no servidor os segmentos próximos da origem e de destinos de terceiros, inclusive cruzamentos sem vértice interno, sem reconectar as lacunas.
+- Região de saída destacada por círculo e rótulo, sem pino exato; enquadramento considera a área do círculo. Reutiliza a origem já resolvida do CEP configurado, sem novas consultas externas.
+- Recebimento: remove o botão alternativo por clique; exige arraste completo no slider, rejeitando toque no fim e gesto incompleto. Acesso por teclado permanece no próprio slider.
+
 ## [v3.3.7] - 2026-11-19
 
 - Central de Entrega por shortcode: página sem header/footer, link individual já disponível no pedido aprovado, estado de preparação e atualização dos dados após despacho, sem exigir outro aviso ao cliente.

@@ -3,7 +3,7 @@ if (!defined('ABSPATH')) exit;
 $base = plugin_dir_url(dirname(__DIR__) . '/packing-panel-woo-dev.php');
 $version = painel_empacotamento_get_version();
 ?><!doctype html>
-<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <meta name="robots" content="noindex,nofollow,noarchive"><meta name="referrer" content="no-referrer">
 <title>Acompanhar sua entrega</title>
 <link rel="stylesheet" href="<?php echo esc_url($base . 'assets/css/order-tracking.css?ver=' . rawurlencode($version)); ?>">

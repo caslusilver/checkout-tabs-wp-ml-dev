@@ -431,3 +431,16 @@ expect($closed['details']['closed_source'], 'customer', 'Baixa identifica client
 rejects(fn() => PPWOO_Order_Tracking::authorize($route, $closed, $parts['acesso']), 410);
 PPWOO_Order_Tracking::authorize($route, $closed, $parts['acesso'], true);
 echo "Central: link aprovado estável, autorização, expiração, projeção privada e confirmação passaram.\n";
+
+$road = ['stops' => [['order_id' => 999, 'location' => ['lat' => -23.5, 'lng' => -46.6]]], 'path' => [
+    ['lat' => -23.55, 'lng' => -46.8], ['lat' => -23.54, 'lng' => -46.79],
+    ['lat' => -23.5, 'lng' => -46.63], ['lat' => -23.5, 'lng' => -46.57],
+    ['lat' => -23.46, 'lng' => -46.4], ['lat' => -23.45, 'lng' => -46.39]]];
+$segments = PPWOO_Order_Tracking::public_paths($road, 201);
+expect(count($segments), 2, 'Cruzamento de região privada divide o percurso sem reconectar por reta');
+expect($segments[0][0], $road['path'][0], 'Trecho viário seguro mantém geometria calculada');
+expect(end($segments[0]), $road['path'][2], 'Interrompe antes de cruzar endereço privado');
+$road['origin'] = ['lat' => -23.5, 'lng' => -46.6];
+$road['path'] = [['lat' => -23.5, 'lng' => -46.601], ['lat' => -23.5, 'lng' => -46.599]];
+expect(PPWOO_Order_Tracking::public_paths($road, 999), [], 'Origem exata nunca sai na trajetória pública');
+echo "Central: trajetos seguem a geometria original e ocultam cruzamentos privados.\n";

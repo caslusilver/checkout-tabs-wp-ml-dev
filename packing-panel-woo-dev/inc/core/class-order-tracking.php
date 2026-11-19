@@ -123,6 +123,51 @@ final class PPWOO_Order_Tracking {
         if ($route['state'] !== 'dispatched' || $stop['delivery_state'] !== 'on_route') throw new DomainException('O acompanhamento deste pedido foi encerrado.', 410);
     }
 
+    /** Mantém apenas segmentos viários fora das regiões públicas de privacidade.
+     * Descarta também segmentos longos que cruzam uma região, mesmo sem vértice dentro.
+     * Não liga os trechos restantes por uma nova reta e não envia a geometria privada.
+     */
+    public static function public_paths(array $calc, int $own_id): array {
+        $guards = [];
+        if (isset($calc['origin']['lat'], $calc['origin']['lng'])) $guards[] = [
+            'lat' => round($calc['origin']['lat'] / .05) * .05,
+            'lng' => round($calc['origin']['lng'] / .05) * .05, 'radius' => 10000];
+        foreach ($calc['stops'] ?? [] as $stop) {
+            if (($stop['order_id'] ?? 0) === $own_id || !isset($stop['location']['lat'], $stop['location']['lng'])) continue;
+            $guards[] = ['lat' => round($stop['location']['lat'] / .02) * .02,
+                'lng' => round($stop['location']['lng'] / .02) * .02, 'radius' => 2500];
+        }
+        $paths = []; $current = [];
+        $path = $calc['path'] ?? [];
+        for ($i = 1; $i < count($path); $i++) {
+            $a = PPWOO_Route_Calculation::point($path[$i - 1]);
+            $b = PPWOO_Route_Calculation::point($path[$i]);
+            $safe = $a && $b;
+            foreach ($guards as $guard) {
+                if (!$safe) break;
+                $scale = 111000 * cos(deg2rad($guard['lat']));
+                $ax = ($a['lng'] - $guard['lng']) * $scale;
+                $ay = ($a['lat'] - $guard['lat']) * 111000;
+                $dx = ($b['lng'] - $a['lng']) * $scale;
+                $dy = ($b['lat'] - $a['lat']) * 111000;
+                $length = $dx * $dx + $dy * $dy;
+                $t = $length > 0 ? max(0, min(1, -($ax * $dx + $ay * $dy) / $length)) : 0;
+                $distance = hypot($ax + $t * $dx, $ay + $t * $dy);
+                // Margem conservadora para projeção local e arredondamentos.
+                if ($distance <= $guard['radius'] + 150) $safe = false;
+            }
+            if ($safe) {
+                if (!$current) $current[] = $a;
+                $current[] = $b;
+            } else {
+                if (count($current) > 1) $paths[] = $current;
+                $current = [];
+            }
+        }
+        if (count($current) > 1) $paths[] = $current;
+        return $paths;
+    }
+
     public static function projection(array $route, array $stop): array {
         $order = wc_get_order($stop['order_id']);
         if (!$order instanceof WC_Order) throw new DomainException('Pedido indisponível.', 410);
@@ -154,7 +199,7 @@ final class PPWOO_Order_Tracking {
             'final_area' => $final_area, 'code' => $last ? (string) ($sheet['code'] ?? '') : '',
             'driver_whatsapp' => preg_match('/^\d{10,11}$/D', $phone) ? 'https://wa.me/55' . $phone : '',
             'tracking_link' => esc_url_raw((string) ($sheet['link'] ?? ''), ['https', 'http']),
-            'map' => ['points' => $points, 'approximate' => true, 'origin' => isset($calc['origin']['lat'], $calc['origin']['lng']) ? [
+            'map' => ['points' => $points, 'paths' => self::public_paths($calc, $stop['order_id']), 'approximate' => true, 'origin' => isset($calc['origin']['lat'], $calc['origin']['lng']) ? [
                 'lat' => round($calc['origin']['lat'] / .05) * .05, 'lng' => round($calc['origin']['lng'] / .05) * .05] : null],
             'maps_key' => PPWOO_Route_Calculation::maps_browser_key(),
         ];
