@@ -305,6 +305,10 @@ function checkout_tabs_wp_ml_render_admin_page(): void {
 	echo '<h2 class="title">Horários de saída da loja</h2>';
 	echo '<p>Informe uma ou várias saídas por dia no formato 15:00, 18:00. Deixe o dia vazio se não houver despacho. A configuração começa vazia; o prazo de entrega do frete não é alterado.</p>';
 	echo '<p>Fuso horário do WordPress: <strong>' . esc_html(wp_timezone_string()) . '</strong>.</p>';
+	$dispatch_clock = current_datetime();
+	$dispatch_next = ctwpml_next_dispatch($dispatch_clock);
+	echo '<p>Hora atual da loja: <strong>' . esc_html($dispatch_clock->format('d/m/Y H:i')) . '</strong>. Próxima saída: <strong>' . esc_html($dispatch_next ? $dispatch_next->format('d/m/Y H:i') : 'Não configurada') . '</strong>.</p>';
+	echo '<p class="description">Checkout e Central seguem este fuso. Para alterar, use <a href="' . esc_url(admin_url('options-general.php')) . '">Configurações → Geral</a>. Previsões válidas já salvas permanecem fixas; mudanças de fuso são revisadas antes do despacho.</p>';
 	echo '<table class="form-table" role="presentation">';
 	echo '<tr><th scope="row"><label for="ctwpml-dispatch-grace">Tolerância após a saída (minutos)</label></th><td>';
 	echo '<input type="number" id="ctwpml-dispatch-grace" name="checkout_tabs_wp_ml_dispatch_grace" value="' . esc_attr((string) get_option('checkout_tabs_wp_ml_dispatch_grace', 5)) . '" min="0" step="1" />';
