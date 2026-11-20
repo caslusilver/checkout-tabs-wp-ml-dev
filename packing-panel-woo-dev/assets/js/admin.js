@@ -128,6 +128,7 @@
         
         // Handler para troca de abas via AJAX
         $(document).on('click', '.nav-tab-wrapper a.nav-tab', function(e) {
+            if (this.hasAttribute('data-full-load')) return;
             var $link = $(this);
             var href = $link.attr('href');
             

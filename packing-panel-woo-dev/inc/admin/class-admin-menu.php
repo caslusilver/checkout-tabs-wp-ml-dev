@@ -59,6 +59,10 @@ class PPWOO_Admin_Menu {
                    class="nav-tab <?php echo $current_tab === 'routes' ? 'nav-tab-active' : ''; ?>">
                     <?php esc_html_e('Rotas', 'painel-empacotamento'); ?>
                 </a>
+                <?php if (class_exists('CTWPML_Driver_Admin')): ?>
+                <a href="?page=<?php echo esc_attr(self::PAGE_SLUG); ?>&tab=driver" data-full-load="1" class="nav-tab <?php echo $current_tab === 'driver' ? 'nav-tab-active' : ''; ?>">Motoboy</a>
+                <a href="?page=<?php echo esc_attr(self::PAGE_SLUG); ?>&tab=keys" data-full-load="1" class="nav-tab <?php echo $current_tab === 'keys' ? 'nav-tab-active' : ''; ?>">Chaves de API</a>
+                <?php endif; ?>
             </nav>
             
             <div class="ppwoo-admin-content">
@@ -72,6 +76,12 @@ class PPWOO_Admin_Menu {
                         break;
                     case 'routes':
                         PPWOO_Admin_Routes_Tab::render();
+                        break;
+                    case 'driver':
+                        if (class_exists('CTWPML_Driver_Admin')) CTWPML_Driver_Admin::render();
+                        break;
+                    case 'keys':
+                        if (class_exists('CTWPML_Key_Vault')) CTWPML_Key_Vault::render();
                         break;
                     default:
                         PPWOO_Admin_Style_Tab::render();

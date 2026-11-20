@@ -34,8 +34,14 @@ final class PPWOO_Route_Calculation {
     /** A chave de navegador é resolvida no servidor, mas precisa chegar ao SDK do Google. */
     public static function maps_browser_key(): string {
         $name = self::maps_key_name();
-        if ($name === '' || strlen($name) > 128 || preg_match('/[\x00-\x1F\x7F]/', $name) || !function_exists('sakm_get_key')) return '';
-        $key = sakm_get_key($name);
+        if ($name === '' || strlen($name) > 128 || preg_match('/[\x00-\x1F\x7F]/', $name)) return '';
+        $key = class_exists('CTWPML_Key_Vault') ? CTWPML_Key_Vault::get($name) : (function_exists('sakm_get_key') ? sakm_get_key($name) : null);
+        $auth = class_exists('CTWPML_Key_Vault') ? CTWPML_Key_Vault::get(self::auth_key_name()) : (function_exists('sakm_get_key') ? sakm_get_key(self::auth_key_name()) : null);
+        if (is_string($key) && is_string($auth) && hash_equals($auth, $key)) return '';
+        if (class_exists('CTWPML_Driver_Panel') && class_exists('CTWPML_Key_Vault')) {
+            $driver_key = CTWPML_Key_Vault::get((string) (CTWPML_Driver_Panel::config()['key_name'] ?? ''));
+            if (is_string($key) && is_string($driver_key) && hash_equals($driver_key, $key)) return '';
+        }
         return is_string($key) && preg_match('/^[A-Za-z0-9_-]{20,128}$/D', $key) ? $key : '';
     }
 
@@ -128,7 +134,7 @@ final class PPWOO_Route_Calculation {
         if ($postcode === '' || wp_parse_url($url, PHP_URL_SCHEME) !== 'https' || !wp_http_validate_url($url)) {
             throw new DomainException('Preencha o CEP de saída e a URL HTTPS de cálculo em PackPanel → Rotas.', 422);
         }
-        $key = function_exists('sakm_get_key') ? sakm_get_key(self::auth_key_name()) : null;
+        $key = class_exists('CTWPML_Key_Vault') ? CTWPML_Key_Vault::get(self::auth_key_name()) : (function_exists('sakm_get_key') ? sakm_get_key(self::auth_key_name()) : null);
         if (!is_string($key) || trim($key) === '' || preg_match('/[\x00-\x1F\x7F]/', $key)) {
             throw new DomainException('Confira o nome cadastrado no plugin de chaves e em PackPanel → Rotas.', 422);
         }

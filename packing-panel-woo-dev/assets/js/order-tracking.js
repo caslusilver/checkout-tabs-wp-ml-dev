@@ -164,12 +164,15 @@
             content.append(receipt, node('p', '', { class: 'tracking-expiry' }));
         }
         root.querySelector('.tracking-reference').textContent = 'PEDIDO #' + data.number + ' · ROTA ' + data.route;
+        const stages = { started: 'O motoboy está a caminho da sua parada', arrived: 'O motoboy chegou à sua parada', delivered: 'O motoboy registrou a entrega' };
+        root.querySelector('.tracking-heading h1').textContent = stages[data.driver_stage] || 'Seu pedido está a caminho';
         const code = root.querySelector('.tracking-code');
         code.replaceChildren(node('small', 'Código da corrida'), node('strong', data.code));
         code.hidden = !data.last || !data.code;
         root.querySelector('.tracking-position').textContent = data.position;
         const address = root.querySelector('.tracking-address');
         address.replaceChildren(node('strong', 'Sua parada de ' + data.total), node('p', data.address));
+        if (data.current_position && data.driver_stage === 'ready') address.append(node('small', 'O motoboy está na etapa da parada ' + data.current_position + '.'));
         const arrival = root.querySelector('.tracking-arrival');
         const eta = Date.parse(data.eta_at);
         arrival.replaceChildren(node('span', 'Chegada estimada'), node('strong', Number.isFinite(eta) ? date(data.eta_at) : 'Consulte o rastreio'),

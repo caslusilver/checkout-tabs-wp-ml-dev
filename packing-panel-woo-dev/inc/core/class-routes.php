@@ -469,6 +469,8 @@ final class PPWOO_Routes {
                 case 'tracking_link': $extra = PPWOO_Order_Tracking::admin_link($input); break;
                 case 'customer_link':
                     $extra = PPWOO_Order_Tracking::customer_access(self::id($input['order_id'] ?? null)); break;
+                case 'driver_link':
+                    $extra = CTWPML_Driver_Panel::admin_link(self::id($input['route_id'] ?? null), ($input['rotate'] ?? false) === true); break;
                 case 'resume':
                     $route = self::route($input);
                     if ($route['state'] === 'draft') self::conflict();

@@ -461,6 +461,11 @@
     display: block;
     overflow-wrap: anywhere;
 }
+.painel-empacotamento .ppwoo-route-destination,
+.painel-empacotamento .ppwoo-route-destination :is(span,strong){color:#000!important;font-weight:400!important}
+.painel-empacotamento .ppwoo-route-destination strong{font-weight:700!important}
+.painel-empacotamento [data-calc-status]{color:#1765d8!important}
+.painel-empacotamento .ppwoo-route-feedback:not(.is-error){color:#1765d8!important}
 .painel-empacotamento .ppwoo-route-order .ppwoo-order-address-summary,
 .painel-empacotamento .ppwoo-route-order .ppwoo-order-pending,
 .painel-empacotamento .ppwoo-route-destination {
