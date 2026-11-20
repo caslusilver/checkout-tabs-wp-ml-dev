@@ -93,6 +93,9 @@
     }
     function render(data) {
         snapshot = data;
+        // Mesmas cores das etapas do entregador, sem mudar o estado comercial do pedido.
+        root.dataset.trackingState = data.preparing || data.waiting_driver ? (data.waiting_driver ? 'ready' : 'preparing') :
+            (['started', 'arrived', 'delivered'].includes(data.driver_stage) ? data.driver_stage : 'ready');
         if (data.preparing || data.waiting_driver) {
             const signature = JSON.stringify(data);
             if (signature === preparationSignature && root.classList.contains('tracking-preparing')) return;
@@ -131,11 +134,13 @@
             content.append(node('p', 'Trajeto calculado · trechos privados ocultos · sem localização ao vivo', { class: 'tracking-map-note' }));
             const heading = node('div', null, { class: 'tracking-heading' });
             const title = node('div', null);
-            title.append(node('p', '', { class: 'tracking-reference' }), node('h1', 'Seu pedido está a caminho'));
+            const stageTitle = node('div', null, { class: 'tracking-stage-title', role: 'status', 'aria-live': 'polite' });
+            stageTitle.append(node('span', null, { class: 'tracking-live', 'aria-hidden': 'true' }), node('h1', 'Seu pedido está a caminho'));
+            title.append(node('p', '', { class: 'tracking-reference' }), stageTitle);
             heading.append(title, node('div', '', { class: 'tracking-code' }));
             const stop = node('div', null, { class: 'tracking-stop' });
             stop.append(node('strong', '', { class: 'tracking-position' }), node('div', null, { class: 'tracking-address' }));
-            content.append(heading, stop, node('div', '', { class: 'tracking-arrival' }), node('p', '', { class: 'tracking-explanation' }));
+            content.append(heading, node('p', '', { class: 'tracking-stage-description' }), stop, node('div', '', { class: 'tracking-arrival' }), node('p', '', { class: 'tracking-explanation' }));
             content.append(node('a', 'Acompanhar viagem pela Uber ↗', { class: 'tracking-link', target: '_blank', rel: 'noopener noreferrer' }));
             content.append(node('p', 'Precisa falar com o motoboy?', { class: 'tracking-driver-label' }), node('a', 'Falar pelo WhatsApp ↗', { class: 'tracking-whatsapp', target: '_blank', rel: 'noopener noreferrer' }));
             const receipt = node('section', null, { class: 'tracking-receipt' });
@@ -165,7 +170,10 @@
         }
         root.querySelector('.tracking-reference').textContent = 'PEDIDO #' + data.number + ' · ROTA ' + data.route;
         const stages = { started: 'O motoboy está a caminho da sua parada', arrived: 'O motoboy chegou à sua parada', delivered: 'O motoboy registrou a entrega' };
-        root.querySelector('.tracking-heading h1').textContent = stages[data.driver_stage] || 'Seu pedido está a caminho';
+        const title = root.querySelector('.tracking-heading h1'), message = stages[data.driver_stage] || 'Seu pedido está a caminho';
+        if (title.textContent !== message) title.textContent = message;
+        root.querySelector('.tracking-stage-description').textContent = data.driver_stage === 'delivered' ? 'Se você já recebeu seu pedido, confirme abaixo.' :
+            data.driver_stage === 'arrived' ? 'Prepare-se para receber seu pedido.' : 'Acompanhe a previsão de chegada e o rastreio abaixo.';
         const code = root.querySelector('.tracking-code');
         code.replaceChildren(node('small', 'Código da corrida'), node('strong', data.code));
         code.hidden = !data.last || !data.code;

@@ -2,6 +2,12 @@
 
 Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
+## [v3.4.3] - 2026-11-20
+
+- Central do cliente: indicador pulsante e contorno de 3 px com cantos superiores arredondados acompanham as cores do painel do motoboy: azul aguardando, âmbar a caminho e verde na chegada/entrega registrada. A preparação preserva seu indicador verde. Texto continua identificando cada etapa; registrar entrega não confirma recebimento pelo cliente.
+- Waze automático ao iniciar/avançar passa a abrir outra aba com `noopener,noreferrer`, sem redirecionar o painel em bloqueios ou cancelamento. Os links explícitos de Waze, WhatsApp e rastreio mantêm abertura em outra aba. A fila continua sendo salva antes de abrir a navegação.
+- Sem mudança em autenticação, endpoints, polling, previsão ou dados enviados. Rollback: v3.4.2, commit `957346c1c763e2fa16058c0d9c16d0a83332a7a9`.
+
 ## [v3.4.2] - 2026-11-20
 
 - Restaura a API PHP `sakm_get_key()` para consumidores externos, incluindo o gateway Pix Clone, sem exigir que eles conheçam a classe do novo cofre. A ponte é instalada após plugins/init, se o provedor anterior estiver ausente; a função existente do snippet não é sobrescrita. Layout e valores cadastrados permanecem iguais.

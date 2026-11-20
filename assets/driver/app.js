@@ -118,8 +118,13 @@
                 if (action === 'start' || action === 'complete' && next.status !== 'completed') navigate = safeURL(value.snapshot.stops[next.current].waze);
             });
             notice = 'Ação salva neste aparelho.'; render();
-            // Persistência concluída ANTES de sair para outro aplicativo.
-            if (navigate) location.assign(navigate);
+            // Persistência concluída ANTES de abrir outro contexto. Nunca substituir
+            // este painel, mesmo quando o navegador bloquear ou o usuário cancelar.
+            if (navigate) {
+                notice = 'Etapa salva. Use Abrir com Waze se a navegação não abrir.';
+                try { window.open(navigate, '_blank', 'noopener,noreferrer'); }
+                catch (_) { /* O link explícito continua disponível no painel. */ }
+            }
         } catch (error) { notice = error.message; }
         finally { acting = false; render(); sync(); }
     }

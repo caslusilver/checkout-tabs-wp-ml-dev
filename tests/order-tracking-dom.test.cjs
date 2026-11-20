@@ -54,3 +54,24 @@ test('preparation shows delay, blue handoff state and read-only administrative p
  waiting=true;d.dispatchEvent(new w.Event('visibilitychange'));await until(()=>d.querySelector('.tracking-live.is-blue'));
  assert.match(d.querySelector('h1').textContent,/já está com/);assert.equal(d.querySelector('.tracking-delay'),null);assert.match(d.body.textContent,/apenas leitura/);assert.ok(commands.every(c=>c==='preview'));
 });
+
+test('customer stage indicator follows polling without rebuilding the receipt or changing link targets',async t=>{
+ const dom=new JSDOM('<main id="ppwoo-tracking"><p class="tracking-status"></p></main><script id="ppwoo-tracking-script" data-endpoint="/ajax"></script>',{url:'https://shop.example.test/entrega/#pedido=201',runScripts:'outside-only',pretendToBeVisual:true});
+ t.after(()=>dom.window.close());const w=dom.window,d=w.document;let stage='ready';let calls=0;
+ const data={number:'201',route:2,position:1,total:2,last:false,code:'',departed_at:new Date().toISOString(),eta_at:new Date(Date.now()+60000).toISOString(),expires_at:new Date(Date.now()+86400000).toISOString(),address:'Rua fictícia',final_area:'Bairro final',driver_whatsapp:'https://wa.me/33123456789',tracking_link:'https://uber.example.test/ride',map:{points:[]},maps_key:''};
+ w.fetch=async()=>{calls++;return {ok:true,json:async()=>({success:true,data:{...data,driver_stage:stage}})};};
+ w.eval(readFileSync('packing-panel-woo-dev/assets/js/order-tracking.js','utf8'));
+ const until=async check=>{for(let i=0;i<60&&!check();i++)await new Promise(r=>setTimeout(r,5));assert.ok(check());};
+ await until(()=>d.querySelector('#tracking-slide'));const slide=d.querySelector('#tracking-slide');
+ for(const state of ['ready','started','arrived','delivered']){
+  await new Promise(resolve=>setTimeout(resolve,5)); // Aguarda o ciclo anterior liberar o lock de polling.
+  stage=state;const count=calls;d.dispatchEvent(new w.Event('visibilitychange'));
+  await until(()=>calls>count&&d.querySelector('#ppwoo-tracking').dataset.trackingState===state);
+  assert.equal(d.querySelector('#tracking-slide'),slide);assert.equal(slide.disabled,false);
+  assert.equal(d.querySelectorAll('.tracking-stage-title .tracking-live').length,1);
+  for(const link of d.querySelectorAll('a[href]')){assert.equal(link.target,'_blank');assert.match(link.rel,/noopener/);assert.match(link.rel,/noreferrer/);}
+ }
+ assert.match(d.querySelector('h1').textContent,/registrou a entrega/);
+ assert.match(d.querySelector('.tracking-stage-description').textContent,/confirme abaixo/);
+ assert.equal(d.querySelector('.tracking-thanks'),null,'driver event is not customer confirmation');
+});
