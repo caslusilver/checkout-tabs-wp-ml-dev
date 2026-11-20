@@ -47,8 +47,13 @@ function ctwpml_sanitize_dispatch_grace($value): int {
 
 function ctwpml_next_dispatch(?DateTimeImmutable $now = null, bool $include_grace = true): ?DateTimeImmutable {
 	$schedule = ctwpml_sanitize_dispatch_schedule(get_option('checkout_tabs_wp_ml_dispatch_schedule', []));
-	$now = $now ? $now->setTimezone(wp_timezone()) : current_datetime();
-	$minutes = (int) get_option('checkout_tabs_wp_ml_dispatch_grace', 5);
+	return ctwpml_dispatch_from_schedule($now ?? current_datetime(), $schedule, wp_timezone(),
+		max(0, (int) get_option('checkout_tabs_wp_ml_dispatch_grace', 5)), $include_grace);
+}
+
+/** O instante é absoluto; somente o calendário/horário da loja usa o fuso informado. */
+function ctwpml_dispatch_from_schedule(DateTimeImmutable $reference, array $schedule, DateTimeZone $timezone, int $minutes, bool $include_grace = true): ?DateTimeImmutable {
+	$now = $reference->setTimezone($timezone);
 	$recent = null;
 	$keys = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
 	for ($offset = -7; $offset <= 7; $offset++) {

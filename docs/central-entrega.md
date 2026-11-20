@@ -1,5 +1,19 @@
 # Central de Entrega — v3.3.9
 
+## Fuso e previsões de envio — v3.4.5
+
+O fuso é o de **WordPress → Configurações → Geral** (nesta loja, São Paulo / `America/Sao_Paulo`). Não há um segundo relógio no checkout. **Checkout ML → Horários** mostra fuso, hora local e próxima saída para conferência. Formatos de data/hora são apenas apresentação.
+
+O instante de pagamento (ou criação se ausente) é convertido para o calendário local antes de selecionar a saída. `_ppwoo_dispatch_window` continua guardando o instante absoluto; o novo meta interno `_ppwoo_dispatch_context` registra versão, fuso, base e snapshot do calendário/tolerância. Uma previsão válida não muda com refresh, passagem do tempo ou edição posterior do calendário. Se atrasar, mostra atraso.
+
+Se o fuso mudar antes da saída, o contexto permite recalcular a janela com a base e regras originais. Para registros anteriores sem contexto, a rotina compara a previsão salva com os resultados do calendário atual no fuso local e em UTC: mantém a correspondência local; corrige a correspondência UTC para o fuso atual; se nenhuma corresponder, não altera e sinaliza revisão na prévia administrativa. Uma mudança simultânea do calendário pode impedir reconhecer o legado; não se promete recuperação automática nesse caso. Sem calendário, aguarda configuração. A prévia administrativa simula a correção sem gravar.
+
+A reparação é sob demanda na emissão do link ou consulta autenticada da preparação, sem varrer todos os pedidos nem disparar eventos externos. Uma página do cliente já aberta recebe o resultado pelo polling existente. Pedidos já despachados ou concluídos não participam, inclusive quando a emissão do link chama o helper sem rota explícita. O pagamento/status/link não é alterado. Log no debug do PackPanel: **Central: previsão corrigida por fuso**, com ID, motivo e fuso, sem dados de contato.
+
+Exemplo validado em fixture: compra de 20/11/2026 às 16h45 em São Paulo; saídas 15h/18h. No UTC antigo, a previsão podia cair em 21/11 às 15h UTC (12h locais após mudar o fuso). A rotina reconhece esse valor e corrige para **20/11 às 18h de São Paulo**. Não subtrai três horas de todos os registros.
+
+Validação: `php tests/dispatch-timezone.test.php`, regressões PHP e Node e sintaxe. Testes usam pedidos fictícios; o fuso/armazenamento real do gateway e WordPress precisam de confirmação na loja. Rollback: v3.4.4 (`cc378a4`); voltar o código não desfaz janelas já corrigidas. O meta de contexto preserva o valor anterior da última correção para auditoria e é omitido do webhook nativo de pedidos.
+
 ## Preparação e testes administrativos — 3.3.9
 
 A mensagem copiada em “Dados para o motoboy” usa `https://waze.com/ul?q=ENDERECO_CODIFICADO&navigate=yes`, montada pelo helper existente. A busca ainda depende da resolução do endereço pelo Waze; não é a otimização multiparada do painel. Não altera o Google Maps incorporado nem o rastreio Uber. Formato conferido na [documentação oficial](https://developers.google.com/waze/deeplinks). Não foi testada a abertura em aplicativo real.

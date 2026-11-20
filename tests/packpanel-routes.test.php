@@ -63,7 +63,7 @@ function wp_remote_retrieve_body($r) { return $r['body']; }
 function sanitize_text_field($s) { return trim(strip_tags($s)); }
 function esc_url_raw($value, $schemes) { return parse_url($value, PHP_URL_HOST) ? $value : ''; }
 function absint($value) { return abs((int) $value); }
-function wp_timezone() { return new DateTimeZone('America/Sao_Paulo'); }
+function wp_timezone() { return new DateTimeZone($GLOBALS['fixture_timezone'] ?? 'America/Sao_Paulo'); }
 function wp_date($format, $time) { return (new DateTimeImmutable('@' . $time))->setTimezone(wp_timezone())->format($format); }
 function wc_format_decimal($value, $places) { return number_format((float) $value, $places, '.', ''); }
 function apply_filters($tag, $value, ...$args) { return $value; }

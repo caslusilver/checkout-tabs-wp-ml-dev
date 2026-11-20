@@ -2,6 +2,14 @@
 
 Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
+## [v3.4.5] - 2026-11-20
+
+- Previsão de envio passa a guardar fuso, instante-base do pagamento/criação e calendário/tolerância originais. O fuso do WordPress continua sendo a referência única; formato de exibição não altera o cálculo.
+- Antes do despacho, uma mudança de fuso recalcula somente a janela afetada a partir da base e regras originais. Previsões válidas continuam fixas e indicam atraso, sem avançar no calendário por refresh.
+- Pedidos antigos sem contexto são reconhecidos pelo cálculo local ou pelo cálculo anterior em UTC. O legado UTC reconhecido é corrigido na próxima consulta autenticada/emissão de link, mantendo o link e o pagamento; pedidos já despachados/concluídos não são reescritos. Casos sem correspondência ficam preservados e sinalizados na prévia administrativa.
+- Checkout ML → Horários mostra hora atual da loja, próxima saída e acesso à configuração central de fuso. Auditoria registra correção sem dados pessoais; contexto interno não é incluído no webhook nativo.
+- Testes reproduzem 16h45 → 18h de hoje, UTC → São Paulo, corte de cinco minutos, virada do dia, dias sem saída, repetição, histórico preservado e prévia sem gravação. Rollback do código: v3.4.4, `cc378a4`; previsões já corrigidas permanecem gravadas.
+
 ## [v3.4.4] - 2026-11-20
 
 - Retirada rápida: contato e slide curto em 50/50 registram saída/início da primeira parada e preparam o link do entregador no WhatsApp em outra aba. Correção/reenvio preserva link e horário; sem revogação automática. Desfazer mantém dados e é limitado ao período anterior à chegada/baixa e à preparação do evento.

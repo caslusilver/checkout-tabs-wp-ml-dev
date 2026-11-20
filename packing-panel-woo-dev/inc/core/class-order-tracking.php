@@ -20,7 +20,7 @@ final class PPWOO_Order_Tracking {
             $link = $route && $route['state'] !== 'draft' ? self::link($route, $stop) : self::order_link($order);
             if ($link) $payload['order_tracking_url'] = $link;
         }
-        if (isset($payload['meta_data']) && is_array($payload['meta_data'])) $payload['meta_data'] = array_values(array_filter($payload['meta_data'], static fn($meta) => ($meta['key'] ?? '') !== '_ppwoo_tracking_access'));
+        if (isset($payload['meta_data']) && is_array($payload['meta_data'])) $payload['meta_data'] = array_values(array_filter($payload['meta_data'], static fn($meta) => !in_array($meta['key'] ?? '', ['_ppwoo_tracking_access', '_ppwoo_dispatch_context'], true)));
         return $payload;
     }
 
@@ -34,20 +34,7 @@ final class PPWOO_Order_Tracking {
     }
 
     public static function preparation(WC_Order $order, ?array $route = null, bool $persist = true): array {
-        $window = $order->get_meta('_ppwoo_dispatch_window');
-        if (!$window && function_exists('ctwpml_next_dispatch')) {
-            $reference = $order->get_date_paid() ?: $order->get_date_created();
-            if ($reference) {
-                $next = ctwpml_next_dispatch(new DateTimeImmutable('@' . $reference->getTimestamp()));
-                if ($next) {
-                    $window = $next->getTimestamp();
-                    if ($persist) {
-                        $order->update_meta_data('_ppwoo_dispatch_window', $window);
-                        $order->save_meta_data();
-                    }
-                }
-            }
-        }
+        [$window, $review] = self::dispatch_window($order, $route, $persist);
         $grace = max(0, (int) get_option('checkout_tabs_wp_ml_dispatch_grace', 5)) * 60;
         $assigned = !empty($route['details']['sheet']['phone']);
         $waiting = $route && $route['state'] === 'dispatched' && self::wait_for_driver() && empty($route['details']['driver_started_at']);
@@ -56,7 +43,64 @@ final class PPWOO_Order_Tracking {
             'dispatch_day' => $window ? (wp_date('Y-m-d', (int) $window) === wp_date('Y-m-d', time()) ? 'Hoje, ' : 'Dia ') . wp_date('d/m', (int) $window) : '',
             'dispatch_time' => $window ? wp_date('H:i', (int) $window) : '',
             'delayed' => !$waiting && $window && time() >= (int) $window + $grace,
-            'driver_assigned' => $assigned];
+            'driver_assigned' => $assigned,
+            'dispatch_review' => !$persist && $review];
+    }
+
+    /** Repara apenas preparação; uma previsão válida não avança com o relógio/calendário. */
+    private static function dispatch_window(WC_Order $order, ?array $route, bool $persist): array {
+        $window = (int) $order->get_meta('_ppwoo_dispatch_window');
+        // Emissão/renovação de links também chama preparation sem informar a rota.
+        if (!$route && PPWOO_Routes_Store::ready()) {
+            $stop = PPWOO_Routes_Store::stop($order->get_id());
+            if ($stop) $route = PPWOO_Routes_Store::route($stop['route_id']);
+        }
+        if (!function_exists('ctwpml_dispatch_from_schedule') || ($route && $route['state'] !== 'draft') ||
+            !in_array($order->get_status(), ['processing'], true)) return [$window, false];
+        $context = $order->get_meta('_ppwoo_dispatch_context');
+        $context = is_array($context) ? $context : [];
+        $timezone = wp_timezone();
+        $reference = $order->get_date_paid() ?: $order->get_date_created();
+        if (!$reference) return [$window, (bool) $window];
+        $basis = $reference->getTimestamp();
+        $schedule = ctwpml_sanitize_dispatch_schedule(get_option('checkout_tabs_wp_ml_dispatch_schedule', []));
+        $grace = max(0, (int) get_option('checkout_tabs_wp_ml_dispatch_grace', 5));
+        $reason = '';
+        if ($window && ($context['version'] ?? 0) === 1 && ($context['window'] ?? 0) === $window && ($context['state'] ?? '') === 'verified') {
+            if (($context['timezone'] ?? '') === $timezone->getName()) return [$window, false];
+            // Troca de fuso não deve reinterpretar uma alteração posterior do calendário/pagamento.
+            $basis = (int) $context['reference_at'];
+            $schedule = $context['schedule']; $grace = (int) $context['grace'];
+            $reason = 'timezone_changed';
+        } elseif ($window) {
+            $at = new DateTimeImmutable('@' . $basis);
+            $local = ctwpml_dispatch_from_schedule($at, $schedule, $timezone, $grace);
+            $utc = ctwpml_dispatch_from_schedule($at, $schedule, new DateTimeZone('UTC'), $grace);
+            if ($local && $local->getTimestamp() === $window) {
+                $reason = 'legacy_verified';
+            } elseif ($local && $utc && $utc->getTimestamp() === $window) {
+                $reason = 'legacy_utc_repaired';
+            } else {
+                // Sem evidência do fuso original, não inventar uma nova promessa de envio.
+                return [$window, true];
+            }
+        }
+        $next = ctwpml_dispatch_from_schedule(new DateTimeImmutable('@' . $basis), $schedule, $timezone, $grace);
+        if (!$next) return [$window, (bool) $window];
+        $previous = $window; $window = $next->getTimestamp();
+        if ($persist) {
+            $new_context = ['version' => 1, 'state' => 'verified', 'window' => $window,
+                'timezone' => $timezone->getName(), 'reference_at' => $basis, 'schedule' => $schedule, 'grace' => $grace];
+            if ($previous && $previous !== $window) {
+                $new_context['correction'] = ['previous_window' => $previous, 'previous_timezone' => $context['timezone'] ?? 'UTC',
+                    'at' => time(), 'reason' => $reason];
+                PPWOO_Debug::info('Central: previsão corrigida por fuso', ['order_id' => $order->get_id(), 'reason' => $reason, 'timezone' => $timezone->getName()]);
+            }
+            $order->update_meta_data('_ppwoo_dispatch_window', $window);
+            $order->update_meta_data('_ppwoo_dispatch_context', $new_context);
+            $order->save_meta_data();
+        }
+        return [$window, false];
     }
 
     /** Somente o endpoint administrativo chama este helper; prévia é leitura restrita. */

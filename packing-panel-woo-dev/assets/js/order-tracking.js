@@ -116,6 +116,7 @@
             else if (data.dispatch_at) dispatch.append(node('span', data.dispatch_day), node('strong', 'A partir das ' + data.dispatch_time), node('small', 'Este é o horário previsto para sair da loja.'));
             else dispatch.append(node('strong', 'A confirmar'), node('small', 'Consulte a loja sobre o próximo despacho.'));
             content.append(dispatch);
+            if (data.admin_preview && data.dispatch_review) content.append(node('p', 'Esta previsão antiga precisa de revisão: não foi possível identificar o fuso original com segurança.', { class: 'tracking-delay' }));
             if (data.delayed && !data.waiting_driver) {
                 const delay = node('section', null, { class: 'tracking-delay' });
                 delay.append(node('strong', 'O envio está um pouco atrasado'), node('p', data.driver_assigned ?
