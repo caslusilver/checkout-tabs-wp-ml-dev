@@ -9,9 +9,10 @@ const until = async predicate => { for(let i=0;i<150&&!predicate();i++) await ne
 function fixture() { return {route_id:7,slot:2,pending_dispatch:false,driver:{version:0,current:0,status:'ready',stops:[{id:201,state:'ready'},{id:202,state:'ready'}],devices:[]},
  stops:[201,202].map((id,i)=>({id,number:String(id),position:i+1,name:'Pessoa '+id,address:'Rua fictícia '+id,detail:'Complemento fictício',phone:'123456789',whatsapp:'https://wa.me/33123456789',waze:'https://waze.com/ul?q=Rua%20'+id+'&navigate=yes',confirmed:false})),maps_key:'',map:{points:[]}}; }
 function setup(t,{db=new IDBFactory(),online=true,server=fixture(),fetcher,worker}={}) {
- const virtualConsole=new VirtualConsole();virtualConsole.on('jsdomError',e=>{if(!e.message.includes('navigation (except hash changes)'))throw e;});
+ const virtualConsole=new VirtualConsole();virtualConsole.on('jsdomError',e=>{throw e;});
  const dom=new JSDOM('<main id="ctwpml-driver"></main><script id="ctdrv-script" data-scope="fixture-shop" data-endpoint="/ajax" data-worker="/entregas/?ctdrv_worker=1"></script>',{url:'https://driver.example.test/entregas/#rota=7&acesso='+'a'.repeat(64),runScripts:'outside-only',pretendToBeVisual:true,virtualConsole});
- const w=dom.window,d=w.document,calls=[];const close=()=>{w.dispatchEvent(new w.Event('pagehide'));w.close();}; t.after(close); w.indexedDB=db;
+ const w=dom.window,d=w.document,calls=[],opened=[];const close=()=>{w.dispatchEvent(new w.Event('pagehide'));w.close();}; t.after(close); w.indexedDB=db;
+ w.open=(...args)=>{opened.push(args);return null;}; // Bloqueio/cancelamento não deve navegar no painel.
  let connected=online; Object.defineProperty(w.navigator,'onLine',{get:()=>connected});
  const serverState=copy(server),receipts=new Set();
  w.fetch=async(url,opts)=>{
@@ -23,7 +24,7 @@ function setup(t,{db=new IDBFactory(),online=true,server=fixture(),fetcher,worke
  if(worker) Object.defineProperty(w.navigator,'serviceWorker',{value:worker});
  const evalApp=()=>{w.eval(readFileSync('assets/driver/state.js','utf8'));w.eval(readFileSync('assets/driver/app.js','utf8'));};
  evalApp();
- return {w,d,db,calls,server:serverState,connected(value){connected=value;w.dispatchEvent(new w.Event(value?'online':'offline'));},close};
+ return {w,d,db,calls,opened,server:serverState,connected(value){connected=value;w.dispatchEvent(new w.Event(value?'online':'offline'));},close};
 }
 function gesture(ctx,start,end,value=100){const slider=ctx.d.querySelector('#driver-slide');slider.getBoundingClientRect=()=>({left:0,width:300});
  const point=(type,x)=>{const e=new ctx.w.Event(type);Object.defineProperties(e,{clientX:{value:x},pointerId:{value:1}});slider.dispatchEvent(e);};point('pointerdown',start);slider.value=value;point('pointerup',end);
@@ -46,11 +47,25 @@ test('driver sliders ignore taps/incomplete drags, persist each step and sync on
  gesture(c,10,280);await until(()=>c.server.driver.version===1);await until(()=>!c.d.querySelector('#driver-slide').disabled);
  assert.equal(c.d.querySelector('.driver-app').style.getPropertyValue('--dm-state'),'#9a5700');
  assert.equal(c.d.querySelector('[data-waze]').href,c.server.stops[0].waze);assert.equal(c.calls.at(-1).token,undefined);
+ assert.deepEqual(c.opened,[[c.server.stops[0].waze,'_blank','noopener,noreferrer']]);
+ assert.equal(c.w.location.pathname,'/entregas/');
+ for(const link of c.d.querySelectorAll('a[href]')){assert.equal(link.target,'_blank');assert.match(link.rel,/noopener/);assert.match(link.rel,/noreferrer/);}
  gesture(c,10,280);await until(()=>c.server.driver.version===2);await until(()=>!c.d.querySelector('#driver-slide').disabled);
  assert.equal(c.d.querySelector('.driver-app').style.getPropertyValue('--dm-state'),'#168343');
  gesture(c,10,280);await until(()=>c.server.driver.version===3);await until(()=>c.d.querySelector('[data-name]').textContent.includes('202'));
  assert.equal(c.server.stops[0].confirmed,false);assert.equal((await record(c.db)).queue.length,0);
+ assert.equal(c.opened.length,2);assert.equal(c.opened[1][0],c.server.stops[1].waze);
  assert.equal(JSON.stringify(await record(c.db)).includes('aaaaaaaaaaaaaaaa'),false,'access token is not stored in IDB');
+});
+
+test('blocked Waze opening preserves the committed step, panel and navigation link',async t=>{
+ const c=setup(t);await until(()=>c.d.querySelector('[data-name]')?.textContent.includes('201'));
+ c.w.open=()=>{throw new Error('Blocked by browser');};
+ gesture(c,10,280);await until(()=>c.server.driver.version===1);await until(()=>!c.d.querySelector('#driver-slide').disabled);
+ assert.equal(c.w.location.href,'https://driver.example.test/entregas/#rota=7');
+ assert.equal(c.d.querySelector('[data-waze]').href,c.server.stops[0].waze);
+ assert.equal(c.calls.filter(call=>call.events.length).length,1);
+ assert.equal((await record(c.db)).queue.length,0);
 });
 
 test('offline route reopens with durable ordered queue; reconnect acknowledges without duplicating',async t=>{

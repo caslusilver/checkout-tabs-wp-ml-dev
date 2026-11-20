@@ -55,6 +55,16 @@ Sem migração de schema. O template da página selecionada é independente do t
 
 ## Validação
 
+### Ajuste visual v3.4.3 — prévia aprovada em 20/11/2026
+
+O cliente passa a ver o indicador pulsante antes da mensagem operacional e um contorno superior de 3 px com cantos arredondados de 22 px na divisão do mapa. Ambos usam o mesmo estado e as mesmas cores do painel do entregador: aguardando `#1765d8`, a caminho `#9a5700`, chegada/entrega registrada `#168343`. Preparação mantém o verde. O texto distingue chegada de entrega registrada; somente o slide do comprador confirma recebimento. Redução de movimento desativa o pulso sem esconder o indicador.
+
+Polling muda estado/texto sem recriar mapa ou controle de confirmação. WhatsApp e rastreio continuam com `target="_blank"` e `rel="noopener noreferrer"`. A referência visual aprovada usa dados fictícios; o trajeto real, suas restrições de privacidade e os dados da previsão permanecem no fluxo existente.
+
+Aceite informado pelo usuário: primeiro teste de sincronização bilateral funcionou. Esse relato valida o teste feito por ele; não equivale a teste de produção executado pelo agente. Rollback do ajuste visual: **v3.4.2**, `957346c1c763e2fa16058c0d9c16d0a83332a7a9`.
+
+Validação desta correção: 23 testes Node de regressão; suíte PHP de rotas/Central/motoboy; dois testes de navegador Edge com fixtures locais. `tests/tracking-browser.qa.cjs` confere estados, prioridade contra CSS conflitante, cantos/espessura, atualização sem recriar o slide, novas abas sem `opener`, redução de movimento, toque/gesto incompleto, erro/restauração e recebimento por gesto completo. `tests/driver-browser.qa.cjs` mantém cobertura de retomada offline. Não valida iOS/Safari, diálogos nativos do Waze, PWA/Elementor reais ou Google Maps de produção.
+
 14 testes Node: fluxo público preparação→despacho→confirmação, rejeição de toque/gesto incompleto, mapa com geometria calculada e círculo de saída, bloqueio de gesto de zoom do documento, compartilhamento/cópia por destinatário sem código intermediário, preservação de edição e telefones. Suíte PHP: emissão estável antes/depois da saída, webhook nativo, expiração, vínculo de rota, token incorreto, DTO sanitizado, última parada, baixa e corte de cruzamentos privados. Sintaxe dos PHP/JS alterados e diff limpo. No celular, viewport e handlers de gesto bloqueiam zoom do documento, enquanto Google Maps recebe os gestos dentro de seu contêiner. Desktop preserva os controles normais de mapa.
 
 Não foram executados WordPress/MySQL/Google Maps reais, cache/CDN/PWA, cookies de navegador real ou envio do fluxo n8n. A prévia visual foi aprovada pelo usuário, não equivale a aceite da integração em produção. API oficial do filtro usado: https://woocommerce.github.io/code-reference/files/woocommerce-includes-class-wc-webhook.html
