@@ -100,14 +100,18 @@ final class PPWOO_Routes {
             $details = $route['details'];
             $routes[] = [
                 'id' => $route['id'], 'slot' => $route['slot'], 'state' => $route['state'], 'revision' => $route['revision'],
-                'sheet' => $route['state'] === 'draft' ? ($details['sheet'] ?? []) : [],
+                'sheet' => ($route['state'] === 'draft' || !empty($details['sheet_pending'])) ? ($details['sheet'] ?? []) : [],
+                'quick_handoff' => !empty($details['quick_handoff']), 'sheet_pending' => !empty($details['sheet_pending']),
+                'shared_phone' => $details['shared_phone'] ?? '',
+                'can_undo_handoff' => self::can_undo_handoff($route, $stops),
                 'trip' => $route['state'] !== 'draft' ? self::trip_summary($details['sheet'] ?? []) : null,
                 'departed_at' => $details['departed_at'] ?? '',
-                'calculation' => $route['state'] === 'draft' ? self::current_calculation($details['calc'] ?? '', $stops) : ($details['dispatched_calculation'] ?? PPWOO_Route_Calculation::public_result(PPWOO_Route_Calculation::get($details['calc'] ?? ''))),
+                'calculation' => $route['state'] === 'draft' ? self::current_calculation($route, $stops) : ($details['dispatched_calculation'] ?? PPWOO_Route_Calculation::public_result(PPWOO_Route_Calculation::get($details['calc'] ?? ''))),
                 'stops' => $stops,
             ];
         }
-        return ['routes' => $routes, 'history_next' => $next, 'retry_uncertain' => self::can_retry_uncertain()];
+        return ['routes' => $routes, 'history_next' => $next, 'retry_uncertain' => self::can_retry_uncertain(),
+            'quick_enabled' => class_exists('CTWPML_Driver_Panel') && CTWPML_Driver_Panel::enabled()];
     }
 
     /** Leitura administrativa de campos conhecidos, sem devolver detalhes internos da rota. */
@@ -138,8 +142,8 @@ final class PPWOO_Routes {
         return ['calculation' => PPWOO_Route_Calculation::public_result($calc), 'orders' => array_map([__CLASS__, 'summary'], $ids)];
     }
 
-    private static function current_calculation(string $token, array $stops): ?array {
-        $calc = PPWOO_Route_Calculation::get($token);
+    private static function current_calculation(array $route, array $stops): ?array {
+        $calc = PPWOO_Route_Calculation::route_plan($route);
         if (!$calc) return null;
         try {
             $orders = array_map([__CLASS__, 'order'], array_column($stops, 'id'));
@@ -187,14 +191,14 @@ final class PPWOO_Routes {
                     'event_state' => 'waiting', 'attempt' => 0, 'details' => $source ? ($stop['details'] ?? []) : [],
                 ];
                 PPWOO_Routes_Store::save_stop($stop);
-                unset($target['details']['calc']);
+                unset($target['details']['calc'], $target['details']['calculation_plan']);
                 PPWOO_Routes_Store::save_route($target);
             }
             if ($source) {
                 if (!PPWOO_Routes_Store::route_stops($source['id'])) {
                     PPWOO_Routes_Store::remove_empty_draft($source['id']);
                 } else {
-                    unset($source['details']['calc']);
+                    unset($source['details']['calc'], $source['details']['calculation_plan']);
                     PPWOO_Routes_Store::save_route($source);
                 }
             }
@@ -224,6 +228,7 @@ final class PPWOO_Routes {
                 PPWOO_Routes_Store::save_stop($stop);
             }
             $fresh['details']['calc'] = $calc['token'];
+            $fresh['details']['calculation_plan'] = PPWOO_Route_Calculation::persist_plan($calc);
             PPWOO_Routes_Store::save_route($fresh);
         });
     }
@@ -231,6 +236,95 @@ final class PPWOO_Routes {
     private static function amount($value): ?string {
         if (!is_string($value) || !preg_match('/^\d{1,7}(?:[.,]\d{1,2})?$/D', trim($value))) return null;
         return wc_format_decimal(str_replace(',', '.', trim($value)), 2);
+    }
+
+    private static function can_undo_handoff(array $route, array $stops): bool {
+        if ($route['state'] !== 'dispatched' || empty($route['details']['quick_handoff']) || empty($route['details']['sheet_pending'])) return false;
+        foreach ($stops as $stop) if ($stop['delivery_state'] !== 'on_route') return false;
+        foreach ($route['details']['driver']['receipts'] ?? [] as $receipt) {
+            if (in_array($receipt['type'], ['arrive', 'complete'], true)) return false;
+        }
+        return true;
+    }
+
+    /** Retirada física não depende da ficha nem do webhook. O contato não é uma identidade de acesso. */
+    private static function handoff(array $input): array {
+        $phone = PPWOO_Utils::sanitize_phone(is_string($input['phone'] ?? null) ? $input['phone'] : '');
+        if (!preg_match('/^\d{10,11}$/D', $phone)) throw new DomainException('Confira o WhatsApp do motoboy com DDD.', 422);
+        $link = CTWPML_Driver_Panel::admin_link(self::id($input['route_id'] ?? null));
+        if (($input['revision'] ?? null) === $link['previous_revision']) $input['revision'] = $link['link_revision'];
+        PPWOO_Routes_Store::transaction(static function () use ($input, $phone) {
+            $route = PPWOO_Routes_Store::route(self::id($input['route_id'] ?? null), true);
+            if (!$route) self::conflict();
+            if ($route['revision'] !== ($input['revision'] ?? null)) {
+                // Resposta perdida após confirmar a mesma retirada: só devolver o acesso existente.
+                if ($route['state'] === 'dispatched' && !empty($route['details']['quick_handoff']) && ($route['details']['shared_phone'] ?? '') === $phone) return;
+                self::conflict();
+            }
+            if (!in_array($route['state'], ['draft', 'dispatched'], true)) self::conflict();
+            if ($route['state'] === 'dispatched' && empty($route['details']['quick_handoff'])) self::conflict();
+            $stops = PPWOO_Routes_Store::route_stops($route['id']);
+            if ($route['state'] === 'draft') {
+                $calc = PPWOO_Route_Calculation::route_plan($route);
+                if (!$calc || $calc['issues'] || count($calc['stops']) !== count($stops) ||
+                    $calc['fingerprint'] !== PPWOO_Route_Calculation::fingerprint(array_map([__CLASS__, 'order'], array_column($stops, 'order_id')))) {
+                    self::conflict('A composição ou o endereço mudou. Confira o cálculo desta rota.');
+                }
+                $now = gmdate('c'); $by_id = array_column($calc['stops'], null, 'order_id');
+                foreach ($stops as $stop) {
+                    if (!isset($by_id[$stop['order_id']])) self::conflict();
+                    $stop['delivery_state'] = 'on_route'; $stop['event_state'] = 'waiting';
+                    $stop['details']['eta_at'] = gmdate('c', time() + $by_id[$stop['order_id']]['eta_seconds']);
+                    $stop['details']['deadline'] = wp_date('d/m/Y \à\s H:i', strtotime($stop['details']['eta_at']));
+                    $stop['details']['last_stop'] = $calc['destination_order_id'] === $stop['order_id'];
+                    PPWOO_Routes_Store::save_stop($stop);
+                }
+                $previous = $route['details']['driver'] ?? [];
+                $driver = PPWOO_Driver_State::initial(array_column($calc['stops'], 'order_id'));
+                foreach (['version', 'devices', 'receipts'] as $key) if (isset($previous[$key])) $driver[$key] = $previous[$key];
+                $device = wp_generate_uuid4();
+                $driver = PPWOO_Driver_State::apply($driver, ['id' => wp_generate_uuid4(), 'device' => $device,
+                    'seq' => ($driver['devices'][$device] ?? 0) + 1, 'version' => $driver['version'], 'stop_id' => $driver['stops'][0]['id'], 'type' => 'start', 'at' => $now], [], $now);
+                $route['details']['driver'] = $driver;
+                $route['details']['driver_started_at'] = $now;
+                $route['details']['departed_at'] = $now; $route['details']['departed_by'] = get_current_user_id();
+                $route['details']['origin'] = $calc['origin_postcode'];
+                $route['details']['dispatched_calculation'] = PPWOO_Route_Calculation::public_result($calc);
+                $route['details']['calculation_plan'] ??= PPWOO_Route_Calculation::persist_plan($calc);
+                $route['details']['quick_handoff'] = true; $route['details']['sheet_pending'] = true;
+                $route['state'] = 'dispatched';
+            }
+            $route['details']['sheet'] = array_merge(['link' => '', 'code' => ''], $route['details']['sheet'] ?? [], ['phone' => $phone]);
+            $route['details']['shared_phone'] = $phone;
+            PPWOO_Routes_Store::save_route($route);
+            foreach (PPWOO_Routes_Store::route_stops($route['id']) as $member) PPWOO_Order_Tracking::issue($route, $member);
+            PPWOO_Debug::info('Rotas: retirada/contato registrados', ['route_id' => $route['id'], 'sheet_pending' => !empty($route['details']['sheet_pending'])]);
+        });
+        return ['driver_url' => $link['driver_url']];
+    }
+
+    private static function undo_handoff(array $input): void {
+        PPWOO_Routes_Store::transaction(static function () use ($input) {
+            $route = self::route($input, true); $stops = PPWOO_Routes_Store::route_stops($route['id']);
+            if (!self::can_undo_handoff($route, $stops)) self::conflict('A entrega já avançou ou o evento já foi preparado. Use a revisão administrativa.');
+            $occupied = PPWOO_Routes_Store::by_slot($route['slot']);
+            if ($occupied && $occupied['id'] !== $route['id']) self::conflict('Esse número de rota já está em uso na preparação. Confira as rotas antes de desfazer.');
+            $previous = $route['details']['driver'];
+            $state = PPWOO_Driver_State::initial(array_column($stops, 'order_id'));
+            $state['version'] = $previous['version'] + 1; $state['devices'] = $previous['devices']; $state['receipts'] = $previous['receipts'];
+            $route['details']['driver'] = $state;
+            $route['details']['handoff_history'][] = ['at' => gmdate('c'), 'by' => get_current_user_id(), 'departed_at' => $route['details']['departed_at']];
+            $route['details']['handoff_history'] = array_slice($route['details']['handoff_history'], -20);
+            unset($route['details']['departed_at'], $route['details']['driver_started_at']);
+            $route['state'] = 'draft';
+            foreach ($stops as $stop) {
+                $stop['delivery_state'] = 'draft';
+                unset($stop['details']['eta_at'], $stop['details']['deadline'], $stop['details']['access']['expires']);
+                PPWOO_Routes_Store::save_stop($stop);
+            }
+            PPWOO_Routes_Store::save_route($route);
+            PPWOO_Debug::info('Rotas: retirada desfeita', ['route_id' => $route['id']]);
+        });
     }
 
     private static function save_sheet(array $input, bool $dispatch): void {
@@ -252,13 +346,20 @@ final class PPWOO_Routes {
         }
         $costs = is_array($sheet['costs'] ?? null) ? $sheet['costs'] : [];
         $id = PPWOO_Routes_Store::transaction(static function () use ($input, $dispatch, $link, $phone, $code, $costs) {
-            $route = self::route($input, true, 'draft');
+            $route = self::route($input, true);
+            $quick = !empty($route['details']['quick_handoff']) && !empty($route['details']['sheet_pending']) && $route['state'] !== 'draft';
+            if ($route['state'] !== 'draft' && !$quick) self::conflict();
+            if ($quick) {
+                $confirmed_phone = $route['details']['shared_phone'] ?? $route['details']['sheet']['phone'] ?? '';
+                if ($dispatch && $phone !== $confirmed_phone) self::conflict('Confirme o contato corrigido no slide de reenvio antes de concluir a ficha.');
+                $phone = $confirmed_phone; // Digitação parcial nunca substitui o contato já liberado ao cliente.
+            }
             $stops = PPWOO_Routes_Store::route_stops($route['id']);
             if (!$stops) self::conflict('Inclua pedidos antes de salvar a ficha.');
-            $calc = PPWOO_Route_Calculation::get($route['details']['calc'] ?? '');
+            $calc = $quick ? ($route['details']['dispatched_calculation'] ?? null) : PPWOO_Route_Calculation::route_plan($route);
             $by_id = array_column($calc['stops'] ?? [], null, 'order_id');
             if ($dispatch && (!$calc || $calc['issues'] || count($stops) !== count($by_id) ||
-                $calc['fingerprint'] !== PPWOO_Route_Calculation::fingerprint(array_map([__CLASS__, 'order'], array_column($stops, 'order_id'))))) {
+                (!$quick && $calc['fingerprint'] !== PPWOO_Route_Calculation::fingerprint(array_map([__CLASS__, 'order'], array_column($stops, 'order_id')))))) {
                 self::conflict('Calcule novamente a rota e confira as paradas antes de despachar.');
             }
             $now = time();
@@ -270,21 +371,30 @@ final class PPWOO_Routes {
                 if ($dispatch) {
                     $eta = $by_id[$stop['order_id']]['eta_seconds'] ?? null;
                     if ($eta === null) self::conflict('A ordem das paradas mudou. Calcule novamente.');
-                    $stop['details']['deadline'] = wp_date('d/m/Y \à\s H:i', $now + $eta);
-                    $stop['details']['eta_at'] = gmdate('c', $now + $eta);
+                    if (!$quick) {
+                        $stop['details']['deadline'] = wp_date('d/m/Y \à\s H:i', $now + $eta);
+                        $stop['details']['eta_at'] = gmdate('c', $now + $eta);
+                    }
                     $stop['details']['last_stop'] = $stop['order_id'] === $calc['destination_order_id'];
-                    $stop['delivery_state'] = 'on_route';
+                    if (!$quick) $stop['delivery_state'] = 'on_route';
                     $stop['event_state'] = 'queued';
                 }
                 PPWOO_Routes_Store::save_stop($stop);
             }
             $route['details']['sheet'] = ['link' => $link, 'phone' => $phone, 'code' => $code];
-            if ($dispatch) {
+            if ($calc && !$quick && empty($route['details']['calculation_plan'])) $route['details']['calculation_plan'] = PPWOO_Route_Calculation::persist_plan($calc);
+            if ($dispatch && !$quick) {
                 $route['state'] = 'dispatched';
                 $route['details']['departed_at'] = gmdate('c', $now);
                 $route['details']['departed_by'] = get_current_user_id();
                 $route['details']['origin'] = $calc['origin_postcode'];
                 $route['details']['dispatched_calculation'] = PPWOO_Route_Calculation::public_result($calc);
+            }
+            if ($dispatch && $quick) {
+                $route['details']['sheet_pending'] = false;
+                if (!in_array('on_route', array_column($stops, 'delivery_state'), true)) {
+                    $route['state'] = 'closed'; $route['details']['closed_at'] = gmdate('c');
+                }
             }
             PPWOO_Routes_Store::save_route($route);
             if ($dispatch) {
@@ -318,7 +428,7 @@ final class PPWOO_Routes {
             $stops[$id]['details']['closed_source'] = $source;
             PPWOO_Routes_Store::save_stop($stops[$id]);
         }
-        if (!in_array('on_route', array_column($stops, 'delivery_state'), true)) {
+        if (empty($route['details']['sheet_pending']) && !in_array('on_route', array_column($stops, 'delivery_state'), true)) {
             $route['state'] = 'closed';
             $route['details']['closed_at'] = gmdate('c');
         }
@@ -464,6 +574,8 @@ final class PPWOO_Routes {
                 case 'recalculate': self::recalculate($input); break;
                 case 'save': self::save_sheet($input, false); break;
                 case 'dispatch': self::save_sheet($input, true); break;
+                case 'handoff': $extra = self::handoff($input); break;
+                case 'undo_handoff': self::undo_handoff($input); break;
                 case 'close': self::close($input); break;
                 case 'retry': self::retry($input); break;
                 case 'tracking_link': $extra = PPWOO_Order_Tracking::admin_link($input); break;

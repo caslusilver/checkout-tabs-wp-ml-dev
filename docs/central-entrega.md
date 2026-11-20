@@ -55,6 +55,14 @@ Sem migração de schema. O template da página selecionada é independente do t
 
 ## Validação
 
+### Fluxo após teste real — v3.4.4
+
+A retirada rápida pelo operador inicia a primeira parada e atualiza o acompanhamento sem depender da ficha completa/n8n. Rastreio e código aparecem quando forem preenchidos; campos ausentes não geram dados fictícios. Corrigir contato não reinicia o horário. O recebimento foi movido para depois da mensagem de estado, antes do endereço/previsão/links, preservando sua validação no servidor.
+
+Gesto inicia no puxador, atinge 75% e confirma ao soltar. Abaixo disso, cancelado ou só toque não executa a ação. Polling passa a 5s na aba visível com recuo em erros; resposta `unchanged` só após autorização/validade confirmadas evita repetir geometria/dados. A interface reaproveita seu estado sem reconstruir o slide nem o mapa. Não altera aprovação comercial de pagamento.
+
+Blueprint e decisões: https://app.notion.com/p/41e4347fa2c281fa8d46ea80bb51fc80. Rollback v3.4.3 requer completar as fichas de retirada rápida antes, pois a versão antiga não oferece esse fluxo. Conferência no celular/iOS, PWA/Elementor reais, cookies entre os dois sites e Waze nativo continua sendo validação no ambiente do usuário.
+
 ### Ajuste visual v3.4.3 — prévia aprovada em 20/11/2026
 
 O cliente passa a ver o indicador pulsante antes da mensagem operacional e um contorno superior de 3 px com cantos arredondados de 22 px na divisão do mapa. Ambos usam o mesmo estado e as mesmas cores do painel do entregador: aguardando `#1765d8`, a caminho `#9a5700`, chegada/entrega registrada `#168343`. Preparação mantém o verde. O texto distingue chegada de entrega registrada; somente o slide do comprador confirma recebimento. Redução de movimento desativa o pulso sem esconder o indicador.

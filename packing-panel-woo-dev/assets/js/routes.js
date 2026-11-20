@@ -8,8 +8,10 @@
 
         const collapsed = new Set();
         const sheets = new Map();
+        const phoneDrafts = new Map();
         const closeSelections = new Map();
         const openGroups = new Set();
+        const closedSheets = new Set();
         const hidden = { recipient: false, values: false };
         let dashboard = { routes: [] };
         let preview = null;
@@ -22,6 +24,7 @@
         let saveTimer;
         let saveRequest = null;
         let lastReload = 0;
+        let activeRenderPending = false;
         const saveErrors = new Map();
         const editRevisions = new Map();
         const saveConflicts = new Set();
@@ -93,6 +96,7 @@
         }
 
         async function api(command, data) {
+            const started = performance.now();
             debug(command, 'solicitado', data);
             try {
                 const response = await $.ajax({
@@ -100,7 +104,7 @@
                     data: { action: 'ppwoo_routes', nonce: panelConfig.nonce, payload: JSON.stringify({ command, ...data }) }
                 });
                 if (!response || !response.success || !response.data) throw new Error('Resposta inválida do painel.');
-                debug(command, 'concluído', data);
+                debug(command, 'concluído · ' + Math.round(performance.now() - started) + ' ms', data);
                 return response.data;
             } catch (error) {
                 debug(command, 'falha' + (error.status ? ' HTTP ' + error.status : ''), data);
@@ -127,7 +131,8 @@
             try {
                 if (pollRequest) await pollRequest;
                 const revisions = new Map(dashboard.routes.map(route => [route.id, route.revision]));
-                if (!await flushAutosaves(true)) throw new Error('Confira a ficha que não foi salva antes de continuar.');
+                if (options.quick) { if (saveRequest) await saveRequest; }
+                else if (!await flushAutosaves(true)) throw new Error('Confira a ficha que não foi salva antes de continuar.');
                 for (const [idKey, revisionKey] of [['route_id', 'revision'], ['source_id', 'source_revision'], ['target_id', 'target_revision']]) {
                     if (payload[idKey] && revisions.get(payload[idKey]) === payload[revisionKey]) {
                         payload[revisionKey] = currentRoute(payload[idKey])?.revision ?? payload[revisionKey];
@@ -387,6 +392,7 @@
 
         function mapPanel(calc, previous) {
             if (!calc?.stops?.length) return null;
+            if (!calc.origin || !calc.path?.length || calc.stops.some(stop => !stop.location)) return el('p', { class: 'ppwoo-map-notice' }, 'Mapa temporário indisponível. A ordem das paradas e o cálculo operacional foram preservados.');
             if (previous && previous.dataset.calculation === calc.token) return previous;
             const wrap = el('div', { class: 'ppwoo-route-map-wrap' });
             wrap.dataset.calculation = calc.token;
@@ -417,7 +423,8 @@
                 container.replaceChildren();
                 return;
             }
-            const remaining = preview.orders.filter(order => !preview.removed.has(order.id));
+            const reserved = new Set(dashboard.routes.filter(route => route.state !== 'draft').flatMap(route => route.stops.map(stop => stop.id)));
+            const remaining = preview.orders.filter(order => !preview.removed.has(order.id) && !reserved.has(order.id));
             if (!remaining.length) {
                 // Mantém o token para reaproveitar o cálculo se um grupo tiver os mesmos pedidos.
                 disposeMaps(container);
@@ -457,6 +464,26 @@
             container.replaceChildren(box);
         }
 
+        function quickContactFor(route) {
+            const saved = route.sheet?.phone ?? route.trip?.phone ?? '';
+            const phone = phoneDrafts.get(route.id) ?? sheets.get(route.id)?.phone ?? saved;
+            const input = el('input', { type: 'tel', inputmode: 'tel', class: 'motoboy-whatsapp', 'data-sheet-field': 'phone',
+                value: phone, 'aria-label': 'WhatsApp do motoboy com DDD', placeholder: 'DDD e número' });
+            const link = driverPreview(phone);
+            const contact = el('label', {}, 'WhatsApp do motoboy', el('a', { 'data-driver-preview': '',
+                href: link, hidden: link ? null : '', target: '_blank', rel: 'noopener noreferrer' }, 'Conversar ↗'), input);
+            const slide = swipe(route.state === 'draft' ? 'Entregar e enviar link' : 'Atualizar e reenviar', {
+                'data-handoff-route': route.id, 'data-swipe-threshold': '.75', 'data-swipe-start-thumb': 'yes'
+            });
+            const done = button('✓ Saída registrada', { 'data-undo-handoff': route.id, class: 'ppwoo-handoff-done',
+                disabled: route.can_undo_handoff ? null : '', 'aria-label': route.can_undo_handoff ? 'Saída registrada. Desfazer saída' : 'Saída registrada' });
+            done.append(el('small', {}, route.can_undo_handoff ? 'Desfazer saída' : 'Etapa já registrada'));
+            const control = el('div', { class: 'ppwoo-handoff-control' }, el('span', {}, 'Confirmar e compartilhar'), slide, done);
+            const row = el('div', { class: 'ppwoo-handoff-grid' }, contact, control);
+            row.dataset.sharedPhone = route.shared_phone || '';
+            return row;
+        }
+
         function formFor(route) {
             const saved = route.sheet || {};
             const unsaved = sheets.get(route.id) || {};
@@ -491,6 +518,20 @@
                 sheets.has(route.id) ? (saveErrors.get(route.id) || 'Alterações aguardando salvamento…') : 'Rascunho salvo'),
                 button('Tentar salvar novamente', { 'data-save-sheet': route.id, hidden: saveErrors.has(route.id) ? null : '' }));
             const control = swipe('Deslize para concluir envio', { 'data-dispatch-route': route.id });
+            if (dashboard.quick_enabled || route.quick_handoff) {
+                fields.querySelector('[data-sheet-field="phone"]').closest('label').remove();
+                const later = el('details', { class: 'ppwoo-sheet-later', 'data-group-key': 'sheet-' + route.id },
+                    el('summary', {}, el('span', {}, 'Completar depois', el('small', {}, 'Rastreio, código e custos')),
+                        el('span', { class: 'dashicons dashicons-arrow-down-alt2', 'aria-hidden': 'true' })));
+                later.open = !closedSheets.has(route.id);
+                Array.from(fields.children).filter(node => node.matches('label, .ppwoo-route-costs')).forEach(node => later.append(node));
+                fields.insertBefore(quickContactFor(route), fields.querySelector('[data-sheet-status]'));
+                fields.insertBefore(later, fields.querySelector('[data-sheet-status]'));
+                control.setAttribute('data-swipe-threshold', '.75'); control.setAttribute('data-swipe-start-thumb', 'yes');
+                control.setAttribute('data-swipe-label', 'Concluir ficha e enviar eventos');
+                control.querySelector('.ppwoo-swipe-label').textContent = 'Concluir ficha e enviar eventos';
+                control.hidden = route.state === 'draft';
+            }
             fields.append(el('p', { class: 'ppwoo-routes-warning', 'data-dispatch-reason': route.id, role: 'status' }));
             fields.append(control);
             return fields;
@@ -498,11 +539,12 @@
 
         function dispatchReason(route, sheet) {
             const calc = route.calculation;
-            if (!calc || (calc.expires_at && calc.expires_at * 1000 <= Date.now())) return 'Recalcule esta rota: a composição mudou ou o cálculo expirou.';
+            if (!calc || (route.state === 'draft' && calc.expires_at && calc.expires_at * 1000 <= Date.now())) return 'Confira o cálculo: a composição ou o endereço mudou.';
             if (calc.issues.length) return 'Confira as paradas com aviso e recalcule esta rota.';
             if (calc.stops.length !== route.stops.length) return 'Recalcule esta rota para incluir todos os pedidos.';
             if (!/^https?:\/\//i.test(sheet.link || '')) return 'Preencha um link de rastreio válido.';
             if (!/^\d{10,11}$/.test((sheet.phone || '').replace(/\D/g, ''))) return 'Preencha o WhatsApp do motoboy com DDD.';
+            if (route.quick_handoff && route.state !== 'draft' && (sheet.phone || '').replace(/\D/g, '') !== route.shared_phone) return 'Confirme o contato corrigido pelo slide de reenvio.';
             if (!/^\d{1,10}$/.test(sheet.code || '') || Number(sheet.code) < 1) return 'Preencha o código de finalização da última parada.';
             if (route.stops.some(order => !/^\d{1,7}(?:[.,]\d{1,2})?$/.test(String(sheet.costs?.[order.id] ?? order.cost ?? '').trim()))) {
                 return 'Preencha o custo negociado de cada pedido.';
@@ -511,8 +553,9 @@
         }
 
         function updateReadiness() {
-            dashboard.routes.filter(route => route.state === 'draft').forEach(route => {
-                const sheet = sheets.get(route.id) || { ...route.sheet, costs: Object.fromEntries(route.stops.map(order => [order.id, order.cost])) };
+            dashboard.routes.filter(route => route.state === 'draft' || route.sheet_pending).forEach(route => {
+                const saved = sheets.get(route.id) || { ...route.sheet, costs: Object.fromEntries(route.stops.map(order => [order.id, order.cost])) };
+                const sheet = { ...saved, phone: phoneDrafts.get(route.id) ?? saved.phone };
                 const reason = dispatchReason(route, sheet);
                 $panel.find('[data-dispatch-reason="' + route.id + '"]').text(reason);
                 $panel.find('[data-dispatch-route="' + route.id + '"]').prop('disabled', !!reason || busy);
@@ -525,6 +568,18 @@
                     const next = destinationInfo(route);
                     if (node.textContent !== next.textContent) node.replaceWith(next);
                 });
+            });
+            $panel.find('[data-handoff-route]').each(function () {
+                const route = currentRoute(this.dataset.handoffRoute); if (!route) return;
+                const row = this.closest('.ppwoo-handoff-grid');
+                const phone = row.querySelector('[data-sheet-field="phone"]').value.replace(/\D/g, '');
+                const done = route.state !== 'draft' && phone === (route.shared_phone || '');
+                this.hidden = done;
+                const undo = row.querySelector('[data-undo-handoff]');
+                undo.hidden = !done; undo.disabled = !route.can_undo_handoff;
+                undo.querySelector('small').textContent = route.can_undo_handoff ? 'Desfazer saída' : 'Etapa já registrada';
+                this.disabled = busy || route.state === 'closed' || !/^\d{10,11}$/.test(phone) ||
+                    (route.state === 'draft' && (!route.calculation || route.calculation.issues?.length || route.calculation.stops.length !== route.stops.length));
             });
         }
 
@@ -598,6 +653,9 @@
                 (isHistory ? ' · Encerrada' : ' · ' + pendingLabel(open.length)), destinationInfo(route)));
             const body = el('div', { class: 'ppwoo-group-body' },
                 mapPanel(route.calculation, $panel.find('[data-routes-active] [data-route-id="' + route.id + '"] .ppwoo-route-map-wrap')[0]), tripInfo(route));
+            if (route.sheet_pending && !isHistory) body.append(formFor(route));
+            else if (route.sheet_pending) body.append(el('p', {}, 'Ficha pendente: complete os dados na aba Em rota.'));
+            else if (route.quick_handoff && !isHistory) body.append(quickContactFor(route));
             if (route.stops.some(order => ['queued', 'sending'].includes(order.event_state))) body.append(
                 el('progress', { value: received, max: route.stops.length, 'aria-label': 'Envio dos eventos em andamento' }),
                 el('p', {}, 'Enviando eventos · ' + received + ' de ' + route.stops.length));
@@ -629,7 +687,12 @@
 
         function renderActive() {
             const parent = $panel.find('[data-routes-active]')[0];
-            const active = dashboard.routes.filter(route => route.state === 'dispatched');
+            if (parent.contains(document.activeElement) && document.activeElement.matches('[data-sheet-field], [data-sheet-cost]') ||
+                Array.from(sheets.keys()).some(id => currentRoute(id)?.state !== 'draft' && parent.querySelector('[data-route-id="' + id + '"] .ppwoo-route-sheet'))) {
+                activeRenderPending = true; return;
+            }
+            activeRenderPending = false;
+            const active = dashboard.routes.filter(route => route.state === 'dispatched' || route.sheet_pending && route.state === 'closed');
             const nodes = active.length ? active.map(route => deliveryGroup(route, false)) : [el('p', {}, 'Nenhum pedido em rota.')];
             disposeMaps(parent);
             parent.replaceChildren(...nodes);
@@ -649,6 +712,14 @@
         }
 
         function update(data, full) {
+            if (preview) data.routes.filter(route => route.state !== 'draft').forEach(route => route.stops.forEach(stop => preview.removed.add(stop.id)));
+            const membership = rows => JSON.stringify(rows.map(route => [route.id, route.state, route.stops.map(stop => stop.id)]));
+            const changedMembership = membership(dashboard.routes) !== membership(data.routes);
+            const sheetState = route => JSON.stringify([route.sheet, route.stops.map(stop => [stop.id, stop.cost])]);
+            for (const route of data.routes) {
+                const old = currentRoute(route.id);
+                if (sheets.has(route.id) && old && sheetState(old) === sheetState(route) && editRevisions.get(route.id) === old.revision) editRevisions.set(route.id, route.revision);
+            }
             const previous = JSON.stringify(dashboard.routes.filter(route => route.state === 'dispatched'));
             const oldResults = new Map(dashboard.routes.flatMap(route =>
                 route.stops.map(stop => [stop.id, stop.event_state + ':' + stop.attempt])));
@@ -661,11 +732,12 @@
                 }
             }));
             updateSelection();
-            if (full) {
+            if (full || changedMembership) {
                 renderPreview();
                 renderDrafts();
             }
-            if (full || previous !== JSON.stringify(data.routes.filter(route => route.state === 'dispatched'))) renderActive();
+            if (full || activeRenderPending || previous !== JSON.stringify(data.routes.filter(route => route.state === 'dispatched'))) renderActive();
+            updateReadiness();
             drawVisibleMaps();
         }
 
@@ -917,18 +989,20 @@
         function flushAutosaves(force = false) {
             if (saveRequest) return saveRequest.then(ok => ok && force && sheets.size ? flushAutosaves(force) : ok);
             if (busy && !force) { scheduleSave(); return Promise.resolve(false); }
-            const pending = Array.from(sheets.entries()).find(([id]) => currentRoute(id)?.state === 'draft' && !saveErrors.has(id));
-            if (!pending) return Promise.resolve(!Array.from(sheets.keys()).some(id => currentRoute(id)?.state === 'draft' && saveErrors.has(id)));
+            const editable = id => currentRoute(id)?.state === 'draft' || currentRoute(id)?.sheet_pending;
+            const pending = Array.from(sheets.entries()).find(([id]) => editable(id) && !saveErrors.has(id));
+            if (!pending) return Promise.resolve(!Array.from(sheets.keys()).some(id => editable(id) && saveErrors.has(id)));
             const [id, snapshot] = pending;
             saveStatus(id, 'Salvando…');
             saveRequest = (async () => {
                 try {
                     if (pollRequest) await pollRequest;
                     const route = currentRoute(id);
-                    if (!route || route.state !== 'draft') return true;
-                    const data = await api('save', { route_id: id, revision: editRevisions.get(id) ?? route.revision, sheet: snapshot });
+                    if (!route || !editable(id)) return true;
+                    const outgoing = route.quick_handoff && route.state !== 'draft' ? { ...snapshot, phone: route.shared_phone } : snapshot;
+                    const data = await api('save', { route_id: id, revision: editRevisions.get(id) ?? route.revision, sheet: outgoing });
                     const saved = data.routes.find(item => item.id === id);
-                    if (!saved || saved.state !== 'draft') throw new Error('A rota mudou. Atualize o painel para conferir.');
+                    if (!saved || (saved.state !== 'draft' && !saved.sheet_pending)) throw new Error('A rota mudou. Atualize o painel para conferir.');
                     // Não renderizar o formulário enquanto o operador digita.
                     dashboard.routes = dashboard.routes.map(item => item.id === id ? saved : item);
                     editRevisions.set(id, saved.revision);
@@ -959,6 +1033,10 @@
         $panel[0].addEventListener('toggle', event => {
             const node = event.target;
             if (!node.dataset?.groupKey || !node.isConnected) return;
+            if (node.classList.contains('ppwoo-sheet-later')) {
+                const id = Number(node.closest('[data-route-id]').dataset.routeId);
+                if (node.open) closedSheets.delete(id); else closedSheets.add(id);
+            }
             if (node.open) openGroups.add(node.dataset.groupKey);
             else openGroups.delete(node.dataset.groupKey);
             drawVisibleMaps();
@@ -1061,6 +1139,10 @@
                     if (link) { const href = driverPreview(this.value); link.hidden = !href; link.href = href; }
                 }
                 const id = Number(card.dataset.routeId);
+                if (this.dataset.sheetField === 'phone' && currentRoute(id)?.quick_handoff && currentRoute(id)?.state !== 'draft') {
+                    if (this.value.replace(/\D/g, '') === currentRoute(id).shared_phone) phoneDrafts.delete(id);
+                    else phoneDrafts.set(id, this.value);
+                }
                 sheetInput(id, card);
                 saveStatus(id, 'Alterações aguardando salvamento…');
                 updateReadiness();
@@ -1081,6 +1163,7 @@
             const close = () => { dialog.close(); dialog.remove(); };
             const done = button('Fechar'); done.addEventListener('click', close); dialog.addEventListener('cancel', close); dialog.append(done);
             $panel[0].append(dialog); dialog.showModal();
+            return dialog;
         }
         $panel.on('click', '[data-customer-access]', async function () {
             if (this.disabled) return;
@@ -1113,8 +1196,8 @@
                 if (!window.confirm('A rota mudou em outra sessão. Deseja tentar salvar os dados que você está vendo sobre o rascunho atual?')) return;
                 try {
                     const data = await api('list', {});
-                    const route = data.routes.find(item => item.id === id && item.state === 'draft');
-                    if (!route) throw new Error('A rota não está mais em preparação. Confira o painel.');
+                    const route = data.routes.find(item => item.id === id && (item.state === 'draft' || item.sheet_pending));
+                    if (!route) throw new Error('A ficha não está mais disponível para edição. Confira o painel.');
                     dashboard.routes = dashboard.routes.map(item => item.id === id ? route : item);
                     editRevisions.set(id, route.revision);
                     saveConflicts.delete(id);
@@ -1130,10 +1213,45 @@
             act('dispatch', { route_id: route.id, revision: route.revision, sheet }, {
                 slider: this, refreshMotoboy: true, message: 'Saída registrada. Acompanhe os disparos por pedido.',
                 after: () => {
-                    sheets.delete(route.id);
+                    sheets.delete(route.id); saveErrors.delete(route.id);
                     openGroups.add('sent-' + route.id);
                     $panel.find('.tab-button[data-tab="em-rota"]').trigger('click');
                 }
+            });
+        });
+        $panel.on('ppwoo:slide-complete', '[data-handoff-route]', function () {
+            const route = currentRoute(this.dataset.handoffRoute); if (!route || busy) { resetSwipe(this); return; }
+            const card = this.closest('[data-route-id]'), sheet = sheetInput(route.id, card);
+            act('handoff', { route_id: route.id, revision: editRevisions.get(route.id) ?? route.revision, phone: sheet.phone }, {
+                quick: true, slider: this, refreshMotoboy: route.state === 'draft', loading: 'Salvando retirada e preparando mensagem…',
+                message: 'Retirada salva. Se o WhatsApp não abrir, use Abrir mensagem.',
+                after: data => {
+                    const fresh = data.routes.find(item => item.id === route.id);
+                    if (fresh) editRevisions.set(route.id, fresh.revision);
+                    if ((phoneDrafts.get(route.id) || '').replace(/\D/g, '') === fresh?.shared_phone) phoneDrafts.delete(route.id);
+                    const saved = fresh?.sheet || {};
+                    const matches = fresh && ['link','code'].every(key => String(sheet[key] || '') === String(saved[key] || '')) &&
+                        String(sheet.phone || '').replace(/\D/g, '') === String(saved.phone || '').replace(/\D/g, '') &&
+                        fresh.stops.every(stop => String(sheet.costs?.[stop.id] ?? '') === String(stop.cost ?? ''));
+                    if (!fresh?.sheet_pending || matches) { sheets.delete(route.id); saveErrors.delete(route.id); }
+                    openGroups.add('sent-' + route.id);
+                    const text = 'Aqui estão os contatos e endereços da sua rota.\n\nAcesse seu painel:\n' + data.driver_url +
+                        '\n\nQuando chegar, deslize para avisar o cliente. Depois, conclua para seguir à próxima parada.';
+                    const href = driverPreview(sheet.phone) + '?text=' + encodeURIComponent(text);
+                    // Somente depois da gravação confirmada; nunca navegar no painel original.
+                    const link = el('a', { href, target: '_blank', rel: 'noopener noreferrer', class: 'ppwoo-routes-button' }, 'Abrir mensagem no WhatsApp ↗');
+                    const dialog = linkDialog('Mensagem do motoboy pronta', []);
+                    dialog.insertBefore(link, dialog.lastElementChild);
+                    try { window.open(href, '_blank', 'noopener,noreferrer'); } catch (_) { /* link explícito disponível */ }
+                    $panel.find('.tab-button[data-tab="em-rota"]').trigger('click');
+                }
+            });
+        });
+        $panel.on('click', '[data-undo-handoff]', function () {
+            const route = currentRoute(this.dataset.undoHandoff); if (!route || !route.can_undo_handoff || busy) return;
+            act('undo_handoff', { route_id: route.id, revision: route.revision }, {
+                quick: true, refreshMotoboy: true, message: 'Saída desfeita. O link e os dados foram preservados.',
+                after: () => { openGroups.add('draft-' + route.id); $panel.find('.tab-button[data-tab="rotas"]').trigger('click'); }
             });
         });
         $panel.on('change', '[data-close-order], [data-select-delivery-all]', function () {
@@ -1218,7 +1336,7 @@
         $panel.find('#tab-rotas, #tab-em-rota').each(function () { this.prepend(privateControls()); });
         $panel.find('[data-calculate-selected]').addClass('ppwoo-routes-button ppwoo-routes-primary');
         window.addEventListener('beforeunload', event => {
-            if (!sheets.size && !saveRequest) return;
+            if (!sheets.size && !phoneDrafts.size && !saveRequest) return;
             event.preventDefault();
             event.returnValue = '';
         });

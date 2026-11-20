@@ -117,7 +117,7 @@ final class PPWOO_Order_Tracking {
 
     public static function issue(array $route, array $stop, bool $renew = false): array {
         if (!self::page_url() || $route['state'] !== 'dispatched' || $stop['delivery_state'] !== 'on_route') return $stop;
-        if (!isset($stop['details']['access']) || $renew) {
+        if (!isset($stop['details']['access']) || empty($stop['details']['access']['expires']) || $renew) {
             $expires = $renew ? time() + 86400 : strtotime($route['details']['departed_at'] ?? '') + 86400;
             if ($expires <= time()) throw new DomainException('O link venceu. Gere um novo acesso para este pedido.', 410);
             $order = wc_get_order($stop['order_id']);
@@ -235,7 +235,7 @@ final class PPWOO_Order_Tracking {
         $own_stage = '';
         foreach ($driver['stops'] ?? [] as $member) if ($member['id'] === $stop['order_id']) $own_stage = $member['state'];
         return [
-            'number' => $order->get_order_number(), 'route' => $route['slot'], 'position' => $stop['position'],
+            'number' => $order->get_order_number(), 'route_revision' => $route['revision'], 'route' => $route['slot'], 'position' => $stop['position'],
             'total' => count(PPWOO_Routes_Store::route_stops($route['id'])), 'last' => $last,
             'departed_at' => $route['details']['driver_started_at'] ?? $route['details']['departed_at'] ?? '', 'eta_at' => $stop['details']['eta_at'] ?? '',
             'driver_stage' => $own_stage, 'current_position' => isset($driver['current']) ? $driver['current'] + 1 : null,
@@ -308,6 +308,7 @@ final class PPWOO_Order_Tracking {
                     setcookie($cookie, $token, ['expires' => $stop['details']['access']['expires'], 'path' => '/', 'secure' => true, 'httponly' => true, 'samesite' => 'Strict']);
                 }
                 if (self::wait_for_driver() && empty($route['details']['driver_started_at'])) return self::preparation(wc_get_order((int) $id), $route);
+                if ($command === 'read' && isset($_POST['known_revision']) && (string) $route['revision'] === $_POST['known_revision']) return ['unchanged' => true];
                 return self::projection($route, $stop);
             });
             wp_send_json_success($data);

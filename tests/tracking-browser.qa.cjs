@@ -52,11 +52,11 @@ const server=createServer(async(req,res)=>{
   assert.equal(await page.locator('.tracking-live').evaluate(el=>getComputedStyle(el,'::after').display),'none');
   const swipe=async fraction=>{const b=await page.locator('#tracking-slide').boundingBox();await page.mouse.move(b.x+20,b.y+b.height/2);await page.mouse.down();await page.mouse.move(b.x+b.width*fraction,b.y+b.height/2,{steps:12});await page.mouse.up();};
   const box=await page.locator('#tracking-slide').boundingBox();await page.mouse.click(box.x+box.width-10,box.y+box.height/2);await swipe(.25);assert.equal(confirmations,0);
-  await swipe(.99);await page.waitForFunction(()=>document.querySelector('.tracking-status').textContent.includes('Não conseguimos'));
+  await swipe(.76);await page.waitForFunction(()=>document.querySelector('.tracking-status').textContent.includes('Não conseguimos'));
   assert.equal(await page.locator('#tracking-slide').isEnabled(),true);assert.equal(await page.locator('#tracking-slide').inputValue(),'0');assert.equal(confirmations,1);
   for(const width of [320,390,1280]){await page.setViewportSize({width,height:1100});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);}
   if(process.env.TRACKING_QA_OUTPUT)await page.screenshot({path:join(process.env.TRACKING_QA_OUTPUT,'tracking-state-production.png'),fullPage:true});
-  failConfirm=false;await swipe(.99);await page.waitForSelector('.tracking-thanks');assert.equal(confirmations,2);
+  failConfirm=false;await swipe(.76);await page.waitForSelector('.tracking-thanks');assert.equal(confirmations,2);
   assert.deepEqual(errors,[]);await context.close();
   console.log('Edge: cores/curva, prioridade CSS, polling, abas isoladas, movimento reduzido, gestos, recuperação de erro e mobile/desktop passaram.');
  }finally{if(browser)await browser.close();await new Promise(resolve=>server.close(resolve));}

@@ -50,7 +50,7 @@ function get_permalink($id) { return 'https://sandbox.example.test/entrega/'; }
 function checked($value) {}
 function submit_button(...$args) {}
 function wp_is_uuid($value, $version) { return (bool) preg_match('/^[a-f0-9-]{36}$/D', $value); }
-function wp_generate_uuid4() { return '11111111-1111-4111-8111-111111111111'; }
+function wp_generate_uuid4() { return $GLOBALS['fixture_uuid'] ?? '11111111-1111-4111-8111-111111111111'; }
 function get_current_user_id() { return 123; }
 function get_transient($k) { return $GLOBALS['cache'][$k] ?? false; }
 function set_transient($k, $v, $ttl) { $GLOBALS['cache'][$k] = $v; return true; }

@@ -12,6 +12,7 @@
     const q = selector => root.querySelector(selector);
     const colors = { ready: '#1765d8', started: '#9a5700', arrived: '#168343', delivered: '#168343' };
     const safeURL = value => /^https:\/\//.test(value || '') ? value : '';
+    let firstRead = true;
     function openDB() { return new Promise((resolve, reject) => {
         const request = indexedDB.open('ctwpml-driver-v1', 1);
         request.onupgradeneeded = () => request.result.createObjectStore('routes', { keyPath: 'key' });
@@ -49,10 +50,11 @@
         q('[data-expand]').onclick = () => { const open = q('.driver-app').classList.toggle('map-expanded'); q('[data-expand]').textContent = open ? 'Recolher' : 'Expandir'; if (map) google.maps.event.trigger(map, 'resize'); };
         const slider = q('#driver-slide'); let start = null, keyboard = false;
         slider.addEventListener('pointerdown', event => { keyboard = false; dragging = true; const rect = slider.getBoundingClientRect(); start = event.clientX <= rect.left + 55 ? { x: event.clientX, width: rect.width, id: event.pointerId } : null; try { slider.setPointerCapture(event.pointerId); } catch (_) {} });
-        slider.addEventListener('pointerup', event => { const full = start && event.pointerId === start.id && event.clientX - start.x >= Math.max(40, start.width * .6) && Number(slider.value) >= 98; start = null; dragging = false; if (full) act(); else slider.value = 0; });
-        slider.addEventListener('pointercancel', () => { dragging = false; start = null; slider.value = 0; });
+        slider.addEventListener('input', () => { if (dragging) q('.swipe-area label').textContent = Number(slider.value) >= 75 ? 'Solte para confirmar' : slider.getAttribute('aria-label'); });
+        slider.addEventListener('pointerup', event => { const full = start && event.pointerId === start.id && event.clientX - start.x >= Math.max(16, (start.width - 48) * .5) && Number(slider.value) >= 75; start = null; dragging = false; if (full) act(); else { slider.value = 0; render(); } });
+        slider.addEventListener('pointercancel', () => { dragging = false; start = null; slider.value = 0; render(); });
         slider.addEventListener('change', () => { if (!start && !keyboard && !acting) slider.value = 0; });
-        slider.addEventListener('keydown', event => { keyboard = true; if (event.key === 'Enter' && Number(slider.value) >= 98) { event.preventDefault(); act(); } });
+        slider.addEventListener('keydown', event => { keyboard = true; if (event.key === 'Enter' && Number(slider.value) >= 75) { event.preventDefault(); act(); } });
         root.addEventListener('touchmove', event => { if (event.touches.length > 1 && !event.target.closest('.driver-map')) event.preventDefault(); }, { passive: false });
         for (const type of ['gesturestart', 'gesturechange', 'gestureend']) root.addEventListener(type, event => { if (!event.target.closest('.driver-map')) event.preventDefault(); }, { passive: false });
     }
@@ -131,13 +133,14 @@
 
     async function network(events = []) {
         const body = { route_id: routeId, events }; if (token) body.token = token;
+        if (!firstRead && !events.length && Number.isInteger(record?.snapshot?.route_revision)) body.known_revision = record.snapshot.route_revision;
         const controller = new AbortController(), timeout = setTimeout(() => controller.abort(), 23000);
         try {
             const response = await fetch(script.dataset.endpoint, { method: 'POST', credentials: 'same-origin', cache: 'no-store', signal: controller.signal,
                 headers: { 'X-CTDRV': '1' }, body: new URLSearchParams({ action: 'ctwpml_driver', payload: JSON.stringify(body) }) });
             const result = await response.json();
             if (!response.ok || !result.success) { const error = new Error(result.data?.message || 'Não foi possível conferir a rota.'); error.status = response.status; throw error; }
-            token = null; return result.data;
+            token = null; firstRead = false; return result.data;
         } finally { clearTimeout(timeout); }
     }
     async function sync() {
@@ -148,7 +151,8 @@
             const pending = record.queue.slice(0, 20), data = await network(pending), ids = new Set(pending.map(event => event.id));
             await edit(value => {
                 value.queue = value.queue.filter(event => !ids.has(event.id));
-                if (!value.snapshot || data.driver.version >= value.snapshot.driver.version) value.snapshot = data;
+                if (!data.unchanged && (!value.snapshot || data.driver.version >= value.snapshot.driver.version &&
+                    (!Number.isInteger(data.route_revision) || !Number.isInteger(value.snapshot.route_revision) || data.route_revision >= value.snapshot.route_revision))) value.snapshot = data;
                 value.expires = Date.now() + 7 * 86400000;
                 if (data.closed && !value.queue.length) { value.selected = 0; value.snapshot = { route_id: data.route_id, closed: true, driver: data.driver }; }
             });
@@ -164,7 +168,7 @@
                 notice = error.message || 'Sem resposta. As ações permanecem salvas.'; render();
                 if (!record?.snapshot && q('.connection-banner')) q('.connection-banner').textContent = notice + ' Tentaremos novamente ao reconectar.';
             }
-        } finally { syncing = false; if (!suspended) { if (record?.snapshot) render(); timer = setTimeout(sync, record?.queue.length && !record.conflict ? 3000 : 20000); } }
+        } finally { syncing = false; if (!suspended) { if (record?.snapshot) render(); timer = setTimeout(sync, record?.queue.length && !record.conflict ? 3000 : notice ? 20000 : 5000); } }
     }
     async function reconcile() {
         if (!navigator.onLine) { notice = 'Reconecte para consultar o estado confirmado pela loja.'; render(); return; }

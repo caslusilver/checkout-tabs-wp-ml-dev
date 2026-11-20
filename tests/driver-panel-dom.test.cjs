@@ -40,11 +40,23 @@ test('PHP empty device map supports multiple offline events and correction prote
  s=engine.apply(s,ev('correct',201,4));assert.deepEqual(s.stops.map(s=>s.state),['started','ready']);
 });
 
+test('compact unchanged polling preserves the authorized snapshot in the browser',async t=>{
+ const server=fixture();server.route_revision=9;
+ const c=setup(t,{server,fetcher:input=>({ok:true,json:async()=>({success:true,data:input.known_revision===9?{unchanged:true}:copy(server)})})});
+ await until(()=>c.d.querySelector('[data-name]')?.textContent.includes('201'));
+ await new Promise(resolve=>setTimeout(resolve,15));
+ c.d.dispatchEvent(new c.w.Event('visibilitychange'));await until(()=>c.calls.length===2);
+ assert.equal(c.calls[1].known_revision,9);await new Promise(resolve=>setTimeout(resolve,15));
+ assert.equal((await record(c.db)).snapshot.route_revision,9);
+ assert.match(c.d.querySelector('[data-name]').textContent,/201/);
+});
+
 test('driver sliders ignore taps/incomplete drags, persist each step and sync once',async t=>{
  const c=setup(t);await until(()=>c.d.querySelector('[data-name]')?.textContent.includes('201'));
  assert.equal(c.w.location.hash,'#rota=7');assert.ok(c.calls[0].token);assert.equal(c.d.querySelector('[data-waze]').hasAttribute('href'),false);
  gesture(c,290,290);gesture(c,10,70);await new Promise(r=>setTimeout(r,15));assert.equal(c.calls.filter(c=>c.events.length).length,0);
- gesture(c,10,280);await until(()=>c.server.driver.version===1);await until(()=>!c.d.querySelector('#driver-slide').disabled);
+ gesture(c,10,198,74);assert.equal(c.calls.filter(c=>c.events.length).length,0);
+ gesture(c,10,199,75);await until(()=>c.server.driver.version===1);await until(()=>!c.d.querySelector('#driver-slide').disabled);
  assert.equal(c.d.querySelector('.driver-app').style.getPropertyValue('--dm-state'),'#9a5700');
  assert.equal(c.d.querySelector('[data-waze]').href,c.server.stops[0].waze);assert.equal(c.calls.at(-1).token,undefined);
  assert.deepEqual(c.opened,[[c.server.stops[0].waze,'_blank','noopener,noreferrer']]);

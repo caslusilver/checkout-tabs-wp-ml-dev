@@ -147,9 +147,10 @@ final class CTWPML_Driver_Panel {
         if (!self::enabled() || !class_exists('PPWOO_Routes_Store') || !PPWOO_Routes_Store::ready()) throw new DomainException('Painel indisponível.', 403);
         $id = $input['route_id'] ?? 0; $token = $input['token'] ?? ''; $events = $input['events'] ?? [];
         if (!is_int($id) || $id < 1 || !is_string($token) || !preg_match('/^[a-f0-9]{64}$/D', $token) || !is_array($events) || count($events) > 20) throw new DomainException('Solicitação inválida.', 422);
-        return PPWOO_Routes_Store::transaction(static function () use ($id, $token, $events) {
+        return PPWOO_Routes_Store::transaction(static function () use ($id, $token, $events, $input) {
             $route = PPWOO_Routes_Store::route($id, true);
             if (!$route || empty($route['details']['driver_access']) || !hash_equals(self::token($route), $token)) throw new DomainException('Link inválido ou revogado.', 403);
+            if (!$events && ($input['known_revision'] ?? null) === $route['revision']) return ['unchanged' => true];
             $stops = PPWOO_Routes_Store::route_stops($id);
             $state = $route['details']['driver'] ?? PPWOO_Driver_State::initial(array_column($stops, 'order_id'));
             if (!isset($state['last_event_at']) && !empty($route['details']['departed_at'])) $state['last_event_at'] = $route['details']['departed_at'];
@@ -232,7 +233,7 @@ final class CTWPML_Driver_Panel {
 
     private static function projection(array $route, array $stops, array $state): array {
         if ($route['state'] === 'closed') return ['route_id' => $route['id'], 'closed' => true, 'driver' => PPWOO_Driver_State::view($state)];
-        $calc = $route['state'] === 'draft' ? PPWOO_Route_Calculation::get($route['details']['calc'] ?? '') : ($route['details']['dispatched_calculation'] ?? []);
+        $calc = $route['state'] === 'draft' ? (PPWOO_Route_Calculation::route_plan($route) ?? []) : ($route['details']['dispatched_calculation'] ?? []);
         $rows = [];
         foreach ($stops as $stop) {
             $order = wc_get_order($stop['order_id']);
@@ -247,9 +248,9 @@ final class CTWPML_Driver_Panel {
                 'waze' => 'https://waze.com/ul?q=' . rawurlencode($destination) . '&navigate=yes',
                 'confirmed' => $stop['delivery_state'] === 'closed'];
         }
-        return ['route_id' => $route['id'], 'slot' => $route['slot'], 'pending_dispatch' => $route['state'] === 'draft',
+        return ['route_id' => $route['id'], 'route_revision' => $route['revision'], 'slot' => $route['slot'], 'pending_dispatch' => $route['state'] === 'draft',
             'driver' => PPWOO_Driver_State::view($state), 'stops' => $rows,
-            'map' => ['origin' => $calc['origin'] ?? null, 'points' => $calc['stops'] ?? [], 'path' => $calc['path'] ?? []],
+            'map' => ['origin' => $calc['origin'] ?? null, 'points' => array_values(array_filter($calc['stops'] ?? [], static fn($point) => isset($point['location']['lat'], $point['location']['lng']))), 'path' => $calc['path'] ?? []],
             'maps_key' => PPWOO_Route_Calculation::maps_browser_key()];
     }
 

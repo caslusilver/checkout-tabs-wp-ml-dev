@@ -194,6 +194,8 @@
         $action.css('--ppwoo-swipe-offset', (swipe.direction * boundedOffset) + 'px');
         $action.css('--ppwoo-swipe-progress', progress + '%');
         $action.attr('aria-valuenow', Math.round(progress));
+        if ($action.attr('data-swipe-threshold')) $action.find('.ppwoo-swipe-label').text(
+            progress >= Number($action.attr('data-swipe-threshold')) * 100 ? 'Solte para confirmar' : $action.attr('data-swipe-label'));
     }
 
     function resetSwipeAction(action) {
@@ -213,7 +215,8 @@
 
         var swipe = activeSwipe;
         var $action = $(swipe.action);
-        var shouldComplete = !cancelled && swipe.offset >= swipe.maxOffset * 0.96;
+        var threshold = Number($action.attr('data-swipe-threshold')) || 0.96;
+        var shouldComplete = !cancelled && swipe.offset >= swipe.maxOffset * threshold;
 
         if (shouldComplete) {
             updateSwipePosition(swipe, swipe.maxOffset);
@@ -268,6 +271,7 @@
 
         var rect = this.getBoundingClientRect();
         var thumbWidth = $action.find('.ppwoo-swipe-thumb').outerWidth() || 50;
+        if ($action.attr('data-swipe-start-thumb') === 'yes' && getPointerClientX(event) > rect.left + thumbWidth + 8) return;
         var maxOffset = Math.max(0, rect.width - thumbWidth - 8);
         if (maxOffset < 24) return;
 
@@ -295,6 +299,22 @@
         }
 
         event.preventDefault();
+    });
+
+    packingPanel.on('keydown', '.ppwoo-swipe-action[data-swipe-threshold]', function(event) {
+        if (this.disabled || $(this).hasClass('is-complete')) return;
+        var progress = Number(this.getAttribute('aria-valuenow')) || 0;
+        if (event.key === 'ArrowRight' || event.key === 'ArrowLeft' || event.key === 'Home') {
+            event.preventDefault();
+            progress = event.key === 'Home' ? 0 : Math.max(0, Math.min(100, progress + (event.key === 'ArrowRight' ? 25 : -25)));
+            var travel = Math.max(1, this.getBoundingClientRect().width - ($(this).find('.ppwoo-swipe-thumb').outerWidth() || 50) - 8);
+            updateSwipePosition({ action: this, maxOffset: travel, direction: 1 }, travel * progress / 100);
+        } else if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            if (progress >= Number(this.getAttribute('data-swipe-threshold')) * 100) {
+                $(this).addClass('is-complete').trigger('ppwoo:slide-complete');
+            }
+        }
     });
 
     // --- Motoboy Workflow ---

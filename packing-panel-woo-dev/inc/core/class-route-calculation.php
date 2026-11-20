@@ -108,6 +108,36 @@ final class PPWOO_Route_Calculation {
         return is_array($value) && isset($value['origin_postcode']) ? $value : null;
     }
 
+    /** Plano operacional da rota, independente do token efêmero da prévia. */
+    public static function persist_plan(array $calc): array {
+        $geometry = ['origin' => $calc['origin'] ?? null, 'path' => $calc['path'] ?? [], 'locations' => []];
+        foreach ($calc['stops'] as &$stop) {
+            if (isset($stop['location'])) $geometry['locations'][$stop['order_id']] = $stop['location'];
+            unset($stop['location']);
+        }
+        unset($stop);
+        // Coordenadas ficam em cache temporário separado, nunca indefinidamente no rascunho.
+        $key = 'ppwoo_plan_map_' . $calc['token'];
+        set_transient($key, $geometry, 29 * 86400);
+        unset($calc['origin'], $calc['path']);
+        $calc['geometry_key'] = $key;
+        $calc['expires_at'] = 0;
+        return $calc;
+    }
+
+    public static function route_plan(array $route): ?array {
+        $plan = $route['details']['calculation_plan'] ?? null;
+        if (!is_array($plan)) return self::get($route['details']['calc'] ?? '');
+        $map = get_transient($plan['geometry_key'] ?? '');
+        $plan['origin'] = is_array($map) ? $map['origin'] : null;
+        $plan['path'] = is_array($map) ? $map['path'] : [];
+        foreach ($plan['stops'] as &$stop) {
+            if (isset($map['locations'][$stop['order_id']])) $stop['location'] = $map['locations'][$stop['order_id']];
+        }
+        unset($stop);
+        return $plan;
+    }
+
     public static function calculate(array $orders, int $revision): array {
         $fingerprint = self::fingerprint($orders);
         $index = 'ppwoo_calc_match_' . md5(get_current_user_id() . '|' . get_option('ppwoo_routes_url', '') . '|' . $fingerprint);
@@ -252,7 +282,7 @@ final class PPWOO_Route_Calculation {
 
     public static function public_result(?array $result): ?array {
         if (!$result) return null;
-        unset($result['owner'], $result['fingerprint']);
+        unset($result['owner'], $result['fingerprint'], $result['geometry_key']);
         return $result;
     }
 }

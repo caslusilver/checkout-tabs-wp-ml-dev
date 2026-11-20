@@ -15,11 +15,13 @@ test('Central keeps one approved link, fills dispatched data and confirms only a
  assert.equal(calls[1],'read');assert.equal(d.querySelector('.tracking-code').hidden,true);assert.equal(d.querySelector('.tracking-link').target,'_blank');
  assert.equal(d.querySelector('.tracking-accessible-confirm'),null);
  const slide=d.querySelector('#tracking-slide');slide.getBoundingClientRect=()=>({left:0,width:300});
+ assert.equal(d.querySelector('.tracking-receipt').nextElementSibling.className,'tracking-stop','receipt immediately precedes customer address');
  const pointer=(type,x)=>{const e=new w.Event(type);Object.defineProperties(e,{clientX:{value:x},pointerId:{value:1}});slide.dispatchEvent(e);};
  // Um toque no fim do controle não pode confirmar, nem change programático isolado.
  pointer('pointerdown',290);slide.value=100;pointer('pointerup',290);assert.equal(slide.value,'0');assert.equal(calls.includes('confirm'),false);
  pointer('pointerdown',10);slide.value=100;pointer('pointerup',70);assert.equal(slide.value,'0');assert.equal(calls.includes('confirm'),false);
- pointer('pointerdown',10);slide.value=100;pointer('pointerup',280);await wait(()=>d.body.textContent.includes('Recebimento confirmado'));
+ pointer('pointerdown',10);slide.value=74;pointer('pointerup',198);assert.equal(calls.includes('confirm'),false);
+ pointer('pointerdown',10);slide.value=75;pointer('pointerup',199);await wait(()=>d.body.textContent.includes('Recebimento confirmado'));
  assert.equal(calls.filter(c=>c==='confirm').length,1);
 });
 

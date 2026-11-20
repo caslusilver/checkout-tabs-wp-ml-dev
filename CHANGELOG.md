@@ -2,6 +2,16 @@
 
 Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
+## [v3.4.4] - 2026-11-20
+
+- Retirada rápida: contato e slide curto em 50/50 registram saída/início da primeira parada e preparam o link do entregador no WhatsApp em outra aba. Correção/reenvio preserva link e horário; sem revogação automática. Desfazer mantém dados e é limitado ao período anterior à chegada/baixa e à preparação do evento.
+- Ficha posterior: rastreio, código e custos ficam abertos em “Completar depois”, com ícone à direita e recolhimento manual preservado. O evento atual ao n8n só entra na fila ao concluir a ficha; o horário original e a idempotência são mantidos. Fichas pendentes continuam acessíveis mesmo após recebimento pelo cliente.
+- Plano operacional vinculado à composição/endereço, independente da expiração de 30 minutos da prévia. Geometria fica em cache temporário separado; perda desse cache não apaga a ordem nem obriga novo cálculo para despachar. Cálculos antigos cujo cache já foi apagado exigem um primeiro recálculo.
+- Prévia retira pedidos despachados/encerrados. Atualizações e salvamento preservam campos em edição; mudanças de outros operadores geram conflito em vez de sobrescrita silenciosa.
+- Slides deste fluxo concluem a partir de 75%, ao soltar e começando no puxador; pagamento/cancelamento não mudam. Recebimento do cliente sobe para logo após a mensagem de estado.
+- Acompanhamento e entregador consultam a cada 5s enquanto visíveis, sem sobreposição, com recuo em erros e retorno compacto quando não há mudanças. Sem novas chamadas de cálculo por polling. Debug informa ação/tempo sem dados pessoais.
+- Rollback: v3.4.3, `874af8ced51f2796a1318a98d73a42a78d39cbe4`. Antes de voltar, concluir fichas pendentes e sincronizar filas: a versão anterior não oferece edição da ficha após retirada rápida.
+
 ## [v3.4.3] - 2026-11-20
 
 - Central do cliente: indicador pulsante e contorno de 3 px com cantos superiores arredondados acompanham as cores do painel do motoboy: azul aguardando, âmbar a caminho e verde na chegada/entrega registrada. A preparação preserva seu indicador verde. Texto continua identificando cada etapa; registrar entrega não confirma recebimento pelo cliente.

@@ -18,6 +18,7 @@
     // O segredo nunca fica em query string, storage JS, referências ou scripts externos.
     history.replaceState(null, '', location.pathname + location.search + (id ? '#pedido=' + encodeURIComponent(id) : ''));
     let busy = false, finished = false, timer, snapshot, map, mapSignature, mapsPromise, confirming = false, preparationSignature;
+    let failures = 0;
     const node = (tag, text, attrs = {}) => {
         const element = document.createElement(tag);
         if (text !== null) element.textContent = text;
@@ -30,6 +31,7 @@
     async function request(command) {
         if (previewNonce && command !== 'confirm') command = 'preview';
         const body = new URLSearchParams({ action: 'ppwoo_order_tracking', order_id: id || '', command });
+        if (command === 'read' && Number.isInteger(snapshot?.route_revision)) body.set('known_revision', snapshot.route_revision);
         if (command === 'preview') body.set('preview_nonce', previewNonce);
         if (token && command === 'exchange') body.set('token', token);
         const response = await fetch(script.dataset.endpoint, { method: 'POST', credentials: 'same-origin', cache: 'no-store',
@@ -154,19 +156,22 @@
                 try { range.setPointerCapture(event.pointerId); } catch (_) { /* captura nativa pode estar indisponível */ }
             });
             range.addEventListener('pointerup', event => {
-                const completed = drag && drag.id === event.pointerId && event.clientX - drag.x >= Math.max(40, drag.width * .6) && Number(range.value) >= 98;
+                const completed = drag && drag.id === event.pointerId && event.clientX - drag.x >= Math.max(16, (drag.width - 48) * .5) && Number(range.value) >= 75;
                 drag = null;
+                label.textContent = 'Recebeu seu pedido? Deslize para confirmar.';
                 if (completed) confirmReceipt(); else range.value = 0;
             });
-            range.addEventListener('pointercancel', () => { drag = null; range.value = 0; });
+            range.addEventListener('pointercancel', () => { drag = null; range.value = 0; label.textContent = 'Recebeu seu pedido? Deslize para confirmar.'; });
             range.addEventListener('change', () => { if (!drag && !confirming && !keyboard) range.value = 0; });
             range.addEventListener('keydown', event => {
                 keyboard = true;
                 // Acessibilidade pelo próprio slider, sem botão de confirmação por toque.
-                if (event.key === 'Enter' && Number(range.value) >= 98) { event.preventDefault(); confirmReceipt(); }
+                if (event.key === 'Enter' && Number(range.value) >= 75) { event.preventDefault(); confirmReceipt(); }
             });
+            range.addEventListener('input', () => { if (drag) label.textContent = Number(range.value) >= 75 ? 'Solte para confirmar' : 'Recebeu seu pedido? Deslize para confirmar.'; });
             receipt.append(label, range, node('p', '', { class: 'tracking-status', role: 'status' }));
-            content.append(receipt, node('p', '', { class: 'tracking-expiry' }));
+            content.insertBefore(receipt, stop);
+            content.append(node('p', '', { class: 'tracking-expiry' }));
         }
         root.querySelector('.tracking-reference').textContent = 'PEDIDO #' + data.number + ' · ROTA ' + data.route;
         const stages = { started: 'O motoboy está a caminho da sua parada', arrived: 'O motoboy chegou à sua parada', delivered: 'O motoboy registrou a entrega' };
@@ -224,8 +229,10 @@
         try {
             const result = await request(token ? 'exchange' : 'read');
             token = null;
-            render(result);
+            failures = 0;
+            render(result.unchanged ? snapshot : result);
         } catch (error) {
+            failures++;
             if (error.status === 403 || error.status === 410 || !snapshot) {
                 root.replaceChildren(node('p', error.message, { class: 'tracking-status' }), node('button', 'Tentar novamente', { type: 'button', 'data-retry': '' }));
                 root.querySelector('[data-retry]').onclick = () => { map = null; mapSignature = null; load(); };
@@ -235,7 +242,7 @@
                     root.append(node('p', 'Se precisar, solicite um novo link à loja.'));
                 }
             } else status(error.message);
-        } finally { busy = false; if (!finished && !confirming) timer = setTimeout(load, 30000); }
+        } finally { busy = false; if (!finished && !confirming) timer = setTimeout(load, snapshot ? Math.min(30000, 5000 * 2 ** failures) : 30000); }
     }
     document.addEventListener('visibilitychange', () => { clearTimeout(timer); if (!document.hidden) load(); });
     if (!/^[1-9]\d*$/.test(id || '')) root.textContent = 'Abra o link recebido para acompanhar sua entrega. Em caso de dificuldade, entre em contato com a loja.';

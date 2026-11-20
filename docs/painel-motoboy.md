@@ -69,6 +69,26 @@ O estado do motorista não altera status comercial WooCommerce, não dá baixa p
 
 ## Offline e conflitos
 
+### Retirada rápida e ficha posterior — v3.4.4
+
+Com o painel habilitado, abra uma rota calculada: WhatsApp e slide ocupam metade da linha cada. Informe o contato e arraste **Entregar e enviar link** até pelo menos 75%, soltando para confirmar. O servidor registra retirada e início da primeira parada; só então prepara a mensagem com o painel do motoboy em outra aba. Bloqueio da abertura não substitui o PackPanel: use **Abrir mensagem** no diálogo. Abrir o WhatsApp não comprova envio; toque em enviar no aplicativo.
+
+O entregador abre com Waze e contato disponíveis, sem repetir o início. Seus próximos gestos continuam sendo chegada e conclusão/avanço. Corrigir o contato reativa **Atualizar e reenviar** e conserva link/horário. Por decisão expressa do usuário, não há revogação automática: apagar mensagem no WhatsApp não invalida um acesso já recebido/copiado. A revisão administrativa antiga conserva suas regras próprias.
+
+**Desfazer saída** fica disponível antes de chegada/baixa e antes de concluir a ficha para envio do evento. Volta à preparação com cálculo, contato e dados mantidos, sem revogar links; estados já avançados usam revisão administrativa. Se o número da rota tiver sido ocupado por outro rascunho, o servidor impede a reversão e explica o conflito. Histórico e versões operacionais impedem que eventos offline antigos avancem silenciosamente sobre uma saída desfeita.
+
+Rastreio, código e custos por pedido ficam em **Completar depois**, aberto inicialmente. Pode recolher pelo cabeçalho todo; seta à direita. O estado de recolhimento e textos em edição são preservados. Digitar uma correção de telefone não substitui o contato já confirmado para o cliente: só o slide de reenvio confirma a alteração. Após preencher, deslize **Concluir ficha e enviar eventos**. Isso não registra outra saída: enfileira o contrato atual por pedido com o horário original. A ficha continua na aba **Em rota** até ser concluída, inclusive se o cliente já recebeu; o último recebimento já é registrado por pedido, e a rota só vai ao histórico após resolver a ficha.
+
+Validação desta entrega: 25 testes Node, suíte PHP ampliada de retirada/rotas/Central/motoboy e três testes Edge locais. Incluem resposta perdida, correção com autosave, mesmo link/horário, rejeição após chegada, ficha posterior ao recebimento, compactação de payload autenticada, 74% versus 75%, prévia sem reaparecimento, manutenção de foco/recolhimento e retomada offline. APIs, chaves e pedidos nos testes são fictícios; não equivalem à validação do WordPress/n8n/Google/Waze reais.
+
+Sem o painel do motoboy habilitado, permanece o despacho tradicional com ficha completa. Nenhum endpoint/fluxo n8n, chave ou site é configurado automaticamente. Para testar, atualizar o plugin nos dois sites e fechar/reabrir o painel para carregar os assets novos; filas offline existentes continuam usando a máquina de estados versionada.
+
+O plano das paradas fica vinculado aos pedidos/endereço/origem. A geometria de prévia fica em transient separado (até 29 dias); pode ser eliminada antes pelo WordPress. Sem ela, endereço e plano operacional permanecem e o mapa informa indisponibilidade, sem fazer chamada Google automática. Uma prévia antiga já perdida antes da atualização não pode ser recuperada: recalcule uma vez. Não se promete armazenamento ilimitado do retorno do Google.
+
+Polling de 5s, somente em primeiro plano, com retorno `unchanged` após autenticar quando a revisão não mudou; sem reenviar mapa/dados completos no retorno compacto. Falhas recuam, requisições não sobrepõem. Não representa GPS ao vivo nem garante atualização instantânea em 3G. Logs administrativos registram ação/revisão/resultado/tempo, sem contato/token/payload.
+
+Rollback desta melhoria: v3.4.3 (`874af8c`). **Complete as fichas pendentes e sincronize as filas antes de reverter**; o código antigo não sabe completar uma ficha já retirada. Rollback não desfaz saídas, recebimentos ou mensagens enviadas.
+
 Desde v3.4.3, a abertura automática do Waze ao iniciar/avançar usa outra aba (`_blank`, sem acesso ao painel por `opener` e sem referrer). Não há fallback de navegação na própria página: se o navegador bloquear a nova aba ou o usuário cancelar a abertura do aplicativo, o painel permanece aberto e o link **Abrir com Waze** continua disponível. A ação é salva no IndexedDB antes da tentativa de abertura; falha ao abrir não desfaz nem repete a etapa. WhatsApp e Waze explícitos também abrem outra aba. Em PWA e dispositivos móveis, a apresentação pode ser uma janela externa ou o aplicativo, conforme o sistema; o plugin não redireciona a tela original. O diálogo nativo de abertura/cancelamento do Waze depende do navegador e precisa de teste no aparelho.
 
 IndexedDB guarda rota e fila **antes** de liberar o avanço ou abrir outro aplicativo. Cada evento tem UUID, aparelho, sequência e versão operacional própria. A sincronização envia até 20 eventos por lote, em transação e sem chamadas sobrepostas. Repetir a mesma ação após perda de resposta não repete a transição. Conteúdo diferente com o mesmo ID, versão divergente ou sequência inválida é recusado.
