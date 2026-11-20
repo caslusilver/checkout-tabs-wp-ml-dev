@@ -1,13 +1,26 @@
 <?php
 if (!defined('ABSPATH')) exit;
 
-/** Cofre interno; não declara funções sakm_* para não colidir com o snippet legado. */
+/** Cofre interno com ponte opcional para o contrato público do SAKM. */
 final class CTWPML_Key_Vault {
     public const OPTION = 'ctwpml_key_vault_v1';
+    private static bool $compat_provider = false;
 
     public static function init(): void {
         add_action('admin_menu', [__CLASS__, 'menu'], 30);
         add_action('wp_ajax_ctwpml_vault', [__CLASS__, 'ajax']);
+        // Aguarda plugins e init, inclusive snippets legados, antes de oferecer a ponte.
+        add_action('wp_loaded', [__CLASS__, 'register_compatibility'], PHP_INT_MAX);
+    }
+
+    public static function register_compatibility(): void {
+        if (function_exists('sakm_get_key')) return;
+        self::$compat_provider = true;
+        require_once __DIR__ . '/sakm-compat.php';
+    }
+
+    public static function provider(): string {
+        return self::$compat_provider ? 'cofre_integrado' : (function_exists('sakm_get_key') ? 'gerenciador_externo' : 'indisponivel');
     }
 
     public static function menu(): void {
@@ -27,7 +40,7 @@ final class CTWPML_Key_Vault {
 
     public static function encrypt(string $name, string $value): array {
         if (!function_exists('openssl_encrypt')) throw new RuntimeException('OpenSSL precisa estar habilitado no servidor.');
-        if (!preg_match('/^[a-zA-Z0-9_.-]{1,128}$/D', $name) || $value === '' || strlen($value) > 8192) throw new DomainException('Confira o nome e o valor da chave.');
+        if ($name === '' || strlen($name) > 128 || preg_match('/[\x00-\x1F\x7F]/', $name) || $value === '' || strlen($value) > 8192) throw new DomainException('Confira o nome e o valor da chave.');
         $iv = random_bytes(12); $tag = '';
         $cipher = openssl_encrypt($value, 'aes-256-gcm', self::key(), OPENSSL_RAW_DATA, $iv, $tag, $name, 16);
         if ($cipher === false) throw new RuntimeException('Não foi possível proteger a chave.');
@@ -51,18 +64,59 @@ final class CTWPML_Key_Vault {
     }
 
     private static function legacy(string $name): ?string {
-        if (function_exists('sakm_get_key')) {
+        if (!self::$compat_provider && function_exists('sakm_get_key')) {
             $value = sakm_get_key($name);
             return is_string($value) ? $value : null;
         }
         // Só lê sem o snippet se os parâmetros reais já existirem no ambiente.
-        if (!defined('SAKM_KEY') || !defined('SAKM_IV') || !defined('SAKM_CIPHER')) return null;
         $rows = get_option('sakm_encrypted_keys', []);
         if (!isset($rows[$name]) || !is_string($rows[$name])) return null;
-        $encoded = base64_decode($rows[$name], true);
+        return self::legacy_decrypt($rows[$name]);
+    }
+
+    private static function legacy_decrypt(string $value): ?string {
+        if (!function_exists('openssl_decrypt') || !defined('SAKM_KEY') || !defined('SAKM_IV') || !defined('SAKM_CIPHER')) return null;
+        $encoded = base64_decode($value, true);
         if ($encoded === false) return null;
         $value = openssl_decrypt($encoded, SAKM_CIPHER, SAKM_KEY, 0, SAKM_IV);
         return is_string($value) ? $value : null;
+    }
+
+    /** Helpers SAKM mantêm a API PHP, sem voltar a escrever com IV fixo. */
+    public static function compat_encrypt(string $value): string {
+        return self::compat_pack('_sakm_value', self::encrypt('_sakm_value', $value));
+    }
+    private static function compat_pack(string $name, array $row): string {
+        return 'ctwpml-v1:' . base64_encode(json_encode(['name' => $name, 'row' => $row], JSON_THROW_ON_ERROR));
+    }
+    public static function compat_decrypt(string $value): ?string {
+        if (strpos($value, 'ctwpml-v1:') !== 0) return self::legacy_decrypt($value);
+        $json = base64_decode(substr($value, strlen('ctwpml-v1:')), true);
+        $data = $json === false ? null : json_decode($json, true, 16);
+        if (!is_array($data) || !is_string($data['name'] ?? null) || !is_array($data['row'] ?? null)) return null;
+        return self::decrypt($data['name'], $data['row']);
+    }
+    public static function compat_keys(): array {
+        $keys = (array) get_option('sakm_encrypted_keys', []);
+        foreach ((array) get_option(self::OPTION, []) as $name => $row) {
+            if (is_array($row)) $keys[$name] = self::compat_pack((string) $name, $row);
+            else unset($keys[$name]);
+        }
+        return $keys;
+    }
+    public static function compat_save(array $keys): void {
+        $internal = []; $legacy = [];
+        foreach ($keys as $name => $value) {
+            if (!is_string($value) || strlen($value) > 32768 || (string) $name === '' || strlen((string) $name) > 128 || preg_match('/[\x00-\x1F\x7F]/', (string) $name)) throw new DomainException('Confira o nome e o valor da chave.');
+            $plain = self::compat_decrypt($value);
+            if ($plain === null) {
+                if (strpos($value, 'ctwpml-v1:') === 0) throw new DomainException('A chave protegida não pôde ser lida.');
+                // Preserva ciphertext legado opaco quando seus parâmetros reais não estão disponíveis.
+                $legacy[$name] = $value;
+            } else $internal[$name] = self::encrypt((string) $name, $plain);
+        }
+        update_option(self::OPTION, $internal, false);
+        update_option('sakm_encrypted_keys', $legacy, false);
     }
 
     public static function migrate(): array {

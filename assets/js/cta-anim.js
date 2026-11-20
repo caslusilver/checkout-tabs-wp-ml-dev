@@ -343,7 +343,7 @@
         status: status,
         durationMs: durMs,
         result: parsed && parsed.result ? parsed.result : null,
-        redirect: parsed && parsed.redirect ? parsed.redirect : null,
+        hasRedirect: !!(parsed && parsed.redirect),
         hasMessages: !!messages,
         messages: messages,
         deltaOverlayToCompleteMs: deltaOverlay,

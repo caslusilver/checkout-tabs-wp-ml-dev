@@ -2,6 +2,8 @@
 
 Atualização do cofre na v3.4.1: o caminho em ambos os sites é **Checkout Tabs ML → Segurança das chaves**, endereço administrativo `/wp-admin/admin.php?page=ctwpml-vault`. As configurações do entregador continuam em PackPanel → Motoboy.
 
+Compatibilidade na v3.4.2: `sakm_get_key()` volta a estar disponível para consumidores externos depois de `wp_loaded`, quando o snippet anterior não existe. Isso inclui o gateway Pix Clone, que exige essa função. A ponte lê as referências já cadastradas, sem trocar valores ou layout. [Diagnóstico e contrato completo](cofre-sakm-compatibilidade.md). A chave do Pix continua sendo a referência configurada no próprio gateway (padrão `authorization`); ela não deve ser trocada pela chave Google ou pela conexão do entregador.
+
 Origem: [blueprint e entrevista aprovados](https://app.notion.com/p/41e4347fa2c281839691dfaddf477a20), [transcrição de origem](https://app.notion.com/p/41e4347fa2c28107964feb99b1404975). A prévia aprovada define iniciar azul, chegar âmbar, concluir verde; marcadores e borda de 3px acompanham o estado. Sem GPS automático ou Chatwoot nesta etapa.
 
 ## Instalar no próprio site
