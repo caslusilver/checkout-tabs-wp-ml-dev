@@ -689,8 +689,13 @@
                 mapsLibrary = new Promise((resolve, reject) => {
                     const script = document.createElement('script');
                     const callback = 'ppwooRoutesMapsReady';
-                    const fail = () => {
-                        reject(new Error('O mapa não carregou. Confira a configuração do Google Maps.'));
+                    const fail = reason => {
+                        clearTimeout(timer);
+                        const message = reason === 'auth'
+                            ? 'O Google recusou a chave do mapa. Confira a referência em PackPanel → Rotas e as restrições/faturamento no Google Cloud.'
+                            : reason === 'timeout' ? 'O mapa demorou para carregar. Confira a conexão e tente novamente.'
+                                : 'Não foi possível carregar o mapa. Confira a conexão ou bloqueios do navegador.';
+                        reject(new Error(message));
                         $panel.find('.ppwoo-route-map').each(function () {
                             if (!this.routeMap) return;
                             (this.routeOverlays || []).forEach(overlay => overlay.setMap(null));
@@ -699,20 +704,20 @@
                             if (focus) focus.disabled = true;
                             drawRouteDiagram(this, this.routeCalculation);
                             if (!this.parentNode.querySelector('.ppwoo-map-notice')) this.after(el('p', { class: 'ppwoo-map-notice' },
-                                'O Google recusou a chave do mapa. Confira as restrições e o faturamento em PackPanel → Rotas.'));
+                                message));
                         });
                     };
-                    const timer = setTimeout(fail, 12000);
+                    const timer = setTimeout(() => fail('timeout'), 12000);
                     window[callback] = () => {
                         clearTimeout(timer);
                         resolve(window.google.maps);
                     };
-                    window.gm_authFailure = fail;
+                    window.gm_authFailure = () => fail('auth');
                     script.src = 'https://maps.googleapis.com/maps/api/js?' + new URLSearchParams({
                         key: config.maps_key, loading: 'async', callback, v: 'weekly', language: 'pt-BR', region: 'BR'
                     });
                     script.async = true;
-                    script.onerror = () => { clearTimeout(timer); fail(); };
+                    script.onerror = () => fail('network');
                     document.head.appendChild(script);
                 });
             }
@@ -878,10 +883,10 @@
                             new maps.Polyline({ map, path: calc.path, strokeColor: '#1658b8', strokeOpacity: 0.9, strokeWeight: 4 })
                         ];
                         map.fitBounds(bounds, 28);
-                    }).catch(() => {
+                    }).catch(error => {
                         if (node.isConnected && $(node).is(':visible')) {
                             drawRouteDiagram(node, calc);
-                            node.after(el('p', { class: 'ppwoo-map-notice' }, 'Google Maps não carregou. Confira a chave, domínio autorizado e faturamento em PackPanel → Rotas. O esquema abaixo não mostra ruas.'));
+                            node.after(el('p', { class: 'ppwoo-map-notice' }, (error.message || 'Google Maps não carregou.') + ' O esquema abaixo não mostra ruas.'));
                             debug('mapa', 'falha de carregamento');
                         }
                         else delete node.dataset.drawn;

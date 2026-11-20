@@ -35,6 +35,7 @@ add_action('admin_enqueue_scripts', function ($hook_suffix) {
 		'packpanel_version' => $packpanel_version,
 		'woocommerce_active' => function_exists('WC') || class_exists('WooCommerce'),
 		'sakm_get_key_exists' => function_exists('sakm_get_key'),
+		'key_vault_provider' => CTWPML_Key_Vault::provider(),
 		'php_version' => PHP_VERSION,
 		'wp_version' => get_bloginfo('version'),
 	];

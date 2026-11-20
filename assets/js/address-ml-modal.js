@@ -3,6 +3,24 @@
 
   window.CCCheckoutTabs = window.CCCheckoutTabs || {};
 
+  // WooCommerce usa triggerHandler no próprio formulário: esse evento não sobe até body.
+  window.CCCheckoutTabs.bindCheckoutSuccess = function (onSuccess) {
+    var $ = window.jQuery;
+    if (!$ || typeof onSuccess !== 'function') return;
+    var lastPayload = null;
+    function receive(_event, payload) {
+      if (!payload || payload.result !== 'success' || typeof payload.redirect !== 'string' || !payload.redirect || payload === lastPayload) return;
+      lastPayload = payload;
+      try { onSuccess(payload); } catch (_) { /* feedback nunca deve impedir o redirect nativo */ }
+    }
+    function bindForms() {
+      $('form.checkout, form.woocommerce-checkout').off('checkout_place_order_success.ctwpmlSuccess').on('checkout_place_order_success.ctwpmlSuccess', receive);
+    }
+    $(document.body).off('.ctwpmlSuccess').on('updated_checkout.ctwpmlSuccess ctwpml_woo_updated.ctwpmlSuccess', bindForms)
+      .on('checkout_place_order_success.ctwpmlSuccess', receive);
+    bindForms();
+  };
+
   window.CCCheckoutTabs.normalizePhoneForCheckout = function (value, countryCode, dialCode) {
     var raw = String(value || '').trim();
     var digits = raw.replace(/\D/g, '');
@@ -8903,14 +8921,14 @@
     });
 
     // Checkout Woo: sucesso (AJAX) -> limpar estado do modal e evitar restore em nova compra
-    $(document.body).on('checkout_place_order_success', function (e, data) {
+    window.CCCheckoutTabs.bindCheckoutSuccess(function (data) {
       try {
         var payload = data || {};
         var result = payload && payload.result ? String(payload.result) : '';
         markOrderCompleted({
           source: 'checkout_place_order_success',
           result: result,
-          redirect: payload && payload.redirect ? String(payload.redirect) : '',
+          hasRedirect: !!(payload && payload.redirect),
         });
         try {
           if (window.CTWPMLPrepare && typeof window.CTWPMLPrepare.hidePreparingOverlay === 'function') window.CTWPMLPrepare.hidePreparingOverlay();

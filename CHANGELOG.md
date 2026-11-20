@@ -2,6 +2,14 @@
 
 Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
+## [v3.4.2] - 2026-11-20
+
+- Restaura a API PHP `sakm_get_key()` para consumidores externos, incluindo o gateway Pix Clone, sem exigir que eles conheçam a classe do novo cofre. A ponte é instalada após plugins/init, se o provedor anterior estiver ausente; a função existente do snippet não é sobrescrita. Layout e valores cadastrados permanecem iguais.
+- Mantém os helpers SAKM de listar/salvar/criptografar/decriptar e o acesso administrativo compatível. Novas escritas usam envelopes GCM com IV aleatório; leitura do CTR antigo depende dos parâmetros reais do ambiente ou da importação anterior. Não copia chave/IV fixos do snippet e evita recursão no fallback.
+- Checkout: escuta o evento nativo de sucesso diretamente no formulário, inclusive após substituição, preservando animação e redirecionamento do WooCommerce. Falhas não mostram sucesso e o listener não remove vetos de outros gateways.
+- Mapa: diferencia recusa de autenticação, falha de rede e timeout. A mensagem de chave recusada passa a depender do sinal de autenticação do Google. Não altera chaves, restrições ou faturamento.
+- Diagnóstico de instalação identifica o provedor de chaves sem imprimir segredos. Logs de conclusão registram apenas presença do redirecionamento, sem a URL com chave do pedido. Rollback: v3.4.1, `d99a600f2f50c5158b1c38b0bf3b370228dab067`.
+
 ## [v3.4.1] - 2026-11-20
 
 - Cofre movido para **Checkout Tabs ML → Segurança das chaves**, disponível na loja e no modo remoto sem WooCommerce. A antiga aba do PackPanel aponta ao novo local.
