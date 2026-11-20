@@ -281,7 +281,7 @@ expect(explode("\n\n", $message), [
     'Endereço: Rua Fictícia 101, São Paulo',
     'CEP: 00000-000',
     'Complemento: Apto 101',
-    'Google Maps: https://www.google.com/maps/dir/?api=1&destination=' . rawurlencode('Rua Fictícia 101, São Paulo, SP, 00000-000, BR') . '&dir_action=navigate',
+    'Waze: https://waze.com/ul?q=' . rawurlencode('Rua Fictícia 101, São Paulo, SP, 00000-000, BR') . '&navigate=yes',
 ], 'Mensagem de entrega do primeiro pedido');
 $complement_order = new class(999) extends WC_Order {
     public bool $different = false;
@@ -468,3 +468,5 @@ $access = PPWOO_Order_Tracking::customer_access(201);
 expect($access['tracking_url'], '', 'Pedido encerrado não ganha link público ativo para teste');
 expect(str_contains($access['preview_url'], '&previa='), true, 'Pedido encerrado tem prévia administrativa sem reabrir');
 echo "Central: janela fixa, atraso, opção independente e prévia de encerrados passaram.\n";
+expect(str_contains(PPWOO_Utils::delivery_message('Pessoa', '', 'Rua', '', '', 'Rua São João, 12 & 14, São Paulo'),
+    'Waze: https://waze.com/ul?q=Rua%20S%C3%A3o%20Jo%C3%A3o%2C%2012%20%26%2014%2C%20S%C3%A3o%20Paulo&navigate=yes'), true, 'Waze codifica acentos e separadores sem quebrar parâmetros');

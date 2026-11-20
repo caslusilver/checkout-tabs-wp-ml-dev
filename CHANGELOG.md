@@ -4,6 +4,8 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
 ## [v3.3.9] - 2026-11-20
 
+- Mensagem de dados para o motoboy passa a usar Waze com endereço codificado e navigate=yes. O mapa incorporado e o rastreio da viagem permanecem em seus serviços atuais.
+
 - Central: tela de preparação no layout aprovado, indicador verde, janela de envio preservada pela data de aprovação (ou criação), aviso de atraso e atualização automática. Reutiliza calendário e tolerância existentes.
 - Opção independente “Aguardar início pelo painel do motoboy”, desativada por padrão. Ativada, mostra retirada confirmada e espera de início com indicador azul; desativada, mantém acompanhamento normal após despacho. O painel do entregador permanece na etapa 2.
 - Acesso ao acompanhamento e prévia administrativa somente leitura pelos pedidos Motoboy e cartões de rota, inclusive para pedidos encerrados sem reativar tokens. Links da viagem disponíveis em rascunho, despacho e histórico quando já cadastrados.

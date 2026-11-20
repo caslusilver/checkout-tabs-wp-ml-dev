@@ -2,6 +2,8 @@
 
 ## Preparação e testes administrativos — 3.3.9
 
+A mensagem copiada em “Dados para o motoboy” usa `https://waze.com/ul?q=ENDERECO_CODIFICADO&navigate=yes`, montada pelo helper existente. A busca ainda depende da resolução do endereço pelo Waze; não é a otimização multiparada do painel. Não altera o Google Maps incorporado nem o rastreio Uber. Formato conferido na [documentação oficial](https://developers.google.com/waze/deeplinks). Não foi testada a abertura em aplicativo real.
+
 A preparação usa o layout aprovado, indicador verde de espera, janela de ENVIO em azul e atraso sem deslocar o horário. Reutiliza `ctwpml_next_dispatch` e a tolerância. A janela é gravada no pedido como `_ppwoo_dispatch_window` na primeira resolução, tomando a data de pagamento (ou criação se ausente) como referência; não substitui a janela pelo relógio atual a cada visita. Pedidos antigos usam essa mesma regra, sem precisar de um novo pedido. Sem horários configurados, mostra “A confirmar”. O texto de busca por motoboy dá lugar a espera de saída quando já existe contato na ficha.
 
 Em PackPanel → Rotas há a opção **Aguardar início pelo painel do motoboy (etapa 2)**, desativada por padrão. Desativada, o despacho mostra imediatamente o acompanhamento atual, com mapa/rastreio/previsão. Ativada, retirada confirmada mostra “O motoboy já está com o seu pedido”, espera de início e indicador azul. Só preencher contato ou montar rota não comprova retirada. O futuro evento `driver_started_at` encerrará a espera; ele ainda não é produzido nesta entrega. Enquanto a etapa 2 não existe, desligue a opção para continuar a operação normal. Não há reset de rotas, tokens, confirmações ou data de saída ao alternar. A validade pública continua contando da saída efetiva registrada.

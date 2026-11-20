@@ -18,7 +18,7 @@ class PPWOO_Utils {
             $lines[] = 'Complemento: ' . $complement;
         }
         if ($maps_destination !== '') {
-            $lines[] = 'Google Maps: https://www.google.com/maps/dir/?api=1&destination=' . rawurlencode($maps_destination) . '&dir_action=navigate';
+            $lines[] = 'Waze: https://waze.com/ul?q=' . rawurlencode($maps_destination) . '&navigate=yes';
         }
         return implode("\n\n", $lines);
     }
