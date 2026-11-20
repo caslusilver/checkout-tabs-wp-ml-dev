@@ -8,6 +8,18 @@ final class PPWOO_Driver_State {
         return ['version' => 0, 'current' => 0, 'status' => 'ready', 'stops' => array_map(static fn($id) => ['id' => (int) $id, 'state' => 'ready'], $ids), 'receipts' => [], 'devices' => []];
     }
 
+    /** A retirada confirmada pelo operador já inicia a primeira parada. */
+    public static function depart(array $ids, string $at, array $previous = []): array {
+        $state = self::initial($ids);
+        foreach (['version', 'devices', 'receipts'] as $key) if (isset($previous[$key])) $state[$key] = $previous[$key];
+        $device = wp_generate_uuid4(); $id = wp_generate_uuid4();
+        $before = $state['version']; $sequence = $state['devices'][$device] ?? 0;
+        $state = self::apply($state, ['id' => $id, 'device' => $device, 'seq' => $sequence + 1,
+            'version' => $before, 'stop_id' => $state['stops'][0]['id'], 'type' => 'start', 'at' => $at], [], $at);
+        $state['operator_start'] = ['version_before' => $before, 'event_id' => $id, 'device' => $device, 'sequence_before' => $sequence];
+        return $state;
+    }
+
     public static function apply(array $state, array $event, array $confirmed_ids, string $received_at): array {
         $id = $event['id'] ?? ''; $device = $event['device'] ?? '';
         if (!is_string($id) || !preg_match('/^[a-f0-9-]{36}$/D', $id) || !is_string($device) || !preg_match('/^[a-f0-9-]{36}$/D', $device) ||
@@ -19,6 +31,23 @@ final class PPWOO_Driver_State {
             return $state;
         }
         if (count($state['receipts']) >= 1000 || (!isset($state['devices'][$device]) && count($state['devices']) >= 20)) throw new DomainException('Peça ao administrador para revisar esta rota.', 409);
+        // Compatibilidade: um aparelho antigo pode ter enfileirado o primeiro start
+        // offline antes de a leitura de outro aparelho preparar a rota já despachada.
+        $operator = $state['operator_start'] ?? null;
+        if (($event['type'] ?? '') === 'start' && $operator && empty($operator['legacy_ack']) && $event['version'] === $operator['version_before'] &&
+            $state['version'] === $operator['version_before'] + 1 && $state['current'] === 0 && $state['stops'][0]['state'] === 'started') {
+            $base = $state; $base['version']--; $base['status'] = 'ready';
+            $base['stops'][0] = ['id' => $state['stops'][0]['id'], 'state' => 'ready'];
+            unset($base['started_at'], $base['operator_start'], $base['receipts'][$operator['event_id']]);
+            if ($operator['sequence_before']) $base['devices'][$operator['device']] = $operator['sequence_before'];
+            else unset($base['devices'][$operator['device']]);
+            $ack = self::apply($base, $event, $confirmed_ids, $received_at);
+            $state['devices'][$device] = $ack['devices'][$device];
+            $state['receipts'][$id] = $ack['receipts'][$id];
+            $state['operator_start']['legacy_ack'] = $id;
+            // A versão/início já confirmados pelo operador não são avançados novamente.
+            return $state;
+        }
         if ($event['seq'] !== ($state['devices'][$device] ?? 0) + 1 || $event['version'] !== $state['version']) throw new DomainException('A rota mudou. Confira as pendências antes de continuar.', 409);
         $index = array_search($event['stop_id'], array_column($state['stops'], 'id'), true);
         $current = $state['current']; $type = $event['type'] ?? '';
@@ -63,7 +92,7 @@ final class PPWOO_Driver_State {
     }
 
     public static function view(array $state): array {
-        unset($state['receipts']);
+        unset($state['receipts'], $state['operator_start']);
         return $state;
     }
 }

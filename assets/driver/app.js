@@ -40,6 +40,7 @@
     function confirmed(row = record) { return (row.snapshot?.stops || []).filter(stop => stop.confirmed).map(stop => stop.id); }
     function shell() {
         root.innerHTML = '<article class="driver-app"><p class="connection-banner" role="status"></p><div class="driver-map"><div class="map-tools"><button type="button" data-focus>Focar parada</button><button type="button" data-expand>Expandir</button></div><div class="map-canvas" role="region" aria-label="Mapa da rota"></div></div><div class="driver-sheet"><div class="route-row"><span class="route-label"></span><button type="button" data-stops>Paradas <span data-position></span> ☷</button></div><div class="destination-title"><span data-stage></span><strong data-order></strong></div><p class="recipient" data-name></p><h1 data-address></h1><p class="address-detail" data-detail></p><a class="contact-link" data-whatsapp target="_blank" rel="noopener noreferrer"><span data-number></span><small>Toque para falar pelo WhatsApp ↗</small></a><a class="waze-link" data-waze target="_blank" rel="noopener noreferrer">Abrir com Waze ↗</a><p class="current-message" data-message role="status"></p><div class="swipe-area"><label for="driver-slide"></label><input id="driver-slide" type="range" min="0" max="100" value="0" aria-label="Deslize para confirmar a etapa"><span class="swipe-arrow" aria-hidden="true">→</span></div><p class="sync-state" data-sync></p><button class="correction" type="button" data-correct hidden>Corrigir esta parada</button><button type="button" data-reconcile hidden>Conferir pendências</button></div><section class="stop-menu" hidden aria-label="Paradas da rota"><div class="stop-menu-title"><h2>Paradas da rota</h2><button type="button" data-close-list>Fechar</button></div><div data-stop-list></div></section><section class="driver-done" hidden><div class="done-check">✓</div><h2>Rota concluída!</h2><p>Muito obrigado e boa viagem.</p><p data-done-sync></p></section></article>';
+        q('.driver-sheet').hidden = true; q('.driver-map').hidden = true;
         q('[data-stops]').onclick = () => { q('.stop-menu').hidden = false; };
         const review = document.createElement('button'); review.type = 'button'; review.textContent = 'Consultar paradas ou corrigir'; review.dataset.review = '';
         review.onclick = () => { reviewDone = true; q('.driver-done').hidden = true; q('.stop-menu').hidden = false; }; q('.driver-done').append(review);
@@ -60,6 +61,16 @@
     }
     function render() {
         if (suspended || !record?.snapshot || dragging || !q('.driver-app')) return;
+        // Não mostrar o antigo aceite enquanto o primeiro acesso online consulta a loja.
+        // Rotas já em execução e filas offline continuam disponíveis imediatamente.
+        const awaitingFresh = firstRead && navigator.onLine && !record.queue.length &&
+            (record.snapshot.pending_dispatch || record.snapshot.driver?.status === 'ready');
+        q('.driver-sheet').hidden = awaitingFresh; q('.driver-map').hidden = awaitingFresh;
+        if (awaitingFresh) {
+            q('.driver-done').hidden = true;
+            q('.connection-banner').textContent = 'Carregando a rota autorizada…' + (notice ? ' ' + notice : '');
+            return;
+        }
         let state;
         try { state = effective(); } catch (_) { state = record.snapshot.driver; record.conflict = true; }
         const rows = record.snapshot.stops || [], index = Math.min(record.selected || 0, Math.max(0, rows.length - 1)), stop = rows[index];
@@ -81,13 +92,15 @@
         const navigate = isCurrent && phase !== 'ready' && !record.snapshot.pending_dispatch;
         q('[data-waze]').setAttribute('aria-disabled', String(!navigate));
         if (navigate && safeURL(stop.waze)) q('[data-waze]').href = stop.waze; else q('[data-waze]').removeAttribute('href');
-        const label = phase === 'ready' ? 'Deslize para iniciar a rota' : phase === 'started' ? 'Deslize para confirmar chegada' : index + 1 === rows.length ? 'Deslize para concluir a rota' : 'Concluir e iniciar a próxima parada';
-        q('.swipe-area label').textContent = record.snapshot.pending_dispatch ? 'Aguardando a loja confirmar a retirada' : !isCurrent ? 'Conclua a parada atual para avançar' : label;
-        const slider = q('#driver-slide'); slider.value = 0; slider.disabled = !isCurrent || !!blocked || acting;
+        const label = phase === 'started' ? 'Deslize para confirmar chegada' : index + 1 === rows.length ? 'Deslize para concluir a rota' : 'Concluir e iniciar a próxima parada';
+        const preview = record.snapshot.pending_dispatch || phase === 'ready';
+        q('.swipe-area').hidden = !!preview;
+        q('.swipe-area label').textContent = !isCurrent ? 'Conclua a parada atual para avançar' : label;
+        const slider = q('#driver-slide'); slider.value = 0; slider.disabled = !!preview || !isCurrent || !!blocked || acting;
         q('.swipe-area').classList.toggle('disabled', slider.disabled); slider.setAttribute('aria-label', q('.swipe-area label').textContent);
         q('[data-correct]').hidden = phase === 'ready'; q('[data-correct]').disabled = stop.confirmed || !!blocked || acting;
         q('[data-correct]').textContent = stop.confirmed ? 'Recebimento confirmado — revisão só pelo administrador' : 'Corrigir esta parada';
-        q('[data-message]').textContent = notice || (phase === 'arrived' ? (record.queue.length ? 'Chegada salva. O cliente será atualizado após a sincronização.' : 'Chegada registrada no acompanhamento do cliente.') : phase === 'started' ? 'Ao chegar, deslize para registrar a chegada.' : 'Inicie a rota para abrir a navegação.');
+        q('[data-message]').textContent = notice || (record.snapshot.pending_dispatch ? 'Prévia da rota. A loja ainda não confirmou a retirada.' : phase === 'arrived' ? (record.queue.length ? 'Chegada salva. O cliente será atualizado após a sincronização.' : 'Chegada registrada no acompanhamento do cliente.') : phase === 'started' ? 'Ao chegar, deslize para registrar a chegada.' : 'Consulte as paradas da rota.');
         const list = q('[data-stop-list]'); list.replaceChildren();
         rows.forEach((row, i) => {
             const button = document.createElement('button'); button.type = 'button'; button.className = 'stop-choice'; button.setAttribute('aria-current', String(i === index));
@@ -107,7 +120,8 @@
         try {
             const displayed = effective(), expected = displayed.version;
             const selected = record.selected || 0, shown = record.snapshot.stops[selected];
-            const action = type || (displayed.stops[selected].state === 'ready' ? 'start' : displayed.stops[selected].state === 'started' ? 'arrive' : 'complete');
+            if (displayed.stops[selected].state === 'ready') throw new Error('Aguarde a liberação da rota pela loja.');
+            const action = type || (displayed.stops[selected].state === 'started' ? 'arrive' : 'complete');
             await edit(value => {
                 if (value.conflict || value.snapshot.pending_dispatch) throw new Error('Confira o estado da rota antes de continuar.');
                 const state = effective(value);

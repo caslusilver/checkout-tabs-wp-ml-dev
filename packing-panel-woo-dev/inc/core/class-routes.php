@@ -279,13 +279,7 @@ final class PPWOO_Routes {
                     $stop['details']['last_stop'] = $calc['destination_order_id'] === $stop['order_id'];
                     PPWOO_Routes_Store::save_stop($stop);
                 }
-                $previous = $route['details']['driver'] ?? [];
-                $driver = PPWOO_Driver_State::initial(array_column($calc['stops'], 'order_id'));
-                foreach (['version', 'devices', 'receipts'] as $key) if (isset($previous[$key])) $driver[$key] = $previous[$key];
-                $device = wp_generate_uuid4();
-                $driver = PPWOO_Driver_State::apply($driver, ['id' => wp_generate_uuid4(), 'device' => $device,
-                    'seq' => ($driver['devices'][$device] ?? 0) + 1, 'version' => $driver['version'], 'stop_id' => $driver['stops'][0]['id'], 'type' => 'start', 'at' => $now], [], $now);
-                $route['details']['driver'] = $driver;
+                $route['details']['driver'] = PPWOO_Driver_State::depart(array_column($calc['stops'], 'order_id'), $now, $route['details']['driver'] ?? []);
                 $route['details']['driver_started_at'] = $now;
                 $route['details']['departed_at'] = $now; $route['details']['departed_by'] = get_current_user_id();
                 $route['details']['origin'] = $calc['origin_postcode'];
@@ -389,6 +383,10 @@ final class PPWOO_Routes {
                 $route['details']['departed_by'] = get_current_user_id();
                 $route['details']['origin'] = $calc['origin_postcode'];
                 $route['details']['dispatched_calculation'] = PPWOO_Route_Calculation::public_result($calc);
+                if (class_exists('CTWPML_Driver_Panel') && CTWPML_Driver_Panel::enabled()) {
+                    $route['details']['driver'] = PPWOO_Driver_State::depart(array_column($calc['stops'], 'order_id'), $route['details']['departed_at'], $route['details']['driver'] ?? []);
+                    $route['details']['driver_started_at'] = $route['details']['departed_at'];
+                }
             }
             if ($dispatch && $quick) {
                 $route['details']['sheet_pending'] = false;

@@ -2,6 +2,14 @@
 
 Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
+## [v3.4.6] - 2026-11-20
+
+- Retirada confirmada pelo operador já inicia a primeira parada tanto no fluxo rápido quanto no despacho pela ficha completa. O motoboy abre endereço/Waze liberados e usa somente os slides de chegada e conclusão/avanço; não há aceite ou início adicional na página dele.
+- Cópia antiga em preparação não é exibida como etapa acionável enquanto a primeira consulta online autoriza o acesso. Prévia antecipada permanece somente consulta; não despacha pedidos. Primeira abertura ainda depende de conexão, sem aguardar outro ciclo de polling após a resposta.
+- Rotas antigas já despachadas e ainda sem início são preparadas na primeira leitura autorizada, mantendo a saída original. Compatibilidade aceita o início equivalente já salvo offline por uma versão antiga, sem duplicar o início nem descartar a fila; chegada/conclusão continuam sequenciais e idempotentes.
+- Resposta compacta “sem mudanças” inclui ID da rota, atendendo ao contrato bilateral. O host remoto deixa de confundi-la com falha; respostas de outra rota são recusadas. Respostas de eventos informam a revisão persistida.
+- Sem novos eventos n8n ou alteração da finalização da ficha/recebimento pelo cliente. Rollback: v3.4.5, `20af00b`. Sincronizar filas antes de atualizar os dois sites ou reverter; o código anterior pode voltar a mostrar o início em rotas ainda não preparadas.
+
 ## [v3.4.5] - 2026-11-20
 
 - Previsão de envio passa a guardar fuso, instante-base do pagamento/criação e calendário/tolerância originais. O fuso do WordPress continua sendo a referência única; formato de exibição não altera o cálculo.
