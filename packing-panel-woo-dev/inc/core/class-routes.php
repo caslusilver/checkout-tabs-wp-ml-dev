@@ -467,6 +467,8 @@ final class PPWOO_Routes {
                 case 'close': self::close($input); break;
                 case 'retry': self::retry($input); break;
                 case 'tracking_link': $extra = PPWOO_Order_Tracking::admin_link($input); break;
+                case 'customer_link':
+                    $extra = PPWOO_Order_Tracking::customer_access(self::id($input['order_id'] ?? null)); break;
                 case 'resume':
                     $route = self::route($input);
                     if ($route['state'] === 'draft') self::conflict();

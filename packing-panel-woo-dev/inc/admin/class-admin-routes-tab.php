@@ -73,6 +73,8 @@ final class PPWOO_Admin_Routes_Tab {
                 </tr>
             </table>
             <h3>Central de Entrega do cliente</h3>
+            <p><label><input type="checkbox" name="tracking_wait_driver" <?php checked(PPWOO_Order_Tracking::wait_for_driver()); ?>> Aguardar início pelo painel do motoboy (etapa 2)</label></p>
+            <p class="description">Desativado: depois do despacho, mostra o acompanhamento normal. Ativado: mostra “Com o motoboy, aguardando início”. O painel do entregador ainda será implementado; desative para voltar ao fluxo normal a qualquer momento. Não altera tokens nem apaga rotas.</p>
             <p>Publique uma página com <code>[ppwoo_order_tracking]</code> e selecione abaixo. Ela será exibida sem cabeçalho ou rodapé. O link individual passa a acompanhar os novos eventos de despacho.</p>
             <?php wp_dropdown_pages(['name' => 'tracking_page', 'selected' => (int) get_option('ppwoo_tracking_page', 0), 'show_option_none' => 'Desativada — selecione uma página', 'option_none_value' => '0']); ?>
             <p class="description">O n8n deve usar event_data.tracking_data.order_tracking_url na mensagem ao cliente. O campo link continua sendo o rastreio da viagem. Acesso por 24 horas após a saída, encerrado antes pela baixa.</p>
@@ -108,6 +110,7 @@ final class PPWOO_Admin_Routes_Tab {
         update_option('ppwoo_routes_auth_key_name', $key_name === '' ? PPWOO_Route_Calculation::DEFAULT_AUTH_KEY : $key_name, false);
         update_option('ppwoo_routes_enabled', $enabled ? 'yes' : 'no', false);
         update_option('ppwoo_tracking_page', $tracking_page, false);
+        update_option('ppwoo_tracking_wait_driver', isset($_POST['tracking_wait_driver']) ? 'yes' : 'no', false);
         update_option('ppwoo_routes_maps_key_name', $maps_key_name, false);
         delete_option('ppwoo_routes_maps_key');
     }

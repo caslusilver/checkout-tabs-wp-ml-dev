@@ -122,6 +122,9 @@ if (PPWOO_Config::is_debug()) {
                             <h3>Pedido #<?php echo esc_html($order_id); ?></h3>
                             <span class="metodo-envio motoboy"><?php esc_html_e('Motoboy', 'painel-empacotamento'); ?></span>
                         </div>
+                        <?php if ($routes_enabled && !$is_external) : ?>
+                            <button type="button" class="ppwoo-routes-button" data-customer-access="<?php echo esc_attr($order_id); ?>">Acompanhamento do cliente ↗</button>
+                        <?php endif; ?>
 
                         <div class="order-client-info">
                             <h4><?php esc_html_e('Cliente', 'painel-empacotamento'); ?>:</h4>

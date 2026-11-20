@@ -1,4 +1,20 @@
-# Central de Entrega — v3.3.8
+# Central de Entrega — v3.3.9
+
+## Preparação e testes administrativos — 3.3.9
+
+A mensagem copiada em “Dados para o motoboy” usa `https://waze.com/ul?q=ENDERECO_CODIFICADO&navigate=yes`, montada pelo helper existente. A busca ainda depende da resolução do endereço pelo Waze; não é a otimização multiparada do painel. Não altera o Google Maps incorporado nem o rastreio Uber. Formato conferido na [documentação oficial](https://developers.google.com/waze/deeplinks). Não foi testada a abertura em aplicativo real.
+
+A preparação usa o layout aprovado, indicador verde de espera, janela de ENVIO em azul e atraso sem deslocar o horário. Reutiliza `ctwpml_next_dispatch` e a tolerância. A janela é gravada no pedido como `_ppwoo_dispatch_window` na primeira resolução, tomando a data de pagamento (ou criação se ausente) como referência; não substitui a janela pelo relógio atual a cada visita. Pedidos antigos usam essa mesma regra, sem precisar de um novo pedido. Sem horários configurados, mostra “A confirmar”. O texto de busca por motoboy dá lugar a espera de saída quando já existe contato na ficha.
+
+Em PackPanel → Rotas há a opção **Aguardar início pelo painel do motoboy (etapa 2)**, desativada por padrão. Desativada, o despacho mostra imediatamente o acompanhamento atual, com mapa/rastreio/previsão. Ativada, retirada confirmada mostra “O motoboy já está com o seu pedido”, espera de início e indicador azul. Só preencher contato ou montar rota não comprova retirada. O futuro evento `driver_started_at` encerrará a espera; ele ainda não é produzido nesta entrega. Enquanto a etapa 2 não existe, desligue a opção para continuar a operação normal. Não há reset de rotas, tokens, confirmações ou data de saída ao alternar. A validade pública continua contando da saída efetiva registrada.
+
+Cada pedido local na aba Motoboy e nas listas de rota tem **Acompanhamento do cliente**. O diálogo apresenta link público quando ativo e uma **prévia administrativa, somente leitura**. Pedidos encerrados/expirados não ganham acesso público novo para teste; a prévia exige sessão com permissão do painel e nonce específico do pedido, não mostra o slider e não altera a baixa. Não compartilhe essa prévia como se fosse link do comprador. Recarregamento mantém o modo da prévia até o nonce vencer.
+
+**Links da rota** permite abrir/copiar o rastreio de viagem já preenchido em rascunhos, rotas despachadas e no histórico, sem depender de uma nova emissão. Dados ainda não preenchidos são identificados como indisponíveis. O futuro painel exclusivo do entregador está sinalizado como etapa 2, sem URL falsa ou endpoint novo. Gerenciador integrado, site remoto, eventos do entregador e offline não foram implementados nesta etapa.
+
+Polling mantém atualização sem reload e preserva a tela se o conteúdo não mudou. Os componentes e o clipboard reutilizam os padrões existentes. Cobertura adicional: janela fixa após mudança de calendário, atraso, opção ligada/desligada, prévia de pedido encerrado, estado azul, transição de preparação para mapa e modo administrativo somente leitura. A aparência real em WordPress/Elementor, celular/PWA e a configuração da página ainda precisam de validação no site.
+
+Rollback desta etapa: v3.3.8, merge `b072cc5b1dcf2e45ab565ad4b762603f3988bbca`. Sem migração de schema; os novos metadados/opções podem permanecer no rollback sem desfazer operações.
 
 Blueprint canônico: https://app.notion.com/p/4174347fa2c281039406ffda42320b4d
 
