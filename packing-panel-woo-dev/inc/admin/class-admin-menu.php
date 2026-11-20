@@ -61,7 +61,6 @@ class PPWOO_Admin_Menu {
                 </a>
                 <?php if (class_exists('CTWPML_Driver_Admin')): ?>
                 <a href="?page=<?php echo esc_attr(self::PAGE_SLUG); ?>&tab=driver" data-full-load="1" class="nav-tab <?php echo $current_tab === 'driver' ? 'nav-tab-active' : ''; ?>">Motoboy</a>
-                <a href="?page=<?php echo esc_attr(self::PAGE_SLUG); ?>&tab=keys" data-full-load="1" class="nav-tab <?php echo $current_tab === 'keys' ? 'nav-tab-active' : ''; ?>">Chaves de API</a>
                 <?php endif; ?>
             </nav>
             
@@ -81,7 +80,7 @@ class PPWOO_Admin_Menu {
                         if (class_exists('CTWPML_Driver_Admin')) CTWPML_Driver_Admin::render();
                         break;
                     case 'keys':
-                        if (class_exists('CTWPML_Key_Vault')) CTWPML_Key_Vault::render();
+                        if (class_exists('CTWPML_Key_Vault') && current_user_can('manage_options')) echo '<p>O cofre foi movido para <a href="' . esc_url(CTWPML_Key_Vault::url()) . '">Checkout Tabs ML → Segurança das chaves</a>.</p>';
                         break;
                     default:
                         PPWOO_Admin_Style_Tab::render();

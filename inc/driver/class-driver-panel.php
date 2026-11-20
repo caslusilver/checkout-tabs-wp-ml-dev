@@ -20,7 +20,6 @@ final class CTWPML_Driver_Panel {
             if (!self::remote()) return; // Na loja, usa as abas existentes do PackPanel.
             add_menu_page('PackPanel', 'PackPanel', 'manage_options', 'ppwoo-settings', ['CTWPML_Driver_Admin', 'render'], 'dashicons-location');
             add_submenu_page('ppwoo-settings', 'Painel do motoboy', 'Motoboy', 'manage_options', 'ctwpml-driver', ['CTWPML_Driver_Admin', 'render']);
-            add_submenu_page('ppwoo-settings', 'Chaves de API', 'Chaves de API', 'manage_options', 'ctwpml-vault', ['CTWPML_Key_Vault', 'render']);
         }, 20);
         add_action('ctwpml_driver_cleanup', [__CLASS__, 'cleanup']);
         if (!wp_next_scheduled('ctwpml_driver_cleanup')) wp_schedule_event(time() + 3600, 'hourly', 'ctwpml_driver_cleanup');

@@ -2,6 +2,14 @@
 
 Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
+## [v3.4.1] - 2026-11-20
+
+- Cofre movido para **Checkout Tabs ML → Segurança das chaves**, disponível na loja e no modo remoto sem WooCommerce. A antiga aba do PackPanel aponta ao novo local.
+- Interface organizada em cadastro, lista de chaves e importação recolhível; cada chave tem Mostrar/Ocultar, Copiar chave, Copiar nome e Remover com confirmação. Inclui as referências do gerenciador legado sem duplicar nomes.
+- Valores obtidos somente sob ação de administrador autenticado, por POST com nonce e resposta sem cache. Não são inseridos no HTML inicial; valores revelados são ocultados após um minuto ou ao sair da aba. Cópia tem alternativa manual quando o navegador bloquear a área de transferência.
+- Remoção confirmada apaga somente o nome escolhido no cofre e na opção legada, impedindo que o fallback restaure a chave. Demais chaves e configurações são preservadas; instalação/atualização não transfere chaves entre sites.
+- Guia bilateral atualizado com o novo caminho. Rollback desta correção: v3.4.0, commit `08a7f5c21eb1296e8a09644b032640dcf0b9c65f`.
+
 ## [v3.4.0] - 2026-11-20
 
 - Painel do motoboy por `[ppwoo_driver_panel]`: iniciar, registrar chegada e concluir/avançar por slide, com estados azul, âmbar e verde, marcadores e contorno acompanhando a etapa. Consulta de paradas, mapa da rota, expansão e navegação por Waze; zoom restrito ao mapa.

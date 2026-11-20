@@ -1,10 +1,12 @@
 # Painel do motoboy — etapa 2, v3.4.0
 
+Atualização do cofre na v3.4.1: o caminho em ambos os sites é **Checkout Tabs ML → Segurança das chaves**, endereço administrativo `/wp-admin/admin.php?page=ctwpml-vault`. As configurações do entregador continuam em PackPanel → Motoboy.
+
 Origem: [blueprint e entrevista aprovados](https://app.notion.com/p/41e4347fa2c281839691dfaddf477a20), [transcrição de origem](https://app.notion.com/p/41e4347fa2c28107964feb99b1404975). A prévia aprovada define iniciar azul, chegar âmbar, concluir verde; marcadores e borda de 3px acompanham o estado. Sem GPS automático ou Chatwoot nesta etapa.
 
 ## Instalar no próprio site
 
-1. Atualize o plugin e abra **PackPanel → Motoboy**. Na loja, é uma aba ao lado de Rotas, Conexão e Chaves de API.
+1. Atualize o plugin e abra **PackPanel → Motoboy**. Na loja, é uma aba ao lado de Rotas e Conexão. O cofre fica no menu Checkout Tabs ML → Segurança das chaves.
 2. Publique uma página dedicada, por exemplo `/entregas/`, com `[ppwoo_driver_panel]`. Não use a página inicial: o cache offline tem escopo apenas nessa página.
 3. Selecione a página, escolha **Local — loja de origem**, habilite e salve. Campos de conexão entre sites podem ficar vazios no modo exclusivamente local. O mapa usa a referência Google já cadastrada em PackPanel → Rotas.
 4. Se quiser mostrar ao cliente “O motoboy já está com seu pedido” até o motorista iniciar, ative **Aguardar início pelo painel do motoboy** na aba Rotas. Desativar o painel do motoboy restaura o acompanhamento normal; não obriga uso do novo fluxo.
@@ -25,7 +27,7 @@ Use o mesmo pacote atualizado nos dois sites. O WordPress remoto não precisa de
 | Nome local da chave compartilhada | Referência no cofre da loja | Referência no cofre remoto |
 | Nome da chave Google para domínio remoto | Não usado; usa a configuração Rotas | Referência Google válida para o host remoto |
 
-1. Em **Chaves de API**, gere uma chave aleatória e salve o **mesmo valor**, com pelo menos 32 caracteres, nos dois cofres. Os nomes de referência podem diferir. Não use a chave Google como segredo de comunicação.
+1. Em **Checkout Tabs ML → Segurança das chaves**, gere uma chave aleatória e salve o **mesmo valor**, com pelo menos 32 caracteres, nos dois cofres. Se já cadastrou na loja, use **Copiar chave** no cartão correspondente e cole o valor no outro site; **Copiar nome** recupera a referência. Os nomes podem diferir. Não use a chave Google como segredo de comunicação. Instalar o ZIP não copia os dados de outro WordPress; cada site criptografa seu próprio cadastro.
 2. Preencha a tabela, habilite e salve nos dois sites.
 3. No host remoto, execute **Testar conexão configurada**. O diagnóstico assinado não consulta pedidos nem registra entregas.
 4. O endpoint é fixo: `/wp-json/ctwpml-driver/v1/route`. O plugin monta esse caminho a partir da loja configurada; não aceita URLs arbitrárias vindas do navegador.
@@ -40,12 +42,14 @@ A chave Google de navegador **precisa chegar ao SDK**. Guardá-la pelo nome orga
 O snippet Secure API Keys Manager v2.1 foi fornecido pelo usuário nesta conversa. Reaproveitamos os nomes e a leitura, sem copiar chave/IV fixos nem redeclarar funções `sakm_*`. As integrações de cálculo, despacho e mapa procuram primeiro o cofre interno e, na ausência do nome, consultam o legado.
 
 1. Faça backup do banco, das chaves originais e dos salts/segredo de criptografia. Não publique esses backups no repositório.
-2. Mantenha o snippet ativo e vá a **PackPanel → Chaves de API → Importar chaves legadas**.
+2. Mantenha o snippet ativo e vá a **Checkout Tabs ML → Segurança das chaves → Importar do gerenciador anterior → Importar chaves legadas**.
 3. A importação copia e recriptografa os valores legíveis usando AES-256-GCM, IV aleatório de 12 bytes, tag de 16 bytes e nome como dado autenticado. Não sobrescreve nomes internos já existentes nem apaga `sakm_encrypted_keys`.
 4. Valide cálculo, mapa e envio com as mesmas referências de nome. Só depois desative o snippet manualmente, se desejar. O agente não altera snippets do site.
 5. O cofre usa segredo derivado de `wp_salt('secure_auth')`, ou `CTWPML_VAULT_KEY` definido no ambiente antes de carregar o plugin. Trocar salts, essa constante ou mover apenas o banco pode tornar os valores ilegíveis: planeje exportação/reentrada antes. Não inclua essa constante nem valores reais em commits.
 
-Valores internos não são exibidos pela lista. Salvar/remover/importar exige `manage_options` e nonce. O gerador usa `crypto.getRandomValues`. Remover somente uma chave interna não apaga sua cópia legada: enquanto o snippet existir, uma referência ausente ainda poderá usar o legado. Para aposentar uma chave, trate ambas as fontes deliberadamente.
+Na v3.4.1 a lista exibe nomes internos e legados, sem duplicar referências. O valor começa oculto e é recuperado somente ao clicar em Mostrar ou Copiar chave, com capacidade administrativa, nonce e POST sem cache. Mostrar permite ocultar novamente; o valor é apagado da visualização após um minuto ou ao sair da aba. Se a cópia automática for bloqueada, oferece seleção manual. Copiar nome não consulta o segredo. Não grava valores em localStorage/sessionStorage nem em logs.
+
+Salvar/remover/importar exige `manage_options` e nonce. O gerador usa `crypto.getRandomValues`. **Remover** exige confirmação e apaga somente o nome escolhido tanto no cofre interno quanto na opção legada desse site, se houver, evitando que a chave reapareça pelo fallback; a confirmação avisa que integrações podem parar. A importação permanece sem apagar o legado. Nenhuma chave existente é transferida ou alterada automaticamente pela atualização.
 
 ## Etapas e dados
 
@@ -81,6 +85,8 @@ O primeiro acesso exige conexão. Limpar dados do navegador, modo privado, bloqu
 O teste de navegador usa HTTP localhost (contexto seguro de desenvolvimento) e API simulada, sem chaves ou clientes reais. Não valida o ambiente WordPress/MySQL, HTTPS/cookies em dois domínios, Google Maps real, iOS/Safari, PWA/Elementor da loja nem abertura do app Waze. Esses pontos exigem instalação controlada e teste de ponta a ponta pelo usuário. Nenhum site, snippet, n8n ou pedido de produção foi modificado pelo agente.
 
 ## Rollback
+
+Para reverter somente a reorganização do cofre (v3.4.1), use **v3.4.0**, commit `08a7f5c21eb1296e8a09644b032640dcf0b9c65f`. As chaves existentes usam a mesma opção/criptografia. Uma exclusão que o administrador confirmou não é desfeita pelo rollback; mantenha backup. O caminho antigo do cofre volta a ser PackPanel nessa versão.
 
 Base anterior: **v3.3.9**, integração `723a1ec705c561ee332bc50ceec9bb0c37c7c59c`, já publicada. Primeiro sincronize as filas, desative o painel e preserve backups. O Git Updater pode retornar a essa tag; não apaga dados/eventos. Se já importou chaves e desativou o snippet, reative a leitura legada antes de voltar: v3.3.9 não conhece o cofre novo. No host remoto, não use a versão antiga como painel isolado (ela não tem modo remoto); desative o plugin ali. A página do motoboy não deve permanecer exposta ou prometida como operacional após rollback.
 
