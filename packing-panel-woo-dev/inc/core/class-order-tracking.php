@@ -30,7 +30,7 @@ final class PPWOO_Order_Tracking {
     }
 
     public static function wait_for_driver(): bool {
-        return get_option('ppwoo_tracking_wait_driver', 'no') === 'yes';
+        return get_option('ppwoo_tracking_wait_driver', 'no') === 'yes' && (!class_exists('CTWPML_Driver_Panel') || CTWPML_Driver_Panel::enabled());
     }
 
     public static function preparation(WC_Order $order, ?array $route = null, bool $persist = true): array {
@@ -231,10 +231,14 @@ final class PPWOO_Order_Tracking {
         $sheet = $route['details']['sheet'] ?? [];
         $phone = PPWOO_Utils::sanitize_phone((string) ($sheet['phone'] ?? ''));
         $address = PPWOO_Route_Calculation::address($order);
+        $driver = !class_exists('CTWPML_Driver_Panel') || CTWPML_Driver_Panel::enabled() ? ($route['details']['driver'] ?? []) : [];
+        $own_stage = '';
+        foreach ($driver['stops'] ?? [] as $member) if ($member['id'] === $stop['order_id']) $own_stage = $member['state'];
         return [
             'number' => $order->get_order_number(), 'route' => $route['slot'], 'position' => $stop['position'],
             'total' => count(PPWOO_Routes_Store::route_stops($route['id'])), 'last' => $last,
-            'departed_at' => $route['details']['departed_at'] ?? '', 'eta_at' => $stop['details']['eta_at'] ?? '',
+            'departed_at' => $route['details']['driver_started_at'] ?? $route['details']['departed_at'] ?? '', 'eta_at' => $stop['details']['eta_at'] ?? '',
+            'driver_stage' => $own_stage, 'current_position' => isset($driver['current']) ? $driver['current'] + 1 : null,
             'expires_at' => gmdate('c', (int) ($stop['details']['access']['expires'] ?? 0)),
             'address' => implode(', ', array_filter([$address['street'], $address['number'], $address['neighborhood'], $address['city']], 'strlen')),
             'final_area' => $final_area, 'code' => $last ? (string) ($sheet['code'] ?? '') : '',

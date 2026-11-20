@@ -107,7 +107,7 @@ class PPWOO_Admin_Connection_Tab {
                                value="<?php echo esc_attr($payments_auth_key_name); ?>"
                                class="regular-text"
                                placeholder="authorization" />
-                        <p class="description"><?php esc_html_e('Nome da variável para sakm_get_key (ex: authorization).', 'painel-empacotamento'); ?></p>
+                        <p class="description"><?php esc_html_e('Nome da chave no cofre de API (ex: authorization). Mantém compatibilidade com sakm_get_key do gerenciador anterior.', 'painel-empacotamento'); ?></p>
                     </td>
                 </tr>
             </table>

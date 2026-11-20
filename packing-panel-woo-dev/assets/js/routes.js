@@ -263,7 +263,7 @@
                 (route.state !== 'draft' || !calc.expires_at || calc.expires_at * 1000 > Date.now());
             const last = valid && route.stops.find(order => order.id === calc.destination_order_id);
             return el('small', { class: 'ppwoo-route-destination', 'data-route-destination': route.id },
-                last ? el('span', { class: 'ppwoo-route-private-recipient' }, 'Destino final: ' + (last.name || 'Pedido #' + last.number) + ' · ' +
+                last ? el('span', { class: 'ppwoo-route-private-recipient' }, el('strong', {}, 'Destino final: '), (last.name || 'Pedido #' + last.number) + ' · ' +
                     (last.address_display || last.address || 'Endereço indisponível'))
                     : (route.state === 'draft' ? 'Destino a confirmar · recalcule' : 'Destino não disponível'));
         }
@@ -1086,12 +1086,20 @@
             } catch (error) { window.alert(error.message); }
             finally { this.disabled = false; }
         });
-        $panel.on('click', '[data-route-access]', function () {
+        $panel.on('click', '[data-route-access]', async function () {
             const route = currentRoute(Number(this.dataset.routeAccess)) || historyRoutes.get(Number(this.dataset.routeAccess));
             if (!route) return;
             const unsaved = sheets.get(route.id);
-            linkDialog('Links da rota ' + route.slot, [['Rastreio da viagem', unsaved?.link ?? route.sheet?.link ?? route.trip?.link],
-                ['Painel do motoboy (etapa 2)', '']]);
+            const links = [['Rastreio da viagem', unsaved?.link ?? route.sheet?.link ?? route.trip?.link]];
+            try {
+                const data = await api('driver_link', { route_id: route.id }); links.push(['Painel do motoboy', data.driver_url]);
+                if (route.revision === data.previous_revision) {
+                    if (editRevisions.get(route.id) === route.revision) editRevisions.set(route.id, data.link_revision);
+                    route.revision = data.link_revision;
+                }
+            }
+            catch (error) { links.push([error.message, '']); }
+            linkDialog('Links da rota ' + route.slot, links);
         });
         $panel.on('click', '[data-save-sheet]', async function () {
             const id = Number(this.dataset.saveSheet);

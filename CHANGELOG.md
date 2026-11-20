@@ -2,6 +2,16 @@
 
 Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
+## [v3.4.0] - 2026-11-20
+
+- Painel do motoboy por `[ppwoo_driver_panel]`: iniciar, registrar chegada e concluir/avançar por slide, com estados azul, âmbar e verde, marcadores e contorno acompanhando a etapa. Consulta de paradas, mapa da rota, expansão e navegação por Waze; zoom restrito ao mapa.
+- Modo local ou host WordPress remoto no mesmo pacote, sem carregar checkout/WooCommerce no modo remoto. Comunicação servidor a servidor por HMAC, domínio permitido, nonce antirreplay, TLS e limite de requisições. Diagnóstico sem pedidos ou efeitos externos.
+- Rota e ações persistidas no navegador: reabertura offline por cache restrito do shell, fila ordenada/idempotente e conciliação explícita de conflitos. Ações do entregador não confirmam recebimento pelo comprador nem alteram o status comercial do WooCommerce.
+- Atualização automática da Central com início/chegada/entrega registrada e previsão pelo início real e pelos trechos restantes. Correções do entregador respeitam confirmações do cliente; revisão administrativa auditada revoga os acessos anteriores.
+- Cofre interno de chaves em PackPanel, AES-256-GCM com IV aleatório, permissão administrativa e nonce. Importação explícita preserva o gerenciador legado e integra as referências de credencial já usadas em cálculo/despacho.
+- Links do entregador acessíveis em “Links da rota”, inclusive na preparação. “Cálculo atualizado” em azul e destino final em preto, com apenas o rótulo em negrito.
+- Referência de rollback: `v3.3.9`, commit `723a1ec705c561ee332bc50ceec9bb0c37c7c59c`. Configuração e migração de chaves não são ativadas automaticamente. Consulte `docs/painel-motoboy.md` antes de habilitar.
+
 ## [v3.3.9] - 2026-11-20
 
 - Mensagem de dados para o motoboy passa a usar Waze com endereço codificado e navigate=yes. O mapa incorporado e o rastreio da viagem permanecem em seus serviços atuais.

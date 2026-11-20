@@ -32,11 +32,11 @@ class PPWOO_Payments_Action_Service {
             return new WP_Error('missing_webhook_url', 'URL do webhook de pagamentos não configurada.');
         }
 
-        if (!function_exists('sakm_get_key')) {
+        if (!class_exists('CTWPML_Key_Vault') && !function_exists('sakm_get_key')) {
             return new WP_Error('missing_sakm_get_key', 'Função sakm_get_key não encontrada.');
         }
 
-        $auth_key = sakm_get_key((string) $auth_key_name);
+        $auth_key = class_exists('CTWPML_Key_Vault') ? CTWPML_Key_Vault::get((string) $auth_key_name) : sakm_get_key((string) $auth_key_name);
         if (empty($auth_key)) {
             return new WP_Error('missing_auth_key', 'Chave de autenticação não encontrada.');
         }
