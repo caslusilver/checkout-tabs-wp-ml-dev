@@ -1,5 +1,19 @@
 # Painel do motoboy — etapa 2, v3.4.0
 
+## Dois gestos por parada — v3.4.6
+
+Regra aprovada pelo usuário: quando o operador confirma a retirada e compartilha o link, o motoboy já recebeu os objetos e está a caminho. **Não há slide de receber/iniciar no painel do entregador.** A primeira parada abre com endereço, contato e Waze disponíveis; o primeiro gesto é **confirmar chegada**, que atualiza o cliente. O segundo gesto conclui a parada e inicia a próxima, abrindo Waze em outra aba quando disponível. Na última, conclui a rota. A confirmação de recebimento do comprador continua independente.
+
+Retirada rápida e despacho por ficha completa usam o mesmo início confirmado no servidor. Preencher a ficha depois, corrigir o número ou reenviar o link não reinicia o percurso. A prévia copiada antes da retirada continua somente consulta; abrir um link de rascunho não despacha os pedidos. Depois do slide do operador, a primeira resposta autorizada já traz a operação liberada, sem exigir outro aceite nem esperar novo ciclo de polling. Carregar a página pela primeira vez exige internet; não se promete ausência de tempo de rede.
+
+Na abertura online, uma cópia antiga ainda em preparação fica oculta até a primeira resposta, com indicador de carregamento. Rotas já em execução e filas offline permanecem disponíveis. O cache não é apagado para simular velocidade. Rotas de versões anteriores que já saíram, mas estavam sem início, são preparadas na leitura autorizada usando o horário de saída original. Eventos antigos de início que já estavam na fila são conciliados como equivalentes, sem outro início; após avanço incompatível continua existindo conflito explícito.
+
+No modo remoto, a resposta compacta agora inclui `route_id` junto de `unchanged`; sem esse identificador o proxy podia tratá-la como falha e recuar a atualização. Resposta de outra rota é recusada. Não há aumento de frequência, relaxamento de token/HMAC nem novos eventos externos.
+
+Testes: `tests/driver-ready.test.php` cobre despacho completo, prévia bloqueada, primeiro gesto de chegada, avanço, legado/idempotência/offline e contrato bilateral. `tests/driver-panel-dom.test.cjs` cobre cache antigo com resposta demorada, dois gestos, reconexão e links em outra aba. `tests/driver-browser.qa.cjs` valida interface mobile/desktop, chegada offline, reabertura e avanço. Atualizar ambos os sites para 3.4.6 após sincronizar filas, fechar/reabrir painel/atalho e conferir a primeira parada sem slide de iniciar. Teste com WordPress/HTTPS bilaterais, iOS/3G e apps nativos continua necessário.
+
+Rollback do código: v3.4.5 (`20af00b`), após sincronizar filas. Não desfaz saídas nem estados já iniciados; rotas ainda não preparadas podem voltar a exibir a etapa de iniciar na versão anterior. Permanecem as condições da v3.4.4 para fichas pendentes.
+
 Atualização do cofre na v3.4.1: o caminho em ambos os sites é **Checkout Tabs ML → Segurança das chaves**, endereço administrativo `/wp-admin/admin.php?page=ctwpml-vault`. As configurações do entregador continuam em PackPanel → Motoboy.
 
 Compatibilidade na v3.4.2: `sakm_get_key()` volta a estar disponível para consumidores externos depois de `wp_loaded`, quando o snippet anterior não existe. Isso inclui o gateway Pix Clone, que exige essa função. A ponte lê as referências já cadastradas, sem trocar valores ou layout. [Diagnóstico e contrato completo](cofre-sakm-compatibilidade.md). A chave do Pix continua sendo a referência configurada no próprio gateway (padrão `authorization`); ela não deve ser trocada pela chave Google ou pela conexão do entregador.

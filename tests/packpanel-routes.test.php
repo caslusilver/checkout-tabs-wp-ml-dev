@@ -72,6 +72,9 @@ function wc_get_order($order_id) { return $GLOBALS['orders'][$order_id] ?? null;
 function as_enqueue_async_action($hook, $args, $group) { $GLOBALS['jobs'][] = $args[0]; return count($GLOBALS['jobs']); }
 
 function wp_safe_remote_post($url, $data) {
+    if (str_ends_with($url, '/wp-json/ctwpml-driver/v1/route') && isset($GLOBALS['driver_remote_result'])) {
+        return ['status' => 200, 'body' => json_encode($GLOBALS['driver_remote_result'])];
+    }
     $body = json_decode($data['body'], true, 24, JSON_THROW_ON_ERROR);
     $GLOBALS['calls'][] = ['url' => $url, 'body' => $body, 'headers' => $data['headers']];
     if ($url === $GLOBALS['options']['ppwoo_routes_url']) {

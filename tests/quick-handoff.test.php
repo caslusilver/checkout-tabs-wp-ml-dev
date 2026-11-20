@@ -64,7 +64,7 @@ expect(PPWOO_Routes_Store::stop(801)['details']['access']['expires'] > time(), t
 $token = substr($driverLink, strpos($driverLink, '&acesso=') + 8);
 $read = CTWPML_Driver_Panel::local(['route_id' => 700, 'token' => $token, 'events' => []]);
 expect($read['pending_dispatch'], false, 'Entregador abre com navegação liberada');
-expect(CTWPML_Driver_Panel::local(['route_id' => 700, 'token' => $token, 'known_revision' => $read['route_revision'], 'events' => []]), ['unchanged' => true], 'Polling repetido não envia mapa/endereço outra vez');
+expect(CTWPML_Driver_Panel::local(['route_id' => 700, 'token' => $token, 'known_revision' => $read['route_revision'], 'events' => []]), ['route_id' => 700, 'unchanged' => true], 'Polling repetido identifica a rota sem enviar mapa/endereço outra vez');
 rejects(fn() => CTWPML_Driver_Panel::local(['route_id' => 700, 'token' => str_repeat('0',64), 'known_revision' => $read['route_revision'], 'events' => []]),403);
 $event = ['id' => 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'device' => 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
     'seq' => 1, 'version' => $read['driver']['version'], 'stop_id' => 801, 'type' => 'arrive', 'at' => gmdate('c')];

@@ -135,8 +135,10 @@ final class CTWPML_Driver_Panel {
             'body' => $body, 'timeout' => 20, 'redirection' => 0, 'sslverify' => true, 'limit_response_size' => 1048576]);
         if (is_wp_error($response)) throw new DomainException('Sem resposta da loja. As ações salvas serão conferidas antes de repetir.', 503);
         $status = wp_remote_retrieve_response_code($response); $result = json_decode(wp_remote_retrieve_body($response), true, 32);
-        if ($status !== 200 || !is_array($result) || !isset($result['route_id'])) throw new DomainException(
+        if ($status !== 200 || !is_array($result) || !isset($result['route_id']) ||
+            (isset($data['route_id']) && $result['route_id'] !== $data['route_id'])) throw new DomainException(
             in_array($status, [403,409,410,422,429], true) ? 'A loja recusou esta ação. Confira as pendências ou peça ajuda ao administrador.' : 'Resposta indisponível. Tentaremos novamente.', in_array($status, [403,409,410,422,429], true) ? $status : 503);
+        if (($result['unchanged'] ?? false) === true) return ['route_id' => $result['route_id'], 'unchanged' => true];
         // Chave de navegador do host remoto tem restrição própria de domínio.
         $map_key = CTWPML_Key_Vault::get((string) ($cfg['maps_key_name'] ?? '')) ?: '';
         $result['maps_key'] = $map_key && !hash_equals($key, $map_key) && preg_match('/^[A-Za-z0-9_-]{20,128}$/D', $map_key) ? $map_key : '';
@@ -150,9 +152,17 @@ final class CTWPML_Driver_Panel {
         return PPWOO_Routes_Store::transaction(static function () use ($id, $token, $events, $input) {
             $route = PPWOO_Routes_Store::route($id, true);
             if (!$route || empty($route['details']['driver_access']) || !hash_equals(self::token($route), $token)) throw new DomainException('Link inválido ou revogado.', 403);
-            if (!$events && ($input['known_revision'] ?? null) === $route['revision']) return ['unchanged' => true];
             $stops = PPWOO_Routes_Store::route_stops($id);
             $state = $route['details']['driver'] ?? PPWOO_Driver_State::initial(array_column($stops, 'order_id'));
+            // Rotas de versões anteriores: retirada já autorizada dispensa outro aceite.
+            // Lotes offline antigos são aplicados primeiro, preservando sua sequência.
+            if (!$events && $route['state'] === 'dispatched' && $state['status'] === 'ready' && $state['current'] === 0 && !empty($route['details']['departed_at'])) {
+                $state = PPWOO_Driver_State::depart(array_column($stops, 'order_id'), $route['details']['departed_at'], $state);
+                $route['details']['driver'] = $state;
+                $route['details']['driver_started_at'] = $state['started_at'];
+                PPWOO_Routes_Store::save_route($route); $route['revision']++;
+                self::debug('primeira parada liberada pela retirada', ['route_id' => $id, 'version' => $state['version']]);
+            } elseif (!$events && ($input['known_revision'] ?? null) === $route['revision']) return ['route_id' => $id, 'unchanged' => true];
             if (!isset($state['last_event_at']) && !empty($route['details']['departed_at'])) $state['last_event_at'] = $route['details']['departed_at'];
             if ($route['state'] === 'closed' && !$events) return ['route_id' => $id, 'closed' => true, 'driver' => PPWOO_Driver_State::view($state)];
             if ($events && $route['state'] !== 'dispatched') {
@@ -179,6 +189,7 @@ final class CTWPML_Driver_Panel {
                 if (!empty($state['started_at'])) $route['details']['driver_started_at'] = $state['started_at'];
                 self::update_estimates($route, $stops, $state);
                 PPWOO_Routes_Store::save_route($route);
+                $route['revision']++;
                 self::debug('eventos aplicados', ['route_id' => $id, 'count' => count($events), 'version' => $state['version'],
                     'types' => array_column($events, 'type'), 'stop_ids' => array_column($events, 'stop_id')]);
             }
