@@ -2,6 +2,12 @@
 
 Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
+## [v3.3.9] - 2026-11-20
+
+- Central: tela de preparação no layout aprovado, indicador verde, janela de envio preservada pela data de aprovação (ou criação), aviso de atraso e atualização automática. Reutiliza calendário e tolerância existentes.
+- Opção independente “Aguardar início pelo painel do motoboy”, desativada por padrão. Ativada, mostra retirada confirmada e espera de início com indicador azul; desativada, mantém acompanhamento normal após despacho. O painel do entregador permanece na etapa 2.
+- Acesso ao acompanhamento e prévia administrativa somente leitura pelos pedidos Motoboy e cartões de rota, inclusive para pedidos encerrados sem reativar tokens. Links da viagem disponíveis em rascunho, despacho e histórico quando já cadastrados.
+
 ## [v3.3.8] - 2026-11-19
 
 - Central: bloqueia o zoom do documento no celular e mantém gestos de navegação no mapa, sem ampliar o restante da página.

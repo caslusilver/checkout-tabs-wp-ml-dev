@@ -14,9 +14,10 @@
     const params = new URLSearchParams(location.hash.slice(1));
     const id = params.get('pedido');
     let token = params.get('acesso');
+    const previewNonce = params.get('previa');
     // O segredo nunca fica em query string, storage JS, referências ou scripts externos.
     history.replaceState(null, '', location.pathname + location.search + (id ? '#pedido=' + encodeURIComponent(id) : ''));
-    let busy = false, finished = false, timer, snapshot, map, mapSignature, mapsPromise, confirming = false;
+    let busy = false, finished = false, timer, snapshot, map, mapSignature, mapsPromise, confirming = false, preparationSignature;
     const node = (tag, text, attrs = {}) => {
         const element = document.createElement(tag);
         if (text !== null) element.textContent = text;
@@ -27,7 +28,9 @@
     const safeLink = value => /^https?:\/\//i.test(value || '') ? value : '';
     function status(text) { root.querySelector('.tracking-status').textContent = text; }
     async function request(command) {
+        if (previewNonce && command !== 'confirm') command = 'preview';
         const body = new URLSearchParams({ action: 'ppwoo_order_tracking', order_id: id || '', command });
+        if (command === 'preview') body.set('preview_nonce', previewNonce);
         if (token && command === 'exchange') body.set('token', token);
         const response = await fetch(script.dataset.endpoint, { method: 'POST', credentials: 'same-origin', cache: 'no-store',
             headers: { 'X-PPWOO-Central': '1' }, body });
@@ -90,11 +93,38 @@
     }
     function render(data) {
         snapshot = data;
-        if (data.preparing) {
-            root.replaceChildren(node('section', null, { class: 'tracking-thanks' }));
-            root.firstChild.append(node('p', 'PEDIDO #' + data.number), node('h1', 'Estamos preparando seu pedido'), node('p', 'Assim que ele sair, o mapa, a previsão e os dados do motoboy aparecerão aqui.'), node('p', '', { class: 'tracking-status', role: 'status' }));
+        if (data.preparing || data.waiting_driver) {
+            const signature = JSON.stringify(data);
+            if (signature === preparationSignature && root.classList.contains('tracking-preparing')) return;
+            preparationSignature = signature;
+            map = null; mapSignature = null;
+            root.classList.add('tracking-preparing');
+            const content = node('section', null, { class: 'tracking-content tracking-preparation' });
+            const heading = node('div', null, { class: 'tracking-heading' });
+            const pulse = node('span', null, { class: 'tracking-live' + (data.waiting_driver ? ' is-blue' : ''), role: 'img', 'aria-label': data.waiting_driver ? 'Aguardando início do percurso' : 'Preparação em andamento' });
+            heading.append(node('h1', data.waiting_driver ? 'O motoboy já está com o seu pedido' : 'Estamos preparando o seu pedido'), pulse);
+            content.append(node('p', 'PEDIDO #' + data.number, { class: 'tracking-reference' }), node('p', '✓ Pagamento aprovado', { class: 'tracking-approved' }), heading,
+                node('p', data.waiting_driver ? 'Estamos aguardando ele iniciar o percurso.' : 'Assim que ele sair, o mapa, a previsão e os dados do motoboy aparecerão aqui.', { class: 'tracking-prep-intro' }));
+            const dispatch = node('div', null, { class: 'tracking-arrival' });
+            dispatch.append(node('span', data.waiting_driver ? 'Próxima etapa' : 'Previsão de envio'));
+            if (data.waiting_driver) dispatch.append(node('small', 'Retirada na loja concluída'), node('strong', 'Início do percurso'), node('small', 'Você verá a atualização aqui assim que o motoboy iniciar a corrida.'));
+            else if (data.dispatch_at) dispatch.append(node('span', data.dispatch_day), node('strong', 'A partir das ' + data.dispatch_time), node('small', 'Este é o horário previsto para sair da loja.'));
+            else dispatch.append(node('strong', 'A confirmar'), node('small', 'Consulte a loja sobre o próximo despacho.'));
+            content.append(dispatch);
+            if (data.delayed && !data.waiting_driver) {
+                const delay = node('section', null, { class: 'tracking-delay' });
+                delay.append(node('strong', 'O envio está um pouco atrasado'), node('p', data.driver_assigned ?
+                    'O motoboy já foi definido. Estamos aguardando a saída do seu pedido.' : 'Estamos com um pouco de dificuldade para encontrar o motoboy. Assim que encontrarmos, você verá uma atualização nesta página.'));
+                content.append(delay);
+            }
+            content.append(node('p', data.waiting_driver ? 'A previsão de chegada será atualizada com o início do percurso.' : 'O prazo de chegada será informado depois da saída, com base na sua posição na rota.', { class: 'tracking-explanation' }),
+                node('p', 'Esta página se atualiza automaticamente. Você pode acompanhar por este mesmo link.', { class: 'tracking-auto' }), node('p', data.admin_preview ? 'Prévia administrativa — apenas leitura' : '', { class: 'tracking-status', role: 'status' }));
+            root.replaceChildren(content);
             return;
         }
+        if (root.classList.contains('tracking-preparing')) root.replaceChildren();
+        preparationSignature = null;
+        root.classList.remove('tracking-preparing');
         if (!root.querySelector('.tracking-content')) {
             root.replaceChildren(node('div', '', { class: 'tracking-map', role: 'region', 'aria-label': 'Mapa da sua entrega' }), node('div', '', { class: 'tracking-content' }));
             const content = root.querySelector('.tracking-content');
@@ -152,9 +182,12 @@
             if (safeLink(href)) element.href = href;
         }
         root.querySelector('.tracking-expiry').textContent = 'Link disponível até ' + date(data.expires_at) + ', ou até a confirmação.';
+        root.querySelector('.tracking-receipt').hidden = !!data.admin_preview;
+        if (data.admin_preview) root.querySelector('.tracking-expiry').textContent = 'Prévia administrativa — apenas leitura. O link público pode estar encerrado.';
         drawMap(data, root.querySelector('.tracking-map'));
     }
     async function confirmReceipt() {
+        if (previewNonce || snapshot?.admin_preview) return;
         if (confirming || finished) return;
         if (busy) { root.querySelector('#tracking-slide').value = 0; status('Atualizando o pedido. Aguarde e confirme novamente.'); return; }
         confirming = true;

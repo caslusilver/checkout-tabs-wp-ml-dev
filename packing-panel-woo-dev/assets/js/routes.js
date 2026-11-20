@@ -14,6 +14,7 @@
         let dashboard = { routes: [] };
         let preview = null;
         let historyNext = 0;
+        const historyRoutes = new Map();
         let busy = false;
         let pollRequest = null;
         let mapsLibrary;
@@ -284,6 +285,7 @@
                 el('p', { class: 'address-to-copy' }, el('span', {}, address), copyIcon(order.address_copy || address, 'Copiar endereço')),
                 order.postcode ? el('p', { class: 'cep' }, 'CEP: ' + order.postcode) : null,
                 order.complement ? el('p', { class: 'billing-complemento' }, 'Complemento: ' + order.complement) : null);
+            delivery.append(button('Acompanhamento do cliente ↗', { 'data-customer-access': order.id }));
             if (order.delivery_message) delivery.append(
                 el('textarea', { class: 'ppwoo-delivery-message', hidden: '', readonly: '', tabindex: '-1' }, order.delivery_message),
                 el('p', { class: 'ppwoo-delivery-copy-line' }, 'Dados para o motoboy',
@@ -309,6 +311,7 @@
             if (!trip) return el('p', { class: 'ppwoo-trip-info' }, 'Dados da viagem não disponíveis.');
             return el('section', { class: 'ppwoo-trip-info ppwoo-route-private-recipient', 'aria-label': 'Dados da viagem' },
                 el('h4', {}, 'Viagem'),
+                button('Links da rota ↗', { 'data-route-access': route.id }),
                 el('div', { class: 'ppwoo-trip-contact' },
                     el('span', {}, 'WhatsApp do motoboy: ',
                         /^https:\/\/wa\.me\/\d+$/.test(trip.whatsapp || '')
@@ -459,6 +462,7 @@
             const unsaved = sheets.get(route.id) || {};
             const fields = el('div', { class: 'ppwoo-route-sheet' },
                 el('h4', {}, 'Ficha da rota'),
+                button('Links da rota ↗', { 'data-route-access': route.id }),
                 el('label', { class: 'ppwoo-route-private-recipient' }, 'Link de rastreio', el('input', {
                     type: 'text', inputmode: 'url', maxlength: 2048, class: 'tracking-link', 'data-sheet-field': 'link',
                     value: unsaved.link ?? saved.link ?? ''
@@ -1062,6 +1066,33 @@
             const route = currentRoute(Number(this.dataset.shareTrip || this.dataset.copyTrip));
             if (route) chooseTripRecipient(route, this.hasAttribute('data-copy-trip'));
         });
+        function linkDialog(title, links) {
+            const dialog = el('dialog', { class: 'ppwoo-trip-share-dialog' }, el('h3', {}, title));
+            links.forEach(([label, url]) => {
+                if (url && /^https?:\/\//.test(url)) dialog.append(el('p', {},
+                    el('a', { href: url, target: '_blank', rel: 'noopener noreferrer' }, label + ' ↗'), copyIcon(url, 'Copiar ' + label)));
+                else dialog.append(el('p', {}, label + ' — ainda não disponível.'));
+            });
+            const close = () => { dialog.close(); dialog.remove(); };
+            const done = button('Fechar'); done.addEventListener('click', close); dialog.addEventListener('cancel', close); dialog.append(done);
+            $panel[0].append(dialog); dialog.showModal();
+        }
+        $panel.on('click', '[data-customer-access]', async function () {
+            if (this.disabled) return;
+            this.disabled = true;
+            try {
+                const data = await api('customer_link', { order_id: Number(this.dataset.customerAccess) });
+                linkDialog('Acompanhamento do pedido', [['Link público do cliente', data.tracking_url], ['Prévia administrativa (somente leitura)', data.preview_url]]);
+            } catch (error) { window.alert(error.message); }
+            finally { this.disabled = false; }
+        });
+        $panel.on('click', '[data-route-access]', function () {
+            const route = currentRoute(Number(this.dataset.routeAccess)) || historyRoutes.get(Number(this.dataset.routeAccess));
+            if (!route) return;
+            const unsaved = sheets.get(route.id);
+            linkDialog('Links da rota ' + route.slot, [['Rastreio da viagem', unsaved?.link ?? route.sheet?.link ?? route.trip?.link],
+                ['Painel do motoboy (etapa 2)', '']]);
+        });
         $panel.on('click', '[data-save-sheet]', async function () {
             const id = Number(this.dataset.saveSheet);
             if (busy || saveRequest) return;
@@ -1158,9 +1189,10 @@
         $panel.on('click', '[data-routes-history]', function () {
             const $list = $panel.find('[data-routes-history-list]');
             act('history', { before: historyNext }, { after: data => {
-                if (!historyNext) $list.empty();
+                if (!historyNext) { $list.empty(); historyRoutes.clear(); }
                 if (!data.routes.length) $list.append(el('p', {}, 'Nenhuma rota encerrada.'));
                 data.routes.forEach(route => {
+                    historyRoutes.set(route.id, route);
                     const node = deliveryGroup(route, true);
                     node.dataset.revision = String(route.revision);
                     $list.append(node);

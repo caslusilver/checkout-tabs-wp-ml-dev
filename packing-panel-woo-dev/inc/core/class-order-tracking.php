@@ -29,6 +29,46 @@ final class PPWOO_Order_Tracking {
         return $id && get_post_status($id) === 'publish' ? (string) get_permalink($id) : '';
     }
 
+    public static function wait_for_driver(): bool {
+        return get_option('ppwoo_tracking_wait_driver', 'no') === 'yes';
+    }
+
+    public static function preparation(WC_Order $order, ?array $route = null, bool $persist = true): array {
+        $window = $order->get_meta('_ppwoo_dispatch_window');
+        if (!$window && function_exists('ctwpml_next_dispatch')) {
+            $reference = $order->get_date_paid() ?: $order->get_date_created();
+            if ($reference) {
+                $next = ctwpml_next_dispatch(new DateTimeImmutable('@' . $reference->getTimestamp()));
+                if ($next) {
+                    $window = $next->getTimestamp();
+                    if ($persist) {
+                        $order->update_meta_data('_ppwoo_dispatch_window', $window);
+                        $order->save_meta_data();
+                    }
+                }
+            }
+        }
+        $grace = max(0, (int) get_option('checkout_tabs_wp_ml_dispatch_grace', 5)) * 60;
+        $assigned = !empty($route['details']['sheet']['phone']);
+        $waiting = $route && $route['state'] === 'dispatched' && self::wait_for_driver() && empty($route['details']['driver_started_at']);
+        return ['preparing' => true, 'number' => $order->get_order_number(), 'waiting_driver' => (bool) $waiting,
+            'dispatch_at' => $window ? gmdate('c', (int) $window) : '',
+            'dispatch_day' => $window ? (wp_date('Y-m-d', (int) $window) === wp_date('Y-m-d', time()) ? 'Hoje, ' : 'Dia ') . wp_date('d/m', (int) $window) : '',
+            'dispatch_time' => $window ? wp_date('H:i', (int) $window) : '',
+            'delayed' => !$waiting && $window && time() >= (int) $window + $grace,
+            'driver_assigned' => $assigned];
+    }
+
+    /** Somente o endpoint administrativo chama este helper; prévia é leitura restrita. */
+    public static function customer_access(int $id): array {
+        $order = wc_get_order($id);
+        if (!$order instanceof WC_Order || !PPWOO_Utils::is_motoboy_shipping($order) || !self::page_url()) throw new DomainException('Configure a página da Central e confira o pedido Motoboy.', 422);
+        $stop = PPWOO_Routes_Store::stop($id);
+        $route = $stop ? PPWOO_Routes_Store::route($stop['route_id']) : null;
+        return ['tracking_url' => $route && $route['state'] !== 'draft' ? self::link($route, $stop) : self::order_link($order),
+            'preview_url' => self::page_url() . '#pedido=' . $id . '&previa=' . wp_create_nonce('ppwoo_tracking_preview_' . $id)];
+    }
+
     public static function template(string $template): string {
         if (self::page_url() && is_page((int) get_option('ppwoo_tracking_page'))) {
             if (!defined('DONOTCACHEPAGE')) define('DONOTCACHEPAGE', true);
@@ -61,6 +101,7 @@ final class PPWOO_Order_Tracking {
         }
         try {
         if (method_exists($order, 'read_meta_data')) $order->read_meta_data(true);
+        self::preparation($order);
         $access = $order->get_meta('_ppwoo_tracking_access');
         if (!is_array($access) || $renew) {
             $access = ['nonce' => bin2hex(random_bytes(24))];
@@ -194,7 +235,7 @@ final class PPWOO_Order_Tracking {
             'number' => $order->get_order_number(), 'route' => $route['slot'], 'position' => $stop['position'],
             'total' => count(PPWOO_Routes_Store::route_stops($route['id'])), 'last' => $last,
             'departed_at' => $route['details']['departed_at'] ?? '', 'eta_at' => $stop['details']['eta_at'] ?? '',
-            'expires_at' => gmdate('c', $stop['details']['access']['expires']),
+            'expires_at' => gmdate('c', (int) ($stop['details']['access']['expires'] ?? 0)),
             'address' => implode(', ', array_filter([$address['street'], $address['number'], $address['neighborhood'], $address['city']], 'strlen')),
             'final_area' => $final_area, 'code' => $last ? (string) ($sheet['code'] ?? '') : '',
             'driver_whatsapp' => preg_match('/^\d{10,11}$/D', $phone) ? 'https://wa.me/55' . $phone : '',
@@ -223,7 +264,18 @@ final class PPWOO_Order_Tracking {
             self::limit('ip:' . ($_SERVER['REMOTE_ADDR'] ?? 'unknown'), 90);
             $id = $_POST['order_id'] ?? '';
             $command = $_POST['command'] ?? '';
-            if (!is_string($id) || !preg_match('/^[1-9]\d{0,17}$/D', $id) || !in_array($command, ['exchange', 'read', 'confirm'], true)) throw new DomainException('Solicitação inválida.', 422);
+            if (!is_string($id) || !preg_match('/^[1-9]\d{0,17}$/D', $id) || !in_array($command, ['exchange', 'read', 'confirm', 'preview'], true)) throw new DomainException('Solicitação inválida.', 422);
+            if ($command === 'preview') {
+                $nonce = $_POST['preview_nonce'] ?? '';
+                if (!is_string($nonce) || !PPWOO_Security::can_manage_panel() || !wp_verify_nonce($nonce, 'ppwoo_tracking_preview_' . $id)) throw new DomainException('Prévia restrita ao administrador.', 403);
+                $order = wc_get_order((int) $id);
+                if (!$order instanceof WC_Order || !PPWOO_Utils::is_motoboy_shipping($order)) throw new DomainException('Pedido indisponível.', 404);
+                $stop = PPWOO_Routes_Store::stop((int) $id);
+                $route = $stop ? PPWOO_Routes_Store::route($stop['route_id']) : null;
+                $data = $route && $route['state'] !== 'draft' ? self::projection($route, $stop) : self::preparation($order, $route, false);
+                wp_send_json_success(array_merge($data, ['admin_preview' => true]));
+                return;
+            }
             $cookie = 'ppwoo_tracking_' . $id;
             $token = $command === 'exchange' ? ($_POST['token'] ?? '') : ($_COOKIE[$cookie] ?? '');
             if (!is_string($token) || !preg_match('/^[a-f0-9]{64}$/D', $token)) throw new DomainException('Abra o link recebido para acompanhar seu pedido.', 403);
@@ -238,11 +290,12 @@ final class PPWOO_Order_Tracking {
                         !hash_equals($access['hash'], hash('sha256', $token))) throw new DomainException('Este link não está mais disponível.', 403);
                     if ($command === 'confirm') throw new DomainException('Aguarde a saída do pedido para confirmar o recebimento.', 409);
                     if ($command === 'exchange') setcookie($cookie, $token, ['expires' => 0, 'path' => '/', 'secure' => true, 'httponly' => true, 'samesite' => 'Strict']);
-                    return ['preparing' => true, 'number' => $order->get_order_number()];
+                    return self::preparation($order, $route);
                 }
                 // Releitura após bloquear a rota: serializa confirmação/baixa administrativa.
                 $stop = PPWOO_Routes_Store::stop((int) $id);
                 self::authorize($route, $stop, $token, $command === 'confirm');
+                if ($command === 'confirm' && self::wait_for_driver() && empty($route['details']['driver_started_at'])) throw new DomainException('Aguarde o início do percurso para confirmar o recebimento.', 409);
                 if ($command === 'confirm') {
                     if ($stop['delivery_state'] !== 'closed') PPWOO_Routes::close_stops($route, [(int) $id], 'customer');
                     return ['confirmed' => true];
@@ -250,6 +303,7 @@ final class PPWOO_Order_Tracking {
                 if ($command === 'exchange') {
                     setcookie($cookie, $token, ['expires' => $stop['details']['access']['expires'], 'path' => '/', 'secure' => true, 'httponly' => true, 'samesite' => 'Strict']);
                 }
+                if (self::wait_for_driver() && empty($route['details']['driver_started_at'])) return self::preparation(wc_get_order((int) $id), $route);
                 return self::projection($route, $stop);
             });
             wp_send_json_success($data);

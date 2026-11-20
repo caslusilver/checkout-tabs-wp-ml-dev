@@ -42,3 +42,15 @@ test('mobile isolates page zoom, draws calculated paths and frames the origin re
  const touch=new w.Event('touchmove',{cancelable:true,bubbles:true});Object.defineProperty(touch,'touches',{value:[{},{}]});d.querySelector('.tracking-content').dispatchEvent(touch);assert.equal(touch.defaultPrevented,true);
  assert.equal(d.querySelector('.tracking-accessible-confirm'),null);
 });
+
+test('preparation shows delay, blue handoff state and read-only administrative preview',async t=>{
+ const dom=new JSDOM('<main id="ppwoo-tracking"><p class="tracking-status"></p></main><script id="ppwoo-tracking-script" data-endpoint="/ajax"></script>',{url:'https://shop.example.test/entrega/#pedido=201&previa=fixture',runScripts:'outside-only',pretendToBeVisual:true});
+ t.after(()=>dom.window.close());const w=dom.window,d=w.document;let waiting=false;const commands=[];
+ w.fetch=async(url,opts)=>{commands.push(opts.body.get('command'));assert.equal(opts.body.get('preview_nonce'),'fixture');return {ok:true,json:async()=>({success:true,data:{preparing:true,number:'201',dispatch_at:'2026-11-19T18:00:00Z',dispatch_day:'Dia 19/11',dispatch_time:'15:00',delayed:true,waiting_driver:waiting,admin_preview:true}})};};
+ w.eval(readFileSync('packing-panel-woo-dev/assets/js/order-tracking.js','utf8'));
+ const until=async check=>{for(let i=0;i<50&&!check();i++)await new Promise(r=>setTimeout(r,5));assert.ok(check());};
+ await until(()=>d.querySelector('.tracking-delay'));
+ assert.match(d.body.textContent,/A partir das 15:00/);assert.match(d.body.textContent,/dificuldade para encontrar/);assert.equal(d.querySelector('input[type=range]'),null);
+ waiting=true;d.dispatchEvent(new w.Event('visibilitychange'));await until(()=>d.querySelector('.tracking-live.is-blue'));
+ assert.match(d.querySelector('h1').textContent,/já está com/);assert.equal(d.querySelector('.tracking-delay'),null);assert.match(d.body.textContent,/apenas leitura/);assert.ok(commands.every(c=>c==='preview'));
+});

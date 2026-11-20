@@ -41,6 +41,8 @@ function esc_attr($value) { return esc_html($value); }
 function esc_url($value) { return esc_attr($value); }
 function admin_url($path) { return 'https://sandbox.example.test/wp-admin/' . $path; }
 function wp_nonce_field($action, $field) {}
+function add_action(...$args) {}
+function wp_create_nonce($action) { return 'fixture-preview-nonce'; }
 function wp_dropdown_pages($args) {}
 function wp_salt($scheme) { return 'fixture-server-secret'; }
 function get_post_status($id) { return 'publish'; }
@@ -110,6 +112,8 @@ class WC_Order {
     public function delete_meta_data($key) { unset($this->meta[$key]); }
     public function save() { return $this->id; }
     public function save_meta_data() {}
+    public function get_date_paid() { return new DateTimeImmutable('2026-11-19T14:00:00-03:00'); }
+    public function get_date_created() { return new DateTimeImmutable('2026-11-19T13:00:00-03:00'); }
     public function update_status($state, $note) { $this->status = $state; return true; }
     public function get_shipping_address_1() { return 'Rua Fictícia ' . $this->id; }
     public function get_shipping_address_2() { return 'Apto ' . $this->id; }
@@ -444,3 +448,23 @@ $road['origin'] = ['lat' => -23.5, 'lng' => -46.6];
 $road['path'] = [['lat' => -23.5, 'lng' => -46.601], ['lat' => -23.5, 'lng' => -46.599]];
 expect(PPWOO_Order_Tracking::public_paths($road, 999), [], 'Origem exata nunca sai na trajetória pública');
 echo "Central: trajetos seguem a geometria original e ocultam cruzamentos privados.\n";
+
+require dirname(__DIR__) . '/inc/dispatch-schedule.php';
+$options['checkout_tabs_wp_ml_dispatch_schedule'] = ['thu' => ['15:00', '18:00']];
+$orders[301] = new WC_Order(301);
+PPWOO_Order_Tracking::preparation($orders[301], null, false);
+expect($orders[301]->get_meta('_ppwoo_dispatch_window'), '', 'Prévia administrativa não grava janela');
+$prep = PPWOO_Order_Tracking::preparation($orders[301]);
+expect($prep['dispatch_at'], '2026-11-19T18:00:00+00:00', 'Janela nasce da aprovação, não do momento de abrir a página');
+$options['checkout_tabs_wp_ml_dispatch_schedule'] = ['thu' => ['18:00']];
+expect(PPWOO_Order_Tracking::preparation($orders[301])['dispatch_at'], $prep['dispatch_at'], 'Janela persistida não muda com calendário/refresh');
+$orders[301]->update_meta_data('_ppwoo_dispatch_window', time()-1000);
+expect(PPWOO_Order_Tracking::preparation($orders[301])['delayed'], true, 'Atraso sinalizado sem mudar previsão');
+$options['ppwoo_tracking_wait_driver'] = 'yes';
+expect(PPWOO_Order_Tracking::preparation($orders[301], $route)['waiting_driver'], true, 'Opção ativa espera início após retirada');
+$options['ppwoo_tracking_wait_driver'] = 'no';
+expect(PPWOO_Order_Tracking::preparation($orders[301], $route)['waiting_driver'], false, 'Opção desligada preserva fluxo normal');
+$access = PPWOO_Order_Tracking::customer_access(201);
+expect($access['tracking_url'], '', 'Pedido encerrado não ganha link público ativo para teste');
+expect(str_contains($access['preview_url'], '&previa='), true, 'Pedido encerrado tem prévia administrativa sem reabrir');
+echo "Central: janela fixa, atraso, opção independente e prévia de encerrados passaram.\n";
