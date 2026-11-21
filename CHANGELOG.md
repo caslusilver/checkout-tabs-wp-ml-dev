@@ -2,6 +2,15 @@
 
 Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
+## [v3.4.7] - 2026-11-21
+
+- PackPanel com título compacto, divisória fina, engrenagem de horários e controle exclusivo dos envios por motoboy. Pop-up Hoje/Semana usa seletores de hora/minuto, calendário e tolerância existentes; somente administradores alteram, com nonce, revisão e proteção contra gravações simultâneas.
+- Encerrar hoje mantém a compra disponível e informa a próxima saída útil; reabre automaticamente no próximo dia do calendário ou manualmente no mesmo dia. Pedidos criados antes continuam com o combinado, mesmo confirmados depois. Novos pedidos guardam contexto da previsão desde a criação; a referência por pagamento é uma escolha futura explícita. Previsões válidas e pedidos despachados permanecem preservados.
+- Checkout motoboy pede ciência do fechamento, conserva o aceite da mesma condição durante a sessão e revalida no servidor. Correios, Pix e contratos n8n permanecem iguais.
+- Recarregamento completo pelo gesto na faixa superior ou pela engrenagem, separado do refresh AJAX. Preserva aba, pedido do carrossel, campos, prévia/seleção de rotas e rascunho de configurações na sessão por até 30 minutos; aguarda salvamentos e bloqueia recarga em operação/conflito. Não repete despacho/cálculo ao restaurar.
+- Novo shortcode `[ppwoo_aviso_envio]`, com mensagens, variáveis públicas de horários, cores por estado e pulso opcional. Configuração em engrenagem → Aviso no site. Leitura compartilhada/revalidada, sem sobreposição e pausada em aba oculta; respeita redução de movimento.
+- Rollback do código: v3.4.6, `eafc764`. Antes de reverter, reabra os envios: a versão anterior não interpreta o fechamento temporário. Os horários salvos e previsões já associadas aos pedidos permanecem. Publicação direta em `develop` expressamente autorizada como exceção pelo usuário.
+
 ## [v3.4.6] - 2026-11-20
 
 - Retirada confirmada pelo operador já inicia a primeira parada tanto no fluxo rápido quanto no despacho pela ficha completa. O motoboy abre endereço/Waze liberados e usa somente os slides de chegada e conclusão/avanço; não há aceite ou início adicional na página dele.

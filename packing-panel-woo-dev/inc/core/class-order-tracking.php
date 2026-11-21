@@ -61,6 +61,11 @@ final class PPWOO_Order_Tracking {
         $context = is_array($context) ? $context : [];
         $timezone = wp_timezone();
         $reference = $order->get_date_paid() ?: $order->get_date_created();
+        $skip_dates = [];
+        if (!$window && class_exists('CTWPML_Dispatch_Controls')) {
+            $reference = CTWPML_Dispatch_Controls::config()['basis'] === 'created' ? $order->get_date_created() : $reference;
+            if ($reference) $skip_dates = CTWPML_Dispatch_Controls::skip_dates($reference->getTimestamp());
+        }
         if (!$reference) return [$window, (bool) $window];
         $basis = $reference->getTimestamp();
         $schedule = ctwpml_sanitize_dispatch_schedule(get_option('checkout_tabs_wp_ml_dispatch_schedule', []));
@@ -71,6 +76,7 @@ final class PPWOO_Order_Tracking {
             // Troca de fuso não deve reinterpretar uma alteração posterior do calendário/pagamento.
             $basis = (int) $context['reference_at'];
             $schedule = $context['schedule']; $grace = (int) $context['grace'];
+            $skip_dates = $context['skip_dates'] ?? [];
             $reason = 'timezone_changed';
         } elseif ($window) {
             $at = new DateTimeImmutable('@' . $basis);
@@ -85,12 +91,12 @@ final class PPWOO_Order_Tracking {
                 return [$window, true];
             }
         }
-        $next = ctwpml_dispatch_from_schedule(new DateTimeImmutable('@' . $basis), $schedule, $timezone, $grace);
+        $next = ctwpml_dispatch_from_schedule(new DateTimeImmutable('@' . $basis), $schedule, $timezone, $grace, true, $skip_dates);
         if (!$next) return [$window, (bool) $window];
         $previous = $window; $window = $next->getTimestamp();
         if ($persist) {
             $new_context = ['version' => 1, 'state' => 'verified', 'window' => $window,
-                'timezone' => $timezone->getName(), 'reference_at' => $basis, 'schedule' => $schedule, 'grace' => $grace];
+                'timezone' => $timezone->getName(), 'reference_at' => $basis, 'schedule' => $schedule, 'grace' => $grace, 'skip_dates' => $skip_dates];
             if ($previous && $previous !== $window) {
                 $new_context['correction'] = ['previous_window' => $previous, 'previous_timezone' => $context['timezone'] ?? 'UTC',
                     'at' => time(), 'reason' => $reason];

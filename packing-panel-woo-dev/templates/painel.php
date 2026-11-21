@@ -33,14 +33,20 @@ if (PPWOO_Config::is_debug()) {
 ?>
 
 <div class="painel-empacotamento">
+    <div class="ctwpml-pull-refresh" data-panel-pull aria-live="polite"><span class="dashicons dashicons-arrow-down-alt2" aria-hidden="true"></span><span data-pull-label>Puxe para recarregar a página</span><progress value="0" max="100" aria-label="Gesto para recarregar"></progress></div>
     <header class="painel-header">
         <h1><?php esc_html_e('PackPanel', 'painel-empacotamento'); ?></h1>
+        <span class="ctwpml-header-divider" aria-hidden="true"></span>
         <div class="status-info">
             <span class="pendentes"><?php printf(esc_html__('%d pedidos pendentes', 'painel-empacotamento'), $total_pending_orders); ?></span>
             <button type="button" class="ppwoo-refresh-button" aria-label="<?php esc_attr_e('Atualizar pedidos', 'painel-empacotamento'); ?>" title="<?php esc_attr_e('Atualizar pedidos', 'painel-empacotamento'); ?>">
                 <span class="dashicons dashicons-update" aria-hidden="true"></span>
                 <span class="screen-reader-text"><?php esc_html_e('Atualizar pedidos', 'painel-empacotamento'); ?></span>
             </button>
+            <?php if (current_user_can('manage_options') && class_exists('CTWPML_Dispatch_Controls')) : $dispatch_state = CTWPML_Dispatch_Controls::public_state(); ?>
+            <button type="button" class="ctwpml-settings-button" data-dispatch-settings aria-label="Configurações de envio"><span class="dashicons dashicons-admin-generic" aria-hidden="true"></span></button>
+            <button type="button" class="ctwpml-motoboy-toggle" role="switch" aria-checked="<?php echo $dispatch_state['closed'] ? 'false' : 'true'; ?>" data-dispatch-toggle aria-label="Envios por motoboy hoje"><span>Motoboy<small data-dispatch-status><?php echo $dispatch_state['closed'] ? 'Fechado hoje' : 'Programado'; ?></small></span><i aria-hidden="true"></i></button>
+            <?php endif; ?>
             <span class="ppwoo-refresh-status" aria-live="polite"></span>
         </div>
     </header>

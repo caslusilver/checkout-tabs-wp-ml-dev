@@ -48,16 +48,18 @@ function ctwpml_sanitize_dispatch_grace($value): int {
 function ctwpml_next_dispatch(?DateTimeImmutable $now = null, bool $include_grace = true): ?DateTimeImmutable {
 	$schedule = ctwpml_sanitize_dispatch_schedule(get_option('checkout_tabs_wp_ml_dispatch_schedule', []));
 	return ctwpml_dispatch_from_schedule($now ?? current_datetime(), $schedule, wp_timezone(),
-		max(0, (int) get_option('checkout_tabs_wp_ml_dispatch_grace', 5)), $include_grace);
+		max(0, (int) get_option('checkout_tabs_wp_ml_dispatch_grace', 5)), $include_grace,
+		class_exists('CTWPML_Dispatch_Controls') ? CTWPML_Dispatch_Controls::skip_dates(($now ?? current_datetime())->getTimestamp()) : []);
 }
 
 /** O instante é absoluto; somente o calendário/horário da loja usa o fuso informado. */
-function ctwpml_dispatch_from_schedule(DateTimeImmutable $reference, array $schedule, DateTimeZone $timezone, int $minutes, bool $include_grace = true): ?DateTimeImmutable {
+function ctwpml_dispatch_from_schedule(DateTimeImmutable $reference, array $schedule, DateTimeZone $timezone, int $minutes, bool $include_grace = true, array $skip_dates = []): ?DateTimeImmutable {
 	$now = $reference->setTimezone($timezone);
 	$recent = null;
 	$keys = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
 	for ($offset = -7; $offset <= 7; $offset++) {
 		$day = $now->setTime(0, 0)->modify(sprintf('%+d days', $offset));
+		if (in_array($day->format('Y-m-d'), $skip_dates, true)) continue;
 		$key = $keys[(int) $day->format('w')];
 		foreach (($schedule[$key] ?? []) as $time) {
 			[$hour, $minute] = explode(':', $time);

@@ -132,6 +132,13 @@ test('routing preserves edits and copies the correct stop in both tabs', async t
     $('[data-sheet-field="link"]').val('https://test.example.test/entrega').trigger('input');
     await group(102, 2);
     assert.equal($('[data-sheet-field="link"]').val(), 'https://test.example.test/entrega');
+    const beforeReload = requests.filter(r => ['plan', 'group', 'dispatch'].includes(r.command)).length;
+    const reloadState = await window.PPWOOReloadRoutes.prepare();
+    assert.equal(reloadState.preview.orders.length, 4, 'reload keeps the complete preview');
+    assert.equal(reloadState.selected.length, 4, 'reload keeps selection');
+    window.PPWOOReloadRoutes.restore(reloadState);
+    assert.equal($('[data-sheet-field="link"]').val(), 'https://test.example.test/entrega', 'saved route fields survive restoring');
+    assert.equal(requests.filter(r => ['plan', 'group', 'dispatch'].includes(r.command)).length, beforeReload, 'restore never recalculates or replays mutations');
     assert.equal($('#tab-motoboy [data-order-id="101"]').prop('hidden'), false);
     assert.match($('#tab-motoboy [data-order-id="101"] .ppwoo-membership').text(), /Rota 1/);
     for (const [index, button] of $('[data-routes-drafts] .ppwoo-copy-delivery').toArray().entries()) {

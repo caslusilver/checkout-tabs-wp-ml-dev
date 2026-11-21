@@ -727,6 +727,25 @@
         });
     }
 
+    // O recarregamento completo reutiliza a mesma restauração do refresh AJAX.
+    window.PPWOOReloadPanel = {
+        canReload: function () {
+            return !refreshInFlight && !activeSwipe && !packingPanel.find('.loading-overlay:visible, .loading-indicator:visible, .removing').length;
+        },
+        capture: function () {
+            var snapshot = capturePanelState();
+            // Somente os campos editáveis são persistidos; nunca nonces ou sliders.
+            delete snapshot.editableOrders;
+            return snapshot;
+        },
+        restore: function (snapshot) {
+            packingPanel.find('.tab-button[data-tab="' + String(snapshot.activeTab || 'tab-motoboy').replace(/^tab-/, '').replace(/[^a-z-]/g, '') + '"]').trigger('click');
+            refreshCorreiosCarousel(snapshot.correiosOrderId);
+            refreshPagamentosCarousel(snapshot.pagamentosOrderId);
+        }
+    };
+    packingPanel[0]?.dispatchEvent(new Event('ppwoo:panel-reload-ready'));
+
     function restorePanelMarkup(html, previousState) {
         var $responseRoot = $('<div>').html(html);
         var $newPanel = $responseRoot.find('.painel-empacotamento').first();

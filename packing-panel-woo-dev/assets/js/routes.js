@@ -29,6 +29,8 @@
         const editRevisions = new Map();
         const saveConflicts = new Set();
         const seenMemberships = new Map();
+        let reloadSnapshot = null;
+        let dashboardLoaded = false;
         const routeColors = ['#1658b8', '#7550a4', '#197365', '#96511d', '#9a4267', '#476475'];
 
         function routeStyle(slot) {
@@ -724,6 +726,20 @@
             const oldResults = new Map(dashboard.routes.flatMap(route =>
                 route.stops.map(stop => [stop.id, stop.event_state + ':' + stop.attempt])));
             dashboard = data;
+            dashboardLoaded = true;
+            if (reloadSnapshot) {
+                const snapshot = reloadSnapshot; reloadSnapshot = null;
+                preview = snapshot.preview ? { ...snapshot.preview, removed: new Set(snapshot.preview.removed || []) } : null;
+                collapsed.clear(); (snapshot.collapsed || []).forEach(id => collapsed.add(id));
+                openGroups.clear(); (snapshot.openGroups || []).forEach(key => openGroups.add(key));
+                closedSheets.clear(); (snapshot.closedSheets || []).forEach(id => closedSheets.add(id));
+                phoneDrafts.clear(); (snapshot.phoneDrafts || []).forEach(([id, phone]) => { if(currentRoute(id))phoneDrafts.set(id, phone); });
+                dashboard.routes.forEach(route => route.stops.forEach(stop => seenMemberships.set(stop.id, route.id)));
+                Object.assign(hidden, snapshot.hidden || {});
+                Object.keys(hidden).forEach(key => $panel.toggleClass('ppwoo-hide-route-' + key, !!hidden[key]));
+                $panel.find('.ppwoo-route-pick:not(:disabled)').each(function(){ this.checked = (snapshot.selected || []).includes(Number(this.closest('[data-order-id]').dataset.orderId)); });
+                full = true;
+            }
             data.routes.filter(route => route.state === 'dispatched').forEach(route => route.stops.forEach(stop => {
                 if (oldResults.get(stop.id) !== stop.event_state + ':' + stop.attempt) {
                     debug('disparo', (eventLabels[stop.event_state] || 'Aguardando') +
@@ -1336,11 +1352,28 @@
         $panel.find('#tab-rotas, #tab-em-rota').each(function () { this.prepend(privateControls()); });
         $panel.find('[data-calculate-selected]').addClass('ppwoo-routes-button ppwoo-routes-primary');
         window.addEventListener('beforeunload', event => {
+            if (window.PPWOOReloadApproved) return;
             if (!sheets.size && !phoneDrafts.size && !saveRequest) return;
             event.preventDefault();
             event.returnValue = '';
         });
         document.addEventListener('visibilitychange', () => { if (!document.hidden && sheets.size) scheduleSave(); });
+        window.PPWOOReloadRoutes = {
+            prepare: async function () {
+                if (busy || $panel.find('.is-dragging').length) throw new Error('Aguarde a operação em andamento.');
+                clearTimeout(saveTimer);
+                if (!await flushAutosaves(true)) throw new Error('Confira a ficha que não foi salva antes de recarregar.');
+                return { preview: preview ? { ...preview, removed: [...preview.removed] } : null,
+                    collapsed: [...collapsed], openGroups: [...openGroups], closedSheets: [...closedSheets],
+                    phoneDrafts: [...phoneDrafts], hidden: {...hidden},
+                    selected: $panel.find('.ppwoo-route-pick:checked:not(:disabled)').map(function(){return Number(this.closest('[data-order-id]').dataset.orderId);}).get() };
+            },
+            restore: function (snapshot) {
+                reloadSnapshot = snapshot;
+                if (dashboardLoaded) update(dashboard, true);
+            }
+        };
+        $panel[0].dispatchEvent(new Event('ppwoo:reload-ready'));
         updateSelection();
         poll(true);
         setInterval(() => { poll(false); updateReadiness(); }, 6000);

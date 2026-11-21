@@ -8838,7 +8838,17 @@
         } catch (eResetOverlay) {}
       }
 
-      function submitWooCheckout() {
+      function submitWooCheckout(dispatchReady) {
+        if (!dispatchReady && window.CTWPMLDispatch) {
+          window.CTWPMLDispatch.prepareSubmit().then(function (accepted) {
+            if (accepted) submitWooCheckout(true);
+            else resetFinalSubmitControls();
+          }).catch(function () {
+            resetFinalSubmitControls();
+            showNotification('Não foi possível conferir o horário de envio. Confira a conexão e tente novamente.', 'error', 5000);
+          });
+          return;
+        }
         var form = getCheckoutForm();
         if (form) {
           var phone = ctwpmlCheckoutPhoneDetails();

@@ -177,6 +177,11 @@ class PPWOO_PackingPanel {
         }
 
         $version = painel_empacotamento_get_version();
+        if (class_exists('CTWPML_Dispatch_Controls')) {
+            CTWPML_Dispatch_Controls::assets();
+            wp_localize_script('ctwpml-dispatch', 'CTWPML_DISPATCH_PANEL', ['nonce' => wp_create_nonce('ctwpml_dispatch_settings'),
+                'scope' => hash('sha256', get_current_user_id() . ':' . wp_get_session_token())]);
+        }
 
         // Adiciona Dashicons (necessário no frontend)
         wp_enqueue_style('dashicons');
