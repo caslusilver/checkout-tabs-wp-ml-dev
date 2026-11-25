@@ -370,7 +370,7 @@ add_action('wp_enqueue_scripts', function () {
  */
 add_action('wp_enqueue_scripts', function () {
 	$enabled = ((int) get_option('checkout_tabs_wp_ml_splash_enabled', 0) === 1);
-	if (!$enabled || ctwpml_is_visual_editor()) {
+	if (!$enabled || ctwpml_is_visual_editor() || (class_exists('CTWPML_Thankyou') && CTWPML_Thankyou::page())) {
 		return;
 	}
 
@@ -428,7 +428,7 @@ add_action('wp_enqueue_scripts', function () {
  */
 add_action('wp_body_open', function () {
 	$enabled = ((int) get_option('checkout_tabs_wp_ml_splash_enabled', 0) === 1);
-	if (!$enabled || ctwpml_is_visual_editor()) {
+	if (!$enabled || ctwpml_is_visual_editor() || (class_exists('CTWPML_Thankyou') && CTWPML_Thankyou::page())) {
 		return;
 	}
 

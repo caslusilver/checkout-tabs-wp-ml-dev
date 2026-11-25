@@ -2,6 +2,14 @@
 
 Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
+## [v3.4.9] - 2026-11-25
+
+- Página completa `[checkout_ml_obrigado]`, sem header/footer do tema, com ticket responsivo, Pix Copia e Cola preservado, QR desktop, itens/quantidades/totais e endereço. Configuração em Checkout Tabs ML → Página de obrigado: página, timer visual (6 minutos), textos e WhatsApp do suporte.
+- Estado consultado no WooCommerce com autorização por proprietário/chave, nonce, cache privado e limite de leitura. Polling sem sobreposição, pausa em aba oculta e consulta imediata ao voltar; confirmação não depende de query string e não aprova pedido no navegador.
+- Motoboy usa o acesso individual da Central após confirmação e tenta abrir outra aba após aviso, com botão quando pop-up é bloqueado. Correios permanece na confirmação. Timer/barra somem fora de pendente; contador visual não altera os 24h do Pix nem cancela pedido ao zerar.
+- Copiar preserva o payload integral. Cancelar por slide usa URL/nonce e elegibilidade do WooCommerce; sem novo endpoint financeiro. Referências externas permanecem preservadas para rollback. Publicação em develop autorizada pelo usuário; instalar shortcode e selecionar página é passo administrativo posterior.
+- Rollback: v3.4.8 e composição antiga da página. Desmarcar página personalizada antes de desativar o módulo. Teste real na loja após atualização continua necessário.
+
 ## [v3.4.8] - 2026-11-25
 
 - Interface do checkout, shortcode, viewport, login e aviso de fechamento limitados ao checkout real: não montam na página personalizada de obrigado nem nos endpoints de pedido/pagamento.

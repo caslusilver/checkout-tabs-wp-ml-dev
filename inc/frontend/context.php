@@ -25,6 +25,7 @@ function ctwpml_is_visual_editor(): bool {
 
 /** Escopo exclusivo da interface; não desativa endpoints, gateways ou hooks do pedido. */
 function ctwpml_is_checkout_ui_request(): bool {
+	if (class_exists('CTWPML_Thankyou') && CTWPML_Thankyou::page()) return false;
 	if (ctwpml_is_visual_editor()) {
 		return false;
 	}

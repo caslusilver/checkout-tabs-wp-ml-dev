@@ -76,7 +76,7 @@ function checkout_tabs_wp_ml_render_admin_page(): void {
 	}
 
 	$tab = isset($_GET['tab']) ? sanitize_key((string) $_GET['tab']) : 'integracoes';
-	if (!in_array($tab, ['integracoes', 'horarios', 'campos', 'styles', 'debug'], true)) {
+	if (!in_array($tab, ['integracoes', 'horarios', 'campos', 'styles', 'debug', 'obrigado'], true)) {
 		$tab = 'integracoes';
 	}
 
@@ -140,12 +140,14 @@ function checkout_tabs_wp_ml_render_admin_page(): void {
 		'" class="nav-tab ctwpml-admin-tab ' .
 		($tab === 'debug' ? 'nav-tab-active' : '') .
 		'" data-tab="debug">Debug</a>';
+	echo '<a class="nav-tab ctwpml-admin-tab ' . ($tab === 'obrigado' ? 'nav-tab-active' : '') . '" data-tab="obrigado" href="' . esc_url(admin_url('admin.php?page=' . CHECKOUT_TABS_WP_ML_SETTINGS_PAGE . '&tab=obrigado')) . '">Página de obrigado</a>';
 	echo '</nav>';
 
 	echo '<form method="post" action="options.php" style="margin-top: 16px;">';
 	settings_fields(CHECKOUT_TABS_WP_ML_SETTINGS_GROUP);
 
 	echo '<div id="ctwpml-admin-tabs-content">';
+	CTWPML_Thankyou::admin($tab);
 
 	$style_integracoes = ($tab === 'integracoes') ? '' : 'display:none;';
 	echo '<div class="ctwpml-admin-tab-panel" data-tab="integracoes" style="' . esc_attr($style_integracoes) . '">';
