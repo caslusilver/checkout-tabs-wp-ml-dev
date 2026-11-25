@@ -77,6 +77,9 @@ final class PPWOO_Admin_Routes_Tab {
             <p class="description">Desativado: depois do despacho, mostra o acompanhamento normal. Ativado: mostra “Com o motoboy, aguardando início”. O painel do entregador ainda será implementado; desative para voltar ao fluxo normal a qualquer momento. Não altera tokens nem apaga rotas.</p>
             <p>Publique uma página com <code>[ppwoo_order_tracking]</code> e selecione abaixo. Ela será exibida sem cabeçalho ou rodapé. O link individual passa a acompanhar os novos eventos de despacho.</p>
             <?php wp_dropdown_pages(['name' => 'tracking_page', 'selected' => (int) get_option('ppwoo_tracking_page', 0), 'show_option_none' => 'Desativada — selecione uma página', 'option_none_value' => '0']); ?>
+            <p><label for="ppwoo-tracking-logo">Imagem do logo da Central</label><br>
+                <input id="ppwoo-tracking-logo" type="url" class="regular-text" name="tracking_logo" value="<?php echo esc_attr(get_option('ppwoo_tracking_logo', '')); ?>" placeholder="https://exemplo.com/logo.png"></p>
+            <p class="description">URL de imagem PNG ou SVG já hospedada. Vazio usa a imagem da página de obrigado, se configurada, ou o nome do site. Não habilita envio de SVG ao WordPress.</p>
             <p class="description">O n8n deve usar event_data.tracking_data.order_tracking_url na mensagem ao cliente. O campo link continua sendo o rastreio da viagem. Acesso por 24 horas após a saída, encerrado antes pela baixa.</p>
             <?php submit_button('Salvar configurações', 'primary', 'ppwoo_routes_save'); ?>
         </form>
@@ -104,12 +107,16 @@ final class PPWOO_Admin_Routes_Tab {
         if ($tracking_page && (get_post_type($tracking_page) !== 'page' || get_post_status($tracking_page) !== 'publish')) throw new DomainException('Escolha uma página publicada para a Central.');
         $maps_key_name = self::field('routes_maps_key_name');
         if (strlen($maps_key_name) > 128 || preg_match('/[\x00-\x1F\x7F]/', $maps_key_name)) throw new DomainException('Confira o nome da chave do mapa cadastrado no gerenciador.');
+        $logo_input = self::field('tracking_logo');
+        $logo = esc_url_raw($logo_input, ['http', 'https']);
+        if ($logo_input !== '' && (!$logo || !in_array(wp_parse_url($logo, PHP_URL_SCHEME), ['http', 'https'], true))) throw new DomainException('Informe uma URL HTTP ou HTTPS para o logo da Central.');
         if ($enabled) PPWOO_Routes_Store::install();
         update_option('ppwoo_routes_origin_postcode', $postcode, false);
         update_option('ppwoo_routes_url', $url, false);
         update_option('ppwoo_routes_auth_key_name', $key_name === '' ? PPWOO_Route_Calculation::DEFAULT_AUTH_KEY : $key_name, false);
         update_option('ppwoo_routes_enabled', $enabled ? 'yes' : 'no', false);
         update_option('ppwoo_tracking_page', $tracking_page, false);
+        update_option('ppwoo_tracking_logo', $logo, false);
         update_option('ppwoo_tracking_wait_driver', isset($_POST['tracking_wait_driver']) ? 'yes' : 'no', false);
         update_option('ppwoo_routes_maps_key_name', $maps_key_name, false);
         delete_option('ppwoo_routes_maps_key');

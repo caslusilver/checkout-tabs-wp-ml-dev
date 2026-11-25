@@ -15,7 +15,9 @@ test('Central keeps one approved link, fills dispatched data and confirms only a
  assert.equal(calls[1],'read');assert.equal(d.querySelector('.tracking-code').hidden,true);assert.equal(d.querySelector('.tracking-link').target,'_blank');
  assert.equal(d.querySelector('.tracking-accessible-confirm'),null);
  const slide=d.querySelector('#tracking-slide');slide.getBoundingClientRect=()=>({left:0,width:300});
- assert.equal(d.querySelector('.tracking-receipt').nextElementSibling.className,'tracking-stop','receipt immediately precedes customer address');
+ assert.equal(d.querySelector('.tracking-receipt').previousElementSibling.className,'tracking-stop','compact position/ETA immediately precedes receipt');
+ assert.equal(d.querySelector('.tracking-details').open,false);
+ assert.ok(d.querySelector('.tracking-details .tracking-address'));
  const pointer=(type,x)=>{const e=new w.Event(type);Object.defineProperties(e,{clientX:{value:x},pointerId:{value:1}});slide.dispatchEvent(e);};
  // Um toque no fim do controle não pode confirmar, nem change programático isolado.
  pointer('pointerdown',290);slide.value=100;pointer('pointerup',290);assert.equal(slide.value,'0');assert.equal(calls.includes('confirm'),false);
@@ -74,6 +76,31 @@ test('customer stage indicator follows polling without rebuilding the receipt or
   for(const link of d.querySelectorAll('a[href]')){assert.equal(link.target,'_blank');assert.match(link.rel,/noopener/);assert.match(link.rel,/noreferrer/);}
  }
  assert.match(d.querySelector('h1').textContent,/registrou a entrega/);
- assert.match(d.querySelector('.tracking-stage-description').textContent,/confirme abaixo/);
+ assert.match(d.querySelector('.tracking-stage-description').textContent,/confirme pelo slide/);
  assert.equal(d.querySelector('.tracking-thanks'),null,'driver event is not customer confirmation');
+});
+
+
+test('compact tracking preserves open details, expanded map and gesture across polling; logo fails back to name',async t=>{
+ const dom=new JSDOM('<main id="ppwoo-tracking"><p class="tracking-status"></p></main><script id="ppwoo-tracking-script" data-endpoint="/ajax" data-brand-name="Loja exemplo" data-logo="https://shop.example.test/logo.svg" data-whatsapp-icon="https://shop.example.test/assets/whatsapp.svg"></script>',{url:'https://shop.example.test/entrega/#pedido=201',runScripts:'outside-only',pretendToBeVisual:true});
+ t.after(()=>dom.window.close());const w=dom.window,d=w.document;let last=false,calls=0;
+ const data={number:'201',route:2,position:1,total:2,departed_at:new Date().toISOString(),eta_at:new Date(Date.now()+60000).toISOString(),expires_at:new Date(Date.now()+86400000).toISOString(),address:'Rua fictícia',final_area:'Bairro final',driver_whatsapp:'https://wa.me/5511999998888',tracking_link:'https://uber.example.test/ride',map:{points:[]},maps_key:''};
+ w.fetch=async()=>{calls++;return {ok:true,json:async()=>({success:true,data:{...data,last,code:last?'1234':''}})};};
+ w.eval(readFileSync('packing-panel-woo-dev/assets/js/order-tracking.js','utf8'));
+ const until=async check=>{for(let i=0;i<60&&!check();i++)await new Promise(r=>setTimeout(r,5));assert.ok(check());};
+ await until(()=>d.querySelector('#tracking-slide'));
+ assert.equal(d.querySelector('.tracking-brand img').src,'https://shop.example.test/logo.svg');
+ assert.equal(d.querySelector('.tracking-whatsapp img').src,'https://shop.example.test/assets/whatsapp.svg');
+ d.querySelector('.tracking-brand img').dispatchEvent(new w.Event('error'));
+ assert.equal(d.querySelector('.tracking-brand strong').hidden,false);
+ const details=d.querySelector('.tracking-details');details.open=true;
+ d.querySelector('.tracking-map-expand').click();
+ const slide=d.querySelector('#tracking-slide');slide.value=35;
+ await new Promise(resolve=>setTimeout(resolve,5));last=true;const count=calls;d.dispatchEvent(new w.Event('visibilitychange'));
+ await until(()=>calls>count&&!d.querySelector('.tracking-code').hidden);
+ assert.equal(d.querySelector('.tracking-details'),details);assert.equal(details.open,true);
+ assert.equal(d.querySelector('.tracking-map-expand').getAttribute('aria-expanded'),'true');
+ assert.equal(d.querySelector('#tracking-slide'),slide);assert.equal(slide.value,'35');
+ assert.match(d.querySelector('.tracking-code').textContent,/1234/);
+ assert.equal(d.querySelector('.tracking-accessible-confirm'),null);
 });

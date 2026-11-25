@@ -1,5 +1,17 @@
 # Central de Entrega — v3.3.9
 
+## Acompanhamento compacto e logo — v3.4.11
+
+Interface do cliente aprovada na prévia de 25/11/2026. Mapa menor com botão Ampliar/Reduzir, referência discreta no topo, estado com cor/pulso e curva, parada e previsão na mesma linha, confirmação por slide e contatos Uber/WhatsApp lado a lado. Endereço, contexto da corrida, saída, privacidade e vencimento ficam em **Endereço e detalhes da entrega**, fechado inicialmente. O código de finalização aparece somente no destino final, com cópia opcional; a confirmação continua exclusiva do slide.
+
+**Logo:** WordPress → PackPanel → Rotas → Central de Entrega do cliente → **Imagem do logo da Central**. Cole a URL de um PNG ou SVG já hospedado e salve. Sem URL própria, herda Checkout Tabs ML → Página de obrigado → Imagem do topo. Sem imagem configurada, ou em falha de carregamento, mostra o nome da loja. Este ajuste não habilita upload SVG nem altera o logo da página de obrigado. O contato do motoboy reutiliza `assets/whatsapp.svg`, o mesmo ícone do suporte da página de obrigado.
+
+O layout prioriza slide, previsão e contatos na primeira tela. Não bloqueia rolagem vertical: abrir o mapa/detalhes, ampliar fontes ou usar tela muito baixa pode exigir rolagem, preservando acesso a tudo. Pinça permanece restrita ao mapa. Links abrem outra aba. Atualizações preservam detalhes abertos, mapa ampliado e o controle de confirmação durante o gesto; não há novo endpoint nem mudança na autorização, validade ou cálculo das rotas.
+
+Validação local: fixtures de autorização/expiração/mapa privado/baixa e configurações; DOM de preparação/estados/código final; Edge com 320×568, 360×640, 390×844 e 1280×900, sem overflow horizontal e com slide/contatos na primeira tela. Toque simples e gesto incompleto não confirmam, gesto a 75% confirma uma vez, falha libera nova tentativa. Testes locais não carregam Google real nem chamam pedidos/WhatsApp/Uber da loja.
+
+Após atualização, configure a imagem e confira um link próprio intermediário e outro final em celular/PWA e desktop. Teste o Google real, recolha/abra detalhes e volte do WhatsApp verificando que o acompanhamento continua aberto. Rollback v3.4.10: sem migração, remoção de dados ou alteração dos links existentes.
+
 ## Fuso e previsões de envio — v3.4.5
 
 O fuso é o de **WordPress → Configurações → Geral** (nesta loja, São Paulo / `America/Sao_Paulo`). Não há um segundo relógio no checkout. **Checkout ML → Horários** mostra fuso, hora local e próxima saída para conferência. Formatos de data/hora são apenas apresentação.

@@ -4,8 +4,8 @@ const {createServer}=require('node:http');
 const {readFileSync}=require('node:fs');
 const {join}=require('node:path');
 const assert=require('node:assert/strict');
-let stage='ready',confirmations=0,failConfirm=true;
-const data=()=>({number:'201',route:2,position:2,total:4,last:false,code:'',driver_stage:stage,
+let stage='ready',confirmations=0,failConfirm=true,last=false;
+const data=()=>({number:'201',route:2,position:2,total:4,last,code:last?'4821':'',driver_stage:stage,
  departed_at:new Date().toISOString(),eta_at:new Date(Date.now()+60000).toISOString(),expires_at:new Date(Date.now()+86400000).toISOString(),
  address:'Rua Exemplo, 120 · Seu endereço',final_area:'Vila Exemplo',driver_whatsapp:'https://contact.example.test/driver',tracking_link:'https://tracking.example.test/ride',maps_key:'',map:{points:[]}});
 const server=createServer(async(req,res)=>{
@@ -19,9 +19,10 @@ const server=createServer(async(req,res)=>{
   res.writeHead(200,{'Content-Type':req.url.endsWith('.js')?'application/javascript':'text/css'});
   res.end(readFileSync(join(__dirname,'..','packing-panel-woo-dev/assets',req.url.endsWith('.js')?'js/order-tracking.js':'css/order-tracking.css')));return;
  }
+ if(req.url==='/brand.svg'||req.url==='/whatsapp.svg'){res.writeHead(200,{'Content-Type':'image/svg+xml'});res.end(readFileSync(join(__dirname,'..','assets',req.url==='/brand.svg'?'shield-lock.svg':'whatsapp.svg')));return;}
  if(req.url==='/entrega/'){
   res.writeHead(200,{'Content-Type':'text/html; charset=UTF-8'});
-  res.end('<!doctype html><html lang="pt-BR"><head><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"><link rel="stylesheet" href="/style.css"><style>.tracking-live{background-color:magenta}.tracking-map+.tracking-content{background-color:magenta;border-top:12px solid magenta;border-radius:0}</style></head><body><main id="ppwoo-tracking"><p class="tracking-status"></p></main><script id="ppwoo-tracking-script" src="/app.js" data-endpoint="/ajax"></script></body></html>');return;
+  res.end('<!doctype html><html lang="pt-BR"><head><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"><link rel="stylesheet" href="/style.css"><style>.tracking-live{background-color:magenta}.tracking-map-panel+.tracking-content{background-color:magenta;border-top:12px solid magenta;border-radius:0}</style></head><body><main id="ppwoo-tracking"><p class="tracking-status"></p></main><script id="ppwoo-tracking-script" src="/app.js" data-brand-name="Loja exemplo" data-logo="http://'+req.headers.host+'/brand.svg" data-whatsapp-icon="http://'+req.headers.host+'/whatsapp.svg" data-endpoint="/ajax"></script></body></html>');return;
  }
  res.writeHead(404).end();
 });
@@ -44,6 +45,25 @@ const server=createServer(async(req,res)=>{
    assert.deepEqual(styles,[color,color,'3px','22px','rgb(255, 255, 255)']);
    assert.equal(await slider.evaluate(el=>el===document.querySelector('#tracking-slide')),true);
   }
+  assert.equal(await page.locator('.tracking-brand img').evaluate(el=>el.complete&&el.naturalWidth>0),true);
+  assert.equal(await page.locator('.tracking-whatsapp img').evaluate(el=>el.complete&&el.naturalWidth>0),true);
+  for(const [width,height] of [[320,568],[360,640],[390,844],[1280,900]]){
+   await page.setViewportSize({width,height});
+   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+   for(const selector of ['#tracking-slide','.tracking-actions']){
+    const box=await page.locator(selector).boundingBox();assert.ok(box.y+box.height<=height,'essential control visible at '+width+'x'+height+': '+selector);
+   }
+  }
+  await page.setViewportSize({width:390,height:844});
+  assert.equal(await page.locator('.tracking-code').isVisible(),false);
+  last=true;await page.evaluate(()=>document.dispatchEvent(new Event('visibilitychange')));await page.waitForSelector('.tracking-code:visible');
+  assert.ok((await page.locator('.tracking-code').boundingBox()).y+(await page.locator('.tracking-code').boundingBox()).height<=844);
+  await page.locator('.tracking-details summary').click();await page.locator('.tracking-map-expand').click();
+  stage='started';await page.evaluate(()=>document.dispatchEvent(new Event('visibilitychange')));await page.waitForFunction(()=>document.querySelector('#ppwoo-tracking').dataset.trackingState==='started');
+  assert.equal(await page.locator('.tracking-details').evaluate(el=>el.open),true);
+  assert.equal(await page.locator('.tracking-map-expand').getAttribute('aria-expanded'),'true');
+  await page.locator('.tracking-details summary').click();await page.locator('.tracking-map-expand').click();
+  if(process.env.TRACKING_QA_OUTPUT)await page.screenshot({path:join(process.env.TRACKING_QA_OUTPUT,'tracking-compact-mobile.png'),fullPage:true});
   for(const selector of ['.tracking-link','.tracking-whatsapp']){
    const original=page.url(),popupPromise=context.waitForEvent('page');await page.click(selector);const popup=await popupPromise;
    await popup.waitForLoadState();assert.equal(page.url(),original);assert.equal(await popup.evaluate(()=>window.opener),null);await popup.close();await page.bringToFront();
