@@ -34,3 +34,14 @@ body.ctwpml-thankyou-shell #obrigado-v1 .product-stage{border:0!important;border
 body.ctwpml-thankyou-shell #obrigado-v1 .ticket,body.ctwpml-thankyou-shell #obrigado-v1 .page-actions{max-width:760px}
 @media(min-width:620px){body.ctwpml-thankyou-shell #obrigado-v1 .store-header{padding-left:max(24px,calc((100% - 760px)/2));padding-right:max(24px,calc((100% - 760px)/2))}}
 @media(max-width:619px){#obrigado-v1 .ticket{margin-left:14px!important;margin-right:14px!important}#obrigado-v1 .state-banner h1{font-size:17px!important}}
+#obrigado-v1 .ty-shield-icon,#obrigado-v1 .ty-external-icon{display:inline-block;width:16px;height:16px;flex:0 0 16px;background-color:currentColor}
+#obrigado-v1 .ty-shield-icon{-webkit-mask:url('../shield-lock.svg') center/contain no-repeat;mask:url('../shield-lock.svg') center/contain no-repeat}
+#obrigado-v1 .ty-external-icon{-webkit-mask:url('../open-in-new.svg') center/contain no-repeat;mask:url('../open-in-new.svg') center/contain no-repeat}
+#obrigado-v1 .ty-brand-logo{display:block;width:auto;max-width:200px;max-height:44px;object-fit:contain}
+#obrigado-v1 .ticket-top,#obrigado-v1 .ticket-body{padding-left:calc(17px + var(--ty-extra-padding,10px))!important;padding-right:calc(17px + var(--ty-extra-padding,10px))!important}
+#obrigado-v1 .date,#obrigado-v1 .date span,#obrigado-v1 .item-labels,#obrigado-v1 .product-line,#obrigado-v1 .product-info strong,#obrigado-v1 .product-info small,#obrigado-v1 .quantity,#obrigado-v1 .receipt-footer,#obrigado-v1 .validity,#obrigado-v1 .steps,#obrigado-v1 .address{font-size:calc(11px * var(--ty-font-scale,1.3))!important}
+#obrigado-v1 .totals{font-size:calc(12px * var(--ty-font-scale,1.3))!important}
+#obrigado-v1 .grand-total{font-size:calc(14px * var(--ty-font-scale,1.3))!important}
+#obrigado-v1 .product-line,#obrigado-v1 .item-labels{grid-template-columns:minmax(0,1fr) 36px minmax(77px,max-content)}
+#obrigado-v1 .store-brand{min-width:0}#obrigado-v1 .ty-brand-logo{max-width:min(200px,100%)}
+#obrigado-v1 .ticket-top .date{min-width:0;overflow-wrap:anywhere}#obrigado-v1 .totals>div{flex-wrap:wrap}#obrigado-v1 .totals>div>*{max-width:100%;overflow-wrap:anywhere}

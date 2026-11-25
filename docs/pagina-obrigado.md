@@ -1,5 +1,17 @@
 # Página completa de obrigado — v3.4.9
 
+## Ajustes e tarja — v3.4.10
+
+Em Checkout Tabs ML → Página de obrigado: tamanho das informações por dropdown (Original, +15%, +30%, +50%, Personalizado), campo de percentual, espaçamento interno adicional por lado (padrão +10px), URL de logo PNG/SVG e diagnóstico. O WordPress pode não permitir upload SVG na mídia: use uma URL de SVG já hospedado; este módulo não habilita uploads inseguros. Vazio mantém nome do site. Diagnóstico registra eventos/estado/código HTTP no console e em WooCommerce → Status → Logs, fonte `ctwpml-thankyou`, sem valores de credenciais, links de pedidos, payloads ou dados pessoais.
+
+Para colocar a tarja no menu inferior, insira `[checkout_ml_pedido_status]` no widget Shortcode da seção desejada. A tarja não fixa nem reposiciona seu menu. Aparece somente para comprador autenticado com pedido ativo; não mostra na página completa de obrigado nem no rastreio configurado da Central. Para páginas futuras de rastreio, o filtro `ctwpml_order_strip_tracking_pages` recebe a lista de IDs excluídos. Sem shortcode, não há consultas de pedidos feitas pelo componente.
+
+Prioridade: primeiro os últimos pendentes/on-hold; se não houver, os pedidos processing mais recentes. A busca é limitada a cinco por grupo, verifica o proprietário e exclui paradas fechadas. Completed/cancelled/failed/refunded não são candidatos. Não é um seletor de histórico. Alterações no banco externo só aparecem depois que o gateway atualiza o pedido no WooCommerce.
+
+Pendente mostra Pix se disponível e timer visual compartilhado com a página de obrigado na sessão da aba. Ao observar pago pela primeira vez, mostra verde por quatro segundos; depois preparação azul ou em rota azul. O botão muda para Ver pedido, usando Central quando disponível e obrigado como alternativa; abre outra aba. Não dispara aprovação financeira nem navegação automática pela tarja. Sem Pix disponível, o acesso à página do pedido permanece disponível.
+
+Leitura AJAX autenticada a cada15s, com pausa quando a aba está oculta, reconsulta ao foco, backoff até60s, sem sobreposição e limite por usuário. O servidor determina o comprador pela sessão, não por parâmetro enviado pelo navegador. HTML inicial não contém dados de pedido. Mantenha o padrão WordPress de não servir cache público para usuários autenticados; sessões/nonce desatualizados ocultam a tarja em vez de exibir informações indevidas.
+
 ## Instalação
 
 1. Atualize o Checkout Tabs ML para v3.4.9 pelo Git Updater em develop.

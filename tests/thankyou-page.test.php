@@ -32,6 +32,7 @@ function admin_url($s){return 'https://fixture.test/'.$s;}function wp_create_non
 function get_bloginfo($s){return 'Loja de teste';}function wc_format_datetime($d){return '25/11/2026';}
 function esc_html($s){return htmlspecialchars((string)$s,ENT_QUOTES);}function esc_attr($s){return esc_html($s);}
 function esc_url($s){return esc_attr($s);}function wp_kses_post($s){return $s;}
+function esc_url_raw($s){return $s;}
 function wp_json_encode($v,$flags=0){return json_encode($v,$flags);}function wp_strip_all_tags($s){return strip_tags($s);}
 $order->state='pending';$_GET=['key'=>'fixture-key'];
 $markup=CTWPML_Thankyou::render();

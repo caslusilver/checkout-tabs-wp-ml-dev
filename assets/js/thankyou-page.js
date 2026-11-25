@@ -3,6 +3,8 @@
  const root=document.querySelector('.ctwpml-thankyou'),data=document.getElementById('ctwpml-ty-data');
  if(!root||!data)return;
  const c=JSON.parse(data.textContent),q=s=>root.querySelector(s),stage=q('.product-stage');
+ const debug=(event,detail='')=>{if(c.debug&&window.console)console.info('[CheckoutObrigado]',event,detail);};
+ debug('page_ready',c.state);
  const seconds=Math.max(60,Number(c.minutes)*60),storeKey='ctwpml-ty-clock-'+c.id;
  let deadline=Date.now()+seconds*1000,busy=false,timer,pollTimer,failures=0,autoTimer,lastTracking='',stopped=false;
  try {const old=JSON.parse(sessionStorage.getItem(storeKey)||'null');if(old&&old.seconds===seconds&&Number.isFinite(old.deadline))deadline=old.deadline;else sessionStorage.setItem(storeKey,JSON.stringify({seconds,deadline}));}catch(e){}
@@ -46,11 +48,13 @@
   try{
    const body=new URLSearchParams({action:'ctwpml_thankyou_status',order_id:String(c.id),key:c.key,nonce:c.nonce});
    const response=await fetch(c.ajax,{method:'POST',body,credentials:'same-origin',cache:'no-store',signal:abort.signal});
+   debug('status_response',response.status);
    if(response.status===403){stopped=true;throw new Error('Reabra o link do pedido para continuar acompanhando.');}
    if(!response.ok)throw new Error('Não foi possível atualizar agora. Tentaremos novamente.');
    const result=await response.json();if(!result.success||!['pending','paid','failed','cancelled','refunded'].includes(result.data?.state))throw new Error('Aguardando atualização.');
+   if(c.state!==result.data.state)debug('state_changed',result.data.state);
    c.state=result.data.state;c.tracking=result.data.tracking_url||'';failures=0;q('#ty-connection').textContent='';render();
-  }catch(e){failures++;q('#ty-connection').textContent=e.name==='AbortError'?'Conexão lenta. Tentaremos novamente.':e.message;}
+  }catch(e){failures++;debug('status_retry',e.name==='AbortError'?'timeout':'request_failed');q('#ty-connection').textContent=e.name==='AbortError'?'Conexão lenta. Tentaremos novamente.':e.message;}
   finally{clearTimeout(timeout);busy=false;if(!document.hidden&&!stopped)pollTimer=setTimeout(poll,Math.min(60000,(c.state==='pending'?5000:15000)*2**Math.min(failures,4)));}
  }
  function resume(){if(document.hidden){clearTimeout(pollTimer);clearTimeout(autoTimer);lastTracking='';return;}clock();render();poll();}

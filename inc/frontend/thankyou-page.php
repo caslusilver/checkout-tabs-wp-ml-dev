@@ -3,6 +3,12 @@ if (!defined('ABSPATH')) exit;
 
 /** Apresentação apenas: nunca emite cobrança ou confirma pagamento. */
 final class CTWPML_Thankyou {
+    public static function debug(string $event, string $state = ''): void {
+        if (!(int)get_option('ctwpml_thankyou_debug',0) || !function_exists('wc_get_logger')) return;
+        if (!in_array($event,['state_changed','tracking_unavailable'],true)) return;
+        $safe_state=in_array($state,['pending','paid','cancelled','failed','refunded'],true)?$state:'';
+        wc_get_logger()->info($event . ($safe_state?': '.$safe_state:''),['source'=>'ctwpml-thankyou']);
+    }
     public static function init(): void {
         add_shortcode('checkout_ml_obrigado', [__CLASS__, 'render']);
         add_action('template_redirect', [__CLASS__, 'privacy'], 0);
@@ -52,7 +58,7 @@ final class CTWPML_Thankyou {
             $stop = PPWOO_Routes_Store::ready() ? PPWOO_Routes_Store::stop($order->get_id()) : null;
             $route = $stop ? PPWOO_Routes_Store::route($stop['route_id']) : null;
             return $route && $route['state'] !== 'draft' ? PPWOO_Order_Tracking::link($route, $stop) : PPWOO_Order_Tracking::order_link($order);
-        } catch (Throwable $e) { return ''; }
+        } catch (Throwable $e) { self::debug('tracking_unavailable'); return ''; }
     }
     public static function status(): void {
         nocache_headers();
@@ -65,7 +71,12 @@ final class CTWPML_Thankyou {
         $count = (int) get_transient($bucket);
         if ($count >= 40) wp_send_json_error(['message'=>'Aguarde alguns instantes.'], 429);
         set_transient($bucket, $count + 1, 60);
-        wp_send_json_success(['state'=>self::state($order), 'tracking_url'=>self::tracking($order)]);
+        $state=self::state($order);
+        if ((int)get_option('ctwpml_thankyou_debug',0)) {
+            $state_key='ctwpml_ty_state_'.$id;
+            if (get_transient($state_key)!==$state) { self::debug('state_changed',$state);set_transient($state_key,$state,3600); }
+        }
+        wp_send_json_success(['state'=>$state, 'tracking_url'=>self::tracking($order)]);
     }
     public static function assets(): void {
         if (!self::page()) return;
@@ -74,6 +85,10 @@ final class CTWPML_Thankyou {
         wp_enqueue_script('ctwpml-thankyou', CHECKOUT_TABS_WP_ML_URL . 'assets/js/thankyou-page.js', [], $version, true);
     }
     public static function settings(): void {
+        register_setting(CHECKOUT_TABS_WP_ML_SETTINGS_GROUP, 'ctwpml_thankyou_font_scale', ['type'=>'integer','sanitize_callback'=>static fn($v)=>max(0,min(100,(int)$v)),'default'=>30]);
+        register_setting(CHECKOUT_TABS_WP_ML_SETTINGS_GROUP, 'ctwpml_thankyou_padding', ['type'=>'integer','sanitize_callback'=>static fn($v)=>max(0,min(40,(int)$v)),'default'=>10]);
+        register_setting(CHECKOUT_TABS_WP_ML_SETTINGS_GROUP, 'ctwpml_thankyou_logo', ['type'=>'string','sanitize_callback'=>'esc_url_raw']);
+        register_setting(CHECKOUT_TABS_WP_ML_SETTINGS_GROUP, 'ctwpml_thankyou_debug', ['type'=>'integer','sanitize_callback'=>static fn($v)=>empty($v)?0:1,'default'=>0]);
         register_setting(CHECKOUT_TABS_WP_ML_SETTINGS_GROUP, 'ctwpml_thankyou_page', ['type'=>'integer','sanitize_callback'=>'absint']);
         register_setting(CHECKOUT_TABS_WP_ML_SETTINGS_GROUP, 'ctwpml_thankyou_minutes', ['type'=>'integer','sanitize_callback'=>static fn($v)=>max(1,min(1440,(int)$v)), 'default'=>6]);
         foreach (['pending_title'=>'Seu pedido está reservado','paid_title'=>'Compra confirmada. Tudo certo!','thanks'=>'Obrigado! Estamos cuidando do seu pedido.','support'=>''] as $field=>$default) {
@@ -89,6 +104,13 @@ final class CTWPML_Thankyou {
             $defaults=['pending_title'=>'Seu pedido está reservado','paid_title'=>'Compra confirmada. Tudo certo!','thanks'=>'Obrigado! Estamos cuidando do seu pedido.'];
             echo '<tr><th>' . esc_html($label) . '</th><td><input class="regular-text" name="ctwpml_thankyou_' . esc_attr($key) . '" value="' . esc_attr(get_option('ctwpml_thankyou_'.$key,$defaults[$key]??'')) . '"></td></tr>';
         }
+        $scale=max(0,min(100,(int)get_option('ctwpml_thankyou_font_scale',30)));
+        echo '<tr><th>Tamanho das informações</th><td><select onchange="document.getElementById(\'ctwpml-ty-font\').value=this.value===\'custom\'?document.getElementById(\'ctwpml-ty-font\').value:this.value">';
+        foreach(['0'=>'Original','15'=>'+15%','30'=>'+30% (padrão)','50'=>'+50%','custom'=>'Personalizado'] as $value=>$label){$selected=($value==='custom'&&!in_array($scale,[0,15,30,50],true))||($value!=='custom'&&(int)$value===$scale);echo '<option value="'.esc_attr($value).'"'.($selected?' selected':'').'>'.esc_html($label).'</option>';}
+        echo '</select> <input id="ctwpml-ty-font" name="ctwpml_thankyou_font_scale" type="number" min="0" max="100" value="'.esc_attr($scale).'" style="width:80px"> % de aumento<p class="description">Aplica-se a data, itens, quantidade, valores e informações auxiliares.</p></td></tr>';
+        echo '<tr><th>Espaçamento interno adicional</th><td><input name="ctwpml_thankyou_padding" type="number" min="0" max="40" value="'.esc_attr(get_option('ctwpml_thankyou_padding',10)).'"> px por lado (padrão +10 px)</td></tr>';
+        echo '<tr><th>Imagem do topo</th><td><input class="regular-text" type="url" name="ctwpml_thankyou_logo" value="'.esc_attr(get_option('ctwpml_thankyou_logo','')).'"><p class="description">URL da imagem PNG ou SVG. Vazio mantém o nome do site. SVG pode exigir envio pelo gerenciador de arquivos da hospedagem.</p></td></tr>';
+        echo '<tr><th>Diagnóstico</th><td><input type="hidden" name="ctwpml_thankyou_debug" value="0"><label><input type="checkbox" name="ctwpml_thankyou_debug" value="1" '.checked(1,(int)get_option('ctwpml_thankyou_debug',0),false).'> Ativar diagnóstico técnico</label><p class="description">Console do navegador e WooCommerce → Status → Logs, fonte ctwpml-thankyou. Não registra payload Pix, tokens ou dados pessoais.</p></td></tr>';
         echo '</table><p>A confirmação vem do estado real do pedido, atualizado pelo gateway. Nenhum parâmetro no link confirma pagamento.</p></div>';
     }
     public static function render(): string {
@@ -118,7 +140,11 @@ final class CTWPML_Thankyou {
         $support = preg_replace('/\D/', '', (string)get_option('ctwpml_thankyou_support',''));
         $support_url = strlen($support)>=8 && strlen($support)<=15 ? 'https://wa.me/'.$support : '';
         $tracking = self::tracking($order);
+        $font_scale=1+max(0,min(100,(int)get_option('ctwpml_thankyou_font_scale',30)))/100;
+        $extra_padding=max(0,min(40,(int)get_option('ctwpml_thankyou_padding',10)));
+        $logo=esc_url_raw((string)get_option('ctwpml_thankyou_logo',''));
         $config = ['ajax'=>admin_url('admin-ajax.php'),'id'=>$id,'key'=>$key,'nonce'=>wp_create_nonce('ctwpml_ty_'.$id),'state'=>$state,'minutes'=>$minutes,'tracking'=>$tracking,'pendingTitle'=>get_option('ctwpml_thankyou_pending_title','Seu pedido está reservado'),'paidTitle'=>get_option('ctwpml_thankyou_paid_title','Compra confirmada. Tudo certo!'),'thanks'=>get_option('ctwpml_thankyou_thanks','Obrigado! Estamos cuidando do seu pedido.')];
+        $config['debug']=(bool)get_option('ctwpml_thankyou_debug',0);
         ob_start();
         require CHECKOUT_TABS_WP_ML_DIR . 'templates/thankyou-page.php';
         return ob_get_clean();

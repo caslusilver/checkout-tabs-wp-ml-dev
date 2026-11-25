@@ -2,6 +2,14 @@
 
 Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
+## [v3.4.10] - 2026-11-25
+
+- Página de obrigado com fontes auxiliares 30% maiores por padrão, seletor de aumento e percentual personalizado, padding lateral adicional de 10px ajustável, imagem de topo por URL PNG/SVG e ícones de escudo/link fornecidos pelo usuário.
+- Diagnóstico opcional no console e logs WooCommerce (ctwpml-thankyou), limitado a eventos/estados técnicos, sem payloads, chaves ou dados pessoais.
+- Novo shortcode `[checkout_ml_pedido_status]`: tarja compacta para comprador autenticado, priorizando pendente e depois pago mais recente em andamento. Cópia Pix integral, timer de sessão compartilhado com obrigado, confirmação verde transitória e preparação/rota azul, link em nova aba. Oculta em rastreio da Central e na página completa de obrigado; extensão para páginas futuras por filtro.
+- Dados carregados por AJAX restrito ao próprio comprador com nonce, limite de consultas, pausa em aba oculta e ausência de sobreposição. Sem dados financeiros no HTML inicial e sem eventos de aprovação/cancelamento.
+- Rollback: v3.4.9; retirar shortcode da tarja antes de reverter. Usuário validou a v3.4.9 e aprovou a prévia desta melhoria; validação real da nova versão permanece posterior à atualização.
+
 ## [v3.4.9] - 2026-11-25
 
 - Página completa `[checkout_ml_obrigado]`, sem header/footer do tema, com ticket responsivo, Pix Copia e Cola preservado, QR desktop, itens/quantidades/totais e endereço. Configuração em Checkout Tabs ML → Página de obrigado: página, timer visual (6 minutos), textos e WhatsApp do suporte.
