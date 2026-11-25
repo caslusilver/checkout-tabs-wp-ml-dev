@@ -2,6 +2,13 @@
 
 Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
+## [v3.4.11] - 2026-11-25
+
+- Acompanhamento Motoboy do cliente com composição compacta aprovada: mapa menor ampliável, parada/previsão na mesma linha, slide visível antes dos contatos, Uber e WhatsApp lado a lado e informações secundárias em detalhes expansíveis.
+- Logo por URL PNG/SVG em PackPanel → Rotas → Central de Entrega do cliente; herda a imagem da página de obrigado quando vazio e mantém nome da loja como alternativa. Reutiliza o ícone WhatsApp já incluído no plugin.
+- Mantém mapa real com origem/paradas aproximadas, cores e pulso por estado, links em outra aba, código somente no destino final, polling sem recriar o slide e confirmação a 75% com recuperação de erro. Sem migração ou alteração financeira.
+- Rollback: v3.4.10. Instalação real no WordPress/PWA e carregamento Google precisam de validação após atualização.
+
 ## [v3.4.10] - 2026-11-25
 
 - Página de obrigado com fontes auxiliares 30% maiores por padrão, seletor de aumento e percentual personalizado, padding lateral adicional de 10px ajustável, imagem de topo por URL PNG/SVG e ícones de escudo/link fornecidos pelo usuário.
