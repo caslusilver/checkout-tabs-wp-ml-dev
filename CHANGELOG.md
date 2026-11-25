@@ -2,6 +2,13 @@
 
 Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
+## [v3.4.8] - 2026-11-25
+
+- Interface do checkout, shortcode, viewport, login e aviso de fechamento limitados ao checkout real: não montam na página personalizada de obrigado nem nos endpoints de pedido/pagamento.
+- Editor e iframe de prévia do Elementor não carregam a experiência de compra, splash ou modal global de geolocalização. Hooks de pedidos, APIs, gateway, Pix e página de confirmação permanecem disponíveis no fluxo público.
+- Registro contextual dos snippets externos de Pix e prioridade do blueprint da página de obrigado, sem incorporá-los ou alterá-los no site nesta versão.
+- Rollback: v3.4.7. Publicação em develop autorizada expressamente pelo usuário.
+
 ## [v3.4.7] - 2026-11-21
 
 - PackPanel com título compacto, divisória fina, engrenagem de horários e controle exclusivo dos envios por motoboy. Pop-up Hoje/Semana usa seletores de hora/minuto, calendário e tolerância existentes; somente administradores alteram, com nonce, revisão e proteção contra gravações simultâneas.

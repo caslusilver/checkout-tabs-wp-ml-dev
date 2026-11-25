@@ -5,7 +5,7 @@ if (!defined('ABSPATH')) {
 }
 
 add_action('wp_head', function () {
-	if (!function_exists('is_checkout') || !is_checkout() || (function_exists('is_wc_endpoint_url') && is_wc_endpoint_url())) {
+	if (!ctwpml_is_checkout_ui_request()) {
 		return;
 	}
 	?>
@@ -31,7 +31,7 @@ add_action('wp_head', function () {
 }, 99);
 
 add_action('wp_enqueue_scripts', function () {
-	if (!function_exists('is_checkout') || !is_checkout() || (function_exists('is_wc_endpoint_url') && is_wc_endpoint_url())) {
+	if (!ctwpml_is_checkout_ui_request()) {
 		return;
 	}
 
@@ -370,7 +370,7 @@ add_action('wp_enqueue_scripts', function () {
  */
 add_action('wp_enqueue_scripts', function () {
 	$enabled = ((int) get_option('checkout_tabs_wp_ml_splash_enabled', 0) === 1);
-	if (!$enabled) {
+	if (!$enabled || ctwpml_is_visual_editor()) {
 		return;
 	}
 
@@ -428,7 +428,7 @@ add_action('wp_enqueue_scripts', function () {
  */
 add_action('wp_body_open', function () {
 	$enabled = ((int) get_option('checkout_tabs_wp_ml_splash_enabled', 0) === 1);
-	if (!$enabled) {
+	if (!$enabled || ctwpml_is_visual_editor()) {
 		return;
 	}
 
@@ -457,7 +457,8 @@ add_action('wp_body_open', function () {
  * - Checkout: usa cc_params para pré-carregar endereços/frete e auto-abrir modal
  */
 add_action('wp_enqueue_scripts', function () {
-	$is_checkout = function_exists('is_checkout') && is_checkout() && !(function_exists('is_wc_endpoint_url') && is_wc_endpoint_url());
+	if (ctwpml_is_visual_editor()) return;
+	$is_checkout = ctwpml_is_checkout_ui_request();
 	$is_cart = function_exists('is_cart') && is_cart();
 	$is_product = function_exists('is_product') && is_product();
 

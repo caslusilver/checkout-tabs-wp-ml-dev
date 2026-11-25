@@ -21,7 +21,7 @@ if (!defined('ABSPATH')) {
  */
 function ctwpml_render_checkout_ml_shortcode(): string {
 	// Evitar rodar fora do checkout: reduz risco de efeitos colaterais.
-	$is_checkout = function_exists('is_checkout') && is_checkout() && !(function_exists('is_wc_endpoint_url') && is_wc_endpoint_url());
+	$is_checkout = ctwpml_is_checkout_ui_request();
 	if (!$is_checkout) {
 		return '';
 	}

@@ -9,7 +9,7 @@ if (!defined('ABSPATH')) {
  * Escopo: site inteiro (frontend), independente do checkout.
  */
 add_action('wp_enqueue_scripts', function () {
-	if (is_admin()) {
+	if (ctwpml_is_visual_editor()) {
 		return;
 	}
 

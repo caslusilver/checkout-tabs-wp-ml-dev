@@ -156,7 +156,7 @@ add_action('wp_ajax_ctwpml_dispatch_settings', [CTWPML_Dispatch_Controls::class,
 add_action('wp_ajax_ctwpml_dispatch_public', [CTWPML_Dispatch_Controls::class, 'public_ajax']);
 add_action('wp_ajax_nopriv_ctwpml_dispatch_public', [CTWPML_Dispatch_Controls::class, 'public_ajax']);
 add_shortcode('ppwoo_aviso_envio', [CTWPML_Dispatch_Controls::class, 'shortcode']);
-add_action('wp_enqueue_scripts', static function () { if (function_exists('is_checkout') && is_checkout()) CTWPML_Dispatch_Controls::assets(); });
+add_action('wp_enqueue_scripts', static function () { if (ctwpml_is_checkout_ui_request()) CTWPML_Dispatch_Controls::assets(); });
 add_action('woocommerce_after_checkout_validation', [CTWPML_Dispatch_Controls::class, 'validate_checkout'], 30, 2);
 add_action('woocommerce_checkout_order_created', [CTWPML_Dispatch_Controls::class, 'capture_order']);
 add_action('woocommerce_payment_complete', static function ($id) { CTWPML_Dispatch_Controls::capture_order(wc_get_order($id)); });

@@ -12,10 +12,7 @@ if (!defined('ABSPATH')) {
  * Aqui apenas garantimos o HTML #login-popup existir no /checkout para ser aberto via JS.
  */
 add_action('wp_footer', function () {
-	if (!function_exists('is_checkout') || !is_checkout()) {
-		return;
-	}
-	if (function_exists('is_wc_endpoint_url') && is_wc_endpoint_url()) {
+	if (!ctwpml_is_checkout_ui_request()) {
 		return;
 	}
 	if (is_user_logged_in()) {
