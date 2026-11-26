@@ -54,6 +54,10 @@ test('email lookup offers a bound key without loading an address or starting aut
  const c=setup(t);let continued='none';assert.equal(c.w.CTWPML_EarlyLogin.offer(email=>continued=email),true);
  c.d.querySelector('#ctwpml-early-email').value='fixture@example.test';c.d.querySelector('#ctwpml-early-email-form').dispatchEvent(new c.w.Event('submit',{bubbles:true,cancelable:true}));
  await until(()=>!c.d.querySelector('[data-ctwpml-early-offer]').hidden);
+ assert.equal(c.d.querySelector('#ctwpml-early-email-form').hidden,true);
+ assert.equal(c.d.querySelector('#ctwpml-early-email').readOnly,true);
+ assert.equal(c.d.querySelector('[data-ctwpml-early-email-value]').textContent,'fixture@example.test');
+ assert.match(c.d.querySelector('[data-ctwpml-early-title]').textContent,/Encontramos seu acesso rápido/);
  const call=c.calls.find(v=>v.action==='ctwpml_check_email');assert.equal(call.data._ajax_nonce,'fresh-email');assert.equal(call.data.early,1);
  assert.equal(c.d.querySelector('[data-ctwpml-early-offer] [data-ctwpml-passkey-login]').dataset.ctwpmlEarlyTicket,'fixture-route');
  assert.equal(continued,'none');assert.equal(c.calls.some(v=>v.action.includes('address')||v.action==='ctwpml_login'),false);
@@ -61,6 +65,21 @@ test('email lookup offers a bound key without loading an address or starting aut
  assert.equal(c.d.querySelector('#ctwpml-menu-password-form [name="email"]').value,'fixture@example.test');
  c.d.querySelector('[data-ctwpml-access-close]').click();assert.equal(c.d.querySelector('#ctwpml-early-access').hidden,false);
  c.d.querySelector('[data-ctwpml-early-manual]').click();assert.equal(continued,'fixture@example.test');
+});
+test('editing email removes the previous route and requires explicit Consultar before restoring priority',async t=>{
+ const c=setup(t);c.w.CTWPML_EarlyLogin.offer(()=>{});
+ const input=c.d.querySelector('#ctwpml-early-email'),form=c.d.querySelector('#ctwpml-early-email-form');
+ input.value='first@example.test';form.dispatchEvent(new c.w.Event('submit',{bubbles:true,cancelable:true}));
+ await until(()=>form.hidden);c.d.querySelector('[data-ctwpml-early-edit]').click();
+ assert.equal(form.hidden,false);assert.equal(input.readOnly,false);assert.equal(form.querySelector('button').textContent,'Consultar');assert.equal(c.d.activeElement,input);
+ assert.equal(c.d.querySelector('[data-ctwpml-early-offer]').hidden,true);
+ assert.equal(c.d.querySelector('[data-ctwpml-early-offer] button').hasAttribute('data-ctwpml-early-ticket'),false);
+ input.value='second@example.test';input.dispatchEvent(new c.w.Event('input',{bubbles:true}));
+ const before=c.calls.filter(v=>v.action==='ctwpml_check_email').length;await new Promise(r=>setTimeout(r,650));
+ assert.equal(c.calls.filter(v=>v.action==='ctwpml_check_email').length,before);
+ form.dispatchEvent(new c.w.Event('submit',{bubbles:true,cancelable:true}));await until(()=>form.hidden);
+ assert.equal(c.calls.filter(v=>v.action==='ctwpml_check_email').at(-1).data.email,'second@example.test');
+ assert.equal(c.d.querySelector('[data-ctwpml-early-email-value]').textContent,'second@example.test');
 });
 test('no key, unavailable ticket and disabled option keep the normal purchase path',async t=>{
  for(const options of [{method:'password',ticket:''},{method:'passkey',ticket:''}]){

@@ -1,4 +1,4 @@
-.ctwpml-dispatch-banner{--dispatch-dot:#16a34a;display:flex!important;align-items:center;justify-content:center;gap:12px;padding:12px 16px;background:#f4f7fa!important;color:#17242d!important;font:14px/1.5 system-ui,sans-serif;text-align:center;overflow-wrap:anywhere}
+.ctwpml-dispatch-banner{--dispatch-dot:#16a34a;box-sizing:border-box!important;display:flex!important;align-items:center;justify-content:center;gap:12px;min-height:0!important;padding:var(--dispatch-padding-top,12px) var(--dispatch-padding-right,16px) var(--dispatch-padding-bottom,12px) var(--dispatch-padding-left,16px)!important;background:#f4f7fa!important;color:#17242d!important;font:14px/1.5 system-ui,sans-serif;text-align:center;overflow-wrap:anywhere}
 .ctwpml-dispatch-banner .dispatch-dot{position:relative;flex:none;width:9px;height:9px;border-radius:50%;background:var(--dispatch-dot)!important}
 .ctwpml-dispatch-banner .dispatch-dot::after{content:'';position:absolute;inset:-4px;border:1px solid var(--dispatch-dot);border-radius:50%;opacity:.3}
 .ctwpml-dispatch-banner.is-pulsing .dispatch-dot::after{animation:ct-dispatch-pulse 2s ease-out infinite}

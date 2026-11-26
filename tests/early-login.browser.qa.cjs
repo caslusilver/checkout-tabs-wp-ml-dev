@@ -47,6 +47,12 @@ function verify(operation,response){
   await page.evaluate(()=>CTWPML_EarlyLogin.offer(email=>window.fixtureManual=email));
   await page.locator('#ctwpml-early-email').fill('fixture@example.test');await page.locator('#ctwpml-early-email-form button').click();
   await page.locator('[data-ctwpml-early-offer]').waitFor({state:'visible'});
+  assert.equal(await page.locator('#ctwpml-early-email-form').isVisible(),false);
+  assert.equal(await page.locator('[data-ctwpml-early-title]').textContent(),'Encontramos seu acesso rápido.');
+  await page.locator('[data-ctwpml-early-edit]').click();
+  assert.equal(await page.locator('[data-ctwpml-early-offer]').isVisible(),false);
+  assert.equal(await page.locator('#ctwpml-early-email-form button').textContent(),'Consultar');
+  await page.locator('#ctwpml-early-email-form button').click();await page.locator('[data-ctwpml-early-offer]').waitFor({state:'visible'});
   for(const width of [320,390,768,1280]){
    await page.setViewportSize({width,height:844});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
    assert.equal(await page.locator('#ctwpml-early-access').evaluate(node=>getComputedStyle(node).position),'fixed');

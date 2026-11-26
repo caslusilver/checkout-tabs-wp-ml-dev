@@ -29,6 +29,7 @@ add_action('admin_enqueue_scripts', function ($hook_suffix) {
 	if ($hook_suffix !== 'toplevel_page_' . CHECKOUT_TABS_WP_ML_SETTINGS_PAGE) {
 		return;
 	}
+	wp_enqueue_style('ctwpml-dispatch', CHECKOUT_TABS_WP_ML_URL . 'assets/css/dispatch-controls.css', [], checkout_tabs_wp_ml_get_version());
 
 	wp_enqueue_script(
 		'checkout-tabs-wp-ml-admin-tabs',
@@ -125,7 +126,7 @@ function checkout_tabs_wp_ml_render_admin_page(): void {
 		esc_url(admin_url('admin.php?page=' . CHECKOUT_TABS_WP_ML_SETTINGS_PAGE . '&tab=styles')) .
 		'" class="nav-tab ctwpml-admin-tab ' .
 		($tab === 'styles' ? 'nav-tab-active' : '') .
-		'" data-tab="styles">Styles</a>';
+		'" data-tab="styles">Estilos</a>';
 	echo '<a href="' .
 		esc_url(admin_url('admin.php?page=' . CHECKOUT_TABS_WP_ML_SETTINGS_PAGE . '&tab=horarios')) .
 		'" class="nav-tab ctwpml-admin-tab ' .
@@ -351,6 +352,15 @@ function checkout_tabs_wp_ml_render_admin_page(): void {
 	// Aba Styles
 	$style_styles = ($tab === 'styles') ? '' : 'display:none;';
 	echo '<div class="ctwpml-admin-tab-panel" data-tab="styles" style="' . esc_attr($style_styles) . '">';
+		echo '<h2 class="title">Aviso de próximo envio no header</h2>';
+		echo '<p class="description">Ajuste o espaçamento interno do shortcode [ppwoo_aviso_envio], em pixels. A prévia abaixo acompanha a edição; salve e recarregue o site para conferir. Margens, padding ou altura extra do contêiner Elementor são configurados no próprio Elementor.</p>';
+		echo '<table class="form-table" role="presentation">';
+		foreach (['top'=>'Superior','bottom'=>'Inferior','left'=>'Esquerdo','right'=>'Direito'] as $side=>$label) {
+			$value=CTWPML_Dispatch_Controls::banner_padding()[$side];
+			$id='ctwpml-dispatch-padding-'.$side;
+			echo '<tr><th scope="row"><label for="'.esc_attr($id).'">Padding '.esc_html($label).'</label></th><td><input type="number" id="'.esc_attr($id).'" data-dispatch-padding-side="'.esc_attr($side).'" name="checkout_tabs_wp_ml_dispatch_banner_padding['.esc_attr($side).']" value="'.esc_attr((string)$value).'" min="0" max="80" step="1" style="width:85px" /> px</td></tr>';
+		}
+		echo '</table><div class="ctwpml-dispatch-banner" data-ctwpml-dispatch-preview aria-label="Prévia do espaçamento do aviso"><span class="dispatch-dot" aria-hidden="true"></span><span>Próximo envio por motoboy · prévia de espaçamento</span></div>';
 		echo '<h2 class="title">Styles do Popup</h2>';
 		echo '<p class="description">Configure os estilos visuais do popup de login/cadastro por hierarquia de texto. Essas configurações sobrescrevem as cores globais do site.</p>';
 		

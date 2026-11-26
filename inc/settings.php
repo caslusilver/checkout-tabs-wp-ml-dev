@@ -12,6 +12,7 @@ function ctwpml_address_field_enabled(string $field): bool {
 }
 
 add_action('admin_init', function () {
+	register_setting(CHECKOUT_TABS_WP_ML_SETTINGS_GROUP,'checkout_tabs_wp_ml_dispatch_banner_padding',['type'=>'array','default'=>['top'=>12,'right'=>16,'bottom'=>12,'left'=>16],'sanitize_callback'=>[CTWPML_Dispatch_Controls::class,'sanitize_banner_padding']]);
 	register_setting(CHECKOUT_TABS_WP_ML_SETTINGS_GROUP,'checkout_tabs_wp_ml_early_login_enabled',['type'=>'integer','default'=>0,'sanitize_callback'=>static fn($v)=>(string)$v==='1'?1:0]);
 	register_setting(CHECKOUT_TABS_WP_ML_SETTINGS_GROUP,'checkout_tabs_wp_ml_login_icon_size',['type'=>'integer','default'=>28,'sanitize_callback'=>static fn($v)=>max(18,min(48,(int)$v))]);
 	register_setting(CHECKOUT_TABS_WP_ML_SETTINGS_GROUP, 'ctwpml_logo_height', ['type'=>'integer', 'default'=>28, 'sanitize_callback'=>static fn($v)=>max(20,min(44,(int)$v))]);
