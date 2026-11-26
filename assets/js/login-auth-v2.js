@@ -404,6 +404,7 @@
         success: function (resp) {
           if (resp && resp.success) {
             setMsg($msg, 'Entrando... Aguarde.', false);
+            if (window.CTWPMLPrepare) window.CTWPMLPrepare.showPreparingOverlay('Acesso confirmado. Carregando seus dados…');
             window.location.href = window.location.href.split('?')[0] + '?ctwpml_session_refresh=' + Date.now();
             return;
           }

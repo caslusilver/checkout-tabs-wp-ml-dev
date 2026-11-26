@@ -38,6 +38,7 @@
   var SS_KEY_DONE = 'ctwpml_prepare_done_for_checkout_entry';
   var SS_KEY_LAST_ADDR = 'ctwpml_prepare_last_address_id';
   var SS_KEY_AUTH_RESUME = 'ctwpml_auth_resume_v1';
+  var checkoutOwnsOverlay = false;
 
   function hasAuthResumeSnapshot() {
     try {
@@ -107,6 +108,8 @@
   }
 
   function hideOverlay() {
+    // Prefetch/endereço em paralelo não podem apagar o indicador do envio final.
+    if (checkoutOwnsOverlay) return;
     var el = ensureOverlay();
     el.classList.remove('is-visible');
   }
@@ -117,9 +120,15 @@
   // =========================================================
   window.CTWPMLPrepare = window.CTWPMLPrepare || {};
 
-  window.CTWPMLPrepare.showPreparingOverlay = function (message) {
+  window.CTWPMLPrepare.showPreparingOverlay = function (message, owner) {
     try {
+      if (owner === 'checkout') checkoutOwnsOverlay = true;
+      else if (checkoutOwnsOverlay) return;
       var el = ensureOverlay();
+      el.classList.toggle('is-finalizing', checkoutOwnsOverlay);
+      el.setAttribute('role', 'status');
+      el.setAttribute('aria-live', 'polite');
+      el.setAttribute('aria-busy', 'true');
       try {
         var titleEl = el.querySelector('.ctwpml-preparing-title');
         if (titleEl && message) titleEl.textContent = String(message);
@@ -131,6 +140,10 @@
 
   window.CTWPMLPrepare.hidePreparingOverlay = function () {
     try {
+      checkoutOwnsOverlay = false;
+      var el = ensureOverlay();
+      el.classList.remove('is-finalizing');
+      el.setAttribute('aria-busy', 'false');
       hideOverlay();
       log('Overlay ocultado');
     } catch (e0) {}
@@ -180,7 +193,7 @@
             reject(err);
           })
           .finally(function () {
-            window.CTWPMLPrepare.hidePreparingOverlay();
+            hideOverlay();
           });
       } catch (e0) {
         reject(e0);

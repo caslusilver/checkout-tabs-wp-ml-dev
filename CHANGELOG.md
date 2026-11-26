@@ -2,6 +2,14 @@
 
 Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
+## [v3.4.12] - 2026-11-26
+
+- Integração de acesso aos dados salvos com Secure Passkeys 1.3.0 instalado separadamente: oferta antecipada no checkout, alternativa tradicional, login no diálogo final e convite opcional de cadastro na página de obrigado para sessão autenticada sem chaves cadastradas.
+- Reutiliza challenges, verificação e armazenamento do motor existente; integração com evento wp_login para sessão WooCommerce, renovação de página/nonces após autenticação e mensagens de login/cadastro em português. Shortcode adicional [checkout_ml_acesso] para Minha Conta; o shortcode original permanece funcional e recebe tradução/ícone.
+- Ícone fingerprint fornecido pelo usuário. Sem autenticação por reconhecimento de e-mail, migração de chaves ou alteração dos pagamentos.
+- Tela verde com spinner e mensagem de processamento exibida antes da gravação dos dados de contato, protegido de atualizações de endereço concorrentes e com prioridade sobre menus fixos. Mensagem de confirmação continua somente após sucesso WooCommerce; erros liberam nova tentativa.
+- Layout desktop em duas colunas documentado e apresentado em prévia separada; aplicação desse redesenho aguarda aceite visual. Rollback: v3.4.11. Validação de Face ID/PIN e sessão na loja permanece necessária após atualização.
+
 ## [v3.4.11] - 2026-11-25
 
 - Acompanhamento Motoboy do cliente com composição compacta aprovada: mapa menor ampliável, parada/previsão na mesma linha, slide visível antes dos contatos, Uber e WhatsApp lado a lado e informações secundárias em detalhes expansíveis.

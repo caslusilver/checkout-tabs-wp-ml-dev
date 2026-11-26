@@ -1232,6 +1232,9 @@
         var $auth = $('#ctwpml-view-auth');
         var $popup = $auth.find('.ctwpml-login-popup').first();
         var $form = $auth.find('#ctwpml-auth-form').first();
+        var passkeyFirst = mode !== 'create' && $popup.find('[data-ctwpml-passkey-login]').length > 0;
+        $popup.toggleClass('ctwpml-passkey-first', passkeyFirst);
+        $popup.find('.ctwpml-passkey-card, [data-ctwpml-passkey-password]').toggle(mode !== 'create');
 
         $popup
           .removeClass('ctwpml-auth-mode-login ctwpml-auth-mode-create ctwpml-auth-mode-mixed ctwpml-google-login-disabled')
@@ -1270,7 +1273,7 @@
           $auth.find('.ctwpml-auth-col-left, .ctwpml-auth-col-right').show();
           $auth.find('.ctwpml-create-account-fields').hide();
           $('#ctwpml-auth-submit').text('Entrar');
-          setTimeout(function () { try { $('#ctwpml-login-password').trigger('focus'); } catch (eF1) {} }, 60);
+          setTimeout(function () { try { if (passkeyFirst) $popup.find('[data-ctwpml-passkey-login]').trigger('focus'); else $('#ctwpml-login-password').trigger('focus'); } catch (eF1) {} }, 60);
         } else {
           $('#ctwpml-modal-title').text('Entrar');
           $auth.find('.ctwpml-auth-col-left, .ctwpml-auth-col-right, .ctwpml-create-account-fields').show();
@@ -4529,6 +4532,9 @@
 
     function openModal(opts) {
       opts = opts || {};
+      if (!opts.skipPasskeyOffer && !isLoggedIn() && window.CTWPMLPasskeys && window.CTWPMLPasskeys.offer(function () {
+        openModal(Object.assign({}, opts, { skipPasskeyOffer: true }));
+      })) return;
       var resumeSnapshot = opts && opts.resumeSnapshot ? opts.resumeSnapshot : null;
       if (resumeSnapshot) authResumeContext = resumeSnapshot;
       state.log('UI        [DEBUG] openModal() chamado', { isLoggedIn: isLoggedIn(), resumeAfterAuth: !!resumeSnapshot }, 'UI');
@@ -8255,6 +8261,7 @@
     $(document).on('click', '#ctwpml-review-confirm, #ctwpml-review-confirm-sticky', function (e) {
       e.preventDefault();
       try { e.stopImmediatePropagation(); } catch (e0) {}
+      if (state.__ctwpmlFinalContactBusy) return;
 
       var log = function (msg, data) {
         try {
@@ -8620,8 +8627,16 @@
           return;
         }
         state.skipAuthCheckOnce = false;
+        state.__ctwpmlFinalContactBusy = true;
+        $('#ctwpml-review-confirm, #ctwpml-review-confirm-sticky').prop('disabled', true);
+        if (window.CTWPMLPrepare) window.CTWPMLPrepare.showPreparingOverlay('Finalizando seu pedido…', 'checkout');
         persistContactMetaBeforeCheckout(function (ok) {
-          if (!ok) return;
+          state.__ctwpmlFinalContactBusy = false;
+          if (!ok) {
+            $('#ctwpml-review-confirm, #ctwpml-review-confirm-sticky').prop('disabled', false);
+            if (window.CTWPMLPrepare) window.CTWPMLPrepare.hidePreparingOverlay();
+            return;
+          }
           proceedToCheckoutSubmit();
         });
         return;
@@ -8630,11 +8645,11 @@
       proceedToCheckoutSubmit();
 
       function proceedToCheckoutSubmit() {
-      // Indicador neutro durante sincronização e envio; a tela verde é reservada para sucesso real.
+      // Tela integral de processamento; mensagem de sucesso só depois da resposta WooCommerce.
       var prep = window.CTWPMLPrepare || null;
       try {
         if (prep && typeof prep.showPreparingOverlay === 'function') {
-          prep.showPreparingOverlay('Finalizando seu pedido...');
+          prep.showPreparingOverlay('Finalizando seu pedido...', 'checkout');
         }
       } catch (eP0) {}
       if (typeof state.checkpoint === 'function') {
@@ -8662,6 +8677,8 @@
         }
         if (!ctwpmlHasNeighborhoodValue()) {
           showNotification('Campo \"Bairro\" é obrigatório. Verifique o endereço e tente novamente.', 'error', 5000);
+          $('#ctwpml-review-confirm, #ctwpml-review-confirm-sticky').prop('disabled', false);
+          if (prep) prep.hidePreparingOverlay();
           if (typeof state.checkpoint === 'function') {
             var diag = {
               context: 'pre_submit_block',

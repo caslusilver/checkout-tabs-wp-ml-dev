@@ -31,3 +31,15 @@ test('real success animation is shown only after a successful form result, then 
  assert.equal(w.document.querySelector('.ctwpml-success-progress-percent').textContent,'100%');
  $(w.document.body).trigger('checkout_error');assert.equal(w.document.querySelector('#ctwpml-success-overlay').getAttribute('aria-hidden'),'true');
 });
+
+test('final checkout indicator survives background address preparation until an explicit terminal result',t=>{
+ const{w,$}=setup(t);w.cc_params={};w.eval(readFileSync('assets/js/preparing-checkout.js','utf8'));
+ w.CTWPMLPrepare.showPreparingOverlay('Finalizando seu pedido…','checkout');
+ w.CTWPMLPrepare.showPreparingOverlay('Atualizando endereço');
+ assert.equal(w.document.querySelector('.ctwpml-preparing-title').textContent,'Finalizando seu pedido…');
+ assert.equal(w.document.querySelector('#ctwpml-preparing-overlay').classList.contains('is-visible'),true);
+ assert.equal(w.document.querySelector('#ctwpml-preparing-overlay').classList.contains('is-finalizing'),true);
+ assert.equal(w.document.querySelector('#ctwpml-success-overlay'),null);
+ w.CTWPMLPrepare.hidePreparingOverlay();
+ assert.equal(w.document.querySelector('#ctwpml-preparing-overlay').classList.contains('is-visible'),false);
+});

@@ -1,14 +1,14 @@
-.ctwpml-preparing-overlay {
+#ctwpml-preparing-overlay.ctwpml-preparing-overlay {
   position: fixed;
   inset: 0;
-  background: #ffffff;
+  background: #ffffff !important;
   /* acima do modal ML e overlays do tema */
-  z-index: 9999999;
-  display: none;
+  z-index: 2147483200 !important;
+  display: none !important;
 }
 
-.ctwpml-preparing-overlay.is-visible {
-  display: flex;
+#ctwpml-preparing-overlay.ctwpml-preparing-overlay.is-visible {
+  display: flex !important;
   align-items: center;
   justify-content: center;
 }
@@ -42,5 +42,11 @@
     transform: rotate(360deg);
   }
 }
+
+/* Cor de tela solicitada; o texto/spinner continuam indicando processamento, nunca sucesso antecipado. */
+#ctwpml-preparing-overlay.ctwpml-preparing-overlay.is-finalizing{background-color:#00a650!important;color:#fff!important}
+#ctwpml-preparing-overlay.is-finalizing .ctwpml-preparing-title{color:#fff!important}
+#ctwpml-preparing-overlay.is-finalizing .ctwpml-preparing-spinner{border-color:rgba(255,255,255,.3)!important;border-top-color:#fff!important}
+@media(prefers-reduced-motion:reduce){#ctwpml-preparing-overlay .ctwpml-preparing-spinner{animation-duration:2.5s}}
 
 

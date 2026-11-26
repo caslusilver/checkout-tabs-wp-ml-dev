@@ -145,7 +145,7 @@
       '' +
       '<div id="' + OVERLAY_ID + '" role="status" aria-live="assertive" aria-hidden="true" tabindex="-1">' +
       '  <div class="ctwpml-success-message">' +
-      '    <h1>Pedido Confirmado!</h1>' +
+      '    <h1>Pedido recebido!</h1>' +
       '    <p>Você será redirecionado para efetuar o pagamento...</p>' +
       '    <div class="ctwpml-success-progress" aria-hidden="true">' +
       '      <div class="ctwpml-success-progress-bar" style="width:10%"></div>' +
