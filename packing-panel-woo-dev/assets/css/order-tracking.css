@@ -5,8 +5,8 @@
 #ppwoo-tracking:is([data-tracking-state=preparing],[data-tracking-state=arrived],[data-tracking-state=delivered]){--tracking-state:#168343}
 #ppwoo-tracking [hidden]{display:none!important}
 #ppwoo-tracking .tracking-brand{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 17px;min-height:52px}
-#ppwoo-tracking .tracking-brand>strong{font-size:17px;line-height:1.2;overflow-wrap:anywhere;max-width:55%}
-#ppwoo-tracking .tracking-brand>img{width:auto;max-width:50%;height:28px;object-fit:contain;object-position:left center}
+#ppwoo-tracking .tracking-brand .tracking-home>strong{font-size:17px;line-height:1.2;overflow-wrap:anywhere;max-width:55%}
+#ppwoo-tracking .tracking-brand .tracking-home>img{width:auto;max-width:50%;height:28px;object-fit:contain;object-position:left center}
 #ppwoo-tracking .tracking-brand>small{font-size:11px;color:#536879;text-align:right}
 #ppwoo-tracking .tracking-map-panel{position:relative}
 #ppwoo-tracking .tracking-map{touch-action:none;height:clamp(110px,25dvh,180px);width:100%;background:#eef3f6;color:#536879;display:grid;place-items:center;font-size:13px;text-align:center}
@@ -79,3 +79,5 @@
 @media(max-width:360px){#ppwoo-tracking .tracking-map{height:clamp(100px,24dvh,155px)}#ppwoo-tracking .tracking-content{padding-left:13px;padding-right:13px;gap:12px}#ppwoo-tracking h1{font-size:18px}#ppwoo-tracking .tracking-arrival>strong{font-size:16px}#ppwoo-tracking .tracking-position-label{max-width:100px}#ppwoo-tracking .tracking-actions a{font-size:11px}}
 @media(max-height:650px) and (max-width:768px){#ppwoo-tracking .tracking-content{gap:10px}#ppwoo-tracking .tracking-map{height:110px}}
 @media(min-width:769px){#ppwoo-tracking .tracking-brand{max-width:680px;margin:auto;padding:18px 24px}#ppwoo-tracking .tracking-map{height:250px}#ppwoo-tracking .tracking-content{padding:22px 24px 20px;gap:16px}#ppwoo-tracking h1{font-size:23px}}
+
+#ppwoo-tracking .tracking-home{display:flex;align-items:center;max-width:65%;text-decoration:none!important;color:inherit!important}#ppwoo-tracking .tracking-home>img{height:28px!important;width:auto!important;max-width:100%!important;object-fit:contain!important}

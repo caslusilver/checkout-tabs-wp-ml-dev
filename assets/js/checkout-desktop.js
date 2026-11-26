@@ -18,7 +18,11 @@
             name.hidden = true; img.onerror = () => { img.hidden = true; name.hidden = false; };
             brand.append(img);
         }
-        brand.append(name, node('span', 'Compra segura', 'ctwpml-desktop-secure'));
+        const home = node('a', null, 'ctwpml-desktop-home'); home.href = config.home || '/'; home.setAttribute('aria-label', 'Página inicial');
+        home.target = '_blank'; home.rel = 'noopener noreferrer';
+        Array.from(brand.children).forEach(child => home.append(child)); home.append(name);
+        brand.append(home, node('span', 'Compra segura', 'ctwpml-desktop-secure'));
+        if (config.logoHeight) home.style.setProperty('--ctwpml-logo-height', Number(config.logoHeight) + 'px');
         const nav = node('nav', null, 'ctwpml-desktop-steps'); nav.setAttribute('aria-label', 'Etapas da compra'); nav.dataset.ctwpmlDesktopOwned = '1';
         for (const [value, label] of [['auth','Identificação'],['address','Entrega'],['payment','Pagamento'],['review','Conferência']]) {
             const button = node('button', label); button.type = 'button'; button.dataset.desktopStep = value;
@@ -63,7 +67,7 @@
         const state = snapshot(), totals = host()?.readTotals?.() || {}, coupons = host()?.readCoupons?.() || [];
         for (const [container, ui] of mounts) {
             if (!container.isConnected) { mounts.delete(container); continue; }
-            const stage = ui.entry ? 'auth' : viewStep(state.view);
+            const stage = ui.entry ? 'auth' : state.view === 'auth' ? 'review' : viewStep(state.view);
             for (const button of ui.nav.querySelectorAll('button')) {
                 const active = button.dataset.desktopStep === stage;
                 if (button.getAttribute('aria-current') !== (active ? 'step' : 'false')) button.setAttribute('aria-current',active ? 'step' : 'false');

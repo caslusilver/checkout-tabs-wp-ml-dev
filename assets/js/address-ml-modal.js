@@ -1232,7 +1232,7 @@
         var $auth = $('#ctwpml-view-auth');
         var $popup = $auth.find('.ctwpml-login-popup').first();
         var $form = $auth.find('#ctwpml-auth-form').first();
-        var passkeyFirst = mode !== 'create' && $popup.find('[data-ctwpml-passkey-login]').length > 0;
+        var passkeyFirst = false; // Login tradicional permanece visível; suporte WebAuthn não prova chave existente.
         $popup.toggleClass('ctwpml-passkey-first', passkeyFirst);
         $popup.find('.ctwpml-passkey-card, [data-ctwpml-passkey-password]').toggle(mode !== 'create');
 
@@ -2965,16 +2965,18 @@
       var summary = document.getElementById('ctwpml-review-initial-summary');
       if (!$container.length || !$footer.length || !summary) return;
 
-      $container.off('scroll.ctwpmlReviewSticky').on('scroll.ctwpmlReviewSticky', function () {
+      function updateSticky() {
         try {
           var summaryRect = summary.getBoundingClientRect();
           var containerRect = $container[0].getBoundingClientRect();
           // mostra quando o resumo já saiu da área visível do container
-          var visibleTop = containerRect.top + 8;
+          var visibleTop = Math.max(0, containerRect.top) + 8;
           if (summaryRect.bottom < visibleTop) $footer.addClass('is-visible');
           else $footer.removeClass('is-visible');
         } catch (e) {}
-      });
+      }
+      $container.off('scroll.ctwpmlReviewSticky').on('scroll.ctwpmlReviewSticky', updateSticky);
+      $(window).off('scroll.ctwpmlReviewSticky resize.ctwpmlReviewSticky').on('scroll.ctwpmlReviewSticky resize.ctwpmlReviewSticky', updateSticky);
 
       // roda 1x
       $container.trigger('scroll.ctwpmlReviewSticky');
@@ -2984,6 +2986,20 @@
       $('#ctwpml-review-confirm, #ctwpml-review-confirm-sticky')
         .prop('disabled', !enabled)
         .css('opacity', enabled ? '' : '0.6');
+      var $status = $('#ctwpml-review-readiness');
+      if (!$status.length && $('#ctwpml-review-initial-summary').length) {
+        $status = $('<div id="ctwpml-review-readiness" role="status"><p></p><button type="button">Conferir dados da compra</button></div>');
+        $('#ctwpml-review-initial-summary').append($status);
+        $status.find('button').on('click', function () {
+          var reasons = ctwpmlReviewGateBlockingReasons();
+          if (reasons.indexOf('billing_incomplete') >= 0) $('#ctwpml-review-change-billing').trigger('click');
+          else ctwpmlPrepareCheckoutForReview('manual_retry', function () { showReviewConfirmScreen({ skipPrepare: true }); });
+        });
+      }
+      var reasons = ctwpmlReviewGateBlockingReasons();
+      $status.toggle(!enabled);
+      $status.find('p').text(reasons.length ? 'Estamos conferindo endereço, entrega e pagamento. Se não liberar, confira os dados da compra.' : 'Marque o aceite das políticas para confirmar a compra.');
+      $status.find('button').toggle(reasons.length > 0);
     }
 
     function ctwpmlSyncWooTerms(checked) {
@@ -4651,7 +4667,12 @@
         if (targetView === 'shipping') return showShippingPlaceholder();
         if (targetView === 'payment') return showPaymentScreen();
         if (targetView === 'review') return showReviewConfirmScreen();
-        if (targetView === 'form') return showFormForNewAddress();
+        if (targetView === 'form') {
+          if (selectedAddressId && getAddressById(selectedAddressId)) showFormForEditAddress(selectedAddressId);
+          else showFormForNewAddress();
+          ctwpmlApplyFormSnapshot(readFormSnapshot(), true);
+          return;
+        }
         if (targetView === 'list') {
           showList();
           renderAddressList();
@@ -5054,10 +5075,19 @@
       }
     }
 
-    function ctwpmlApplyFormSnapshot(snapshot) {
+    function ctwpmlApplyFormSnapshot(snapshot, preferDraft) {
       if (!snapshot) return;
       if (snapshot.addressId && snapshot.addressId !== selectedAddressId) return;
       if (!snapshot.addressId && selectedAddressId) return;
+      if (preferDraft) {
+        var draftFields = {cep:'cep',rua:'rua',numero:'numero',comp:'comp',bairro:'bairro',info:'info',nome:'nome',email:'email',cpf:'cpf'};
+        Object.keys(draftFields).forEach(function (key) {
+          if (Object.prototype.hasOwnProperty.call(snapshot, key)) $('#ctwpml-input-' + draftFields[key]).val(snapshot[key] || '');
+        });
+        lastCepOnly = cepDigits(snapshot.cep || '');
+        cepConsultedFor = String(snapshot.cepConsultedFor || '');
+        formDirty = true;
+      }
 
       if (snapshot.cep && !ctwpmlNormalizeText($('#ctwpml-input-cep').val())) {
         $('#ctwpml-input-cep').val(formatCep(snapshot.cep));
@@ -5087,6 +5117,8 @@
     }
 
     function ctwpmlFlushFormSnapshot(reason) {
+      // Views já fechadas/limpas não podem apagar o rascunho durável durante reload ou login.
+      if (currentView !== 'form') return false;
       if (wasOrderCompletedRecently()) return false;
       if (formSnapshotDebounce) clearTimeout(formSnapshotDebounce);
       formSnapshotDebounce = null;
@@ -5925,7 +5957,7 @@
         extra_info: ($('#ctwpml-input-info').val() || '').trim(),
       };
 
-      if (typeof state.log === 'function') state.log('UI        Salvando endereço no backend...', address, 'UI');
+      if (typeof state.log === 'function') state.log('UI        Salvando endereço no backend...', { hasNumber: !!address.number, hasComplement: !!address.complement, hasNeighborhood: !!address.neighborhood }, 'UI');
 
       $.ajax({
         url: state.params.ajax_url,
@@ -7345,6 +7377,7 @@
       if ($('#ctwpml-view-form').is(':visible')) {
         if (!validateForm()) {
           state.log('ERROR     validateForm falhou (não salvou)', {}, 'ERROR');
+          showNotification('Confira os campos destacados. Preencha seus dados novamente se estiverem vazios.', 'error', 5000);
           return;
         }
         if (!isLoggedIn()) {
@@ -8648,6 +8681,7 @@
       proceedToCheckoutSubmit();
 
       function proceedToCheckoutSubmit() {
+      if (window.CTWPMLPasskeys && window.CTWPMLPasskeys.beforeCheckout(proceedToCheckoutSubmit)) return;
       // Tela integral de processamento; mensagem de sucesso só depois da resposta WooCommerce.
       var prep = window.CTWPMLPrepare || null;
       try {

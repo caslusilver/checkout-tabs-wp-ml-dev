@@ -142,6 +142,7 @@ function ctwpml_ajax_auth_email(): void {
 	}
 
 	// Login do usuário recém-criado.
+	if (function_exists('ctwpml_preserve_auth_coupons')) ctwpml_preserve_auth_coupons();
 	wp_set_current_user($user->ID);
 	wp_set_auth_cookie($user->ID, true);
 

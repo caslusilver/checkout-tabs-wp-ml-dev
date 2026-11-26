@@ -147,6 +147,22 @@ function ctwpml_guest_clear_session(): void {
 	ctwpml_guest_session_set(CTWPML_GUEST_CONTACT_META_SESSION_KEY, []);
 }
 
+function ctwpml_preserve_auth_coupons(): void {
+	if (!function_exists('WC') || !WC()->session || !WC()->cart) return;
+	WC()->session->set('ctwpml_auth_coupons', array_slice(WC()->cart->get_applied_coupons(), 0, 10));
+}
+add_action('woocommerce_cart_loaded_from_session', static function ($cart) {
+	if (!is_user_logged_in() || !function_exists('WC') || !WC()->session) return;
+	$codes = WC()->session->get('ctwpml_auth_coupons', null);
+	if (!is_array($codes)) return;
+	WC()->session->__unset('ctwpml_auth_coupons');
+	foreach ($codes as $code) {
+		// Revalidar no WooCommerce; nunca restaurar valor/desconto vindo do navegador.
+		$code = wc_format_coupon_code((string)$code);
+		if ($code && !$cart->has_discount($code)) $cart->apply_coupon($code);
+	}
+}, 20);
+
 function ctwpml_migrate_guest_data_to_user(int $user_id): void {
 	if ($user_id <= 0) {
 		return;

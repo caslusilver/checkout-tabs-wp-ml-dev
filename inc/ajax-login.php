@@ -80,6 +80,7 @@ function checkout_tabs_wp_ml_ajax_login(): void {
 		'remember' => true,
 	];
 
+	if (function_exists('ctwpml_preserve_auth_coupons')) ctwpml_preserve_auth_coupons();
 	$user = wp_signon($creds, is_ssl());
 	if (is_wp_error($user)) {
 		if ($is_debug_enabled) error_log('[CTWPML ERROR] ajax_login - wp_signon: ' . $user->get_error_message());

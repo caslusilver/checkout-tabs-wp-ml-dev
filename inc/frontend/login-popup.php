@@ -28,7 +28,7 @@ add_action('wp_footer', function () {
 	<div id="ctwpml-auth-template" style="display:none;">
 		<!-- Wrapper interno é movido para dentro do modal via JS (showAuthView) -->
 		<div class="ctwpml-login-popup <?php echo $google_login_enabled ? '' : 'ctwpml-google-login-disabled'; ?>" data-ctwpml-google-login-enabled="<?php echo $google_login_enabled ? '1' : '0'; ?>">
-			<?php if (class_exists('CTWPML_Passkeys') && CTWPML_Passkeys::available()): echo CTWPML_Passkeys::card(); ?>
+			<?php if (class_exists('CTWPML_Passkeys') && CTWPML_Passkeys::available()): echo CTWPML_Passkeys::card('late'); ?>
 			<button type="button" class="ctwpml-passkey-other" data-ctwpml-passkey-password>Entrar com e-mail e senha</button>
 			<?php endif; ?>
 			<form id="ctwpml-auth-form" class="ctwpml-auth-form" autocomplete="on">
