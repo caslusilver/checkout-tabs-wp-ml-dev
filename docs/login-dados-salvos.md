@@ -1,5 +1,21 @@
 # Login com dados salvos — v3.4.12
 
+## Adicionar uma segunda chave — correção v3.4.20
+
+Relato: após entrar com senha e autorizar a criação no PC, o aparelho concluiu sua etapa, mas o site informou que não conseguiu salvar o acesso. O adaptador enviava sempre `security_key_name=Acesso rapido`. O Secure Passkeys 1.3.0 recusa outro cadastro com o mesmo nome na mesma conta, mesmo que a credencial seja diferente. Isso foi reproduzido localmente com as ações originais do motor. A resposta específica da tentativa real não foi capturada: limite de chaves e outras falhas também podiam aparecer como a mesma mensagem genérica. Não há evidência de que cadastrar no celular tenha substituído uma chave do PC.
+
+Cada cadastro do adaptador agora envia `Acesso rapido ` mais 12 dígitos hexadecimais aleatórios, dentro dos 3–30 caracteres ASCII aceitos pelo motor. Não contém nome, e-mail, tipo de aparelho ou identificador da credencial. O nome é somente um rótulo: não autentica nem escolhe a chave. Quando o motor está configurado para gerar nomes automaticamente, o filtro nativo reutiliza esse rótulo apenas no cadastro deste adaptador, para o proprietário autenticado e com nonce válido. Demais cadastros/configurações permanecem nativos.
+
+O motor continua adicionando registros separados por credencial. Mantidos: challenge de uso único, prova criptográfica, origem/RP, sessão, permissões, lista de exclusão, contador por credencial e limite configurado. O limite padrão da referência1.3.0 é 3, mas a configuração real da loja não foi consultada. A correção não aumenta limites, não apaga chaves e não restaura registros antigos ausentes. Senha válida permite oferecer o cadastro; informar um e-mail sozinho nunca concede essa permissão.
+
+Erros conhecidos retornam mensagens específicas em português: `REGISTER_DUPLICATE`, `REGISTER_LIMIT` e `REGISTER_FAILED`. Com Debug habilitado, eventos `CHK_PASSKEY_REGISTER_ERROR` no navegador e `passkey_register_rejected` em WooCommerce → Status → Logs → ctwpml-auth registram somente o código fixo. Erros arbitrários não são exibidos nem registrados pelo adaptador. Cancelamento/erro libera os controles e permite continuar a compra sem cadastrar.
+
+Após merge/release e atualização pelo Git Updater, branch develop: manter a mesma conta no celular e PC; no PC, entrar com senha → Ativar para a próxima compra → criar chave → conferir Tudo pronto → continuar. Sair e testar acesso rápido em cada aparelho. Se aparecer limite atingido, revisar os acessos na gestão do Secure Passkeys antes de decidir remover algum; não excluir todos os acessos para testar.
+
+Validação local: `tests/passkeys-multiple.browser.qa.cjs` usa dois contextos Edge e autenticadores virtuais isolados, mais as ações reais Enable/Login do Secure Passkeys 1.3.0 e sua biblioteca criptográfica, com persistência em memória na fixture exclusivamente CLI. Dois cadastros permanecem na mesma conta e ambos autenticam; reproduz a colisão antiga e rejeita credencial duplicada, limite e prova inválida sem apagar registros. A fixture não é um WordPress real nem teste de PIN/Face ID, sincronização entre aparelhos ou gerenciador de senhas. `tests/passkeys.test.php` cobre o filtro de nome com/sem nonce/sessão/proprietário e a tradução em admin-ajax; DOM cobre erros, nomes distintos, exclusões e continuidade da compra.
+
+Rollback para 3.4.19 mantém as chaves nativas existentes, mas volta ao rótulo fixo em novos cadastros. Não altera pagamentos, pedidos, snippets ou configurações da loja.
+
 ## Dependência e instalação
 
 Manter **Secure Passkeys 1.3.0** instalado e ativo separadamente no mesmo WordPress da loja. Esta integração não instala, substitui, copia o motor para o checkout nem migra credenciais. Referência oficial: https://github.com/endisha/secure-passkeys, commit `cf2b3c11705b18d5f183ba053dc943ca68a75c30`. Cópia local de referência em `C:/Users/Dell/Desktop/plugins VIBE CODER/secure-passkeys-reference`. Novas versões do motor precisam de teste de compatibilidade.

@@ -43,10 +43,28 @@ final class CTWPML_Passkeys {
         add_action('secure_passkeys_web_authn_sign_in', [__CLASS__, 'resume_checkout']);
         add_filter('secure_passkeys_get_frontend_login_localization', [__CLASS__, 'login_translation']);
         add_filter('secure_passkeys_get_frontend_register_localization', [__CLASS__, 'register_translation']);
+        add_filter('secure_passkeys_auto_generate_security_key_name', [__CLASS__, 'registration_name'], 20, 3);
         add_filter('secure_passkeys_login_error_message', [__CLASS__, 'login_error_message'], 10, 2);
         add_filter('secure_passkeys_frontend_invalid_request_error_message', static fn($error) => $error ? 'Sua sessão mudou. Recarregue a página e tente novamente.' : '');
         add_filter('secure_passkeys_frontend_invalid_permission_error_message', static fn() => 'Este perfil não pode cadastrar acesso rápido. Consulte o suporte.');
         add_filter('gettext', [__CLASS__, 'translate'], 20, 3);
+    }
+    public static function registration_name($name, $user_id, $timestamp=null) {
+        // O motor pode ignorar o nome enviado quando a opção de nome automático está ativa.
+        // Personaliza só o rótulo deste adaptador, mantendo sessão, nonce e validação nativos.
+        if (($_POST['action'] ?? '') !== 'secure_passkeys_frontend_register_passkey' ||
+            ($_POST['ctwpml_registration_context'] ?? '') !== 'checkout' || !is_user_logged_in() ||
+            (int)$user_id !== get_current_user_id() || !defined('SECURE_PASSKEYS_NONCE') ||
+            !wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['nonce'] ?? '')), SECURE_PASSKEYS_NONCE)) return $name;
+        $candidate=sanitize_text_field(wp_unslash($_POST['security_key_name'] ?? ''));
+        return preg_match('/^Acesso rapido [a-f0-9]{12}$/D', $candidate) ? $candidate : $name;
+    }
+    public static function register_errors(): array {
+        return [
+            'REGISTER_DUPLICATE'=>'Este acesso já está cadastrado. Escolha criar outra chave no aparelho ou continue sua compra sem ativar.',
+            'REGISTER_LIMIT'=>'Sua conta atingiu o limite de acessos rápidos. Os acessos existentes foram mantidos. Você pode continuar sua compra sem ativar.',
+            'REGISTER_FAILED'=>'Não foi possível salvar o acesso. Tente novamente ou continue sua compra sem ativar.',
+        ];
     }
     public static function login_errors(): array {
         return [
@@ -95,7 +113,7 @@ final class CTWPML_Passkeys {
         $version = checkout_tabs_wp_ml_get_version();
         wp_enqueue_style('ctwpml-passkeys', CHECKOUT_TABS_WP_ML_URL . 'assets/css/passkeys.css', [], $version);
         wp_enqueue_script('ctwpml-passkeys', CHECKOUT_TABS_WP_ML_URL . 'assets/js/passkeys.js', [], $version, true);
-        wp_localize_script('ctwpml-passkeys', 'ctwpmlPasskeyConfig', ['debug'=>function_exists('checkout_tabs_wp_ml_is_debug_enabled') && checkout_tabs_wp_ml_is_debug_enabled(), 'ajax'=>admin_url('admin-ajax.php'), 'checkEmailNonce'=>wp_create_nonce('ctwpml_check_email'), 'loginErrors'=>self::login_errors(), 'checkout'=>ctwpml_is_checkout_ui_request() || (bool)self::$handoff_order, 'cart'=>function_exists('is_cart') && is_cart(), 'checkoutUrl'=>function_exists('wc_get_checkout_url') ? wc_get_checkout_url() : '', 'afterOrder'=>self::$handoff_order ? self::$handoff_order->get_checkout_order_received_url() : '', 'afterOrderId'=>self::$handoff_order ? self::$handoff_order->get_id() : 0, 'loggedIn'=>is_user_logged_in(), 'account'=>function_exists('wc_get_page_permalink') ? wc_get_page_permalink('myaccount') : wp_login_url()]);
+        wp_localize_script('ctwpml-passkeys', 'ctwpmlPasskeyConfig', ['debug'=>function_exists('checkout_tabs_wp_ml_is_debug_enabled') && checkout_tabs_wp_ml_is_debug_enabled(), 'ajax'=>admin_url('admin-ajax.php'), 'checkEmailNonce'=>wp_create_nonce('ctwpml_check_email'), 'loginErrors'=>self::login_errors(), 'registerErrors'=>self::register_errors(), 'checkout'=>ctwpml_is_checkout_ui_request() || (bool)self::$handoff_order, 'cart'=>function_exists('is_cart') && is_cart(), 'checkoutUrl'=>function_exists('wc_get_checkout_url') ? wc_get_checkout_url() : '', 'afterOrder'=>self::$handoff_order ? self::$handoff_order->get_checkout_order_received_url() : '', 'afterOrderId'=>self::$handoff_order ? self::$handoff_order->get_id() : 0, 'loggedIn'=>is_user_logged_in(), 'account'=>function_exists('wc_get_page_permalink') ? wc_get_page_permalink('myaccount') : wp_login_url()]);
     }
     public static function context(): void {
         nocache_headers();
@@ -179,7 +197,24 @@ final class CTWPML_Passkeys {
         return array_replace($texts,['title'=>'Seus acessos rápidos', 'description'=>'Use rosto, digital ou PIN para acessar seus dados salvos.', 'out_of'=>'de', 'add_passkey_button'=>'Adicionar acesso rápido', 'add_button'=>'Adicionar', 'cancel_button'=>'Cancelar', 'your_passkeys'=>'Seus acessos rápidos', 'add_waiting_button'=>'Confirme no seu aparelho…', 'added_on'=>'Adicionado em', 'last_used'=>'Último uso', 'security_key_name'=>'Nome do acesso', 'security_key_description'=>'Escolha um nome para reconhecer este aparelho.', 'security_key_name_placeholder'=>'Ex.: Meu celular', 'inactive'=>'Inativo', 'active'=>'Ativo', 'failed_load_passkeys'=>'Não foi possível carregar os acessos.', 'reach_maximum_credentials'=>'Você atingiu o limite de acessos cadastrados.', 'failed_cancel_register'=>'Cadastro cancelado ou não concluído.', 'failed_save_passkey_name_length'=>'Use um nome entre 3 e 30 caracteres.', 'passkey_already_registered'=>'Este acesso já está cadastrado.', 'failed_register'=>'Não foi possível cadastrar. Tente novamente.', 'cancelled_register'=>'Cadastro cancelado. Sua compra pode continuar.', 'confirm_delete_passkey'=>'Excluir este acesso rápido?', 'failed_delete_passkey'=>'Não foi possível excluir o acesso.', 'success_delete_passkey'=>'Acesso excluído.', 'passkeys_not_supported_in_browser'=>'Use outro navegador para cadastrar seu acesso rápido.', 'failed_load_options'=>'Não foi possível preparar o cadastro.', 'failed_save_passkey'=>'Não foi possível salvar o acesso.', 'failed_save_passkey_name'=>'Use letras sem acento, números, espaços, hífen ou sublinhado.', 'success_save_passkey'=>'Acesso rápido cadastrado.', 'no_passkeys_found'=>'Nenhum acesso rápido cadastrado.']);
     }
     public static function translate($translated, $text, $domain) {
-        if ($domain!=='secure-passkeys' || is_admin()) return $translated;
+        if ($domain!=='secure-passkeys') return $translated;
+        // admin-ajax também é is_admin(): traduz os motivos fixos do cadastro no endpoint nativo.
+        if (function_exists('wp_doing_ajax') && wp_doing_ajax() &&
+            ($_POST['action'] ?? '') === 'secure_passkeys_frontend_register_passkey') {
+            $reasons=[
+                'This passkey is already registered. Please use a different one.'=>'REGISTER_DUPLICATE',
+                'The maximum number of registered passkeys has been reached.'=>'REGISTER_LIMIT',
+                'Failed to register the passkey. Please try again later.'=>'REGISTER_FAILED',
+            ];
+            if (isset($reasons[$text])) {
+                $code=$reasons[$text];
+                if (function_exists('checkout_tabs_wp_ml_is_debug_enabled') && checkout_tabs_wp_ml_is_debug_enabled() && function_exists('wc_get_logger')) {
+                    wc_get_logger()->warning('passkey_register_rejected: '.$code, ['source'=>'ctwpml-auth']);
+                }
+                return self::register_errors()[$code];
+            }
+        }
+        if (is_admin()) return $translated;
         $map=['Login via Passkey'=>'Entrar com acesso rápido','Login via Passkey..'=>'Confirme no seu aparelho…','Passkey authentication failed. Please try again.'=>'Não foi possível entrar. Tente novamente ou use outra forma de acesso.','Token mismatch, please refresh the page.'=>'A sessão mudou. Recarregue a página e tente novamente.','Too many requests. Please try again later.'=>'Muitas tentativas. Aguarde um momento e tente novamente.'];
         return $map[$text] ?? $translated;
     }

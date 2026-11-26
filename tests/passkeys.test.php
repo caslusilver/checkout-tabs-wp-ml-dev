@@ -7,7 +7,7 @@ namespace Secure_Passkeys\Models {
 }
 namespace {
 define('ABSPATH',__DIR__);define('SECURE_PASSKEYS_VERSION','1.3.0');define('SECURE_PASSKEYS_NONCE','engine-nonce');define('CHECKOUT_TABS_WP_ML_URL','https://shop.example.test/plugin/');
-function add_action(...$a){}function add_shortcode(...$a){}function add_filter(...$a){}function nocache_headers(){}function is_admin(){return false;}
+function add_action(...$a){}function add_shortcode(...$a){}function add_filter(...$a){}function nocache_headers(){}function is_admin(){return $GLOBALS['admin']??false;}function wp_doing_ajax(){return $GLOBALS['ajax']??false;}
 function is_user_logged_in(){return $GLOBALS['logged'];}function get_current_user_id(){return $GLOBALS['logged']?42:0;}
 function get_transient($key){return $GLOBALS['count'];}function set_transient(...$args){}function wp_create_nonce($action){return 'native-'.$action;}
 function wp_send_json_success($data){throw new \RuntimeException(json_encode(['success'=>true,'data'=>$data]));}
@@ -22,6 +22,8 @@ function WC(){return $GLOBALS['woo'];}
 function update_user_meta($id,$key,$value){$GLOBALS['profile'][$id][$key]=$value;}
 function sanitize_text_field($s){return is_string($s)?$s:'';}function wp_unslash($s){return $s;}function absint($v){return abs((int)$v);}
 function wp_verify_nonce($s,$action){return $s==='native-'.$action;}
+function checkout_tabs_wp_ml_is_debug_enabled(){return $GLOBALS['debug']??false;}
+function wc_get_logger(){return new class{function warning($message,$context){$GLOBALS['messages'][]=[$message,$context];}};}
 class PK_Order {public $owner=42;public $meta=[];function get_customer_id(){return $this->owner;}function get_id(){return 9;}function get_order_key(){return 'fixture-order-key';}function get_checkout_order_received_url(){return 'https://fixture.test/obrigado/9/?key=fixture-order-key';}function update_meta_data($k,$v){$this->meta[$k]=$v;}function save_meta_data(){}}
 $order=new PK_Order();
 function wc_get_order($id){return $id===9?$GLOBALS['order']:false;}
@@ -61,5 +63,23 @@ try{\CTWPML_Passkeys::validate_checkout_identity(true,new WP_User(42));throw new
 expect(\CTWPML_Passkeys::login_error_message('private error','arbitrary-secret'), 'Não foi possível entrar. Tente novamente ou entre de outra forma.');
 expect(\CTWPML_Passkeys::validate_checkout_identity(false,new WP_User(42)),false);
 $_POST=['ctwpml_context'=>'entry'];expect(\CTWPML_Passkeys::validate_checkout_identity(true,new WP_User(99)),true);
+
+// Nome automático: apenas o cadastro autenticado do adaptador pode personalizar o rótulo.
+$registration=['action'=>'secure_passkeys_frontend_register_passkey','ctwpml_registration_context'=>'checkout','nonce'=>'native-engine-nonce','security_key_name'=>'Acesso rapido 012345abcdef'];
+$_POST=$registration;expect(\CTWPML_Passkeys::registration_name('native',42),$registration['security_key_name']);
+expect(\CTWPML_Passkeys::registration_name('native',99),'native');
+$logged=false;expect(\CTWPML_Passkeys::registration_name('native',42),'native');$logged=true;
+foreach(['nonce'=>'invalid','action'=>'other','ctwpml_registration_context'=>'other','security_key_name'=>'Acesso rapido'] as $field=>$value){
+ $_POST=array_replace($registration,[$field=>$value]);expect(\CTWPML_Passkeys::registration_name('native',42),'native');
+}
+$_POST=$registration;$admin=true;$ajax=true;$debug=true;$messages=[];
+foreach(['This passkey is already registered. Please use a different one.'=>'REGISTER_DUPLICATE','The maximum number of registered passkeys has been reached.'=>'REGISTER_LIMIT','Failed to register the passkey. Please try again later.'=>'REGISTER_FAILED']as $native=>$code){
+ expect(\CTWPML_Passkeys::translate('native',$native,'secure-passkeys'),\CTWPML_Passkeys::register_errors()[$code]);
+ expect(\CTWPML_Passkeys::translate('native',$native,'other'),'native');
+}
+expect(count($messages),3);expect($messages[0],['passkey_register_rejected: REGISTER_DUPLICATE',['source'=>'ctwpml-auth']]);
+expect(\CTWPML_Passkeys::translate('native','private fixture error','secure-passkeys'),'native');expect(count($messages),3);
+$_POST['action']='other';expect(\CTWPML_Passkeys::translate('native','The maximum number of registered passkeys has been reached.','secure-passkeys'),'native');
+$ajax=false;$_POST=$registration;expect(\CTWPML_Passkeys::translate('native','This passkey is already registered. Please use a different one.','secure-passkeys'),'native');
 echo "Passkeys: versão, contexto mínimo, proprietário, roles, método, limite e traduções passaram.\n";
 }

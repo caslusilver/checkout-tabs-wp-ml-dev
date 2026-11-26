@@ -2,6 +2,12 @@
 
 Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
+## [v3.4.20] - 2026-11-26
+
+- Cada cadastro de acesso rápido recebe nome único, sem dados pessoais. Corrige a colisão de “Acesso rapido” ao adicionar uma segunda chave na mesma conta; também funciona quando o motor usa nomes automáticos. Não substitui nem exclui chaves existentes.
+- Recusas por duplicidade e limite do Secure Passkeys passam a ter mensagem específica e código de diagnóstico fixo, sem provas, identificadores ou dados do cliente. Erros liberam o controle e permitem continuar a compra; limites, sessão, nonce e validação criptográfica continuam nativos.
+- Regressão com duas credenciais distintas na mesma conta e checagem de nomes pelo motor original. Guia em docs/login-dados-salvos.md.
+
 ## [v3.4.19] - 2026-11-26
 
 - Cliente existente sem chave recebe a opção Entrar e recuperar meus dados antes do endereço, no login antecipado experimental. O e-mail fica resumido com Editar e-mail; não compete com Continuar. Conta nova mantém o preenchimento/cadastro final anterior e cliente com chave mantém a oferta de acesso rápido.
