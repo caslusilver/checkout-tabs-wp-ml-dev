@@ -92,6 +92,7 @@ function checkout_tabs_wp_ml_render_admin_page(): void {
 	$ui_login_bg = sanitize_hex_color((string) get_option('checkout_tabs_wp_ml_ui_login_bg', '#f5f5f5')) ?: '#f5f5f5';
 	$ui_text = sanitize_hex_color((string) get_option('checkout_tabs_wp_ml_ui_text', '#111111')) ?: '#111111';
 	$recaptcha_site_key = sanitize_text_field((string) get_option('checkout_tabs_wp_ml_recaptcha_site_key', ''));
+	$recaptcha_enabled = ctwpml_recaptcha_enabled();
 	$recaptcha_secret_key = sanitize_text_field((string) get_option('checkout_tabs_wp_ml_recaptcha_secret_key', ''));
 	$privacy_policy_url = esc_url((string) get_option('checkout_tabs_wp_ml_privacy_policy_url', ''));
 
@@ -233,17 +234,21 @@ function checkout_tabs_wp_ml_render_admin_page(): void {
 		echo '</td>';
 		echo '</tr>';
 		echo '<tr>';
+		echo '<th scope="row">Verificação reCAPTCHA</th><td>';
+		echo '<input type="hidden" name="checkout_tabs_wp_ml_recaptcha_enabled" value="0" />';
+		echo '<label><input type="checkbox" name="checkout_tabs_wp_ml_recaptcha_enabled" value="1" ' . ($recaptcha_enabled ? 'checked' : '') . ' /> Exigir reCAPTCHA no login e na criação de conta do checkout</label>';
+		echo '<p class="description">Desmarque e salve para testar sem o desafio. As chaves ficam preservadas para reativar depois. Senha, nonces e limite de tentativas continuam ativos. Não altera a proteção de outros plugins.</p></td></tr><tr>';
 		echo '<th scope="row"><label for="checkout_tabs_wp_ml_recaptcha_site_key">reCAPTCHA v2 (Site Key)</label></th>';
 		echo '<td>';
 		echo '<input type="text" class="regular-text" id="checkout_tabs_wp_ml_recaptcha_site_key" name="checkout_tabs_wp_ml_recaptcha_site_key" value="' . esc_attr($recaptcha_site_key) . '" placeholder="6Le..." />';
-		echo '<p class="description">Chave pública do Google reCAPTCHA v2. <a href="https://www.google.com/recaptcha/admin" target="_blank">Obter chaves</a>. Se vazio, tenta reutilizar do plugin "Login No Captcha reCAPTCHA".</p>';
+		echo '<p class="description">Chave pública do Google reCAPTCHA v2. <a href="https://www.google.com/recaptcha/admin" target="_blank" rel="noopener noreferrer">Obter chaves</a>. Para reutilizar o par do plugin "Login No Captcha reCAPTCHA", deixe as duas chaves vazias.</p>';
 		echo '</td>';
 		echo '</tr>';
 		echo '<tr>';
 		echo '<th scope="row"><label for="checkout_tabs_wp_ml_recaptcha_secret_key">reCAPTCHA v2 (Secret Key)</label></th>';
 		echo '<td>';
 		echo '<input type="text" class="regular-text" id="checkout_tabs_wp_ml_recaptcha_secret_key" name="checkout_tabs_wp_ml_recaptcha_secret_key" value="' . esc_attr($recaptcha_secret_key) . '" placeholder="6Le..." />';
-		echo '<p class="description">Chave secreta (não compartilhe). Se vazio, tenta reutilizar do plugin instalado.</p>';
+		echo '<p class="description">Chave secreta do mesmo cadastro da chave pública (não compartilhe). Ambas precisam pertencer ao reCAPTCHA v2 e ao domínio da loja.</p>';
 		echo '</td>';
 		echo '</tr>';
 		echo '<tr>';

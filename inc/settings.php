@@ -197,6 +197,10 @@ add_action('admin_init', function () {
 	]);
 
 	// reCAPTCHA v2
+	register_setting(CHECKOUT_TABS_WP_ML_SETTINGS_GROUP, 'checkout_tabs_wp_ml_recaptcha_enabled', [
+		'type'=>'integer', 'default'=>1,
+		'sanitize_callback'=>static fn($value)=>(string) $value === '0' ? 0 : 1,
+	]);
 	register_setting(CHECKOUT_TABS_WP_ML_SETTINGS_GROUP, 'checkout_tabs_wp_ml_recaptcha_site_key', [
 		'type'              => 'string',
 		'sanitize_callback' => 'sanitize_text_field',

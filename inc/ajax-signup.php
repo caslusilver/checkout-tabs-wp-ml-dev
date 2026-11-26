@@ -42,43 +42,23 @@ function ctwpml_is_valid_cpf(string $cpf_digits): bool {
 	return $d2 === $nums[10];
 }
 
-add_action('wp_ajax_nopriv_ctwpml_signup', function () {
-	check_ajax_referer('ctwpml_signup', '_ajax_nonce');
+add_action('wp_ajax_nopriv_ctwpml_signup', 'ctwpml_ajax_signup');
+function ctwpml_ajax_signup(): void {
+	$guard = ctwpml_auth_request_guard('ctwpml_signup');
+	if (is_wp_error($guard)) {
+		wp_send_json_error(['message'=>$guard->get_error_message()], $guard->get_error_code() === 'rate_limited' ? 429 : 400);
+		return;
+	}
 
-	$name = isset($_POST['name']) ? sanitize_text_field((string) wp_unslash($_POST['name'])) : '';
-	$email = isset($_POST['email']) ? sanitize_email((string) wp_unslash($_POST['email'])) : '';
+	$name = isset($_POST['name']) && is_string($_POST['name']) ? sanitize_text_field((string) wp_unslash($_POST['name'])) : '';
+	$email = isset($_POST['email']) && is_string($_POST['email']) ? sanitize_email((string) wp_unslash($_POST['email'])) : '';
 	$email = strtolower(trim($email));
-	$recaptcha_response = isset($_POST['recaptcha_response']) ? sanitize_text_field((string) $_POST['recaptcha_response']) : '';
+	$recaptcha_response = isset($_POST['recaptcha_response']) && is_string($_POST['recaptcha_response']) ? sanitize_text_field(wp_unslash($_POST['recaptcha_response'])) : '';
 
-	// Validar reCAPTCHA v2
-	if (empty($recaptcha_response)) {
-		wp_send_json_error(['message' => 'reCAPTCHA não preenchido.']);
-	}
-
-	$secret_key = get_option('checkout_tabs_wp_ml_recaptcha_secret_key', '');
-	if (empty($secret_key)) {
-		// Fallback: tentar pegar do plugin "Login No Captcha reCAPTCHA"
-		$login_recaptcha_opts = get_option('login_nocaptcha_options', []);
-		if (is_array($login_recaptcha_opts) && isset($login_recaptcha_opts['secret_key'])) {
-			$secret_key = $login_recaptcha_opts['secret_key'];
-		}
-	}
-
-	if (!empty($secret_key)) {
-		$verify_response = wp_remote_post('https://www.google.com/recaptcha/api/siteverify', [
-			'body' => [
-				'secret' => $secret_key,
-				'response' => $recaptcha_response,
-				'remoteip' => isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field((string) $_SERVER['REMOTE_ADDR']) : '',
-			],
-		]);
-
-		if (!is_wp_error($verify_response)) {
-			$verify_body = json_decode(wp_remote_retrieve_body($verify_response), true);
-			if (empty($verify_body['success'])) {
-				wp_send_json_error(['message' => 'Falha na validação do reCAPTCHA.']);
-			}
-		}
+	$captcha = ctwpml_verify_checkout_recaptcha($recaptcha_response);
+	if (is_wp_error($captcha)) {
+		wp_send_json_error(['message'=>$captcha->get_error_message()]);
+		return;
 	}
 
 	if ($name === '' || $email === '') {
@@ -106,16 +86,18 @@ add_action('wp_ajax_nopriv_ctwpml_signup', function () {
 
 	$user_id = 0;
 	if (function_exists('wc_create_new_customer')) {
-		$user_id = (int) wc_create_new_customer($email, $username, $password);
+		$user_id = wc_create_new_customer($email, $username, $password);
 		if (is_wp_error($user_id)) {
 			wp_send_json_error(['message' => $user_id->get_error_message()]);
 		}
 	} else {
-		$user_id = (int) wp_create_user($username, $password, $email);
+		$user_id = wp_create_user($username, $password, $email);
 		if (is_wp_error($user_id)) {
 			wp_send_json_error(['message' => $user_id->get_error_message()]);
 		}
 	}
+
+	if ((int) $user_id <= 0) { wp_send_json_error(['message'=>'Não foi possível criar a conta. Tente novamente.']); return; }
 
 	// Nome
 	$parts = preg_split('/\s+/', trim($name));
@@ -139,6 +121,4 @@ add_action('wp_ajax_nopriv_ctwpml_signup', function () {
 	}
 
 	wp_send_json_success(['user_id' => $user_id]);
-});
-
-
+}

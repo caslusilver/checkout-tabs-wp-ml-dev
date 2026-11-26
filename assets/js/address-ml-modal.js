@@ -8695,7 +8695,7 @@
                 showAuthView({ preserveView: true, returnView: 'review', mode: 'login', email: emailToCheck, authMethod: resp.data.auth_method });
                 return;
               }
-              var canUseCreateAuthView = !!(state.params && state.params.auth_email_nonce && state.params.recaptcha_site_key);
+              var canUseCreateAuthView = !!(state.params && state.params.auth_email_nonce);
               if (canUseCreateAuthView) {
                 setCreateAccountFlag(false);
                 saveCheckoutAuthResume('create', emailToCheck);

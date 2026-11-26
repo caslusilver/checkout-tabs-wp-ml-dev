@@ -2,6 +2,14 @@
 
 Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
+## [v3.4.16] - 2026-11-26
+
+- Opção na aba Integrações para exigir/desativar reCAPTCHA no login e cadastro do checkout; preserva chaves e padrão ativo. A decisão é validada no servidor, sem desligamento por parâmetros do visitante. Nonce, POST, senha para conta existente e limite de tentativas continuam exigidos.
+- Carregador define callback antes de api.js, aguarda formulário visível após acesso rápido, não consome prazo com a senha oculta, evita render duplicado e oferece tentar novamente após erro. Expiração, erro e resposta rejeitada exigem novo desafio; quando desligado, o plugin não carrega Google nem bloqueia o formulário.
+- Validação única nos três endpoints de autenticação, com par de chaves consistente, timeout, HTTP/JSON/sucesso e domínio verificados. Falhas não liberam cadastro quando a proteção está ligada; logs trazem somente motivos técnicos, sem segredo/token/resposta completa.
+- Conta nova permanece no diálogo apropriado mesmo com captcha desativado ou configuração incompleta. Corrigida conversão prematura de WP_Error em inteiro nos cadastros AJAX, para falha de criação nunca autenticar outro ID. Conta existente continua exigindo login.
+- Guia de uso em docs/recaptcha-checkout.md. Rollback3.4.15 preserva contas, chaves e pedidos; versões anteriores não reconhecem a opção de desligamento.
+
 ## [v3.4.15] - 2026-11-26
 
 - Acesso rápido de outra conta, chave ausente ou desativada agora explica a recusa e libera o formulário existente de e-mail/senha, preservando o preenchimento. Cadastro de uma nova chave permanece disponível somente após autenticar a conta correta; nunca é disparado por falha no login.
