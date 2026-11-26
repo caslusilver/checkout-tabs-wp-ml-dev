@@ -17,7 +17,7 @@ function verify(operation,response){
   const context=await browser.newContext({viewport:{width:390,height:844}}),page=await context.newPage(),errors=[];
   page.on('pageerror',error=>errors.push(error.message));
   const cdp=await context.newCDPSession(page);await cdp.send('WebAuthn.enable');await cdp.send('WebAuthn.addVirtualAuthenticator',{options:{protocol:'ctap2',transport:'internal',hasResidentKey:true,hasUserVerification:true,isUserVerified:true,automaticPresenceSimulation:true}});
-  await context.route('https://**/*',async route=>{
+  const serve=async route=>{
    const url=new URL(route.request().url());
    if(url.pathname==='/ajax'){
     const body=new URLSearchParams(route.request().postData()),action=body.get('action');calls.push({action,body});let data;
@@ -50,7 +50,7 @@ function verify(operation,response){
    }
    if(url.pathname.endsWith('fingerprint.svg'))return route.fulfill({contentType:'image/svg+xml',body:readFileSync('assets/fingerprint.svg','utf8')});
    return route.fulfill({contentType:'text/html',body:'<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>'+css+'</style><div style="background:#182a37;padding:10px;display:flex;gap:80px">'+(logged?loggedMarkup.stdout:markup.stdout)+'</div><script>ctwpmlPasskeyConfig={ajax:"/ajax",checkout:true,loggedIn:'+logged+'};ctwpmlEarlyLoginConfig={enabled:true,checkout:true,account:"/account/"};</script><script>'+scripts+'</script>'});
-  });
+  };await context.route('https://**/*',serve);
   await page.goto('https://passkeys.example.test/checkout/');
   // Cadastra uma credencial de fixture no autenticador virtual antes de testar seu uso.
   challenge=randomBytes(32).toString('base64');
@@ -59,6 +59,8 @@ function verify(operation,response){
    const encode=buffer=>btoa(String.fromCharCode(...new Uint8Array(buffer)));return {clientDataJSON:encode(credential.response.clientDataJSON),attestationObject:encode(credential.response.attestationObject)};
   },challenge);
   const fixtureCredential=verify('create',response);publicKey=fixtureCredential.publicKey;counter=fixtureCredential.counter;
+  // Histórico local só orienta a apresentação; este login ainda será verificado criptograficamente.
+  await page.evaluate(()=>localStorage.setItem('ctwpml_passkey_used','1'));
   assert.equal(await page.locator('#ctwpml-menu-access').count(),1);assert.equal(await page.locator('[data-ctwpml-menu-login]').count(),2);
   await page.evaluate(()=>CTWPML_EarlyLogin.offer(email=>window.fixtureManual=email));
   await page.locator('#ctwpml-early-email').fill('fixture@example.test');await page.locator('#ctwpml-early-email-form button').click();
@@ -94,15 +96,21 @@ function verify(operation,response){
   await page.evaluate(()=>fixtureCaptchaOptions['error-callback']());assert.equal(await page.locator('[data-ctwpml-menu-captcha-retry]').isVisible(),true);
   await page.locator('[data-ctwpml-menu-captcha-retry]').click();await page.evaluate(()=>{fixtureCaptchaToken='fixture-captcha-proof';fixtureCaptchaOptions.callback()});
   await page.locator('#ctwpml-menu-password-form [name="email"]').fill('fixture@example.test');await page.locator('#ctwpml-menu-password-form [name="password"]').fill('fixture-proof');await page.locator('#ctwpml-menu-password-form [type="submit"]').click();await page.waitForURL('**ctwpml_session_refresh=*');assert.equal(logged,true);
-  // Cliente antigo sem chave: consulta não autentica; senha errada não libera convite ou cadastro.
-  logged=false;accountExists=true;captchaEnabled=false;hasPasskeys=false;usedPasskey=false;enrollmentSeen=false;
+  // PC sem histórico local: mesma jornada segura, com ou sem chave já salva em outro aparelho.
+  for(const accountHasKey of [false,true]){
+  logged=false;accountExists=true;captchaEnabled=false;hasPasskeys=accountHasKey;usedPasskey=false;enrollmentSeen=false;registered=false;method=accountHasKey?'passkey':'password';
+  await page.setViewportSize({width:1280,height:844});await page.evaluate(()=>localStorage.removeItem('ctwpml_passkey_used'));
   await page.goto('https://passkeys.example.test/checkout/');await page.evaluate(()=>CTWPML_EarlyLogin.offer(()=>window.fixtureManual=true));
   const beforeRegister=calls.filter(c=>c.action==='secure_passkeys_frontend_register_passkey').length;
+  const beforeLoginOptions=calls.filter(c=>c.action==='secure_passkeys_frontend_get_login_options').length;
   await page.locator('#ctwpml-early-email').fill('fixture@example.test');await page.locator('#ctwpml-early-email-form button').click();await page.locator('[data-ctwpml-early-existing]').waitFor({state:'visible'});
   assert.equal(logged,false);assert.equal(await page.locator('[data-ctwpml-passkey-register]').count(),0);assert.equal(registered,false);
+  assert.equal(await page.locator('[data-ctwpml-early-offer]').isVisible(),false);
   for(const width of [320,390,1280]){await page.setViewportSize({width,height:844});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);}
   if(process.env.TRACKING_QA_OUTPUT)await page.screenshot({path:process.env.TRACKING_QA_OUTPUT+'/early-existing-no-key.png',fullPage:true});
   await page.locator('[data-ctwpml-early-existing-login]').click();await page.locator('#ctwpml-menu-password-form').waitFor({state:'visible'});
+  assert.equal(await page.locator('[data-ctwpml-password-intro]').isVisible(),true);
+  assert.equal(calls.filter(c=>c.action==='secure_passkeys_frontend_get_login_options').length,beforeLoginOptions,'Must not open a key chooser before password login');
   assert.equal(await page.locator('#ctwpml-menu-password-form [name="email"]').inputValue(),'fixture@example.test');
   await page.locator('#ctwpml-menu-password-form [name="password"]').fill('wrong-fixture');await page.locator('#ctwpml-menu-password-form [type="submit"]').click();
   await page.waitForFunction(()=>document.querySelector('[data-ctwpml-menu-message]').textContent.includes('Não foi possível entrar'));
@@ -111,6 +119,15 @@ function verify(operation,response){
   await page.locator('[data-ctwpml-passkey-invite]').waitFor({state:'visible'});assert.equal(logged,true);
   await page.locator('[data-ctwpml-passkey-register]').click();await page.waitForFunction(()=>document.querySelector('#ctwpml-passkey-enroll h2').textContent.includes('Tudo pronto'));
   assert.equal(registered,true);await page.locator('[data-ctwpml-passkey-dismiss]').click();await page.locator('#ctwpml-passkey-enroll').waitFor({state:'hidden'});assert.equal(enrollmentSeen,true);
-  assert.deepEqual(errors,[]);console.log('Edge: cliente com chave, novo/manual e cliente antigo sem chave; senha errada bloqueia, senha válida→convite→cadastro criptográfico nativo; menus/reset/captcha e320/390/768/1280 passaram.');
+  }
+  // Contexto touch isolado sem histórico: mantém a oferta mobile, sem autenticar automaticamente.
+  logged=false;method='passkey';hasPasskeys=true;usedPasskey=false;
+  const mobile=await browser.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true});
+  await mobile.route('https://**/*',serve);const mobilePage=await mobile.newPage();mobilePage.on('pageerror',error=>errors.push(error.message));
+  await mobilePage.goto('https://passkeys.example.test/checkout/');
+  assert.equal(await mobilePage.evaluate(()=>CTWPMLPasskeys.preferPassword()),false);
+  await mobilePage.evaluate(()=>CTWPML_EarlyLogin.offer(()=>{}));await mobilePage.locator('#ctwpml-early-email').fill('fixture@example.test');await mobilePage.locator('#ctwpml-early-email-form button').click();
+  await mobilePage.locator('[data-ctwpml-early-offer]').waitFor({state:'visible'});assert.equal(logged,false);await mobile.close();
+  assert.deepEqual(errors,[]);console.log('Edge: acesso rápido com histórico, cliente novo/manual e PC sem histórico com/sem chave na conta; nenhum seletor antes da senha, senha errada bloqueia, senha válida→convite→cadastro criptográfico nativo; menus/reset/captcha e320/390/768/1280 passaram.');
  }finally{await browser.close();}
 })().catch(error=>{console.error(error);process.exitCode=1});

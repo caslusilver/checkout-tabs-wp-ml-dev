@@ -3,11 +3,11 @@ const source=readFileSync('assets/js/early-login.js','utf8');
 const php=process.env.VAULT_PHP;
 const result=spawnSync(php,['tests/early-login.test.php','--markup'],{encoding:'utf8'});assert.equal(result.status,0,result.stderr+result.stdout);
 const until=async predicate=>{for(let i=0;i<200&&!predicate();i++)await new Promise(r=>setTimeout(r,5));assert.ok(predicate());};
-function setup(t,{enabled=true,method='passkey',exists=true,ticket='fixture-route',defer=false}={}){
+function setup(t,{enabled=true,method='passkey',exists=true,ticket='fixture-route',defer=false,preferPassword=false}={}){
  const dom=new JSDOM(result.stdout,{url:'https://shop.example.test/checkout/',runScripts:'outside-only',pretendToBeVisual:true});t.after(()=>dom.window.close());
  const w=dom.window,d=w.document,calls=[];let logged=false,resolver;
  w.ctwpmlEarlyLoginConfig={enabled,checkout:true,account:'/account/'};w.ctwpmlPasskeyConfig={loggedIn:false};
- w.CTWPMLPasskeys={isBusy:()=>false,supported:()=>true,request:async(action,data)=>{
+ w.CTWPMLPasskeys={isBusy:()=>false,supported:()=>true,preferPassword:()=>preferPassword,request:async(action,data)=>{
   calls.push({action,data});if(action==='ctwpml_passkey_context')return {loggedIn:logged,checkEmailNonce:'fresh-email',loginNonce:'fresh-login',recaptchaEnabled:false};
   if(action==='ctwpml_check_email'){if(defer)return new Promise(resolve=>{resolver=resolve});return {exists:exists?1:0,auth_method:method,ticket};}
   if(action==='ctwpml_login'){logged=true;return {ok:true};}throw new Error('unexpected action');
@@ -117,4 +117,33 @@ test('changing email or continuing manually invalidates pending lookup; expired 
  await until(()=>!another.d.querySelector('[data-ctwpml-early-offer]').hidden);
  another.d.dispatchEvent(new another.w.CustomEvent('ctwpml:passkey-error',{detail:{early:true,code:'CHECKOUT_ACCOUNT_CONTEXT_MISSING'}}));
  assert.equal(another.d.querySelector('[data-ctwpml-early-offer]').hidden,true);assert.match(another.d.querySelector('[data-ctwpml-early-message]').textContent,/novamente/);
+});
+
+test('desktop without local history prioritizes password even when the account has a passkey',async t=>{
+ const c=setup(t,{preferPassword:true});c.w.CTWPML_EarlyLogin.offer(()=>{});
+ c.d.querySelector('#ctwpml-early-email').value='fixture@example.test';c.d.querySelector('#ctwpml-early-email-form').dispatchEvent(new c.w.Event('submit',{bubbles:true,cancelable:true}));
+ await until(()=>!c.d.querySelector('[data-ctwpml-early-existing]').hidden);
+ assert.equal(c.d.querySelector('[data-ctwpml-early-offer]').hidden,true);assert.equal(c.d.querySelector('#ctwpml-early-email-form').hidden,true);
+ assert.equal(c.d.querySelector('[data-ctwpml-early-use-key]').hidden,false);
+ assert.equal(c.calls.some(v=>v.action.includes('login')||v.action.includes('register')),false);
+ c.d.querySelector('[data-ctwpml-early-existing-login]').click();await until(()=>!c.d.querySelector('#ctwpml-menu-password-form').hidden);
+ assert.equal(c.d.querySelector('[data-ctwpml-password-intro]').hidden,false);
+ assert.match(c.d.querySelector('[data-ctwpml-password-intro]').textContent,/Depois.*ativar.*neste aparelho/);
+ assert.equal(c.d.activeElement,c.d.querySelector('#ctwpml-menu-password-form [name="password"]'));
+ c.d.querySelector('[data-ctwpml-access-close]').click();
+ c.d.querySelector('[data-ctwpml-early-use-key]').click();assert.equal(c.d.querySelector('[data-ctwpml-early-offer]').hidden,false);
+ assert.equal(c.calls.some(v=>v.action.includes('register')),false);
+ c.d.dispatchEvent(new c.w.CustomEvent('ctwpml:passkey-error',{detail:{early:true,code:'request_failed'}}));
+ assert.equal(c.d.querySelector('[data-ctwpml-early-existing]').hidden,false);assert.match(c.d.querySelector('[data-ctwpml-early-message]').textContent,/Entre com sua senha/);
+});
+
+test('a key failure in the early offer preserves the email and exposes the safe password path',async t=>{
+ const c=setup(t);c.w.CTWPML_EarlyLogin.offer(()=>{});c.d.querySelector('#ctwpml-early-email').value='fixture@example.test';
+ c.d.querySelector('#ctwpml-early-email-form').dispatchEvent(new c.w.Event('submit',{bubbles:true,cancelable:true}));await until(()=>!c.d.querySelector('[data-ctwpml-early-offer]').hidden);
+ c.d.dispatchEvent(new c.w.CustomEvent('ctwpml:passkey-error',{detail:{early:true,code:'CHECKOUT_ACCOUNT_MISMATCH'}}));
+ assert.equal(c.d.querySelector('[data-ctwpml-early-existing]').hidden,false);
+ assert.equal(c.d.querySelector('[data-ctwpml-early-email-value]').textContent,'fixture@example.test');
+ c.d.querySelector('[data-ctwpml-early-existing-login]').click();await until(()=>!c.d.querySelector('#ctwpml-menu-password-form').hidden);
+ assert.equal(c.d.querySelector('#ctwpml-menu-password-form [name="email"]').value,'fixture@example.test');
+ assert.equal(c.calls.some(v=>v.action.includes('register')),false);
 });
