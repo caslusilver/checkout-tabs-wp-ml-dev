@@ -43,21 +43,30 @@ final class CTWPML_Passkeys {
         add_action('secure_passkeys_web_authn_sign_in', [__CLASS__, 'resume_checkout']);
         add_filter('secure_passkeys_get_frontend_login_localization', [__CLASS__, 'login_translation']);
         add_filter('secure_passkeys_get_frontend_register_localization', [__CLASS__, 'register_translation']);
-        add_filter('secure_passkeys_login_error_message', static function ($message, $reason='') {
-            $code = in_array($reason, ['NOT_FOUND','INACTIVE_PASSKEY','EXCLUDED_ROLES','Challenge already consumed','CHECKOUT_ACCOUNT_MISMATCH'], true) ? $reason : 'verification_failed';
-            if ($code === 'verification_failed') {
-                foreach (['challenge','origin','signature','counter'] as $category) {
-                    if (stripos((string)$reason, $category) !== false) { $code = $category.'_rejected'; break; }
-                }
-            }
-            if (function_exists('checkout_tabs_wp_ml_is_debug_enabled') && checkout_tabs_wp_ml_is_debug_enabled()) {
-                if (function_exists('wc_get_logger')) wc_get_logger()->warning('passkey_login_rejected: '.$code, ['source'=>'ctwpml-auth']);
-            }
-            return 'Não foi possível entrar. Tente novamente ou entre de outra forma.';
-        }, 10, 2);
+        add_filter('secure_passkeys_login_error_message', [__CLASS__, 'login_error_message'], 10, 2);
         add_filter('secure_passkeys_frontend_invalid_request_error_message', static fn($error) => $error ? 'Sua sessão mudou. Recarregue a página e tente novamente.' : '');
         add_filter('secure_passkeys_frontend_invalid_permission_error_message', static fn() => 'Este perfil não pode cadastrar acesso rápido. Consulte o suporte.');
         add_filter('gettext', [__CLASS__, 'translate'], 20, 3);
+    }
+    public static function login_errors(): array {
+        return [
+            'CHECKOUT_ACCOUNT_MISMATCH'=>'Esta chave pertence a outra conta. Entre com o e-mail e a senha desta compra. Depois, você poderá salvar um acesso rápido para esta conta.',
+            'CHECKOUT_ACCOUNT_CONTEXT_MISSING'=>'Não foi possível recuperar a identificação desta compra. Volte para conferir seus dados e tente novamente. Seu preenchimento está preservado.',
+            'NOT_FOUND'=>'Esta chave não está mais disponível nesta conta. Entre com e-mail e senha para concluir e, depois, salve um novo acesso rápido neste aparelho.',
+            'INACTIVE_PASSKEY'=>'Esta chave está desativada. Entre com e-mail e senha para concluir e, depois, salve um novo acesso rápido neste aparelho.',
+        ];
+    }
+    public static function login_error_message($message, $reason=''): string {
+        $code = in_array($reason, ['NOT_FOUND','INACTIVE_PASSKEY','EXCLUDED_ROLES','Challenge already consumed','CHECKOUT_ACCOUNT_MISMATCH','CHECKOUT_ACCOUNT_CONTEXT_MISSING'], true) ? $reason : 'verification_failed';
+        if ($code === 'verification_failed') {
+            foreach (['challenge','origin','signature','counter'] as $category) {
+                if (stripos((string)$reason, $category) !== false) { $code = $category.'_rejected'; break; }
+            }
+        }
+        if (function_exists('checkout_tabs_wp_ml_is_debug_enabled') && checkout_tabs_wp_ml_is_debug_enabled()) {
+            if (function_exists('wc_get_logger')) wc_get_logger()->warning('passkey_login_rejected: '.$code, ['source'=>'ctwpml-auth']);
+        }
+        return self::login_errors()[$code] ?? 'Não foi possível entrar. Tente novamente ou entre de outra forma.';
     }
     public static function resume_checkout($user): void {
         if ($user instanceof WP_User && is_user_logged_in() && (int)$user->ID===get_current_user_id() && function_exists('WC') && WC()->session) WC()->session->set('ctwpml_pk_login_user',(int)$user->ID);
@@ -71,7 +80,8 @@ final class CTWPML_Passkeys {
         if (!$allowed || ($_POST['ctwpml_context'] ?? '')!=='checkout-late') return $allowed;
         $expected=function_exists('WC') && WC()->session ? (int)WC()->session->get('ctwpml_pk_expected_user',0) : 0;
         // E-mail orienta a conta esperada; somente a prova válida dessa conta pode retomar a compra.
-        if (!$user instanceof WP_User || !$expected || (int)$user->ID!==$expected) throw new \Exception('CHECKOUT_ACCOUNT_MISMATCH');
+        if (!$expected) throw new \Exception('CHECKOUT_ACCOUNT_CONTEXT_MISSING');
+        if (!$user instanceof WP_User || (int)$user->ID!==$expected) throw new \Exception('CHECKOUT_ACCOUNT_MISMATCH');
         return true;
     }
     public static function assets(): void {
@@ -79,7 +89,7 @@ final class CTWPML_Passkeys {
         $version = checkout_tabs_wp_ml_get_version();
         wp_enqueue_style('ctwpml-passkeys', CHECKOUT_TABS_WP_ML_URL . 'assets/css/passkeys.css', [], $version);
         wp_enqueue_script('ctwpml-passkeys', CHECKOUT_TABS_WP_ML_URL . 'assets/js/passkeys.js', [], $version, true);
-        wp_localize_script('ctwpml-passkeys', 'ctwpmlPasskeyConfig', ['debug'=>function_exists('checkout_tabs_wp_ml_is_debug_enabled') && checkout_tabs_wp_ml_is_debug_enabled(), 'ajax'=>admin_url('admin-ajax.php'), 'checkout'=>ctwpml_is_checkout_ui_request() || (bool)self::$handoff_order, 'cart'=>function_exists('is_cart') && is_cart(), 'checkoutUrl'=>function_exists('wc_get_checkout_url') ? wc_get_checkout_url() : '', 'afterOrder'=>self::$handoff_order ? self::$handoff_order->get_checkout_order_received_url() : '', 'afterOrderId'=>self::$handoff_order ? self::$handoff_order->get_id() : 0, 'loggedIn'=>is_user_logged_in(), 'account'=>function_exists('wc_get_page_permalink') ? wc_get_page_permalink('myaccount') : wp_login_url()]);
+        wp_localize_script('ctwpml-passkeys', 'ctwpmlPasskeyConfig', ['debug'=>function_exists('checkout_tabs_wp_ml_is_debug_enabled') && checkout_tabs_wp_ml_is_debug_enabled(), 'ajax'=>admin_url('admin-ajax.php'), 'checkEmailNonce'=>wp_create_nonce('ctwpml_check_email'), 'loginErrors'=>self::login_errors(), 'checkout'=>ctwpml_is_checkout_ui_request() || (bool)self::$handoff_order, 'cart'=>function_exists('is_cart') && is_cart(), 'checkoutUrl'=>function_exists('wc_get_checkout_url') ? wc_get_checkout_url() : '', 'afterOrder'=>self::$handoff_order ? self::$handoff_order->get_checkout_order_received_url() : '', 'afterOrderId'=>self::$handoff_order ? self::$handoff_order->get_id() : 0, 'loggedIn'=>is_user_logged_in(), 'account'=>function_exists('wc_get_page_permalink') ? wc_get_page_permalink('myaccount') : wp_login_url()]);
     }
     public static function context(): void {
         nocache_headers();
@@ -128,7 +138,7 @@ final class CTWPML_Passkeys {
         if (!self::available() || is_user_logged_in()) return '';
         $checkout=$context==='checkout';
         $late=$context==='late';
-        return '<section class="ctwpml-passkey-card'.($late?' ctwpml-passkey-card--late':'').'"><img src="'.esc_url(CHECKOUT_TABS_WP_ML_URL.'assets/fingerprint.svg').'" alt="" width="48" height="48"><h2>'.($late?'Entre para concluir sua compra':($checkout?'Não preencha tudo de novo':'Sua conta, sem digitar a senha')).'</h2><p>'.($late?'Seus dados desta compra estão preservados. Se já cadastrou acesso rápido, você também pode usá-lo.':($checkout?'Já comprou aqui? Recupere seu nome, telefone e endereço salvos.':'Acesse seus pedidos com o rosto, a digital ou o PIN do seu aparelho.')).'</p><div class="ctwpml-passkey-benefit"><strong>Você só confere e continua</strong><p>Confirme com rosto, digital ou PIN para usar seus dados.</p></div><button type="button" class="ctwpml-passkey-primary" data-ctwpml-passkey-login>'.($late?'Entrar com acesso rápido':($checkout?'Usar meus dados salvos':'Acessar minha conta')).'</button><p class="ctwpml-passkey-message" role="status"></p></section>';
+        return '<section class="ctwpml-passkey-card'.($late?' ctwpml-passkey-card--late':'').'"><img src="'.esc_url(CHECKOUT_TABS_WP_ML_URL.'assets/fingerprint.svg').'" alt="" width="48" height="48"><h2>'.($late?'Entre para concluir sua compra':($checkout?'Não preencha tudo de novo':'Sua conta, sem digitar a senha')).'</h2><p>'.($late?'Seus dados desta compra estão preservados. Se já cadastrou acesso rápido, você também pode usá-lo.':($checkout?'Já comprou aqui? Recupere seu nome, telefone e endereço salvos.':'Acesse seus pedidos com o rosto, a digital ou o PIN do seu aparelho.')).'</p><div class="ctwpml-passkey-benefit"><strong>Você só confere e continua</strong><p>Confirme com rosto, digital ou PIN para usar seus dados.</p></div><button type="button" class="ctwpml-passkey-primary" data-ctwpml-passkey-login>'.($late?'Entrar com acesso rápido':($checkout?'Usar meus dados salvos':'Acessar minha conta')).'</button>'.($late?'<button type="button" class="ctwpml-passkey-other" data-ctwpml-passkey-back>Voltar para conferir meus dados</button>':'').'<p class="ctwpml-passkey-message" role="status"></p></section>';
     }
     public static function shortcode(): string {
         if (ctwpml_is_visual_editor()) return '';

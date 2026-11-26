@@ -55,6 +55,10 @@ $logged=true;$woo->session->data=['ctwpml_pk_new_customer'=>42,'ctwpml_pk_enroll
 $_POST=['ctwpml_context'=>'checkout-late'];$woo->session->set('ctwpml_pk_expected_user',42);
 expect(\CTWPML_Passkeys::validate_checkout_identity(true,new WP_User(42)),true);
 try{\CTWPML_Passkeys::validate_checkout_identity(true,new WP_User(99));throw new \LogicException('Wrong account accepted');}catch(\Exception $e){expect($e->getMessage(),'CHECKOUT_ACCOUNT_MISMATCH');}
+expect(\CTWPML_Passkeys::login_error_message('native','CHECKOUT_ACCOUNT_MISMATCH'),\CTWPML_Passkeys::login_errors()['CHECKOUT_ACCOUNT_MISMATCH']);
+$woo->session->data=[];
+try{\CTWPML_Passkeys::validate_checkout_identity(true,new WP_User(42));throw new \LogicException('Missing context accepted');}catch(\Exception $e){expect($e->getMessage(),'CHECKOUT_ACCOUNT_CONTEXT_MISSING');}
+expect(\CTWPML_Passkeys::login_error_message('private error','arbitrary-secret'), 'Não foi possível entrar. Tente novamente ou entre de outra forma.');
 expect(\CTWPML_Passkeys::validate_checkout_identity(false,new WP_User(42)),false);
 $_POST=['ctwpml_context'=>'entry'];expect(\CTWPML_Passkeys::validate_checkout_identity(true,new WP_User(99)),true);
 echo "Passkeys: versão, contexto mínimo, proprietário, roles, método, limite e traduções passaram.\n";

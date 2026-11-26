@@ -25,7 +25,12 @@ function ctwpml_ajax_check_email_exists(): void {
 	if ($count>=20) { wp_send_json_error(['message'=>'Aguarde um momento e tente novamente.'],429); return; }
 	set_transient($bucket,$count+1,60);
 	$user_id = (int)email_exists($email);
-	if (function_exists('WC') && WC()->session) WC()->session->set('ctwpml_pk_expected_user',$user_id);
+	if (function_exists('WC') && WC()->session) {
+		// A próxima requisição AJAX precisa receber a mesma sessão, inclusive no primeiro acesso.
+		WC()->session->set_customer_session_cookie(true);
+		WC()->session->set('ctwpml_pk_expected_user',$user_id);
+		WC()->session->save_data();
+	}
 	$exists = $user_id > 0 ? 1 : 0;
 	wp_send_json_success([
 		'exists' => $exists,
