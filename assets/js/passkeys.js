@@ -51,9 +51,13 @@
         if (options[list]) result[list] = options[list].map(item => ({ ...item, id: decode(item.id) }));
         return result;
     }
-    function returnToPage() {
+    function returnToPage(early) {
         const url = new URL(window.location.href);
         url.searchParams.set('ctwpml_session_refresh', String(Date.now()));
+        if (early) {
+            url.searchParams.set('ctwpml_early_resume','1');
+            try { sessionStorage.setItem('ctwpml_early_profile_pending','1'); } catch (_) {}
+        }
         // Nova navegação reconhece o cookie do motor e recebe nonces e endereços da sessão correta.
         window.location.assign(url.href);
     }
@@ -68,6 +72,8 @@
     }
     window.CTWPMLPasskeys = {
         supported,
+        request: post,
+        login: button => authenticate(button, false),
         isBusy: () => busy,
         beforeCheckout(next) {
             if (!config.checkout || !config.loggedIn || inviteFinished || !document.querySelector('#ctwpml-passkey-enroll')) return false;
@@ -96,6 +102,7 @@
         let recoveryFocus = null;
         try {
             const context = await post('ctwpml_passkey_context');
+            if (context.checkEmailNonce) config.checkEmailNonce = context.checkEmailNonce;
             if (!create && context.loggedIn) { returnToPage(); return; }
             if (create && (!context.loggedIn || !context.canRegister)) throw new Error('session_changed');
             if (!create && config.checkout && button.closest('#ctwpml-view-auth')) {
@@ -122,10 +129,11 @@
                 response.signature = encode(credential.response.signature);
                 response.userHandle = credential.response.userHandle ? encode(credential.response.userHandle) : '';
             }
+            const earlyTicket = !create && button.dataset.ctwpmlEarlyTicket || '';
             await post(create ? 'secure_passkeys_frontend_register_passkey' : 'secure_passkeys_frontend_login', {
                 nonce: context.nonce, challenge: options.challenge, id: credential.id, rawId: encode(credential.rawId), type: credential.type, response,
                 ...(create ? { security_key_name: 'Acesso rapido' } :
-                    { ctwpml_context: config.checkout && button.closest('#ctwpml-view-auth') ? 'checkout-late' : 'entry' })
+                    { ctwpml_context: earlyTicket ? 'checkout-early' : config.checkout && button.closest('#ctwpml-view-auth') ? 'checkout-late' : 'entry', ctwpml_early_ticket: earlyTicket })
             });
             if (!create && !(await post('ctwpml_passkey_context')).loggedIn) throw new Error('session_not_authenticated');
             showMessage(card, create ? 'Acesso ativado. Na próxima compra, use seus dados salvos.' : 'Acesso confirmado. Carregando seus dados…');
@@ -138,9 +146,10 @@
                 const next = document.createElement('button'); next.type = 'button'; next.className = 'ctwpml-passkey-primary'; next.dataset.ctwpmlPasskeyDismiss = ''; next.textContent = 'Continuar minha compra';
                 card.append(title,message,next);
             }
-            else returnToPage();
+            else returnToPage(!!earlyTicket || (!button.closest('#ctwpml-view-auth') && window.CTWPML_EarlyLogin?.enabled));
         } catch (error) {
             const accountError = !create && config.loginErrors?.[error.message];
+            if (!create) document.dispatchEvent(new CustomEvent('ctwpml:passkey-error', {detail:{early:!!button.dataset.ctwpmlEarlyTicket,code:accountError?error.message:'request_failed'}}));
             trace(create ? 'REGISTER_ERROR' : 'LOGIN_ERROR', accountError ? error.message : ['NotAllowedError','AbortError','SecurityError','InvalidStateError','NotSupportedError'].includes(error.name) ? error.name : 'request_failed');
             if (!create) { const popup = button.closest('.ctwpml-login-popup'); popup?.classList.remove('ctwpml-passkey-first'); popup?.removeAttribute('aria-modal'); }
             if (!create) window.ctwpmlRenderRecaptchaIfNeeded?.();

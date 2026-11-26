@@ -32,8 +32,10 @@ function ctwpml_ajax_check_email_exists(): void {
 		WC()->session->save_data();
 	}
 	$exists = $user_id > 0 ? 1 : 0;
-	wp_send_json_success([
+	$data = [
 		'exists' => $exists,
 		'auth_method' => $user_id && class_exists('CTWPML_Passkeys') && CTWPML_Passkeys::has_keys($user_id) ? 'passkey' : 'password',
-	]);
+	];
+	if (!empty($_POST['early']) && class_exists('CTWPML_Early_Login') && $data['auth_method']==='passkey') $data['ticket']=CTWPML_Early_Login::issue_ticket($user_id);
+	wp_send_json_success($data);
 }

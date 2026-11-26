@@ -43,6 +43,24 @@ function section(from,to){return source.slice(source.indexOf('    function '+fro
   await page.evaluate(()=>{storedDraft.addressId='different';ctwpmlRestoreFormStep()});assert.equal(await page.evaluate(()=>currentFormStep),1);
   await page.evaluate(()=>{cepConsultInFlight=true;ctwpmlUpdateFormSaveState()});assert.equal(await page.locator('#ctwpml-btn-primary').isDisabled(),true);
   await page.evaluate(()=>{cepConsultInFlight=false;ctwpmlUpdateFormSaveState()});assert.equal(await page.locator('#ctwpml-btn-primary').isDisabled(),false);
+  // Flag experimental inverte a ordem visual sem recriar campos nem perder o rascunho.
+  await page.evaluate(()=>{
+   state.params.early_login_enabled=1;storedDraft=null;$('#ctwpml-input-nome,#ctwpml-input-cpf,#ctwpml-input-email').val('');
+   $('#ctwpml-btn-primary,#ctwpml-btn-secondary,#ctwpml-form-step-address').off('click');
+   $('#ctwpml-btn-primary').on('click',()=>{if(currentFormStep===ctwpmlFirstFormStep())ctwpmlAdvanceFormStep()});
+   $('#ctwpml-btn-secondary').on('click',()=>ctwpmlSetFormStep(ctwpmlFirstFormStep(),true));ctwpmlRestoreFormStep();
+  });
+  assert.equal(await page.evaluate(()=>currentFormStep),2);assert.match(await page.locator('#ctwpml-form-step-title').textContent(),/Passo 1.*dados pessoais/);
+  await page.locator('#ctwpml-btn-primary').click();assert.equal(await page.evaluate(()=>currentFormStep),2);
+  for(const [field,value]of [['nome','Cliente Fixture'],['cpf','12345678901'],['email','fixture@example.test']])await page.locator('#ctwpml-input-'+field).fill(value);
+  await page.locator('#ctwpml-btn-primary').click();assert.equal(await page.evaluate(()=>currentFormStep),1);
+  assert.match(await page.locator('#ctwpml-form-step-title').textContent(),/Passo 2.*endereço/);
+  assert.equal(await page.locator('#ctwpml-form-step-personal .ctwpml-step-number').textContent(),'✓');
+  assert.equal(await page.locator('#ctwpml-input-comp').inputValue(),'Apto 2');
+  assert.equal(await page.evaluate(()=>originalNumber===document.querySelector('#ctwpml-input-numero')),true);
+  await page.evaluate(()=>{currentFormStep=2;ctwpmlRestoreFormStep()});assert.equal(await page.evaluate(()=>currentFormStep),1);
+  await page.locator('#ctwpml-btn-secondary').click();assert.equal(await page.locator('#ctwpml-input-email').inputValue(),'fixture@example.test');
+  await page.evaluate(()=>{state.params.early_login_enabled=0;storedDraft=null;ctwpmlRestoreFormStep()});assert.equal(await page.evaluate(()=>currentFormStep),1);
   for(const width of [320,390,768,1280]){await page.setViewportSize({width,height:900});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);}
   if(process.env.TRACKING_QA_OUTPUT){await page.setViewportSize({width:390,height:900});await page.screenshot({path:process.env.TRACKING_QA_OUTPUT+'/form-steps-real-mobile.png',fullPage:true});}
   assert.deepEqual(errors,[]);console.log('Timeline real: passos1/2, validação do endereço, check de conclusão, navegação sem recriar/perder campos, retomada do passo por endereço, erro/in-flight recuperáveis e320/390/768/1280 aprovados.');

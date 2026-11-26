@@ -39,6 +39,14 @@ function checkout_tabs_wp_ml_ajax_login(): void {
 		'user_password' => $password,
 		'remember' => true,
 	];
+	$context=is_string($_POST['ctwpml_context']??null)?$_POST['ctwpml_context']:'';
+	if ($context==='checkout-early') {
+		$expected=class_exists('CTWPML_Early_Login')?CTWPML_Early_Login::ticket_user($_POST['ctwpml_early_ticket']??''):0;
+		$candidate=get_user_by('email',$email);
+		if (!$expected || !$candidate instanceof WP_User || (int)$candidate->ID!==$expected) {
+			wp_send_json_error(['message'=>'Confira o e-mail desta compra e tente novamente.']);return;
+		}
+	}
 
 	if (function_exists('ctwpml_preserve_auth_coupons')) ctwpml_preserve_auth_coupons();
 	$user = wp_signon($creds, is_ssl());
@@ -48,7 +56,7 @@ function checkout_tabs_wp_ml_ajax_login(): void {
 		return;
 	}
 
-	if ($user instanceof WP_User && function_exists('ctwpml_migrate_guest_data_to_user')) {
+	if (!in_array($context,['entry','checkout-early'],true) && $user instanceof WP_User && function_exists('ctwpml_migrate_guest_data_to_user')) {
 		ctwpml_migrate_guest_data_to_user((int) $user->ID);
 	}
 
