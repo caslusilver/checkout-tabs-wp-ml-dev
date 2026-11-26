@@ -64,14 +64,8 @@ add_filter('woocommerce_checkout_customer_id', function ($customer_id, $checkout
 	}
 
 	$session = function_exists('ctwpml_get_wc_session') ? ctwpml_get_wc_session() : null;
-	if ($session) {
-		$existing = (int) $session->get('ctwpml_guest_created_user_id');
-		if ($existing > 0) {
-			return $existing;
-		}
-	}
-
-	$username_base = sanitize_user(current(explode('@', $email)));
+	// Identificador em sessão não comprova autenticação para reutilizar outra conta.
+	$username_base = sanitize_user(explode('@', $email)[0]);
 	$username = $username_base;
 	$tries = 0;
 	while (username_exists($username) && $tries < 20) {
@@ -85,19 +79,27 @@ add_filter('woocommerce_checkout_customer_id', function ($customer_id, $checkout
 	$password = wp_generate_password(20, true, true);
 	$user_id = 0;
 	if (function_exists('wc_create_new_customer')) {
-		$user_id = (int) wc_create_new_customer($email, $username, $password);
+		$user_id = wc_create_new_customer($email, $username, $password);
 	} else {
-		$user_id = (int) wp_create_user($username, $password, $email);
+		$user_id = wp_create_user($username, $password, $email);
 	}
 	if (is_wp_error($user_id) || $user_id <= 0) {
 		return $customer_id;
 	}
+	$user_id = (int)$user_id;
 
 	if ($session) {
 		$session->set('ctwpml_guest_created_user_id', $user_id);
 	}
 	if (function_exists('ctwpml_migrate_guest_data_to_user')) {
 		ctwpml_migrate_guest_data_to_user($user_id);
+	}
+	// Apenas a conta recém-criada neste fluxo; um e-mail existente nunca chega aqui.
+	// Usa a mesma autenticação nativa de process_customer, evitando uma segunda criação.
+	if (function_exists('wc_set_customer_auth_cookie')) {
+		if ($session && is_callable([$session, 'save_data'])) $session->save_data();
+		wc_set_customer_auth_cookie($user_id);
+		if (function_exists('WC') && WC()->cart && is_callable([WC()->cart, 'calculate_totals'])) WC()->cart->calculate_totals();
 	}
 
 	return $user_id;

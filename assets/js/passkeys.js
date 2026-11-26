@@ -3,13 +3,14 @@
     const config = window.ctwpmlPasskeyConfig;
     if (!config) return;
     let busy = false, skipEntry = false, continueCheckout = null, previousFocus = null;
-    let inviteFinished = false, inviteOpening = false, afterInvite = null;
+    let inviteFinished = false, inviteOpening = false, afterInvite = null, enrollmentNonce = null;
+    let immediatePrepared = null, preparingImmediate = false;
     const traceStart = performance.now();
     function trace(event, outcome) {
         const state = window.CCCheckoutTabsState;
         const data = { event, outcome: outcome || 'ok', elapsedMs: Math.round(performance.now() - traceStart) };
         if (state?.checkpoint) state.checkpoint('CHK_PASSKEY_' + event, outcome !== 'error', data);
-        if (window.cc_params?.debug) console.info('[CTWPML][PASSKEY]', data);
+        if (config.debug || window.cc_params?.debug) console.info('[CTWPML][PASSKEY]', data);
     }
     function remembered() { try { return localStorage.getItem('ctwpml_passkey_used') === '1'; } catch (_) { return false; } }
     function remember() { try { localStorage.setItem('ctwpml_passkey_used','1'); } catch (_) {} }
@@ -61,11 +62,13 @@
         if (next) next();
     }
     window.CTWPMLPasskeys = {
+        supported,
         beforeCheckout(next) {
             if (!config.checkout || !config.loggedIn || inviteFinished || !document.querySelector('#ctwpml-passkey-enroll')) return false;
             afterInvite = next; openInvite(); return true;
         },
         offer(next) {
+            if (new URL(location.href).searchParams.get('ctwpml_pk_entry_skip') === '1') return false;
             if (!config.checkout || config.loggedIn || skipEntry || !entry() || !supported() || !remembered()) return false;
             continueCheckout = next;
             previousFocus = document.activeElement;
@@ -81,7 +84,7 @@
         const card = button.closest('.ctwpml-passkey-card') || button.parentElement;
         if (!supported()) { showMessage(card, 'Este navegador não oferece acesso rápido. Entre de outra forma.'); return; }
         busy = true; trace(create ? 'REGISTER_START' : 'LOGIN_START');
-        const buttons = Array.from(document.querySelectorAll('[data-ctwpml-passkey-login], [data-ctwpml-passkey-register], [data-ctwpml-passkey-skip], [data-ctwpml-passkey-dismiss]'));
+        const buttons = Array.from(document.querySelectorAll('[data-ctwpml-passkey-login], [data-ctwpml-passkey-register], [data-ctwpml-passkey-skip], [data-ctwpml-passkey-dismiss], [data-ctwpml-passkey-password]'));
         buttons.forEach(element => { element.disabled = true; });
         showMessage(card, 'Confirme no seu aparelho…');
         try {
@@ -109,9 +112,11 @@
                 ...(create ? { security_key_name: 'Acesso rapido' } :
                     { ctwpml_context: config.checkout && button.closest('#ctwpml-view-auth') ? 'checkout-late' : 'entry' })
             });
+            if (!create && !(await post('ctwpml_passkey_context')).loggedIn) throw new Error('session_not_authenticated');
             showMessage(card, create ? 'Acesso ativado. Na próxima compra, use seus dados salvos.' : 'Acesso confirmado. Carregando seus dados…');
             remember(); trace(create ? 'REGISTER_SUCCESS' : 'LOGIN_SUCCESS');
             if (create) {
+                await post('ctwpml_passkey_context').catch(() => trace('REGISTER_INDICATOR_SYNC', 'pending')); // A prova já foi aceita pelo motor.
                 card.replaceChildren();
                 const title = document.createElement('h2'); title.textContent = '✓ Tudo pronto!'; title.style.color = '#147746';
                 const message = document.createElement('p'); message.textContent = 'Na próxima compra, use o acesso rápido para recuperar seus dados.';
@@ -121,7 +126,7 @@
             else returnToPage();
         } catch (error) {
             trace(create ? 'REGISTER_ERROR' : 'LOGIN_ERROR', ['NotAllowedError','AbortError','SecurityError','InvalidStateError','NotSupportedError'].includes(error.name) ? error.name : 'request_failed');
-            if (!create) button.closest('.ctwpml-login-popup')?.classList.remove('ctwpml-passkey-first');
+            if (!create) { const popup = button.closest('.ctwpml-login-popup'); popup?.classList.remove('ctwpml-passkey-first'); popup?.removeAttribute('aria-modal'); }
             const cancelled = ['NotAllowedError', 'AbortError'].includes(error.name) || error.message === 'cancelled';
             showMessage(card, cancelled ? 'Acesso cancelado ou chave indisponível. Você pode tentar novamente ou continuar de outra forma.' :
                 create ? 'Não foi possível salvar o acesso. Sua compra pode continuar normalmente.' : 'Não foi possível entrar. Tente novamente ou entre de outra forma.');
@@ -135,55 +140,110 @@
         if (password) {
             event.preventDefault();
             const popup = password.closest('.ctwpml-login-popup');
-            popup.classList.remove('ctwpml-passkey-first');
+            popup.classList.remove('ctwpml-passkey-first'); popup.removeAttribute('aria-modal');
             popup.querySelector('#ctwpml-login-email')?.focus();
         }
         if (event.target.closest('[data-ctwpml-passkey-skip]')) { event.preventDefault(); closeEntry(); }
         const dismiss = event.target.closest('[data-ctwpml-passkey-dismiss]');
-        if (dismiss && !busy) {
-            const invite = dismiss.closest('[data-ctwpml-passkey-invite]');
-            invite.hidden = true;
-            const enroll = document.getElementById('ctwpml-passkey-enroll'); if (enroll) enroll.hidden = true;
-            previousFocus?.focus();
-            inviteFinished = true; trace('ENROLL_CONTINUE');
-            const next = afterInvite; afterInvite = null; if (next) next();
-            try { sessionStorage.setItem('ctwpml_passkey_invite_dismissed', '1'); } catch (_) { /* Sem storage, a compra continua. */ }
-        }
+        if (dismiss && !busy) finishInvite(dismiss);
     });
     document.addEventListener('keydown', event => {
         const enrollment = document.getElementById('ctwpml-passkey-enroll');
-        const dialog = enrollment && !enrollment.hidden ? enrollment : entry();
+        const late = document.querySelector('.ctwpml-login-popup.ctwpml-passkey-first');
+        const dialog = enrollment && !enrollment.hidden ? enrollment : late && late.getClientRects().length ? late : entry();
         if (!dialog || dialog.hidden) return;
-        if (event.key === 'Escape') { event.preventDefault(); if (dialog === entry()) closeEntry(); }
+        if (event.key === 'Escape') { event.preventDefault(); if (dialog === entry()) closeEntry(); else if (dialog === late && !busy) late.querySelector('[data-ctwpml-passkey-password]')?.click(); }
         if (event.key === 'Tab') {
-            const controls = Array.from(dialog.querySelectorAll('button:not(:disabled)'));
+            const controls = Array.from(dialog.querySelectorAll('button:not(:disabled)')).filter(el => el.getClientRects().length);
             if (!controls.length) { event.preventDefault(); return; }
             const index = controls.indexOf(document.activeElement);
             if (event.shiftKey && index <= 0) { event.preventDefault(); controls.at(-1).focus(); }
             else if (!event.shiftKey && (index === controls.length - 1 || index < 0)) { event.preventDefault(); controls[0].focus(); }
         }
     });
+    async function finishInvite(button) {
+        busy = true; button.disabled = true;
+        try { await post('ctwpml_passkey_context', { enrollment_done: 1, nonce: enrollmentNonce || '', order_id: config.afterOrderId || 0 }); }
+        catch (_) { trace('ENROLL_ACK_ERROR', 'error'); }
+        finally {
+            busy = false;
+            const enroll = document.getElementById('ctwpml-passkey-enroll'); if (enroll) enroll.hidden = true;
+            previousFocus?.focus(); inviteFinished = true; trace('ENROLL_CONTINUE');
+            const next = afterInvite; afterInvite = null; if (next) next();
+        }
+    }
     async function openInvite() {
         if (inviteOpening || inviteFinished) return;
         const card = document.querySelector('#ctwpml-passkey-enroll [data-ctwpml-passkey-invite]');
         if (!card) return;
         inviteOpening = true;
         try {
-            const context = await post('ctwpml_passkey_context');
-            if (!supported() || !context.loggedIn || !context.canRegister || context.hasPasskeys) {
+            const context = await post('ctwpml_passkey_context'); enrollmentNonce = context.nonce;
+            if (!supported() || !context.loggedIn || !context.canRegister || context.usedPasskey || context.enrollmentSeen) {
                 inviteFinished = true; const next = afterInvite; afterInvite = null; if (next) next(); return;
             }
+            // Ter chaves na conta não prova que este aparelho ainda disponha delas.
             card.hidden = false; document.getElementById('ctwpml-passkey-enroll').hidden = false;
             previousFocus = document.activeElement;
-            trace('ENROLL_SHOWN'); card.querySelector('button')?.focus();
+            trace('ENROLL_SHOWN', context.hasPasskeys ? 'another_device_allowed' : 'first_key'); card.querySelector('button')?.focus();
         } catch (_) {
             trace('ENROLL_CONTEXT_ERROR', 'error'); inviteFinished = true;
             const next = afterInvite; afterInvite = null; if (next) next();
         } finally { inviteOpening = false; }
     }
-    function invite() {
-        if (config.checkout && config.loggedIn && new URL(location.href).searchParams.has('ctwpml_session_refresh')) openInvite();
+    async function prepareImmediate() {
+        if (!config.cart || config.loggedIn || !supported() || preparingImmediate || !PublicKeyCredential.getClientCapabilities) return;
+        preparingImmediate = true;
+        try {
+            const capabilities = await PublicKeyCredential.getClientCapabilities();
+            if (!capabilities.immediateGet || busy) return;
+            const context = await post('ctwpml_passkey_context'); if (context.loggedIn || busy) return;
+            const options = await post('secure_passkeys_frontend_get_login_options', { nonce: context.nonce });
+            if (options.allowCredentials?.length) return;
+            immediatePrepared = {context, options, at: Date.now()};
+        } catch (_) { immediatePrepared = null; trace('EARLY_PREPARE', 'unavailable'); }
+        finally { preparingImmediate = false; }
     }
+    function checkoutTarget(event) {
+        if (!config.cart || config.loggedIn || event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return null;
+        const link = event.target.closest('a.checkout-button,a.wc-block-cart__submit-button');
+        if (!link || (link.target && link.target !== '_self') || link.hasAttribute('download')) return null;
+        try {
+            const url = new URL(link.href, location.href), expected = new URL(config.checkoutUrl);
+            return url.origin === location.origin && url.origin === expected.origin && url.pathname.replace(/\/$/,'') === expected.pathname.replace(/\/$/,'') ? url : null;
+        } catch (_) { return null; }
+    }
+    document.addEventListener('click', async event => {
+        const target = checkoutTarget(event); if (!target) return;
+        if (busy) { event.preventDefault(); event.stopImmediatePropagation(); return; }
+        if (!immediatePrepared || Date.now() - immediatePrepared.at > 60000) return;
+        const prepared = immediatePrepared; immediatePrepared = null;
+        event.preventDefault(); event.stopImmediatePropagation(); busy = true; let authenticated = false;
+        try {
+            // Chamada direta no gesto do carrinho, sem await anterior nem AbortSignal neste modo.
+            const credential = await navigator.credentials.get({publicKey: optionsForBrowser(prepared.options, false), uiMode: 'immediate'});
+            if (!credential) throw new Error('cancelled');
+            const response = {clientDataJSON:encode(credential.response.clientDataJSON), authenticatorData:encode(credential.response.authenticatorData), signature:encode(credential.response.signature), userHandle:credential.response.userHandle ? encode(credential.response.userHandle) : ''};
+            await post('secure_passkeys_frontend_login', {nonce:prepared.context.nonce,challenge:prepared.options.challenge,id:credential.id,rawId:encode(credential.rawId),type:credential.type,response,ctwpml_context:'entry'});
+            if (!(await post('ctwpml_passkey_context')).loggedIn) throw new Error('session_not_authenticated');
+            authenticated = true; remember(); trace('EARLY_LOGIN_SUCCESS');
+        } catch (_) { trace('EARLY_LOGIN_FALLBACK', 'unavailable_or_declined'); }
+        finally {
+            // Sem credencial, modo privado, cancelamento ou rejeição: o checkout continua normalmente.
+            const url = new URL(target.href); url.searchParams.set('ctwpml_session_refresh',String(Date.now()));
+            if (!authenticated) url.searchParams.set('ctwpml_pk_entry_skip','1');
+            location.assign(url.href);
+        }
+    }, true);
+    function invite() {
+        prepareImmediate();
+        if (config.afterOrder) {
+            const url = new URL(config.afterOrder, location.href);
+            if (url.origin !== location.origin) return;
+            afterInvite = () => location.assign(url.href); openInvite();
+        } else if (config.checkout && config.loggedIn && new URL(location.href).searchParams.has('ctwpml_session_refresh')) openInvite();
+    }
+    window.addEventListener('focus', () => { if (!immediatePrepared || Date.now() - immediatePrepared.at > 60000) prepareImmediate(); });
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', invite);
     else invite();
 })();

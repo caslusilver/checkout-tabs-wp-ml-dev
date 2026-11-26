@@ -16,6 +16,18 @@ function esc_url($s){return htmlspecialchars($s,ENT_QUOTES);}
 class WP_User { public function __construct(public int $ID){} }
 function ctwpml_migrate_guest_data_to_user($id){$GLOBALS['migrated_user']=$id;}
 function expect($a,$b){if($a!==$b)throw new \LogicException('Unexpected fixture result');}
+class PK_Session {public $data=[];function set($k,$v){$this->data[$k]=$v;}function get($k,$d=null){return $this->data[$k]??$d;}}
+$woo=(object)['session'=>new PK_Session()];
+function WC(){return $GLOBALS['woo'];}
+function update_user_meta($id,$key,$value){$GLOBALS['profile'][$id][$key]=$value;}
+function sanitize_text_field($s){return is_string($s)?$s:'';}function wp_unslash($s){return $s;}function absint($v){return abs((int)$v);}
+function wp_verify_nonce($s,$action){return $s==='native-'.$action;}
+class PK_Order {public $owner=42;public $meta=[];function get_customer_id(){return $this->owner;}function get_id(){return 9;}function get_order_key(){return 'fixture-order-key';}function get_checkout_order_received_url(){return 'https://fixture.test/obrigado/9/?key=fixture-order-key';}function update_meta_data($k,$v){$this->meta[$k]=$v;}function save_meta_data(){}}
+$order=new PK_Order();
+function wc_get_order($id){return $id===9?$GLOBALS['order']:false;}
+function wc_get_checkout_url(){return 'https://fixture.test/checkout/';}
+function add_query_arg($params,$url){return $url.'?'.http_build_query($params);}
+function wp_safe_redirect($url){throw new \RuntimeException($url);}
 require dirname(__DIR__).'/inc/frontend/passkeys.php';
 $_SERVER=['REQUEST_METHOD'=>'POST','REMOTE_ADDR'=>'127.0.0.1'];$logged=false;$excluded=false;$count=0;$keys=[];
 $call=static function(){try{\CTWPML_Passkeys::context();}catch(\RuntimeException $e){return json_decode($e->getMessage(),true);}throw new \LogicException('No JSON');};
@@ -27,5 +39,23 @@ expect(\CTWPML_Passkeys::login_translation([])['success_login'],'Acesso confirma
 $_POST=['ctwpml_context'=>'entry'];\CTWPML_Passkeys::resume_checkout(new WP_User(42));expect(isset($GLOBALS['migrated_user']),false);
 $_POST=['ctwpml_context'=>'checkout-late'];\CTWPML_Passkeys::resume_checkout(new WP_User(1234));expect(isset($GLOBALS['migrated_user']),false);
 \CTWPML_Passkeys::resume_checkout(new WP_User(42));expect($GLOBALS['migrated_user'],42);
+$excluded=false;$_SERVER['REQUEST_METHOD']='POST';$_POST=[];$keys=[(object)['is_active'=>0]];
+expect(\CTWPML_Passkeys::has_keys(42),false);$keys=[(object)['is_active'=>1]];expect(\CTWPML_Passkeys::has_keys(42),true);
+$member=$call();expect($member['data']['usedPasskey'],true);expect($profile[42]['ctwpml_passkey_registered'],'yes');
+$_POST=['enrollment_done'=>1,'nonce'=>'wrong','order_id'=>9];$call();expect($woo->session->get('ctwpml_pk_enroll_user'),null);expect($order->meta,[]);
+$_POST=['enrollment_done'=>1,'nonce'=>'native-engine-nonce','order_id'=>9];$call();expect($woo->session->get('ctwpml_pk_enroll_user'),42);expect($order->meta['_ctwpml_passkey_registered'],'yes');
+$order->owner=99;$order->meta=[];$call();expect($order->meta,[]);$order->owner=42;
+$woo->session->data=['ctwpml_pk_new_customer'=>42];$keys=[];$result=['result'=>'success','redirect'=>'original'];
+$redirect=\CTWPML_Passkeys::handoff($result,9);expect(str_contains($redirect['redirect'],'ctwpml_access_after_order=9'),true);
+$order->owner=99;expect(\CTWPML_Passkeys::handoff($result,9),$result);$order->owner=42;
+$logged=false;expect(\CTWPML_Passkeys::handoff($result,9),$result);
+$_GET=['ctwpml_access_after_order'=>9,'key'=>'fixture-order-key'];try{\CTWPML_Passkeys::handoff_page();}catch(\RuntimeException $e){expect($e->getMessage(),$order->get_checkout_order_received_url());}
+$_GET['key']='wrong';try{\CTWPML_Passkeys::handoff_page();}catch(\RuntimeException $e){expect($e->getMessage(),wc_get_checkout_url());}
+$logged=true;$woo->session->data=['ctwpml_pk_new_customer'=>42,'ctwpml_pk_enroll_user'=>42];expect(\CTWPML_Passkeys::handoff($result,9),$result);
+$_POST=['ctwpml_context'=>'checkout-late'];$woo->session->set('ctwpml_pk_expected_user',42);
+expect(\CTWPML_Passkeys::validate_checkout_identity(true,new WP_User(42)),true);
+try{\CTWPML_Passkeys::validate_checkout_identity(true,new WP_User(99));throw new \LogicException('Wrong account accepted');}catch(\Exception $e){expect($e->getMessage(),'CHECKOUT_ACCOUNT_MISMATCH');}
+expect(\CTWPML_Passkeys::validate_checkout_identity(false,new WP_User(42)),false);
+$_POST=['ctwpml_context'=>'entry'];expect(\CTWPML_Passkeys::validate_checkout_identity(true,new WP_User(99)),true);
 echo "Passkeys: versão, contexto mínimo, proprietário, roles, método, limite e traduções passaram.\n";
 }

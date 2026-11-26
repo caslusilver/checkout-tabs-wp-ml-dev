@@ -20,9 +20,9 @@ add_action('wp_head', function () {
 			}
 			var content = viewport.getAttribute('content') || 'width=device-width, initial-scale=1';
 			var settings = content.split(',').map(function (setting) { return setting.trim(); }).filter(function (setting) {
-				return !/^(maximum-scale|user-scalable)\s*=/i.test(setting);
+				return !/^(maximum-scale|user-scalable|viewport-fit)\s*=/i.test(setting);
 			});
-			settings.push('maximum-scale=1', 'user-scalable=no');
+			settings.push('maximum-scale=1', 'user-scalable=no', 'viewport-fit=cover');
 			viewport.setAttribute('content', settings.join(', '));
 		} catch (error) {}
 	})();

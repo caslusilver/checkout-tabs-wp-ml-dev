@@ -148,7 +148,10 @@ function ctwpml_guest_clear_session(): void {
 }
 
 function ctwpml_preserve_auth_coupons(): void {
-	if (!function_exists('WC') || !WC()->session || !WC()->cart) return;
+	if (!function_exists('WC') || !WC()->session) return;
+	WC()->session->set('ctwpml_pk_login_user',0);
+	WC()->session->set('ctwpml_pk_enroll_user',0);
+	if (!WC()->cart) return;
 	WC()->session->set('ctwpml_auth_coupons', array_slice(WC()->cart->get_applied_coupons(), 0, 10));
 }
 add_action('woocommerce_cart_loaded_from_session', static function ($cart) {

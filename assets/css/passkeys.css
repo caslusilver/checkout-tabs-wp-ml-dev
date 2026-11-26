@@ -15,6 +15,9 @@
 .ctwpml-passkey-card .ctwpml-passkey-message{font-size:13px!important;color:#334b62!important;overflow-wrap:anywhere}
 .ctwpml-passkey-message:empty{display:none}
 .ctwpml-login-popup.ctwpml-passkey-first #ctwpml-auth-form{display:none!important}
+#ctwpml-address-modal-overlay #ctwpml-view-auth .ctwpml-login-popup.ctwpml-passkey-first{position:fixed!important;inset:0!important;z-index:2147483100!important;width:100%!important;max-width:none!important;height:100dvh!important;overflow-y:auto!important;box-sizing:border-box!important;padding:28px 18px calc(28px + env(safe-area-inset-bottom,0px))!important;background-color:#f1f5f9!important;display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:center!important}
+#ctwpml-view-auth .ctwpml-passkey-first>.ctwpml-passkey-card,#ctwpml-view-auth .ctwpml-passkey-first>[data-ctwpml-passkey-password]{width:100%!important;max-width:440px!important}
+#ctwpml-view-auth .ctwpml-passkey-first .ctwpml-passkey-primary,#ctwpml-view-auth .ctwpml-passkey-first .ctwpml-passkey-primary:is(:hover,:focus,:active){background-color:#0075ff!important;color:#fff!important;border:1px solid #0075ff!important}
 #ctwpml-passkey-entry{position:fixed;inset:0;z-index:2147483100!important;background-color:#f1f5f9!important;overflow:auto;display:flex;align-items:flex-start;justify-content:center;padding:28px 16px max(28px,env(safe-area-inset-bottom))}
 #ctwpml-passkey-entry .ctwpml-passkey-dialog{width:100%;max-width:420px;margin:auto;display:grid;gap:10px;color:#536879!important}
 #ctwpml-passkey-entry .ctwpml-passkey-dialog>p{font-size:12px;text-align:center;margin:0}

@@ -55,6 +55,9 @@ const read=path=>readFileSync(path,'utf8');
   await page.evaluate(()=>{document.querySelector('.ctwpml-review-screen').style.paddingBottom='1200px';window.scrollTo(0,1200);jQuery('.ctwpml-modal-body').scrollTop(1200).trigger('scroll');jQuery(window).trigger('scroll');});
   assert.equal(await page.locator('#ctwpml-review-sticky-footer').evaluate(el=>getComputedStyle(el).visibility),'visible');
   assert.equal(await page.locator('#ctwpml-review-sticky-footer').evaluate(el=>getComputedStyle(el).backgroundColor),'rgb(255, 255, 255)');
+  await page.waitForTimeout(350);
+  assert.equal(await page.locator('#ctwpml-review-sticky-footer').evaluate(el=>el.getBoundingClientRect().bottom>=innerHeight+119),true);
+  assert.equal(await page.locator('#ctwpml-review-confirm-sticky').evaluate(el=>el.getBoundingClientRect().bottom<=innerHeight),true);
   await page.setViewportSize({width:1280,height:900});
   if(process.env.TRACKING_QA_OUTPUT)await page.screenshot({path:process.env.TRACKING_QA_OUTPUT+'/checkout-desktop-real-review.png',fullPage:true});
   for(const stage of ['initial','shipping','payment']){
@@ -66,6 +69,24 @@ const read=path=>readFileSync(path,'utf8');
    await page.waitForTimeout(40);const r=await shape();assert.ok(r.asideRight<r.bodyX);assert.equal(r.overflow,false);
    const footer=page.locator('.ctwpml-payment-footer');if(await footer.count())assert.equal(await footer.evaluate(el=>getComputedStyle(el).position),'static');
   }
+  // Modo tardio de autenticação: função real escolhe o popup prioritário e a alternativa.
+  await page.evaluate(()=>{
+   window.state={params:{google_login_enabled:0}};window.currentView='review';window.persistModalState=()=>{};window.setFooterVisible=()=>{};
+   document.querySelector('.ctwpml-modal-body').insertAdjacentHTML('beforeend','<div id="ctwpml-view-auth"></div><div id="ctwpml-auth-template"><div class="ctwpml-login-popup"><section class="ctwpml-passkey-card ctwpml-passkey-card--late"><h2>Entre para concluir sua compra</h2><button data-ctwpml-passkey-login class="ctwpml-passkey-primary">Entrar com acesso rápido</button><p class="ctwpml-passkey-message"></p></section><button data-ctwpml-passkey-password>Entrar de outra forma</button><form id="ctwpml-auth-form"><input id="ctwpml-login-email"><input id="ctwpml-login-password"><button id="ctwpml-auth-submit">Entrar</button></form></div></div>');
+   window.ctwpmlPasskeyConfig={ajax:'/ajax',checkout:true,loggedIn:false};
+  });
+  await page.addScriptTag({content:read('assets/js/passkeys.js')});
+  await page.evaluate(()=>{CTWPMLPasskeys.supported=()=>true});
+  const authStart=stickySource.indexOf('    function showAuthView(opts)');
+  await page.addScriptTag({content:stickySource.slice(authStart,stickySource.indexOf('    function ',authStart+10))});
+  await page.evaluate(()=>showAuthView({mode:'login',authMethod:'passkey',email:'fixture@example.test',preserveView:true,returnView:'review'}));
+  await page.waitForTimeout(80);
+  assert.equal(await page.locator('#ctwpml-auth-form').isVisible(),false);
+  const modalBox=await page.locator('.ctwpml-login-popup').boundingBox();assert.equal(modalBox.x,0);assert.equal(modalBox.width,1280);
+  assert.equal(await page.evaluate(()=>document.activeElement.hasAttribute('data-ctwpml-passkey-login')),true);
+  await page.locator('[data-ctwpml-passkey-password]').click();assert.equal(await page.locator('#ctwpml-auth-form').isVisible(),true);
+  assert.equal(await page.locator('#ctwpml-login-email').inputValue(),'fixture@example.test');
+  await page.evaluate(()=>document.querySelector('#ctwpml-view-auth').style.display='none');
   // Oferta antecipada usa os mesmos nós, sem duplicar CTA ou interferir com o handler nativo.
   await page.evaluate(()=>{document.body.insertAdjacentHTML('beforeend','<div id="ctwpml-passkey-entry"><div class="ctwpml-passkey-dialog"><section class="ctwpml-passkey-card"><h2>Não preencha tudo de novo</h2><p>Já comprou aqui? Recupere seu nome, telefone e endereço salvos.</p><button class="ctwpml-passkey-primary" id="fixture-login">Usar meus dados salvos</button></section><button class="ctwpml-passkey-other">Continuar sem recuperar meus dados</button></div></div>');window.originalLogin=document.querySelector('#fixture-login');});
   await page.waitForSelector('.ctwpml-desktop-entry-actions');assert.equal(await page.evaluate(()=>originalLogin===document.querySelector('#fixture-login')&&document.querySelectorAll('#fixture-login').length===1),true);
