@@ -143,6 +143,7 @@
             const accountError = !create && config.loginErrors?.[error.message];
             trace(create ? 'REGISTER_ERROR' : 'LOGIN_ERROR', accountError ? error.message : ['NotAllowedError','AbortError','SecurityError','InvalidStateError','NotSupportedError'].includes(error.name) ? error.name : 'request_failed');
             if (!create) { const popup = button.closest('.ctwpml-login-popup'); popup?.classList.remove('ctwpml-passkey-first'); popup?.removeAttribute('aria-modal'); }
+            if (!create) window.ctwpmlRenderRecaptchaIfNeeded?.();
             const cancelled = ['NotAllowedError', 'AbortError'].includes(error.name) || error.message === 'cancelled';
             showMessage(card, accountError || (cancelled ? 'Acesso cancelado ou chave indisponível. Você pode tentar novamente ou continuar de outra forma.' :
                 create ? 'Não foi possível salvar o acesso. Sua compra pode continuar normalmente.' : 'Não foi possível entrar. Tente novamente ou entre de outra forma.'));
@@ -162,6 +163,7 @@
             event.preventDefault();
             const popup = password.closest('.ctwpml-login-popup');
             popup.classList.remove('ctwpml-passkey-first'); popup.removeAttribute('aria-modal');
+            window.ctwpmlRenderRecaptchaIfNeeded?.();
             popup.querySelector('#ctwpml-login-email')?.focus();
         }
         if (event.target.closest('[data-ctwpml-passkey-skip]')) { event.preventDefault(); closeEntry(); }

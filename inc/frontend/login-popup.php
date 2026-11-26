@@ -82,52 +82,22 @@ add_action('wp_footer', function () {
 						</div>
 
 						<?php
-						// reCAPTCHA v2: chave pública por site/ambiente
-						$site_key = (string) get_option('checkout_tabs_wp_ml_recaptcha_site_key', '');
-						if ($site_key === '') {
-							$login_recaptcha_opts = get_option('login_nocaptcha_options', []);
-							if (is_array($login_recaptcha_opts) && isset($login_recaptcha_opts['site_key'])) {
-								$site_key = (string) $login_recaptcha_opts['site_key'];
-							}
-						}
-
-						if (!empty($site_key)) {
-							echo '<div id="ctwpml-recaptcha-container" style="margin: 16px 0;">';
-							echo '<div id="g-recaptcha" data-sitekey="' . esc_attr($site_key) . '"></div>';
-							echo '</div>';
-						}
+                        if (ctwpml_recaptcha_enabled()) {
+                            $keys = ctwpml_recaptcha_keys();
+                            echo '<div id="ctwpml-recaptcha-container" style="margin:16px 0;">';
+                            echo '<div id="g-recaptcha" data-sitekey="' . esc_attr($keys['site_key']) . '"></div>';
+                            echo '<button type="button" id="ctwpml-recaptcha-retry" class="ctwpml-auth-link" hidden>Tentar carregar a verificação</button>';
+                            echo '</div>';
+                        }
 						?>
 
-						<button type="submit" id="ctwpml-auth-submit" class="ctwpml-auth-submit">Entrar</button>
+						<button type="submit" id="ctwpml-auth-submit" class="ctwpml-auth-submit" <?php echo ctwpml_recaptcha_enabled() ? 'disabled' : ''; ?>>Entrar</button>
 						<div id="ctwpml-auth-msg" class="ctwpml-auth-msg" style="display:none;"></div>
 					</div>
 				</div>
 			</form>
 		</div>
 	</div>
-	<script>
-	// Callbacks globais do reCAPTCHA (render explícito quando a view auth estiver visível)
-	window.ctwpmlRecaptchaOnload = function() {
-		// Apenas sinaliza que a API carregou. Render é controlado pelo JS do modal.
-	};
-	window.ctwpmlAuthEnable = function() {
-		// reCAPTCHA completado: habilita CTA
-		var btn = document.getElementById('ctwpml-auth-submit');
-		if (btn) { btn.disabled = false; btn.style.opacity = '1'; }
-	};
-	window.ctwpmlAuthDisable = function() {
-		var btn = document.getElementById('ctwpml-auth-submit');
-		if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; }
-	};
-	// Desabilita botões por padrão (serão habilitados via callback do reCAPTCHA)
-	(function() {
-		var hasCaptcha = document.getElementById('g-recaptcha');
-		if (hasCaptcha) {
-			var btn = document.getElementById('ctwpml-auth-submit');
-			if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; }
-		}
-	})();
-	</script>
 	<?php
 }, 100);
 

@@ -1,6 +1,11 @@
 (function (window) {
   'use strict';
 
+  // Definido antes de api.js (inclusive quando Google carrega antes do DOM ready).
+  window.ctwpmlRecaptchaOnload = function () {
+    if (window.ctwpmlRenderRecaptchaIfNeeded) window.ctwpmlRenderRecaptchaIfNeeded();
+  };
+
   function setMsg($el, text, isError) {
     $el.text(String(text || ''));
     $el.css('display', text ? 'block' : 'none');
@@ -87,199 +92,92 @@
       }, 3500);
     }
 
-    // =========================================================
-    // reCAPTCHA Loader (anti-loop + fallback api.js)
-    // =========================================================
-    var Recaptcha = (function () {
-      var state = window.__ctwpmlRecaptchaState || {
-        apiRequested: false,
-        apiLoaded: false,
-        renderInFlight: false,
-        rendered: false,
-        widgetId: null,
-        attempts: 0,
-        startedAt: 0,
-        timerId: null,
-        lastAbortReason: ''
-      };
-      window.__ctwpmlRecaptchaState = state;
-
-      var MAX_ATTEMPTS = 20;
-      var TIMEOUT_MS = 12000;
-      var RETRY_MS = 450;
-
-      function clearTimer() {
-        if (state.timerId) {
-          try { clearTimeout(state.timerId); } catch (e) { }
-          state.timerId = null;
-        }
-      }
-
-      function isAuthViewVisible() {
-        try { return $('#ctwpml-view-auth').is(':visible'); } catch (e) { return false; }
-      }
-
-      function scriptAlreadyPresent() {
-        try {
-          var nodes = document.querySelectorAll('script[src*=\"recaptcha/api.js\"]');
-          return !!(nodes && nodes.length);
-        } catch (e) { return false; }
-      }
-
-      function injectApiJs() {
-        if (state.apiRequested) return;
-        state.apiRequested = true;
-
-        if (scriptAlreadyPresent()) {
-          return;
-        }
-
-        try {
-          var s = document.createElement('script');
-          s.async = true;
-          s.defer = true;
-          s.src = 'https://www.google.com/recaptcha/api.js?onload=ctwpmlRecaptchaOnload&render=explicit';
-          s.onload = function () {
-            state.apiLoaded = true;
-            logCtwpml('CTWPML_RECAPTCHA_API_LOADED', {});
-          };
-          s.onerror = function () {
-            state.apiLoaded = false;
-            state.lastAbortReason = 'api_js_load_error';
-          };
-          document.head.appendChild(s);
-          logCtwpml('CTWPML_RECAPTCHA_API_REQUESTED', {});
-        } catch (e) {
-          state.lastAbortReason = 'api_js_inject_error';
-        }
-      }
-
-      function scheduleRetry(reason) {
-        clearTimer();
-        state.timerId = setTimeout(function () {
-          ensureRendered({ reason: reason || 'retry' });
-        }, RETRY_MS);
-      }
-
-      function hardFail(message, reason) {
-        clearTimer();
-        state.renderInFlight = false;
-        state.lastAbortReason = String(reason || 'unknown');
-        var $msg = $('#ctwpml-auth-msg');
-        if ($msg.length) setMsg($msg, message || 'Não foi possível carregar o reCAPTCHA. Recarregue a página.', true);
-        try {
-          var btn0 = document.getElementById('ctwpml-auth-submit');
-          if (btn0) { btn0.disabled = true; btn0.style.opacity = '0.6'; }
-        } catch (e0) { }
-        // Alta-sinal (sem spam)
-        logCtwpml('CTWPML_RECAPTCHA_ABORT', { reason: state.lastAbortReason });
-      }
-
-      function ensureRendered(opts) {
-        opts = opts || {};
-        if (state.rendered || state.renderInFlight) return;
-
-        if (!state.startedAt) {
-          state.startedAt = Date.now();
-          state.attempts = 0;
-          // Alta-sinal (sem spam)
-          logCtwpml('CTWPML_RECAPTCHA_START', { context: opts.reason || '' });
-        }
-        state.attempts += 1;
-
-        if (state.attempts > MAX_ATTEMPTS || (Date.now() - state.startedAt) > TIMEOUT_MS) {
-          hardFail('Não foi possível carregar o reCAPTCHA. Recarregue a página.', 'timeout_or_attempts');
-          return;
-        }
-
-        if (!isAuthViewVisible()) {
-          scheduleRetry('auth_view_not_visible');
-          return;
-        }
-
-        var $container = $('#g-recaptcha');
-        if (!$container.length) {
-          scheduleRetry('missing_container');
-          return;
-        }
-        if ($container.hasClass('recaptcha-rendered')) {
-          state.rendered = true;
-          return;
-        }
-
-        var siteKey = getSiteKey();
-        if (!siteKey) {
-          hardFail('reCAPTCHA não configurado. Configure em WooCommerce > Checkout Tabs ML.', 'missing_site_key');
-          return;
-        }
-
-        if (typeof grecaptcha === 'undefined' || typeof grecaptcha.render !== 'function') {
-          injectApiJs();
-          scheduleRetry('grecaptcha_not_ready');
-          return;
-        }
-
-        state.renderInFlight = true;
-        try {
-          state.widgetId = grecaptcha.render($container[0], {
-            sitekey: siteKey,
-            callback: window.ctwpmlAuthEnable,
-            'expired-callback': window.ctwpmlAuthDisable
-          });
-          window.__ctwpmlRecaptchaId = state.widgetId;
-          $container.addClass('recaptcha-rendered');
-          state.rendered = true;
-          logCtwpml('CTWPML_RECAPTCHA_RENDERED', { widgetId: state.widgetId });
-          try {
-            var btn = document.getElementById('ctwpml-auth-submit');
-            if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; }
-          } catch (e1) { }
-        } catch (e) {
-          var msg = (e && e.message) ? String(e.message) : 'unknown';
-          if (msg.indexOf('already been rendered') > -1) {
-            $container.addClass('recaptcha-rendered');
-            state.rendered = true;
-            logCtwpml('CTWPML_RECAPTCHA_RENDERED', { widgetId: state.widgetId, note: 'already_rendered' });
-          } else {
-            scheduleRetry('render_error');
-          }
-        } finally {
-          state.renderInFlight = false;
-        }
-      }
-
-      function reset() {
-        clearTimer();
-        state.startedAt = 0;
-        state.attempts = 0;
-        state.rendered = false;
-        state.renderInFlight = false;
-        try {
-          if (typeof grecaptcha !== 'undefined') {
-            if (typeof window.__ctwpmlRecaptchaId !== 'undefined') grecaptcha.reset(window.__ctwpmlRecaptchaId);
-            else grecaptcha.reset();
-          }
-        } catch (e) { }
-      }
-
-      function cancel() {
-        clearTimer();
-      }
-
-      return {
-        ensureRendered: ensureRendered,
-        reset: reset,
-        cancel: cancel
-      };
-    })();
-
-    window.ctwpmlRenderRecaptchaIfNeeded = function () {
-      Recaptcha.ensureRendered({ reason: 'external_call' });
+    var authInFlight = false, captchaValid = false;
+    function recaptchaEnabled() { return Number(getParams().recaptcha_enabled) !== 0; }
+    function captchaResponse() {
+      if (!recaptchaEnabled() || !captchaValid) return '';
+      try { return typeof grecaptcha !== 'undefined' && typeof window.__ctwpmlRecaptchaId === 'number' ? grecaptcha.getResponse(window.__ctwpmlRecaptchaId) || '' : ''; }
+      catch (e) { return ''; }
+    }
+    function syncAuthButton() {
+      var disabled = authInFlight || (recaptchaEnabled() && !captchaResponse());
+      $('#ctwpml-auth-submit').prop('disabled', disabled).css('opacity', disabled ? '0.6' : '1');
+    }
+    window.ctwpmlAuthEnable = function () { captchaValid = true; syncAuthButton(); };
+    window.ctwpmlAuthDisable = function () {
+      captchaValid = false;
+      syncAuthButton();
+      if (recaptchaEnabled()) setMsg($('#ctwpml-auth-msg'), 'A verificação expirou. Confirme novamente para continuar.', true);
     };
 
-    function resetRecaptcha() {
-      Recaptcha.reset();
-    }
+    var Recaptcha = (function () {
+      var state = { widgetId: null, rendered: false, renderInFlight: false, attempts: 0, startedAt: 0, timerId: null, apiRequested: false };
+      window.__ctwpmlRecaptchaState = state;
+      function clearTimer() { if (state.timerId) clearTimeout(state.timerId); state.timerId = null; }
+      function hardFail(reason) {
+        clearTimer(); state.renderInFlight = false; captchaValid = false;
+        setMsg($('#ctwpml-auth-msg'), 'Não foi possível carregar a verificação de segurança. Tente carregar novamente ou fale com o suporte.', true);
+        $('#ctwpml-recaptcha-retry').prop('hidden', false);
+        syncAuthButton();
+        logCtwpml('CTWPML_RECAPTCHA_ABORT', { reason: reason });
+      }
+      function injectApiJs() {
+        if (state.apiRequested || document.querySelector('script[src*="recaptcha/api.js"]')) return;
+        state.apiRequested = true;
+        var script = document.createElement('script');
+        script.async = true; script.defer = true; script.dataset.ctwpmlRecaptcha = '1';
+        script.src = 'https://www.google.com/recaptcha/api.js?onload=ctwpmlRecaptchaOnload&render=explicit';
+        script.onerror = function () { hardFail('api_load_error'); };
+        document.head.appendChild(script);
+        logCtwpml('CTWPML_RECAPTCHA_API_REQUESTED', {});
+      }
+      function ensureRendered() {
+        clearTimer();
+        if (!recaptchaEnabled()) { $('#ctwpml-recaptcha-container').hide(); syncAuthButton(); return; }
+        // Acesso rápido pode cobrir o formulário. Não gastar o prazo nem renderizar iframe oculto.
+        if (!$('#ctwpml-auth-form').is(':visible')) { state.startedAt = 0; state.attempts = 0; return; }
+        if (state.rendered || state.renderInFlight) { syncAuthButton(); return; }
+        if (!state.startedAt) { state.startedAt = Date.now(); logCtwpml('CTWPML_RECAPTCHA_START', {}); }
+        if (++state.attempts > 25 || Date.now() - state.startedAt > 12000) { hardFail('timeout'); return; }
+        var container = document.getElementById('g-recaptcha'), key = getSiteKey();
+        if (!container || !key) { hardFail('missing_configuration'); return; }
+        if (typeof grecaptcha === 'undefined' || typeof grecaptcha.render !== 'function') {
+          injectApiJs(); state.timerId = setTimeout(ensureRendered, 450); return;
+        }
+        state.renderInFlight = true;
+        try {
+          state.widgetId = grecaptcha.render(container, {
+            sitekey: key,
+            size: container.clientWidth && container.clientWidth < 304 ? 'compact' : 'normal',
+            callback: function () { captchaValid = true; $('#ctwpml-recaptcha-retry').prop('hidden', true); setMsg($('#ctwpml-auth-msg'), '', false); syncAuthButton(); },
+            'expired-callback': window.ctwpmlAuthDisable,
+            'error-callback': function () { hardFail('challenge_network_error'); }
+          });
+          window.__ctwpmlRecaptchaId = state.widgetId;
+          state.rendered = true;
+          $('#ctwpml-recaptcha-retry').prop('hidden', true);
+          logCtwpml('CTWPML_RECAPTCHA_RENDERED', {});
+        } catch (e) { hardFail('render_failed'); }
+        finally { state.renderInFlight = false; syncAuthButton(); }
+      }
+      function reset() {
+        clearTimer(); captchaValid = false;
+        try { if (state.widgetId !== null && typeof grecaptcha !== 'undefined') grecaptcha.reset(state.widgetId); } catch (e) { }
+        syncAuthButton();
+      }
+      function retry() {
+        clearTimer(); state.startedAt = 0; state.attempts = 0; state.apiRequested = false;
+        if (state.rendered) { reset(); $('#ctwpml-recaptcha-retry').prop('hidden', true); return; }
+        if (typeof grecaptcha === 'undefined') document.querySelectorAll('script[data-ctwpml-recaptcha],#google-recaptcha-v2-js').forEach(function (node) { node.remove(); });
+        ensureRendered();
+      }
+      return { ensureRendered: ensureRendered, reset: reset, retry: retry, cancel: clearTimer };
+    })();
+    window.ctwpmlRenderRecaptchaIfNeeded = Recaptcha.ensureRendered;
+    function resetRecaptcha() { Recaptcha.reset(); }
+    $(document).on('click', '#ctwpml-recaptcha-retry', function () { if (!authInFlight) Recaptcha.retry(); });
+    $(window).on('pagehide', Recaptcha.cancel);
+    syncAuthButton();
 
     function normalizeFullName(fullName) {
       try {
@@ -332,6 +230,7 @@
 
     $(document).on('submit', '#ctwpml-auth-form', function (e) {
       e.preventDefault();
+      if (authInFlight) return;
       var $form = $(this);
       var p = getParams();
       var ajaxUrl = p.ajax_url;
@@ -376,17 +275,14 @@
         return;
       }
 
-      var recaptchaResponse = '';
-      if (typeof grecaptcha !== 'undefined' && typeof window.__ctwpmlRecaptchaId !== 'undefined') {
-        try { recaptchaResponse = grecaptcha.getResponse(window.__ctwpmlRecaptchaId) || ''; } catch (e0) { }
-      }
-      if (!recaptchaResponse) {
-        setMsg($msg, 'Você deve provar que não é um robô.', true);
-        highlightRecaptchaError();
+      var recaptchaResponse = captchaResponse();
+      if (recaptchaEnabled() && !recaptchaResponse) {
+        setMsg($msg, 'Complete a verificação de segurança para continuar.', true);
+        highlightRecaptchaError(); Recaptcha.ensureRendered();
         return;
       }
 
-      $('#ctwpml-auth-submit').prop('disabled', true);
+      authInFlight = true; syncAuthButton();
       var requestData = {
         action: (flow === 'login') ? 'ctwpml_login' : 'ctwpml_auth_email',
         _ajax_nonce: (flow === 'login') ? loginNonce : createNonce,
@@ -423,7 +319,7 @@
           resetRecaptcha();
         },
         complete: function () {
-          $('#ctwpml-auth-submit').prop('disabled', false);
+          authInFlight = false; syncAuthButton();
         }
       });
     });

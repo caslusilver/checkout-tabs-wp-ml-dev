@@ -357,3 +357,5 @@ body .ctwpml-login-popup .ctwpml-auth-tab:not(.is-active),
     transform: translateX(5px);
   }
 }
+/* O botão de recuperação só aparece quando o carregador identifica uma falha. */
+.ctwpml-login-popup #ctwpml-recaptcha-retry[hidden] { display: none !important; }

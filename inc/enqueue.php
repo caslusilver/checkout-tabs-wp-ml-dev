@@ -287,16 +287,9 @@ add_action('wp_enqueue_scripts', function () {
 		true
 	);
 
-	// reCAPTCHA site key (pública): por site/ambiente.
-	// - Prioridade: opção do plugin
-	// - Fallback: plugin "Login No Captcha reCAPTCHA"
-	$recaptcha_site_key = (string) get_option('checkout_tabs_wp_ml_recaptcha_site_key', '');
-	if ($recaptcha_site_key === '') {
-		$login_recaptcha_opts = get_option('login_nocaptcha_options', []);
-		if (is_array($login_recaptcha_opts) && isset($login_recaptcha_opts['site_key'])) {
-			$recaptcha_site_key = (string) $login_recaptcha_opts['site_key'];
-		}
-	}
+	$recaptcha_enabled = ctwpml_recaptcha_enabled();
+	$recaptcha_keys = ctwpml_recaptcha_keys();
+	$recaptcha_site_key = $recaptcha_enabled ? $recaptcha_keys['site_key'] : '';
 	$registration_enabled = ((string) get_option('woocommerce_enable_signup_and_login_from_checkout', get_option('woocommerce_enable_myaccount_registration', 'no')) === 'yes');
 	$guest_checkout_enabled = ((string) get_option('woocommerce_enable_guest_checkout', 'no') === 'yes');
 	$registration_generate_password = ((string) get_option('woocommerce_registration_generate_password', 'yes') === 'yes');
@@ -337,6 +330,7 @@ add_action('wp_enqueue_scripts', function () {
 		'check_email_nonce' => wp_create_nonce('ctwpml_check_email'),
 		'user_email' => is_user_logged_in() ? (string) wp_get_current_user()->user_email : '',
 		'webhook_url'=> checkout_tabs_wp_ml_get_webhook_url(),
+		'recaptcha_enabled' => $recaptcha_enabled ? 1 : 0,
 		'recaptcha_site_key' => $recaptcha_site_key,
 		'plugin_url' => CHECKOUT_TABS_WP_ML_URL,
 		'cart_url'   => function_exists('wc_get_cart_url') ? wc_get_cart_url() : '',
@@ -357,11 +351,11 @@ add_action('wp_enqueue_scripts', function () {
 	);
 
 	// Enfileirar Google reCAPTCHA v2 apenas quando houver site key configurada.
-	if (!is_user_logged_in() && $recaptcha_site_key !== '') {
+	if (!is_user_logged_in() && $recaptcha_enabled && $recaptcha_site_key !== '') {
 		wp_enqueue_script(
 			'google-recaptcha-v2',
 			'https://www.google.com/recaptcha/api.js?onload=ctwpmlRecaptchaOnload&render=explicit',
-			[],
+			['checkout-tabs-wp-ml-auth'],
 			null,
 			true
 		);
