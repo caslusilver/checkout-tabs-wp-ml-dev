@@ -1,7 +1,7 @@
 <?php
 // Contratos reais de vínculo de conta, recuperação e shortcode; nenhum serviço externo.
 define('ABSPATH',__DIR__);define('CHECKOUT_TABS_WP_ML_URL','https://shop.example.test/plugin/');
-$options=[];$transients=[];$logged=false;$engine=true;$sessionId='guest-fixture';$authCalls=0;$migrations=0;
+$options=[];$transients=[];$logged=false;$engine=true;$sessionId='guest-fixture';$authCalls=0;$migrations=0;$keysActive=true;$passwordError=false;
 function add_action(...$args){}function add_shortcode(...$args){}function add_filter(...$args){}
 function get_option($key,$default=false){return $GLOBALS['options'][$key]??$default;}
 function site_url($path,$scheme=null){return 'https://shop.example.test/'.$path;}
@@ -19,8 +19,10 @@ $woo=(object)['session'=>new FixtureSession()];function WC(){return $GLOBALS['wo
 class WP_User {function __construct(public int $ID,public string $user_email='fixture@example.test'){} }
 function get_user_by($field,$value){return $value==='fixture@example.test'?new WP_User(42):new WP_User(99);}
 function sanitize_text_field($v){return $v;}function sanitize_email($v){return $v;}function wp_unslash($v){return $v;}
-function ctwpml_auth_request_guard(...$a){return true;}function ctwpml_verify_checkout_recaptcha(...$a){return true;}function is_wp_error($v){return false;}function is_ssl(){return true;}
-function wp_signon($creds,$ssl){$GLOBALS['authCalls']++;return get_user_by('email',$creds['user_login']);}
+class WP_Error {}
+function ctwpml_auth_request_guard(...$a){return true;}function ctwpml_verify_checkout_recaptcha(...$a){return true;}function is_wp_error($v){return $v instanceof WP_Error;}function is_ssl(){return true;}
+function ctwpml_auth_diagnostic(...$a){}
+function wp_signon($creds,$ssl){$GLOBALS['authCalls']++;return $GLOBALS['passwordError']?new WP_Error():get_user_by('email',$creds['user_login']);}
 function ctwpml_migrate_guest_data_to_user($id){$GLOBALS['migrations']++;}
 function wp_send_json_success($data){throw new RuntimeException(json_encode(['ok'=>true,'data'=>$data]));}function wp_send_json_error($data,$status=400){throw new RuntimeException(json_encode(['ok'=>false,'data'=>$data]));}
 require dirname(__DIR__).'/inc/frontend/passkeys.php';
@@ -35,7 +37,8 @@ if(in_array('--markup',$argv,true)){
  define('SECURE_PASSKEYS_VERSION','1.3.0');define('SECURE_PASSKEYS_NONCE','fixture-nonce');
  eval('namespace Secure_Passkeys\\Utils; class Secure_Passkeys_Helper {}');
  $options['checkout_tabs_wp_ml_early_login_enabled']=1;
- echo CTWPML_Early_Login::shortcode().CTWPML_Early_Login::shortcode(['size'=>32]);CTWPML_Early_Login::footer();exit;
+ $logged=in_array('--logged-markup',$argv,true);
+ echo CTWPML_Early_Login::shortcode().CTWPML_Early_Login::shortcode(['size'=>32]);CTWPML_Early_Login::footer();if($logged)CTWPML_Passkeys::footer();exit;
 }
 expectEarly(!CTWPML_Early_Login::enabled());expectEarly(CTWPML_Early_Login::issue_ticket(42)==='');
 $options['checkout_tabs_wp_ml_early_login_enabled']=1;$ticket=CTWPML_Early_Login::issue_ticket(42);
@@ -62,7 +65,7 @@ expectEarly(substr_count($footer,'id="ctwpml-menu-access"')===1&&str_contains($f
 expectEarly(!str_contains($footer,'ctwpml_early_ticket'));
 define('SECURE_PASSKEYS_VERSION','1.3.0');define('SECURE_PASSKEYS_NONCE','fixture-nonce');
 eval('namespace Secure_Passkeys\\Utils; class Secure_Passkeys_Helper {static function is_user_in_excluded_roles($id){return false;}}');
-eval('namespace Secure_Passkeys\\Models; class Secure_Passkeys_WebAuthn {function get_all_by_user_id($id){return [(object)["is_active"=>1]];}}');
+eval('namespace Secure_Passkeys\\Models; class Secure_Passkeys_WebAuthn {function get_all_by_user_id($id){return $GLOBALS["keysActive"]?[(object)["is_active"=>1]]:[];}}');
 function check_ajax_referer(...$a){return true;}function is_email($value){return filter_var($value,FILTER_VALIDATE_EMAIL);}function email_exists($value){return $value==='fixture@example.test'?42:0;}
 require dirname(__DIR__).'/inc/ajax-check-email.php';
 function routeResult($early,$email='fixture@example.test'){
@@ -71,5 +74,13 @@ function routeResult($early,$email='fixture@example.test'){
 }
 $r=routeResult(1);expectEarly($r['auth_method']==='passkey'&&strlen($r['ticket'])===40&&!isset($r['user_id']));
 expectEarly(!isset(routeResult(0)['ticket']));expectEarly(routeResult(1,'new@example.test')['auth_method']==='password');
+$keysActive=false;$authCalls=0;$r=routeResult(1);$passwordTicket=$r['ticket'];
+expectEarly($r['exists']===1&&$r['auth_method']==='password'&&strlen($passwordTicket)===40&&$authCalls===0&&!$logged);
+expectEarly(!isset(routeResult(1,'new@example.test')['ticket']));
+expectEarly(!passwordResult('checkout-early',$passwordTicket,'other@example.test')['ok']&&$authCalls===0);
+$passwordError=true;expectEarly(!passwordResult('checkout-early',$passwordTicket)['ok']&&$authCalls===1&&!$logged);
+$passwordError=false;expectEarly(passwordResult('checkout-early',$passwordTicket)['ok']&&$migrations===1);
+$sessionId='another-guest';expectEarly(!passwordResult('checkout-early',$passwordTicket)['ok']);$sessionId='guest-fixture';
+$transients=[];expectEarly(!passwordResult('checkout-early',$passwordTicket)['ok']);
 $options['checkout_tabs_wp_ml_early_login_enabled']=0;expectEarly(routeResult(1)['ticket']==='');
 echo "Early login: session-bound/expiring routing, correct account proof, no guest-profile overwrite, native reset link, neutral duplicate-safe shortcode and size/color limits passed.\n";

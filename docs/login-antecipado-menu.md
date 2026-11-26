@@ -1,5 +1,25 @@
 # Login antecipado por e-mail e fingerprint nos menus — v3.4.17
 
+## Cliente existente sem chave — v3.4.19
+
+Decisão do usuário: não permitir associar uma chave a uma conta apenas por digitar seu e-mail. Ele aprovou **login normal primeiro → recuperação dos dados → convite para cadastrar chave**, mantendo o preenchimento atual para cliente novo. Implementação e publicação em develop explicitamente autorizadas em26/11/2026.
+
+Com o experimento ligado, a consulta distingue três caminhos sem devolver nome/endereço/ID de usuário:
+
+1. **Conta com chave ativa:** mantém Usar meus dados salvos e a prova nativa.
+2. **Conta existente sem chave:** mostra Entrar e recuperar meus dados, e-mail resumido e Editar e-mail. O clique abre o mesmo formulário de senha, com o e-mail preenchido e recuperação de senha em outra aba. A pessoa também pode optar pelo preenchimento manual.
+3. **E-mail novo:** continua ao preenchimento, cadastro e convite finais já existentes. Não pede senha de uma conta que ainda não existe.
+
+O login antecipado por senha usa ctwpml_login, contexto checkout-early e vínculo temporário da conta/sessão. O servidor verifica e-mail correspondente, validade e sessão do vínculo antes de wp_signon; senha correta, nonce, limite e reCAPTCHA continuam obrigatórios conforme a configuração existente. E-mail e vínculo não são prova de identidade. Nenhum cadastro de chave é disparado pela consulta ou por senha inválida. O vínculo nunca é guardado em URL ou storage do navegador.
+
+Somente após o servidor confirmar o login, a página retoma o mesmo checkout e carrega os dados da conta autenticada. O convite nativo já existente aparece para cadastrar o primeiro acesso rápido, respeitando navegador, elegibilidade e convite já tratado na sessão. A criação depende de clique e confirmação no aparelho; se recusar/falhar, a compra pode continuar. O site não determina onde o navegador/aparelho armazena a chave.
+
+Não muda os shortcodes, a opção experimental nem o caminho de primeira compra. Desativar Login antecipado em Integrações volta à entrada anterior. Reverter para3.4.18 remove somente esta oportunidade inicial para conta sem chave, preservando contas, credenciais e pedidos.
+
+Referências: inc/ajax-check-email.php (vínculo por conta existente), assets/js/early-login.js e inc/frontend/early-login.php (três estados). Reutiliza inc/ajax-login.php e inc/frontend/passkeys.php / assets/js/passkeys.js. No Secure Passkeys1.3.0, src/ajax/secure-passkeys-frontend-ajax.php registra cadastro/opções apenas em wp_ajax autenticado e usa get_current_user_id; o motor permanece separado e inalterado.
+
+QA: testes PHP de conta sem chave, senha errada, conta diferente, vínculo vencido/outra sessão e ausência de autenticação na consulta; DOM de oferta e alternativas; Edge com markup PHP real antes/depois do login, senha errada sem convite, senha válida, convite e criação verificada pela biblioteca WebAuthn original. Cadastro/login de conta nova, motor, recuperação, captcha e demais regressões mantidos. A instalação real WordPress/Elementor/PWA/iOS deve ser conferida pelo usuário após atualizar; fixtures não equivalem a uma compra real.
+
 ## Refinamento v3.4.18 — acesso rápido em evidência
 
 Após teste real da3.4.17, o usuário confirmou que Usar meus dados funcionou e pediu eliminar a competição com Continuar. Ao encontrar chave ativa, a apresentação agora muda para **Encontramos seu acesso rápido. Agora é só confirmar para recuperar seus dados e continuar a compra.** O campo e Continuar ficam ocultos; o e-mail aparece como texto com **Editar e-mail**. Usar meus dados salvos é a única ação primária. Não significa acesso antecipado a nomes ou endereços: só a autenticação os libera.

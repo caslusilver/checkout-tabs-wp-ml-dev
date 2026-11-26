@@ -2,6 +2,13 @@
 
 Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
+## [v3.4.19] - 2026-11-26
+
+- Cliente existente sem chave recebe a opção Entrar e recuperar meus dados antes do endereço, no login antecipado experimental. O e-mail fica resumido com Editar e-mail; não compete com Continuar. Conta nova mantém o preenchimento/cadastro final anterior e cliente com chave mantém a oferta de acesso rápido.
+- Login por senha usa o formulário e endpoint existentes, com recuperação de senha, nonce, limite e reCAPTCHA conforme a configuração. A consulta emite o vínculo temporário também para a conta sem chave; o servidor exige conta correspondente, sessão e validade, além da senha. Consulta não autentica, não recupera dados privados nem cadastra chave.
+- Após login confirmado, reutiliza a retomada ao mesmo checkout e o convite nativo de cadastro da chave, com gesto/consentimento, elegibilidade e possibilidade de continuar sem ativar. Sem migração de dados, alteração do motor ou de pagamentos.
+- Cobertura de cliente sem chave: consulta sem autenticação, senha incorreta, conta divergente, vínculo expirado/outra sessão, novo cliente/manual, login correto e cadastro WebAuthn validado pela biblioteca original. Guia em docs/login-antecipado-menu.md.
+
 ## [v3.4.18] - 2026-11-26
 
 - Após a consulta antecipada encontrar acesso rápido, o formulário e o botão Continuar dão lugar ao resumo do e-mail com Editar e-mail. A mensagem muda para Encontramos seu acesso rápido e Usar meus dados salvos fica como única ação primária. Nenhum dado salvo é liberado antes da autenticação.
