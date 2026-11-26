@@ -1,0 +1,18 @@
+.ctwpml-passkey-card{box-sizing:border-box;background-color:#fff!important;color:#17242d!important;display:grid;gap:14px;padding:22px;border:1px solid #dce4ee;border-radius:16px;font:14px/1.5 system-ui,-apple-system,sans-serif;text-align:left}
+.ctwpml-passkey-card [hidden],#ctwpml-passkey-entry[hidden],.ctwpml-passkey-card[hidden]{display:none!important}
+.ctwpml-passkey-card h2{font-size:23px!important;line-height:1.2!important;margin:0!important;color:#17242d!important;letter-spacing:-.4px}
+.ctwpml-passkey-card p{margin:0!important;color:#536879!important;font-size:14px!important}
+.ctwpml-passkey-card img{width:48px!important;height:48px!important;object-fit:contain}
+.ctwpml-passkey-benefit{display:grid;gap:6px;padding:14px;background-color:#f3f7fc!important;border-radius:10px}
+.ctwpml-passkey-card .ctwpml-passkey-primary,.ctwpml-passkey-card .ctwpml-passkey-primary:is(:hover,:focus,:active){min-height:48px;display:block;width:100%;border:1px solid #0075ff!important;border-radius:9px;background-color:#0075ff!important;color:#fff!important;font-size:15px!important;font-weight:600;padding:12px!important;opacity:1!important;box-shadow:none!important;cursor:pointer}
+.ctwpml-passkey-card .ctwpml-passkey-primary:disabled{opacity:.6!important;cursor:wait}
+.ctwpml-passkey-other,.ctwpml-passkey-other:is(:hover,:focus,:active){display:block;min-height:44px;padding:10px!important;background-color:transparent!important;color:#0063ce!important;border:0!important;text-align:center;text-decoration:underline;font:14px system-ui,sans-serif;cursor:pointer}
+.ctwpml-passkey-card .ctwpml-passkey-message{font-size:13px!important;color:#334b62!important;overflow-wrap:anywhere}
+.ctwpml-passkey-message:empty{display:none}
+.ctwpml-login-popup.ctwpml-passkey-first #ctwpml-auth-form{display:none!important}
+#ctwpml-passkey-entry{position:fixed;inset:0;z-index:2147483100!important;background-color:#f1f5f9!important;overflow:auto;display:flex;align-items:flex-start;justify-content:center;padding:28px 16px max(28px,env(safe-area-inset-bottom))}
+#ctwpml-passkey-entry .ctwpml-passkey-dialog{width:100%;max-width:420px;margin:auto;display:grid;gap:10px;color:#536879!important}
+#ctwpml-passkey-entry .ctwpml-passkey-dialog>p{font-size:12px;text-align:center;margin:0}
+.ctwpml-passkey-card :focus-visible,#ctwpml-passkey-entry :focus-visible{outline:3px solid #0063ce!important;outline-offset:3px}
+#secure-passkey-login-wrapper #login-via-passkey{background-image:url('../fingerprint.svg');background-repeat:no-repeat;background-size:24px;background-position:12px center;padding-left:46px!important}
+@media(max-width:360px){.ctwpml-passkey-card{padding:18px;gap:12px}.ctwpml-passkey-card h2{font-size:21px!important}}

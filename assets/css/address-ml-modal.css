@@ -1845,10 +1845,10 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
    Overlay “Sucesso” (fullscreen) — cobre o modal inteiro
    ===================================================== */
 #ctwpml-success-overlay {
-  position: fixed;
+  position: fixed !important;
   inset: 0;
-  z-index: 10000000;
-  display: none;
+  z-index: 2147483201 !important;
+  display: none !important;
   background: #00a650 !important;
   color: #fff !important;
   font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
@@ -1857,7 +1857,7 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
 }
 
 #ctwpml-success-overlay.ctwpml-success-overlay--visible {
-  display: flex;
+  display: flex !important;
   align-items: center;
   justify-content: center;
 }
