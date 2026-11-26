@@ -2433,6 +2433,6 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
 @keyframes ctwpml-pix-hint{50%{opacity:.55;transform:translateX(3px)}}
 @media(prefers-reduced-motion:reduce){#ctwpml-address-modal-overlay .ctwpml-payment-option[data-method="pix"] .ctwpml-payment-chevron{animation:none}}
 @media(max-width:1023px){
- #ctwpml-address-modal-overlay .ctwpml-review-sticky-footer{box-sizing:border-box!important;background-color:#fff!important;opacity:1!important;bottom:0!important;padding-bottom:calc(16px + env(safe-area-inset-bottom,0px))!important;visibility:hidden;pointer-events:none;transform:translateY(calc(100% + 20px))}
+ #ctwpml-address-modal-overlay .ctwpml-review-sticky-footer{box-sizing:border-box!important;background-color:#fff!important;opacity:1!important;bottom:-120px!important;padding-bottom:calc(136px + env(safe-area-inset-bottom,0px))!important;visibility:hidden;pointer-events:none;transform:translateY(calc(100% + 20px))}
  #ctwpml-address-modal-overlay .ctwpml-review-sticky-footer.is-visible{visibility:visible;pointer-events:auto;transform:translateY(0)}
 }

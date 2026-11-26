@@ -2,6 +2,15 @@
 
 Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
+## [v3.4.14] - 2026-11-26
+
+- Tentativa de passkey local no gesto do carrinho para checkout, usando Immediate UI quando a capacidade é suportada e as opções estão preparadas. Ausência, modo privado, cancelamento ou rejeição seguem ao checkout sem erro visível nem autenticação presumida; não repetem a oferta inicial nessa navegação.
+- Consulta existente de e-mail orienta o acesso final: conta com chave ativa prioriza diálogo de tela inteira, com alternativa por senha/recuperação e preservação do preenchimento. POST/nonce e limite de consultas; não retorna dados de chave ou identificador de conta. E-mail nunca autentica.
+- Cadastro de chave permitido em outro aparelho mesmo quando já existe chave na conta; login por passkey comprovado no servidor evita convite redundante. Indicador do perfil e metadado do pedido derivam dos registros reais do motor, sem armazenar chave privada ou substituir validação criptográfica.
+- Conta nova usa autenticação nativa somente após criação válida. Identificador antigo em sessão não concede acesso e erro de criação não é convertido em ID. Para conta criada durante a emissão, etapa de acesso antes do obrigado exige sessão autenticada e propriedade do pedido; continua ao destino original, sem reenviar checkout, alterar pagamento ou colocar o convite no obrigado.
+- Rodapé mobile com fundo branco estendido120px além do limite visível, área segura e viewport-fit=cover; ação permanece dentro da tela. Diagnóstico técnico ampliado para os caminhos de tentativa antecipada e cadastro.
+- Rollback3.4.13 preserva motor/chaves e pedidos. Immediate UI, provedores/PIN e Safari real ainda dependem da versão do navegador/aparelho e devem ser validados na loja.
+
 ## [v3.4.13] - 2026-11-26
 
 - Logo compacto com prioridade sobre estilos do tema e altura de20–44px ajustável no topo das configurações; checkout, obrigado e rastreio levam à home em outra aba.

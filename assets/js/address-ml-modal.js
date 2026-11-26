@@ -1236,8 +1236,9 @@
         var $auth = $('#ctwpml-view-auth');
         var $popup = $auth.find('.ctwpml-login-popup').first();
         var $form = $auth.find('#ctwpml-auth-form').first();
-        var passkeyFirst = false; // Login tradicional permanece visível; suporte WebAuthn não prova chave existente.
+        var passkeyFirst = mode === 'login' && opts.authMethod === 'passkey' && !!(window.CTWPMLPasskeys && window.CTWPMLPasskeys.supported());
         $popup.toggleClass('ctwpml-passkey-first', passkeyFirst);
+        if (passkeyFirst) $popup.attr({role:'dialog','aria-modal':'true','aria-label':'Entre com acesso rápido'}); else $popup.removeAttr('aria-modal');
         $popup.find('.ctwpml-passkey-card, [data-ctwpml-passkey-password]').toggle(mode !== 'create');
 
         $popup
@@ -8685,7 +8686,7 @@
               if (resp && resp.success && resp.data && resp.data.exists) {
                 setCreateAccountFlag(false);
                 saveCheckoutAuthResume('login', emailToCheck);
-                showAuthView({ preserveView: true, returnView: 'review', mode: 'login', email: emailToCheck });
+                showAuthView({ preserveView: true, returnView: 'review', mode: 'login', email: emailToCheck, authMethod: resp.data.auth_method });
                 return;
               }
               var canUseCreateAuthView = !!(state.params && state.params.auth_email_nonce && state.params.recaptcha_site_key);
