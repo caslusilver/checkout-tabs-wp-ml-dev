@@ -32,7 +32,9 @@
             if (!response.ok || !result.success) {
                 trace('HTTP_REJECTED', String(response.status));
                 // Só os motivos fixos emitidos pelo adaptador são apresentados; nunca ecoar erros arbitrários.
-                const code = action === 'secure_passkeys_frontend_login' && Object.keys(config.loginErrors || {}).find(key => result.data === config.loginErrors[key]);
+                const errors = action === 'secure_passkeys_frontend_login' ? config.loginErrors :
+                    action === 'secure_passkeys_frontend_register_passkey' ? config.registerErrors : null;
+                const code = Object.keys(errors || {}).find(key => result.data === errors[key]);
                 throw new Error(code || 'request_failed');
             }
             return result.data;
@@ -44,6 +46,11 @@
         for (const byte of new Uint8Array(value)) text += String.fromCharCode(byte);
         return btoa(text);
     };
+    function registrationName() {
+        // Nome descritivo único; não identifica o cliente nem decide qual chave pode entrar.
+        const suffix = Array.from(crypto.getRandomValues(new Uint8Array(6)), byte => byte.toString(16).padStart(2, '0')).join('');
+        return 'Acesso rapido ' + suffix;
+    }
     function optionsForBrowser(options, create) {
         const result = { ...options, challenge: decode(options.challenge) };
         if (create) result.user = { ...options.user, id: decode(options.user.id) };
@@ -132,7 +139,7 @@
             const earlyTicket = !create && button.dataset.ctwpmlEarlyTicket || '';
             await post(create ? 'secure_passkeys_frontend_register_passkey' : 'secure_passkeys_frontend_login', {
                 nonce: context.nonce, challenge: options.challenge, id: credential.id, rawId: encode(credential.rawId), type: credential.type, response,
-                ...(create ? { security_key_name: 'Acesso rapido' } :
+                ...(create ? { security_key_name: registrationName(), ctwpml_registration_context: 'checkout' } :
                     { ctwpml_context: earlyTicket ? 'checkout-early' : config.checkout && button.closest('#ctwpml-view-auth') ? 'checkout-late' : 'entry', ctwpml_early_ticket: earlyTicket })
             });
             if (!create && !(await post('ctwpml_passkey_context')).loggedIn) throw new Error('session_not_authenticated');
@@ -149,12 +156,13 @@
             else returnToPage(!!earlyTicket || (!button.closest('#ctwpml-view-auth') && window.CTWPML_EarlyLogin?.enabled));
         } catch (error) {
             const accountError = !create && config.loginErrors?.[error.message];
+            const registrationError = create && config.registerErrors?.[error.message];
             if (!create) document.dispatchEvent(new CustomEvent('ctwpml:passkey-error', {detail:{early:!!button.dataset.ctwpmlEarlyTicket,code:accountError?error.message:'request_failed'}}));
-            trace(create ? 'REGISTER_ERROR' : 'LOGIN_ERROR', accountError ? error.message : ['NotAllowedError','AbortError','SecurityError','InvalidStateError','NotSupportedError'].includes(error.name) ? error.name : 'request_failed');
+            trace(create ? 'REGISTER_ERROR' : 'LOGIN_ERROR', accountError || registrationError ? error.message : ['NotAllowedError','AbortError','SecurityError','InvalidStateError','NotSupportedError'].includes(error.name) ? error.name : 'request_failed');
             if (!create) { const popup = button.closest('.ctwpml-login-popup'); popup?.classList.remove('ctwpml-passkey-first'); popup?.removeAttribute('aria-modal'); }
             if (!create) window.ctwpmlRenderRecaptchaIfNeeded?.();
             const cancelled = ['NotAllowedError', 'AbortError'].includes(error.name) || error.message === 'cancelled';
-            showMessage(card, accountError || (cancelled ? 'Acesso cancelado ou chave indisponível. Você pode tentar novamente ou continuar de outra forma.' :
+            showMessage(card, accountError || registrationError || (cancelled ? 'Acesso cancelado ou chave indisponível. Você pode tentar novamente ou continuar de outra forma.' :
                 create ? 'Não foi possível salvar o acesso. Sua compra pode continuar normalmente.' : 'Não foi possível entrar. Tente novamente ou entre de outra forma.'));
             if (accountError) {
                 button.textContent = 'Usar outra chave';
