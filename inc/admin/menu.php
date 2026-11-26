@@ -145,6 +145,7 @@ function checkout_tabs_wp_ml_render_admin_page(): void {
 
 	echo '<form method="post" action="options.php" style="margin-top: 16px;">';
 	settings_fields(CHECKOUT_TABS_WP_ML_SETTINGS_GROUP);
+	echo '<p><label for="ctwpml-logo-height">Tamanho do logo no checkout e obrigado: </label><input id="ctwpml-logo-height" name="ctwpml_logo_height" type="range" min="20" max="44" value="'.esc_attr(get_option('ctwpml_logo_height',28)).'" oninput="this.nextElementSibling.value=this.value+\' px\'"><output>'.esc_html(get_option('ctwpml_logo_height',28)).' px</output><small> — Salve e recarregue a página para conferir.</small></p>';
 
 	echo '<div id="ctwpml-admin-tabs-content">';
 	CTWPML_Thankyou::admin($tab);

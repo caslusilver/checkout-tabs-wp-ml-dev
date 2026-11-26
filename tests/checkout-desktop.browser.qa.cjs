@@ -12,7 +12,7 @@ const read=path=>readFileSync(path,'utf8');
   await page.addScriptTag({content:read(require.resolve('jquery/dist/jquery.js'))});
   await page.evaluate(()=>{
    window.cc_params={privacy_policy_url:'https://fixture.test/privacidade/',plugin_url:'https://fixture.test/'};
-   window.ctwpmlDesktopConfig={name:'Loja de teste'};
+   window.ctwpmlDesktopConfig={name:'Loja de teste',logo:'https://fixture.test/logo.svg',home:'https://fixture.test/',logoHeight:28};
    window.fixtureState={view:'review',shipping:{id:'motoboy'},address:{address_1:'Rua de teste',number:'12',city:'São Paulo'}};
    window.fixtureTotals={subtotalText:'R$ 100,00',shippingText:'R$ 10,00',totalText:'R$ 110,00'};
    window.fixtureCoupons=[];window.fixtureCalls=0;window.fixtureActive=0;window.fixtureMax=0;
@@ -31,6 +31,8 @@ const read=path=>readFileSync(path,'utf8');
   });
   await page.addScriptTag({content:read('assets/js/checkout-desktop.js')});
   await page.waitForSelector('.ctwpml-desktop-item');
+  assert.equal(await page.locator('.ctwpml-desktop-home').first().getAttribute('href'),'https://fixture.test/');
+  assert.equal(await page.locator('.ctwpml-desktop-home img').first().evaluate(el=>getComputedStyle(el).height),'28px');
   const shape=()=>page.evaluate(()=>{const o=document.querySelector('#ctwpml-address-modal-overlay').getBoundingClientRect(),a=document.querySelector('.ctwpml-desktop-summary').getBoundingClientRect(),b=document.querySelector('.ctwpml-modal-body').getBoundingClientRect();return {x:o.x,width:o.width,asideRight:a.right,bodyX:b.x,overflow:document.documentElement.scrollWidth>innerWidth};});
   for(const width of [1024,1280,1440]){await page.setViewportSize({width,height:900});const r=await shape();assert.equal(r.x,0);assert.equal(r.width,width);assert.ok(r.asideRight<r.bodyX);assert.equal(r.overflow,false);}
   const policy=page.locator('.ctwpml-review-summary-top .ctwpml-privacy-link');assert.equal(await policy.getAttribute('href'),'https://fixture.test/privacidade/');assert.equal(await policy.getAttribute('target'),'_blank');
@@ -45,6 +47,14 @@ const read=path=>readFileSync(path,'utf8');
   await page.evaluate(()=>{fixtureState.view='form';document.querySelector('#view').style.padding='1px';});
   await page.waitForFunction(()=>document.querySelector('[data-desktop-step=payment]').disabled);
   for(const width of [390,768,1023]){await page.setViewportSize({width,height:844});assert.equal(await page.locator('.ctwpml-desktop-summary').isVisible(),false);assert.equal(await page.evaluate(()=>originalTerms===document.querySelector('#ctwpml-review-terms')&&originalTerms.checked),true);}
+  const stickySource=read('assets/js/address-ml-modal.js');
+  await page.addScriptTag({content:stickySource.slice(stickySource.indexOf('    function bindReviewStickyFooter()'),stickySource.indexOf('    function ctwpmlSetReviewCtaEnabled'))+'\nbindReviewStickyFooter();'});
+  await page.setViewportSize({width:390,height:844});
+  assert.equal(await page.locator('#ctwpml-review-sticky-footer').evaluate(el=>getComputedStyle(el).visibility),'hidden');
+  await page.waitForTimeout(50);
+  await page.evaluate(()=>{document.querySelector('.ctwpml-review-screen').style.paddingBottom='1200px';window.scrollTo(0,1200);jQuery('.ctwpml-modal-body').scrollTop(1200).trigger('scroll');jQuery(window).trigger('scroll');});
+  assert.equal(await page.locator('#ctwpml-review-sticky-footer').evaluate(el=>getComputedStyle(el).visibility),'visible');
+  assert.equal(await page.locator('#ctwpml-review-sticky-footer').evaluate(el=>getComputedStyle(el).backgroundColor),'rgb(255, 255, 255)');
   await page.setViewportSize({width:1280,height:900});
   if(process.env.TRACKING_QA_OUTPUT)await page.screenshot({path:process.env.TRACKING_QA_OUTPUT+'/checkout-desktop-real-review.png',fullPage:true});
   for(const stage of ['initial','shipping','payment']){

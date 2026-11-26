@@ -2415,3 +2415,24 @@ body.ctwpml-ml-only .blockUI.blockOverlay {
 .ctwpml-payment-total-value:empty {
   visibility: hidden;
 }
+
+/* v3.4.13: controle de avanço Pix e rodapé mobile opaco até a área segura. */
+#ctwpml-view-form #ctwpml-form-address-fields[hidden],#ctwpml-view-form #ctwpml-form-personal-fields[hidden]{display:none!important}
+#ctwpml-view-form .ctwpml-form-timeline{display:flex;align-items:center;gap:8px;margin:0 0 20px!important}
+#ctwpml-view-form .ctwpml-form-timeline button,#ctwpml-view-form .ctwpml-form-timeline button:is(:hover,:focus,:active){display:flex;align-items:center;gap:7px;min-height:44px;min-width:0;padding:4px!important;background-color:transparent!important;border:0!important;color:#536879!important;box-shadow:none!important;font:13px/1.3 system-ui,sans-serif;opacity:1!important;text-align:left}
+#ctwpml-view-form .ctwpml-step-number{display:grid;place-items:center;flex-shrink:0;width:27px;height:27px;border:1px solid #aab8c8!important;border-radius:50%;color:#536879!important;background-color:#fff!important;font-weight:600}
+#ctwpml-view-form .ctwpml-step-line{height:1px;min-width:12px;flex:1;background-color:#c5d6ea!important}
+#ctwpml-view-form .ctwpml-form-timeline button[aria-current=step]{color:#0063ce!important;font-weight:600}
+#ctwpml-view-form .ctwpml-form-timeline button[aria-current=step] .ctwpml-step-number{color:#fff!important;background-color:#0075ff!important;border-color:#0075ff!important}
+#ctwpml-view-form .ctwpml-form-timeline button.is-complete .ctwpml-step-number{color:#fff!important;background-color:#147746!important;border-color:#147746!important}
+#ctwpml-view-form .ctwpml-form-timeline .is-complete+.ctwpml-step-line{background-color:#147746!important}
+#ctwpml-view-form .ctwpml-form-timeline button:focus-visible{outline:2px solid #0075ff!important;outline-offset:2px}
+#ctwpml-address-modal-overlay .ctwpml-payment-option[data-method="pix"],
+#ctwpml-address-modal-overlay .ctwpml-payment-option[data-method="pix"]:is(:hover,:focus,:active){border:1px solid #c5d6ea!important;border-radius:10px!important}
+#ctwpml-address-modal-overlay .ctwpml-payment-option[data-method="pix"] .ctwpml-payment-chevron{animation:ctwpml-pix-hint 1.6s ease-in-out infinite}
+@keyframes ctwpml-pix-hint{50%{opacity:.55;transform:translateX(3px)}}
+@media(prefers-reduced-motion:reduce){#ctwpml-address-modal-overlay .ctwpml-payment-option[data-method="pix"] .ctwpml-payment-chevron{animation:none}}
+@media(max-width:1023px){
+ #ctwpml-address-modal-overlay .ctwpml-review-sticky-footer{box-sizing:border-box!important;background-color:#fff!important;opacity:1!important;bottom:0!important;padding-bottom:calc(16px + env(safe-area-inset-bottom,0px))!important;visibility:hidden;pointer-events:none;transform:translateY(calc(100% + 20px))}
+ #ctwpml-address-modal-overlay .ctwpml-review-sticky-footer.is-visible{visibility:visible;pointer-events:auto;transform:translateY(0)}
+}

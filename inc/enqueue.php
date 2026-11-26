@@ -75,7 +75,7 @@ add_action('wp_enqueue_scripts', function () {
 	);
 	wp_enqueue_style('ctwpml-checkout-desktop', CHECKOUT_TABS_WP_ML_URL . 'assets/css/checkout-desktop.css', ['checkout-tabs-wp-ml-checkout-ml-root', 'checkout-tabs-wp-ml-login-popup'], $version);
 	wp_enqueue_script('ctwpml-checkout-desktop', CHECKOUT_TABS_WP_ML_URL . 'assets/js/checkout-desktop.js', ['checkout-tabs-wp-ml-main'], $version, true);
-	wp_localize_script('ctwpml-checkout-desktop', 'ctwpmlDesktopConfig', ['name'=>get_bloginfo('name'), 'logo'=>esc_url_raw((string)get_option('ctwpml_thankyou_logo','')), 'assets'=>CHECKOUT_TABS_WP_ML_URL.'assets/']);
+	wp_localize_script('ctwpml-checkout-desktop', 'ctwpmlDesktopConfig', ['name'=>get_bloginfo('name'), 'logo'=>esc_url_raw((string)get_option('ctwpml_thankyou_logo','')), 'home'=>home_url('/'), 'logoHeight'=>max(20,min(44,(int)get_option('ctwpml_logo_height',28)))]);
 
 	$ui_primary = sanitize_hex_color((string) get_option('checkout_tabs_wp_ml_ui_primary', '#0075ff')) ?: '#0075ff';
 	$ui_login_bg = sanitize_hex_color((string) get_option('checkout_tabs_wp_ml_ui_login_bg', '#f5f5f5')) ?: '#f5f5f5';

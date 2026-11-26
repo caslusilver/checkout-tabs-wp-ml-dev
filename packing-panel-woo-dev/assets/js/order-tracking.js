@@ -38,7 +38,10 @@
             image.addEventListener('error', () => { image.hidden = true; name.hidden = false; });
             header.append(image);
         }
-        header.append(name, node('small', 'Pedido #' + data.number + (data.route ? ' · Rota ' + data.route : '')));
+        const home = node('a', null, {href: script.dataset.home || '/', 'aria-label':'Página inicial', class:'tracking-home'});
+        home.target = '_blank'; home.rel = 'noopener noreferrer';
+        Array.from(header.children).forEach(child => home.append(child)); home.append(name);
+        header.append(home, node('small', 'Pedido #' + data.number + (data.route ? ' · Rota ' + data.route : '')));
         return header;
     }
     function status(text) { root.querySelector('.tracking-status').textContent = text; }

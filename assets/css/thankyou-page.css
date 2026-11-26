@@ -45,3 +45,5 @@ body.ctwpml-thankyou-shell #obrigado-v1 .ticket,body.ctwpml-thankyou-shell #obri
 #obrigado-v1 .product-line,#obrigado-v1 .item-labels{grid-template-columns:minmax(0,1fr) 36px minmax(77px,max-content)}
 #obrigado-v1 .store-brand{min-width:0}#obrigado-v1 .ty-brand-logo{max-width:min(200px,100%)}
 #obrigado-v1 .ticket-top .date{min-width:0;overflow-wrap:anywhere}#obrigado-v1 .totals>div{flex-wrap:wrap}#obrigado-v1 .totals>div>*{max-width:100%;overflow-wrap:anywhere}
+
+#obrigado-v1 .store-brand{color:inherit!important;text-decoration:none!important}#obrigado-v1 .ty-brand-logo{width:auto!important;max-width:min(180px,100%)!important;height:var(--ctwpml-logo-height,28px)!important;max-height:var(--ctwpml-logo-height,28px)!important;object-fit:contain!important}

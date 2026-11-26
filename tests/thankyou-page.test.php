@@ -29,6 +29,7 @@ function get_query_var($name,$default=0){return 9;}
 function sanitize_text_field($s){return is_string($s)?$s:'';}function wp_unslash($s){return $s;}
 function absint($n){return abs((int)$n);}function get_option($key,$default=false){return $default;}
 function admin_url($s){return 'https://fixture.test/'.$s;}function wp_create_nonce($s){return 'fixture';}
+function home_url($s){return 'https://fixture.test'.$s;}
 function get_bloginfo($s){return 'Loja de teste';}function wc_format_datetime($d){return '25/11/2026';}
 function esc_html($s){return htmlspecialchars((string)$s,ENT_QUOTES);}function esc_attr($s){return esc_html($s);}
 function esc_url($s){return esc_attr($s);}function wp_kses_post($s){return $s;}

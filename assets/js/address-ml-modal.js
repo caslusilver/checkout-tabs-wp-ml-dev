@@ -78,6 +78,7 @@
     var cepLookupRequest = null;
     var cepLookupSerial = 0;
     var selectedAddressId = null;
+    var currentFormStep = 1;
     var currentView = 'list'; // initial | list | form | shipping
     var addressesCache = [];
     var addressesCacheTimestamp = null;
@@ -1074,8 +1075,10 @@
           '        <div id="ctwpml-address-list"></div>' +
           '      </div>' +
           '      <div id="ctwpml-view-form" style="display:none;">' +
-          '        <div class="ctwpml-section-title">Adicione um endereço</div>' +
+          '        <nav class="ctwpml-form-timeline" aria-label="Preenchimento dos dados"><button type="button" id="ctwpml-form-step-address" aria-current="step"><span class="ctwpml-step-number">1</span><span>Endereço</span></button><span class="ctwpml-step-line" aria-hidden="true"></span><button type="button" id="ctwpml-form-step-personal"><span class="ctwpml-step-number">2</span><span>Dados pessoais</span></button></nav>' +
+          '        <div class="ctwpml-section-title" id="ctwpml-form-step-title">Passo 1 de 2 · Seu endereço</div>' +
           '        <div id="ctwpml-login-banner" class="ctwpml-login-banner" style="display:none;"></div>' +
+          '        <div id="ctwpml-form-address-fields">' +
           '        <div class="ctwpml-form-group">' +
           '          <label for="ctwpml-input-cep">CEP</label>' +
           '          <input id="ctwpml-input-cep" type="text" placeholder="00000-000" inputmode="numeric" autocomplete="postal-code" />' +
@@ -1112,7 +1115,8 @@
           '          <div class="ctwpml-type-radio"></div>' +
           '          <span><img src="' + (window.cc_params && window.cc_params.plugin_url ? window.cc_params.plugin_url : '') + 'assets/img/icones/work.svg" alt="" width="20" height="20" style="vertical-align:middle;margin-right:6px;"> Trabalho</span>' +
           '        </div>' : '') +
-          '        <div class="ctwpml-contact-section">' +
+          '        </div>' +
+          '        <div class="ctwpml-contact-section" id="ctwpml-form-personal-fields" hidden>' +
           '          <div class="ctwpml-contact-title">Dados de contato</div>' +
           '          <div class="ctwpml-contact-subtitle">Se houver algum problema no envio, você receberá uma ligação neste número.</div>' +
           '          <div class="ctwpml-form-group" id="ctwpml-group-nome"><label for="ctwpml-input-nome">Nome completo</label><input id="ctwpml-input-nome" type="text" enterkeyhint="next" /><div class="ctwpml-inline-hint" id="ctwpml-nome-hint" style="display:none;"></div></div>' +
@@ -1232,7 +1236,7 @@
         var $auth = $('#ctwpml-view-auth');
         var $popup = $auth.find('.ctwpml-login-popup').first();
         var $form = $auth.find('#ctwpml-auth-form').first();
-        var passkeyFirst = mode !== 'create' && $popup.find('[data-ctwpml-passkey-login]').length > 0;
+        var passkeyFirst = false; // Login tradicional permanece visível; suporte WebAuthn não prova chave existente.
         $popup.toggleClass('ctwpml-passkey-first', passkeyFirst);
         $popup.find('.ctwpml-passkey-card, [data-ctwpml-passkey-password]').toggle(mode !== 'create');
 
@@ -2965,16 +2969,18 @@
       var summary = document.getElementById('ctwpml-review-initial-summary');
       if (!$container.length || !$footer.length || !summary) return;
 
-      $container.off('scroll.ctwpmlReviewSticky').on('scroll.ctwpmlReviewSticky', function () {
+      function updateSticky() {
         try {
           var summaryRect = summary.getBoundingClientRect();
           var containerRect = $container[0].getBoundingClientRect();
           // mostra quando o resumo já saiu da área visível do container
-          var visibleTop = containerRect.top + 8;
+          var visibleTop = Math.max(0, containerRect.top) + 8;
           if (summaryRect.bottom < visibleTop) $footer.addClass('is-visible');
           else $footer.removeClass('is-visible');
         } catch (e) {}
-      });
+      }
+      $container.off('scroll.ctwpmlReviewSticky').on('scroll.ctwpmlReviewSticky', updateSticky);
+      $(window).off('scroll.ctwpmlReviewSticky resize.ctwpmlReviewSticky').on('scroll.ctwpmlReviewSticky resize.ctwpmlReviewSticky', updateSticky);
 
       // roda 1x
       $container.trigger('scroll.ctwpmlReviewSticky');
@@ -2984,6 +2990,20 @@
       $('#ctwpml-review-confirm, #ctwpml-review-confirm-sticky')
         .prop('disabled', !enabled)
         .css('opacity', enabled ? '' : '0.6');
+      var $status = $('#ctwpml-review-readiness');
+      if (!$status.length && $('#ctwpml-review-initial-summary').length) {
+        $status = $('<div id="ctwpml-review-readiness" role="status"><p></p><button type="button">Conferir dados da compra</button></div>');
+        $('#ctwpml-review-initial-summary').append($status);
+        $status.find('button').on('click', function () {
+          var reasons = ctwpmlReviewGateBlockingReasons();
+          if (reasons.indexOf('billing_incomplete') >= 0) $('#ctwpml-review-change-billing').trigger('click');
+          else ctwpmlPrepareCheckoutForReview('manual_retry', function () { showReviewConfirmScreen({ skipPrepare: true }); });
+        });
+      }
+      var reasons = ctwpmlReviewGateBlockingReasons();
+      $status.toggle(!enabled);
+      $status.find('p').text(reasons.length ? 'Estamos conferindo endereço, entrega e pagamento. Se não liberar, confira os dados da compra.' : 'Marque o aceite das políticas para confirmar a compra.');
+      $status.find('button').toggle(reasons.length > 0);
     }
 
     function ctwpmlSyncWooTerms(checked) {
@@ -4651,7 +4671,13 @@
         if (targetView === 'shipping') return showShippingPlaceholder();
         if (targetView === 'payment') return showPaymentScreen();
         if (targetView === 'review') return showReviewConfirmScreen();
-        if (targetView === 'form') return showFormForNewAddress();
+        if (targetView === 'form') {
+          if (selectedAddressId && getAddressById(selectedAddressId)) showFormForEditAddress(selectedAddressId);
+          else showFormForNewAddress();
+          ctwpmlApplyFormSnapshot(readFormSnapshot(), true);
+          ctwpmlRestoreFormStep();
+          return;
+        }
         if (targetView === 'list') {
           showList();
           renderAddressList();
@@ -4799,6 +4825,7 @@
       ctwpmlApplyFormSnapshot(readFormSnapshot());
       loadContactMeta(); // Carregar WhatsApp e CPF salvos
       setFooterVisible(true);
+      ctwpmlRestoreFormStep();
       persistModalState({ view: 'form' });
     }
 
@@ -4847,6 +4874,7 @@
       ctwpmlApplyFormSnapshot(readFormSnapshot());
       loadContactMeta();
       setFooterVisible(true);
+      ctwpmlRestoreFormStep();
       persistModalState({ view: 'form' });
     }
 
@@ -4910,6 +4938,7 @@
       syncLoginBanner();
       syncCpfUiFromCheckout();
       setFooterVisible(true);
+      ctwpmlRestoreFormStep();
     }
 
     function setTypeSelection(label) {
@@ -5030,6 +5059,7 @@
         var billingName = ctwpmlNormalizeFullName((($('#billing_first_name').val() || '') + ' ' + ($('#billing_last_name').val() || '')).trim());
         return {
           addressId: selectedAddressId || null,
+          formStep: currentFormStep,
           cep: ($('#ctwpml-input-cep').val() || '').trim(),
           rua: ($('#ctwpml-input-rua').val() || '').trim(),
           numero: ($('#ctwpml-input-numero').val() || '').trim(),
@@ -5054,10 +5084,19 @@
       }
     }
 
-    function ctwpmlApplyFormSnapshot(snapshot) {
+    function ctwpmlApplyFormSnapshot(snapshot, preferDraft) {
       if (!snapshot) return;
       if (snapshot.addressId && snapshot.addressId !== selectedAddressId) return;
       if (!snapshot.addressId && selectedAddressId) return;
+      if (preferDraft) {
+        var draftFields = {cep:'cep',rua:'rua',numero:'numero',comp:'comp',bairro:'bairro',info:'info',nome:'nome',email:'email',cpf:'cpf'};
+        Object.keys(draftFields).forEach(function (key) {
+          if (Object.prototype.hasOwnProperty.call(snapshot, key)) $('#ctwpml-input-' + draftFields[key]).val(snapshot[key] || '');
+        });
+        lastCepOnly = cepDigits(snapshot.cep || '');
+        cepConsultedFor = String(snapshot.cepConsultedFor || '');
+        formDirty = true;
+      }
 
       if (snapshot.cep && !ctwpmlNormalizeText($('#ctwpml-input-cep').val())) {
         $('#ctwpml-input-cep').val(formatCep(snapshot.cep));
@@ -5087,6 +5126,8 @@
     }
 
     function ctwpmlFlushFormSnapshot(reason) {
+      // Views já fechadas/limpas não podem apagar o rascunho durável durante reload ou login.
+      if (currentView !== 'form') return false;
       if (wasOrderCompletedRecently()) return false;
       if (formSnapshotDebounce) clearTimeout(formSnapshotDebounce);
       formSnapshotDebounce = null;
@@ -5378,9 +5419,51 @@
       return status;
     }
 
+    function ctwpmlAddressStepReady(status) {
+      return !!(status.cep && status.rua && status.numero && status.bairro && status.location && status.label);
+    }
+
+    function ctwpmlSetFormStep(step, focus) {
+      currentFormStep = step === 2 ? 2 : 1;
+      $('#ctwpml-form-address-fields').prop('hidden', currentFormStep !== 1);
+      $('#ctwpml-form-personal-fields').prop('hidden', currentFormStep !== 2);
+      $('#ctwpml-form-step-address').attr('aria-current', currentFormStep === 1 ? 'step' : 'false').toggleClass('is-complete', currentFormStep === 2);
+      $('#ctwpml-form-step-personal').attr('aria-current', currentFormStep === 2 ? 'step' : 'false');
+      $('#ctwpml-form-step-address .ctwpml-step-number').text(currentFormStep === 2 ? '✓' : '1');
+      $('#ctwpml-form-step-title').text(currentFormStep === 1 ? 'Passo 1 de 2 · Seu endereço' : 'Passo 2 de 2 · Seus dados pessoais');
+      $('#ctwpml-btn-primary').text(currentFormStep === 1 ? 'Continuar para seus dados' : 'Salvar e continuar');
+      $('#ctwpml-btn-secondary').text(currentFormStep === 2 ? 'Voltar ao endereço' : 'Voltar');
+      ctwpmlUpdateFormSaveState();
+      if (focus) {
+        $('.ctwpml-modal-body').scrollTop(0);
+        $(currentFormStep === 1 ? '#ctwpml-input-cep' : '#ctwpml-input-nome').trigger('focus');
+        ctwpmlFlushFormSnapshot('form_step');
+      }
+      if (typeof state.checkpoint === 'function') state.checkpoint('CHK_FORM_STEP', true, { step: currentFormStep });
+    }
+
+    function ctwpmlAdvanceFormStep() {
+      var status = ctwpmlGetFormStatus();
+      if (!ctwpmlAddressStepReady(status)) {
+        ctwpmlSetFormStep(1, false);
+        var required = {cep:'#ctwpml-input-cep',rua:'#ctwpml-group-rua',numero:'#ctwpml-input-numero',bairro:'#ctwpml-group-bairro',location:'#ctwpml-input-cep',label:'#ctwpml-type-home'};
+        Object.keys(required).forEach(function (key) { if (!status[key]) setFieldError(required[key], true); });
+        showNotification('Confira seu endereço, número, bairro e tipo Casa/Trabalho. Se cidade/UF não carregaram, consulte o CEP novamente.', 'error', 5000);
+        return false;
+      }
+      ctwpmlSetFormStep(2, true);
+      return true;
+    }
+
+    function ctwpmlRestoreFormStep() {
+      var draft = readFormSnapshot();
+      var sameAddress = draft && String(draft.addressId || '') === String(selectedAddressId || '');
+      ctwpmlSetFormStep(sameAddress && draft.formStep === 2 && ctwpmlAddressStepReady(ctwpmlGetFormStatus()) ? 2 : 1, false);
+    }
+
     function ctwpmlUpdateFormSaveState() {
       if (currentView !== 'form' || !$('#ctwpml-view-form').is(':visible')) return;
-      var disabled = isSavingAddress || cepConsultInFlight || !ctwpmlGetFormStatus().ready;
+      var disabled = isSavingAddress || cepConsultInFlight;
       $('#ctwpml-btn-primary').prop('disabled', disabled)
         .toggleClass('ctwpml-form-save-disabled', disabled)
         .attr('aria-disabled', disabled ? 'true' : 'false');
@@ -5925,7 +6008,7 @@
         extra_info: ($('#ctwpml-input-info').val() || '').trim(),
       };
 
-      if (typeof state.log === 'function') state.log('UI        Salvando endereço no backend...', address, 'UI');
+      if (typeof state.log === 'function') state.log('UI        Salvando endereço no backend...', { hasNumber: !!address.number, hasComplement: !!address.complement, hasNeighborhood: !!address.neighborhood }, 'UI');
 
       $.ajax({
         url: state.params.ajax_url,
@@ -7120,6 +7203,7 @@
         return;
       }
       if (currentView === 'form') {
+        if (currentFormStep === 2) { ctwpmlSetFormStep(1, true); return; }
         console.log('[CTWPML][DEBUG] - voltando de form para list');
         if (formDirty) {
           try {
@@ -7309,6 +7393,7 @@
       } catch (e2) {}
     });
     $(document).on('click', '#ctwpml-btn-secondary', function () {
+      if (currentView === 'form' && currentFormStep === 2) { ctwpmlSetFormStep(1, true); return; }
       if ($('#ctwpml-view-form').is(':visible')) {
         if (formDirty) {
           try {
@@ -7340,11 +7425,16 @@
         showFormForNewAddress();
       }
     });
+    $(document).on('click', '#ctwpml-form-step-address', function () { ctwpmlSetFormStep(1, true); });
+    $(document).on('click', '#ctwpml-form-step-personal', function () { ctwpmlAdvanceFormStep(); });
     $(document).on('click', '#ctwpml-btn-primary', function () {
       state.log('ACTION    Click #ctwpml-btn-primary', { isFormVisible: $('#ctwpml-view-form').is(':visible') }, 'ACTION');
       if ($('#ctwpml-view-form').is(':visible')) {
+        if (currentFormStep === 1) { ctwpmlAdvanceFormStep(); return; }
+        if (!ctwpmlAddressStepReady(ctwpmlGetFormStatus())) { ctwpmlAdvanceFormStep(); return; }
         if (!validateForm()) {
           state.log('ERROR     validateForm falhou (não salvou)', {}, 'ERROR');
+          showNotification('Confira os campos destacados. Preencha seus dados novamente se estiverem vazios.', 'error', 5000);
           return;
         }
         if (!isLoggedIn()) {
@@ -8648,6 +8738,7 @@
       proceedToCheckoutSubmit();
 
       function proceedToCheckoutSubmit() {
+      if (window.CTWPMLPasskeys && window.CTWPMLPasskeys.beforeCheckout(proceedToCheckoutSubmit)) return;
       // Tela integral de processamento; mensagem de sucesso só depois da resposta WooCommerce.
       var prep = window.CTWPMLPrepare || null;
       try {

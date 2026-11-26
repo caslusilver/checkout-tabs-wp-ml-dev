@@ -1,4 +1,9 @@
 .ctwpml-passkey-card{box-sizing:border-box;background-color:#fff!important;color:#17242d!important;display:grid;gap:14px;padding:22px;border:1px solid #dce4ee;border-radius:16px;font:14px/1.5 system-ui,-apple-system,sans-serif;text-align:left}
+#ctwpml-passkey-enroll[hidden]{display:none!important}
+#ctwpml-passkey-enroll{position:fixed;inset:0;z-index:2147483150!important;background-color:rgba(15,23,42,.55)!important;display:grid;place-items:center;padding:20px;overflow:auto}
+#ctwpml-passkey-enroll>.ctwpml-passkey-card{max-width:440px;width:100%}
+#ctwpml-view-auth .ctwpml-passkey-benefit{display:none!important}
+#ctwpml-view-auth .ctwpml-passkey-card--late .ctwpml-passkey-primary,#ctwpml-view-auth .ctwpml-passkey-card--late .ctwpml-passkey-primary:is(:hover,:focus,:active){background-color:#fff!important;color:#0063ce!important;border:1px solid #c5d6ea!important}
 .ctwpml-passkey-card [hidden],#ctwpml-passkey-entry[hidden],.ctwpml-passkey-card[hidden]{display:none!important}
 .ctwpml-passkey-card h2{font-size:23px!important;line-height:1.2!important;margin:0!important;color:#17242d!important;letter-spacing:-.4px}
 .ctwpml-passkey-card p{margin:0!important;color:#536879!important;font-size:14px!important}

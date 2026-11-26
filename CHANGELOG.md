@@ -2,6 +2,16 @@
 
 Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
+## [v3.4.13] - 2026-11-26
+
+- Logo compacto com prioridade sobre estilos do tema e altura de20–44px ajustável no topo das configurações; checkout, obrigado e rastreio levam à home em outra aba.
+- Entrada antecipada por passkey somente com indicação local de uso anterior bem-sucedido (não é detecção de chave nem autenticação); navegador novo/anônimo segue para endereço. Login tradicional visível no fim, com comunicação coerente e etapa Conferência. Evita script de autofill concorrente do motor no checkout e preserva parâmetros na navegação após login.
+- Convite de acesso rápido removido do obrigado e apresentado em diálogo no checkout autenticado; sucesso substitui o conteúdo por confirmação verde. Impõe apresentação antes do envio, sem bloquear compra por incompatibilidade ou falha do autenticador. Mantém alternativa explícita para continuar.
+- Rascunho de formulário não é sobrescrito por telas limpas no reload/login; retomada de edição restaura o endereço e seus campos, incluindo número/complemento. Cupons da sessão anterior à autenticação são reaplicados com validação do WooCommerce.
+- Rodapé mobile acompanha scroll da janela e do contêiner, oculta completamente no topo e inclui fundo opaco/área segura. Pix recebe contorno e pulso na seta, respeitando redução de movimento. Conferência bloqueada explica a verificação e oferece revisar sem ignorar validações.
+- Diagnóstico de autenticação por etapa no Debug do checkout e motivo técnico restrito em WooCommerce Logs (ctwpml-auth), sem provas, chaves ou dados pessoais. Falha específica do PC ainda exige teste real com logs; não atribuída automaticamente à guia anônima.
+- Formulário aprovado em dois passos com timeline numerada:1 Endereço e2 Dados pessoais, check de conclusão, retorno sem perder campos e retomada do passo por endereço. Valida endereço antes de avançar; salvamento e validação final continuam no fluxo existente. Rollback3.4.12 preserva motor/chaves, pedidos e configurações anteriores.
+
 ## [v3.4.12] - 2026-11-26
 
 - Integração de acesso aos dados salvos com Secure Passkeys 1.3.0 instalado separadamente: oferta antecipada no checkout, alternativa tradicional, login no diálogo final e convite opcional de cadastro na página de obrigado para sessão autenticada sem chaves cadastradas.

@@ -12,5 +12,5 @@ $asset_base = defined('CHECKOUT_TABS_WP_ML_URL') ? CHECKOUT_TABS_WP_ML_URL : dir
 </head><body>
 <?php echo PPWOO_Order_Tracking::shortcode(); ?>
 <noscript>Habilite o JavaScript para acompanhar sua entrega. Em caso de dificuldade, entre em contato com a loja.</noscript>
-<script id="ppwoo-tracking-script" data-endpoint="<?php echo esc_url(admin_url('admin-ajax.php')); ?>" data-brand-name="<?php echo esc_attr(get_bloginfo('name')); ?>" data-logo="<?php echo esc_url($logo, ['http', 'https']); ?>" data-whatsapp-icon="<?php echo esc_url($asset_base . 'assets/whatsapp.svg'); ?>" src="<?php echo esc_url($base . 'assets/js/order-tracking.js?ver=' . rawurlencode($version)); ?>" defer></script>
+<script id="ppwoo-tracking-script" data-endpoint="<?php echo esc_url(admin_url('admin-ajax.php')); ?>" data-home="<?php echo esc_url(home_url('/')); ?>" data-brand-name="<?php echo esc_attr(get_bloginfo('name')); ?>" data-logo="<?php echo esc_url($logo, ['http', 'https']); ?>" data-whatsapp-icon="<?php echo esc_url($asset_base . 'assets/whatsapp.svg'); ?>" src="<?php echo esc_url($base . 'assets/js/order-tracking.js?ver=' . rawurlencode($version)); ?>" defer></script>
 </body></html>
