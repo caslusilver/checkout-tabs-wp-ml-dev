@@ -56,7 +56,10 @@ test('Panel config protects pending time edit, revision conflicts and unsafe rel
     assert.equal(w.document.querySelector('.motoboy-order input').value,'rascunho');
 });
 test('Public banner shares one request, uses text only and revalidates cached HTML',async t=>{
-    let calls=0;const w=setup(t,'<div class="ctwpml-dispatch-banner"><span data-dispatch-message>cache antigo</span></div><div class="ctwpml-dispatch-banner"><span data-dispatch-message></span></div>',async()=>{calls++;return {...state,message:'<img src=x onerror=alert(1)> Próximo envio amanhã'};});
+    let calls=0;const w=setup(t,'<div class="ctwpml-dispatch-banner"><span data-dispatch-message>cache antigo</span></div><div class="ctwpml-dispatch-banner"><span data-dispatch-message></span></div>',async()=>{calls++;return {...state,padding:{top:0,right:9,bottom:3,left:7},message:'<img src=x onerror=alert(1)> Próximo envio amanhã'};});
     await wait(()=>calls===1&&w.document.querySelector('[data-dispatch-message]').textContent.includes('amanhã'));
     assert.equal(calls,1);assert.equal(w.document.querySelector('img'),null);assert.equal(w.document.querySelectorAll('.is-pulsing').length,2);
+    for(const banner of w.document.querySelectorAll('.ctwpml-dispatch-banner')){
+        assert.equal(banner.style.getPropertyValue('--dispatch-padding-top'),'0px');assert.equal(banner.style.getPropertyValue('--dispatch-padding-left'),'7px');
+    }
 });

@@ -2,6 +2,13 @@
 
 Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
+## [v3.4.18] - 2026-11-26
+
+- Após a consulta antecipada encontrar acesso rápido, o formulário e o botão Continuar dão lugar ao resumo do e-mail com Editar e-mail. A mensagem muda para Encontramos seu acesso rápido e Usar meus dados salvos fica como única ação primária. Nenhum dado salvo é liberado antes da autenticação.
+- Editar e-mail reabre o campo sem perder o valor, invalida o vínculo anterior e exige Consultar para uma nova tentativa. Expiração também retorna à consulta; preservados acesso por senha, recuperação e preenchimento manual. Foco evita campos ocultos.
+- Aba Estilos: quatro controles independentes de padding para [ppwoo_aviso_envio], de0–80px, com prévia imediata. Valores padrão preservam o visual anterior; salvos pelo Settings API, sanitizados e aplicados no primeiro HTML e após atualização automática, inclusive em páginas com aviso em cache. Não altera o contêiner Elementor, os horários, as mensagens ou o carrinho.
+- Guias atualizados em docs/login-antecipado-menu.md e docs/packpanel-horarios.md. Regressões de consulta/edição, quatro lados/zero, CSS externo e preservação do DOM/contêiner verificadas localmente.
+
 ## [v3.4.17] - 2026-11-26
 
 - Login antecipado experimental por e-mail na aba Integrações, desligado por padrão. Ao ativar, oferece recuperar dados antes do endereço e apresenta Dados pessoais → Endereço no caminho manual; ao desligar, mantém a jornada anterior e o login/cadastro final.

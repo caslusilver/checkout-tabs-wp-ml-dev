@@ -1,6 +1,17 @@
 jQuery(function ($) {
   'use strict';
 
+  function previewDispatchPadding() {
+    var preview=document.querySelector('[data-ctwpml-dispatch-preview]');
+    if(!preview)return;
+    document.querySelectorAll('[data-dispatch-padding-side]').forEach(function(input){
+      var side=input.dataset.dispatchPaddingSide,value=Number(input.value);
+      if(['top','right','bottom','left'].includes(side)&&input.value!==''&&Number.isFinite(value))preview.style.setProperty('--dispatch-padding-'+side,Math.max(0,Math.min(80,value))+'px');
+    });
+  }
+  $(document).on('input change','[data-dispatch-padding-side]',previewDispatchPadding);
+  previewDispatchPadding();
+
   function setActiveTab(tab) {
     $('.ctwpml-admin-tab').removeClass('nav-tab-active');
     $('.ctwpml-admin-tab[data-tab="' + tab + '"]').addClass('nav-tab-active');

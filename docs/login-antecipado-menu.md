@@ -1,5 +1,13 @@
 # Login antecipado por e-mail e fingerprint nos menus — v3.4.17
 
+## Refinamento v3.4.18 — acesso rápido em evidência
+
+Após teste real da3.4.17, o usuário confirmou que Usar meus dados funcionou e pediu eliminar a competição com Continuar. Ao encontrar chave ativa, a apresentação agora muda para **Encontramos seu acesso rápido. Agora é só confirmar para recuperar seus dados e continuar a compra.** O campo e Continuar ficam ocultos; o e-mail aparece como texto com **Editar e-mail**. Usar meus dados salvos é a única ação primária. Não significa acesso antecipado a nomes ou endereços: só a autenticação os libera.
+
+Editar preserva o texto do e-mail, invalida o vínculo usado e reabre o campo com **Consultar**. Nesta edição a consulta é explícita, evitando mudar de estado enquanto a pessoa corrige. Confirmar consulta volta à oferta se houver acesso; ausência de chave segue pelo preenchimento normal. Vínculo expirado volta ao formulário para nova consulta. Alternativas por senha, recuperação e preenchimento continuam disponíveis. Não muda o motor, as permissões, a opção experimental ou o shortcode.
+
+Prévia interativa preservada separadamente em `C:/Users/Dell/.codex/visualizations/2026/11/16/01a1e5cd-82e8-7220-8261-12709f4d4886/login-acesso-prioritario-previa.html`. A prévia simula a confirmação; o QA do código usa o autenticador virtual e a biblioteca nativa. Usuário pediu reunir este refinamento ao controle de padding do aviso de próximo envio na mesma versão.
+
 Implementação aprovada em26/11/2026 após a prévia do Blueprint V2. Base anterior validada pelo usuário:3.4.16. O Secure Passkeys1.3.0 permanece instalado separadamente e é o responsável pelas credenciais e provas WebAuthn.
 
 ## Instalar nos dois menus do Elementor

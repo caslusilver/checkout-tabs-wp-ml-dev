@@ -27,6 +27,10 @@
         document.querySelectorAll('.ctwpml-dispatch-banner').forEach(banner => {
             banner.querySelector('[data-dispatch-message]').textContent=publicData.message;
             banner.style.setProperty('--dispatch-dot',publicData.color);banner.classList.toggle('is-pulsing',publicData.pulse);
+            for(const side of ['top','right','bottom','left']){
+                const value=publicData.padding?.[side];
+                if(value!==undefined&&Number.isFinite(Number(value)))banner.style.setProperty('--dispatch-padding-'+side,Math.max(0,Math.min(80,Number(value)))+'px');
+            }
         });
         document.querySelector('.painel-empacotamento')?.dispatchEvent(new CustomEvent('ctwpml:dispatch-state',{detail:publicData}));
     }

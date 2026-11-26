@@ -67,4 +67,14 @@ expect(wp_date('H:i', $before->get_meta('_ppwoo_dispatch_window')), '15:00', 'Tr
 $options['checkout_tabs_wp_ml_dispatch_schedule'] = [];
 expect(CTWPML_Dispatch_Controls::public_state()['next_at'], 0, 'Instalação sem horários não inventa saída');
 expect(CTWPML_Dispatch_Controls::public_state()['next_label'], 'horário a confirmar', 'Sem calendário informa necessidade de configuração');
-echo "Envios: fechamento, criação anterior, confirmação tardia, reabertura, snapshots, variáveis e validação passaram.\n";
+expect(CTWPML_Dispatch_Controls::banner_padding(),['top'=>12,'right'=>16,'bottom'=>12,'left'=>16],'Sem configuração preserva espaçamento anterior');
+$options['checkout_tabs_wp_ml_dispatch_banner_padding']=['top'=>'0','right'=>9,'bottom'=>3,'left'=>7];
+expect(CTWPML_Dispatch_Controls::public_state()['padding'],['top'=>0,'right'=>9,'bottom'=>3,'left'=>7],'Aviso público oferece quatro lados independentes e zero');
+expect(CTWPML_Dispatch_Controls::sanitize_banner_padding(['top'=>-1,'right'=>999,'bottom'=>['bad'],'left'=>'0; color:red']),['top'=>0,'right'=>80,'bottom'=>12,'left'=>16],'Padding recusa CSS e estrutura inválida');
+function wp_enqueue_style(...$a){}function wp_enqueue_script(...$a){}function wp_localize_script(...$a){}
+function checkout_tabs_wp_ml_get_version(){return '3.4.18';}
+define('CHECKOUT_TABS_WP_ML_URL','https://fixture.test/plugin/');
+$banner=CTWPML_Dispatch_Controls::shortcode();
+expect(str_contains($banner,'--dispatch-padding-top:0px;'),true,'Shortcode carrega padding salvo no primeiro render');
+expect(str_contains($banner,'--dispatch-padding-right:9px;'),true,'Padding de cada lado é renderizado separadamente');
+echo "Envios: fechamento, criação anterior, confirmação tardia, reabertura, snapshots, variáveis e padding independente passaram.\n";

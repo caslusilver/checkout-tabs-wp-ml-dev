@@ -5,7 +5,7 @@
     const early=()=>document.getElementById('ctwpml-early-access'), menu=()=>document.getElementById('ctwpml-menu-access');
     let skip=false,next=null,previousFocus=null,previousOverflow='',active=null;
     let cached=null,cachedAt=0,contextPending=null,passwordBusy=false;
-    let emailTimer=null,lookupBusy=false,lookupVersion=0,route=null,advanceRequested=false;
+    let emailTimer=null,lookupBusy=false,lookupVersion=0,route=null,advanceRequested=false,editingEmail=false;
     let menuContext='entry',menuTicket='',menuWidget=null,menuCaptchaValid=false,apiLoading=null;
     const trace=(name,ok=true)=>window.CCCheckoutTabsState?.checkpoint?.('CHK_EARLY_'+name,ok,{});
     const isBusy=()=>passwordBusy||api.isBusy();
@@ -22,11 +22,28 @@
         }).finally(()=>{contextPending=null;});
         return contextPending;
     }
-    function show(node){if(!node)return;previousFocus=document.activeElement;previousOverflow=document.body.style.overflow;node.hidden=false;active=node;document.body.style.overflow='hidden';node.querySelector('input,button,a')?.focus();}
+    function show(node){if(!node)return;previousFocus=document.activeElement;previousOverflow=document.body.style.overflow;node.hidden=false;active=node;document.body.style.overflow='hidden';Array.from(node.querySelectorAll('input,button,a')).find(control=>!control.disabled&&!control.closest('[hidden]'))?.focus();}
     function hide(node){if(!node||isBusy())return false;node.hidden=true;document.body.style.overflow=previousOverflow;active=null;previousFocus?.focus();return true;}
     function earlyMessage(text){const node=early()?.querySelector('[data-ctwpml-early-message]');if(node)node.textContent=text;}
     function earlyEmail(){return (document.getElementById('ctwpml-early-email')?.value||'').trim().toLowerCase();}
     function validEmail(value){return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)&&value.length<=254;}
+    function identityView(found){
+        const node=early();if(!node)return;
+        node.querySelector('#ctwpml-early-email-form').hidden=found;
+        node.querySelector('#ctwpml-early-email').readOnly=found;
+        node.querySelector('[data-ctwpml-early-email-summary]').hidden=!found;
+        node.querySelector('[data-ctwpml-early-email-value]').textContent=found?earlyEmail():'';
+        node.querySelector('[data-ctwpml-early-title]').textContent=found?'Encontramos seu acesso rápido.':'Vamos começar pelo seu e-mail.';
+        node.querySelector('[data-ctwpml-early-description]').textContent=found?'Agora é só confirmar para recuperar seus dados e continuar a compra.':'Se já comprou aqui, você pode recuperar seus dados sem preencher tudo de novo.';
+        node.querySelector('[data-ctwpml-early-offer]').hidden=!found;
+        node.querySelector('#ctwpml-early-email-form [type="submit"]').textContent=editingEmail?'Consultar':'Continuar';
+    }
+    function editEmail(){
+        if(isBusy())return;
+        lookupVersion++;route=null;advanceRequested=false;editingEmail=true;clearTimeout(emailTimer);
+        early().querySelector('[data-ctwpml-early-offer] [data-ctwpml-passkey-login]').removeAttribute('data-ctwpml-early-ticket');
+        identityView(false);earlyMessage('');document.getElementById('ctwpml-early-email').focus();trace('EMAIL_EDIT');
+    }
     function manual(){
         if(isBusy())return;
         const email=earlyEmail();if(email&&!validEmail(email)){document.getElementById('ctwpml-early-email').reportValidity();return;}
@@ -38,7 +55,7 @@
         advanceRequested=advanceRequested||advance;
         const value=earlyEmail();if(!validEmail(value))return;
         if(lookupBusy)return;
-        if(route?.email===value){if(advanceRequested&&route.method!=='passkey')manual();advanceRequested=false;return;}
+        if(route?.email===value){if(route.method==='passkey')identityView(true);else if(advanceRequested)manual();advanceRequested=false;return;}
         const version=lookupVersion;lookupBusy=true;earlyMessage('Conferindo as opções de acesso…');trace('LOOKUP_START');
         const submit=early()?.querySelector('[type="submit"]');if(submit)submit.disabled=true;
         try{
@@ -48,16 +65,18 @@
             if(version!==lookupVersion||value!==earlyEmail()||early()?.hidden)return;
             route={email:value,method:result.auth_method==='passkey'&&result.ticket?'passkey':'password',ticket:result.ticket||''};
             const offer=early().querySelector('[data-ctwpml-early-offer]');
-            offer.hidden=!(route.method==='passkey'&&route.ticket);
+            const found=route.method==='passkey'&&!!route.ticket;
+            identityView(found);
             const button=offer.querySelector('[data-ctwpml-passkey-login]');button.dataset.ctwpmlEarlyTicket=route.ticket;
             button.disabled=!api.supported();
-            earlyMessage(offer.hidden?'Continue para preencher seus dados.':'Se já cadastrou acesso rápido, confirme no seu aparelho.');
+            earlyMessage(found?'':'Continue para preencher seus dados.');
             trace('LOOKUP_READY');
-            if(advanceRequested&&offer.hidden)manual();
+            if(found)button.focus();
+            if(advanceRequested&&!found)manual();
         }catch(_){if(version===lookupVersion){earlyMessage('Não foi possível consultar agora. Você pode continuar preenchendo seus dados.');trace('LOOKUP_ERROR',false);}}
         finally{
             lookupBusy=false;advanceRequested=false;if(submit)submit.disabled=false;
-            if(!early()?.hidden&&value!==earlyEmail()&&validEmail(earlyEmail()))emailTimer=setTimeout(()=>lookup(),450);
+            if(!editingEmail&&!early()?.hidden&&value!==earlyEmail()&&validEmail(earlyEmail()))emailTimer=setTimeout(()=>lookup(),450);
         }
     }
     function reload(earlyResume){const url=new URL(location.href);url.searchParams.set('ctwpml_session_refresh',String(Date.now()));if(config.enabled&&earlyResume){try{sessionStorage.setItem('ctwpml_early_profile_pending','1');}catch(_){}if(config.checkout)url.searchParams.set('ctwpml_early_resume','1');}location.assign(url.href);}
@@ -127,8 +146,8 @@
     }};
     document.addEventListener('input',event=>{
         if(event.target.id!=='ctwpml-early-email')return;
-        lookupVersion++;route=null;clearTimeout(emailTimer);early().querySelector('[data-ctwpml-early-offer]').hidden=true;earlyMessage('');
-        emailTimer=setTimeout(()=>lookup(),550);
+        lookupVersion++;route=null;clearTimeout(emailTimer);identityView(false);earlyMessage('');
+        if(!editingEmail)emailTimer=setTimeout(()=>lookup(),550);
     });
     document.addEventListener('submit',event=>{
         if(event.target.id==='ctwpml-early-email-form'){event.preventDefault();if(event.target.reportValidity())lookup(true);}
@@ -136,7 +155,7 @@
     });
     document.addEventListener('ctwpml:passkey-error',event=>{
         if(!event.detail?.early||event.detail.code!=='CHECKOUT_ACCOUNT_CONTEXT_MISSING')return;
-        route=null;const offer=early()?.querySelector('[data-ctwpml-early-offer]');if(offer)offer.hidden=true;
+        route=null;editingEmail=true;identityView(false);
         earlyMessage('Confirme seu e-mail novamente para renovar a tentativa de acesso.');
     });
     document.addEventListener('click',event=>{
@@ -144,6 +163,7 @@
         if(trigger&&!event.ctrlKey&&!event.metaKey&&!event.shiftKey&&!event.altKey){event.preventDefault();if(cached?.loggedIn)window.open(config.account,'_blank','noopener,noreferrer');else openMenu();}
         if(event.target.closest('[data-ctwpml-menu-password]'))revealPassword();
         if(event.target.closest('[data-ctwpml-early-manual]'))manual();
+        if(event.target.closest('[data-ctwpml-early-edit]'))editEmail();
         if(event.target.closest('[data-ctwpml-early-password]'))openMenu({email:earlyEmail(),ticket:route?.ticket,password:true});
         if(event.target.closest('[data-ctwpml-menu-captcha-retry]')){if(menuWidget!==null)try{grecaptcha.reset(menuWidget);}catch(_){}menuCaptchaValid=false;captcha();}
         if(event.target.closest('[data-ctwpml-access-close]')&&!isBusy()){

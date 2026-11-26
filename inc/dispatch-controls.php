@@ -5,6 +5,18 @@ if (!defined('ABSPATH')) exit;
 final class CTWPML_Dispatch_Controls {
     public const OPTION = 'ctwpml_dispatch_controls';
     public static function now(): DateTimeImmutable { return current_datetime(); }
+    public static function sanitize_banner_padding($value): array {
+        $defaults=['top'=>12,'right'=>16,'bottom'=>12,'left'=>16];
+        if (!is_array($value)) return $defaults;
+        foreach ($defaults as $side=>$fallback) {
+            $number=$value[$side]??$fallback;
+            $defaults[$side]=is_scalar($number)&&is_numeric($number)&&is_finite((float)$number)?max(0,min(80,(int)$number)):$fallback;
+        }
+        return $defaults;
+    }
+    public static function banner_padding(): array {
+        return self::sanitize_banner_padding(get_option('checkout_tabs_wp_ml_dispatch_banner_padding',[]));
+    }
     public static function config(): array {
         return array_merge(['periods' => [], 'basis' => 'created', 'banner_open' => 'Próximo envio por motoboy: {proxima_saida}.',
             'banner_closed' => 'Envios por motoboy encerrados hoje. Próxima saída: {proxima_saida}.',
@@ -35,7 +47,7 @@ final class CTWPML_Dispatch_Controls {
             'next_at' => $next ? $next->getTimestamp() : 0, 'next_label' => $values['proxima_saida'], 'message' => $message,
             'color' => $closed ? $cfg['color_closed'] : $cfg['color_open'], 'pulse' => (bool) $cfg['pulse'],
             'warning' => 'Não teremos mais envios por motoboy hoje. Comprando agora, o envio será na próxima saída: ' . $values['proxima_saida'] . '.',
-            'day' => $now->format('Y-m-d'), 'timezone' => wp_timezone()->getName()];
+            'day' => $now->format('Y-m-d'), 'timezone' => wp_timezone()->getName(), 'padding' => self::banner_padding()];
     }
     public static function admin_state(): array {
         $cfg = self::config(); unset($cfg['periods']);
@@ -120,7 +132,9 @@ final class CTWPML_Dispatch_Controls {
     }
     public static function shortcode(): string {
         self::assets(); $data = self::public_state();
-        return '<div class="ctwpml-dispatch-banner' . ($data['pulse'] ? ' is-pulsing' : '') . '" style="--dispatch-dot:' . esc_attr($data['color']) . '"><span aria-hidden="true" class="dispatch-dot"></span><span data-dispatch-message>' . esc_html($data['message']) . '</span></div>';
+        $style='--dispatch-dot:'.$data['color'].';';
+        foreach (self::banner_padding() as $side=>$value) $style.='--dispatch-padding-'.$side.':'.$value.'px;';
+        return '<div class="ctwpml-dispatch-banner' . ($data['pulse'] ? ' is-pulsing' : '') . '" style="' . esc_attr($style) . '"><span aria-hidden="true" class="dispatch-dot"></span><span data-dispatch-message>' . esc_html($data['message']) . '</span></div>';
     }
     public static function motoboy(array $methods): bool {
         foreach ($methods as $method) if (is_string($method) && ($method === 'flat_rate:3' || stripos($method, 'motoboy') !== false)) return true;

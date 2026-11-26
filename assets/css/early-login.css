@@ -15,6 +15,9 @@
 .ctwpml-access-overlay .ctwpml-passkey-card{padding:16px!important;gap:10px!important;box-shadow:none!important}
 .ctwpml-access-overlay .ctwpml-passkey-card img{width:42px!important;height:42px!important}
 .ctwpml-early-page{background-color:#f3f6fa!important}
+.ctwpml-early-page .ctwpml-early-email-summary{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;color:#536879!important;font-size:13px!important}
+.ctwpml-early-page [data-ctwpml-early-email-value]{overflow-wrap:anywhere;min-width:0}
+.ctwpml-early-page [data-ctwpml-early-edit],.ctwpml-early-page [data-ctwpml-early-edit]:is(:hover,:focus,:active){background:transparent!important;border:0!important;color:#0063ce!important;font-size:13px!important;text-decoration:underline!important;min-height:40px;padding:6px 0!important;opacity:1!important;box-shadow:none!important}
 .ctwpml-early-page [data-ctwpml-early-offer] img{animation:ctwpml-access-glow 2.3s ease-in-out infinite}
 .ctwpml-access-overlay :focus-visible{outline:3px solid #0063ce!important;outline-offset:3px!important}
 @keyframes ctwpml-access-glow{50%{filter:drop-shadow(0 0 5px #0075ff55);opacity:.75}}

@@ -23,6 +23,16 @@ Variáveis: `{proxima_saida}` (dia/data/hora), `{proximo_horario}`, `{proxima_da
 - Aviso público consulta uma vez por página, compartilhando instâncias. Cache em memória 15s, atualização visível 30s, sem requisições sobrepostas. Endpoint só retorna informações públicas e limita consultas por IP. Checkout revalida ao concluir, independentemente de HTML em cache.
 - Voltar para v3.4.6: reabra os envios antes. O código antigo não reconhece a pausa de hoje. Previsões já gravadas e calendário continuam salvos; não há downgrade destrutivo de dados.
 
+## Ajustar a espessura do aviso no header — v3.4.18
+
+Em **Checkout Tabs ML → Estilos → Aviso de próximo envio no header**, ajuste separadamente Padding Superior, Inferior, Esquerdo e Direito, em pixels (0–80, passo1). A prévia acompanha a digitação sem gravar; **Salvar alterações** grava os valores. Recarregue a página do site para conferir. O shortcode permanece `[ppwoo_aviso_envio]`; não é necessário reinstalá-lo.
+
+Para experimentar um aviso mais fino, comece com4px em cima/embaixo e12px nas laterais, ajustando um lado por vez. Zero é permitido. Sem personalização, continuam os valores anteriores12px em cima/embaixo e16px nas laterais. A altura mínima continua acomodando texto e indicador.
+
+Os valores são aplicados ao bloco do aviso, no HTML e após sua atualização automática. A configuração não modifica padding, margens, gap ou altura mínima do contêiner/widget Elementor: se ainda houver espaço externo, ajuste no Elementor. Não reescreve snippets de header/glass nem interfere no carrinho. As cores, mensagens dinâmicas, horários e regras dos pedidos permanecem independentes deste ajuste visual.
+
+Opção: checkout_tabs_wp_ml_dispatch_banner_padding, array top/right/bottom/left. Sanitização no servidor limita0–80 e descarta conteúdo CSS/estruturas inválidas. Settings API mantém a autorização e o nonce do salvamento administrativo. Variáveis CSS --dispatch-padding-top/right/bottom/left; CSS prioritário fica restrito a .ctwpml-dispatch-banner. Resposta pública existente devolve os valores para revalidar HTML em cache, sem recriar o DOM.
+
 ## Verificação
 
 Fixtures PHP: `tests/dispatch-controls.test.php` (inclui suíte de rotas/motoboy). JS: `tests/dispatch-controls.test.cjs`, `tests/packpanel-routes-dom.qa.cjs`. Edge local: `tests/dispatch-controls-browser.qa.cjs`. Verificam fechamento/criação anterior/aprovação tardia, reabertura, validação, texto seguro, rejeição de conflitos, rascunhos e reload real. Validação no iPhone/PWA/Elementor da loja continua sendo feita pelo usuário após atualizar.
