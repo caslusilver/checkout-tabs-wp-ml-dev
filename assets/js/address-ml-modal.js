@@ -4714,6 +4714,9 @@
     // Mantemos em debug-friendly (não quebra se setup parcial).
     try {
       state.openAddressModal = openModal;
+      state.desktopSnapshot = function () {
+        return { view: currentView, address: getRecoverableAddressFromState(), shipping: state.selectedShipping || null };
+      };
     } catch (e) {}
 
     function openLoginPopup() {

@@ -39,6 +39,6 @@ Validar depois no site: chave já cadastrada, Face ID/PIN, primeiro comprador, a
 
 ## Desktop e rollback
 
-O redesenho desktop ainda é prévia separada, sem mudar o layout mobile aprovado. Especificação: `docs/checkout-desktop-blueprint.md`.
+O redesenho desktop foi aprovado e incluído na mesma versão3.4.12: página inteira em duas colunas a partir de1024px, usando os mesmos controles da experiência mobile e resumo somente de leitura vindo do WooCommerce. Abaixo de1024px a composição mobile permanece. Especificação e teste local: `docs/checkout-desktop-blueprint.md` e `tests/checkout-desktop.browser.qa.cjs`.
 
 Rollback para3.4.11 remove a apresentação/adaptador; mantém Secure Passkeys e suas chaves. Se usar `[checkout_ml_acesso]`, restaurar o shortcode original antes de reverter. Remover ou desativar o Secure Passkeys faz a entrada antecipada desaparecer e mantém o checkout tradicional; não apagar suas tabelas.

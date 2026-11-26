@@ -1,4 +1,4 @@
-# Checkout desktop — escopo para aprovação visual
+# Checkout desktop — escopo aprovado e implementação
 
 Origem: usuário de26/11/2026 aprovou comunicação do acesso aos dados salvos e autorizou a integração; pediu prévia desktop antes da aplicação visual. A versão mobile atual foi considerada perfeita e deve ser preservada.
 
@@ -17,8 +17,16 @@ Reutilizar `assets/js/address-ml-modal.js`, `assets/css/address-ml-modal.css`, o
 
 Antes da implementação do layout, conferir quais regiões podem ser posicionadas por CSS e quais precisam de contêiner estável. Renderização do resumo à esquerda deve acompanhar os totais canônicos do Woo, não recalcular preços no navegador. Sem refazer lógica de login/checkout em paralelo com a composição visual.
 
-Prévia navegável `checkout-desktop-previa.html` na pasta de visualizações da conversa, com dados e preços fictícios; usa o SVG fornecido como imagem. Ainda não representa código implementado no checkout. Aceite visual pendente. Após aprovação: CSS desktop escopado, testes de etapas/AJAX e edição em1280/1440, tablet, mobile e PWA; bump próprio e PR.
+Prévia navegável `checkout-desktop-previa.html` na pasta de visualizações da conversa, com dados e preços fictícios; usa o SVG fornecido como imagem. Em26/11/2026 o usuário aprovou a prévia e autorizou aplicação e merge, pedindo preservar controles, termos e link de privacidade atuais. Implementação incluída na versão3.4.12 ainda não publicada até essa autorização.
 
 ## Aceite
 
 Informações da compra/endereço legíveis à esquerda, ações à direita; nenhum campo ou botão perdido; foco percorre ordem lógica; mobile permanece funcional; erro não duplica compra ou perde dados; total/frete correspondem ao Woo. Desktop só entra na release depois do aceite visual do usuário e validação do DOM real.
+
+## Implementação e validação — 26/11/2026
+
+`assets/js/checkout-desktop.js` e `assets/css/checkout-desktop.css`, carregados por `inc/enqueue.php`, compõem o modal/raiz existente em página inteira a partir de1024px. `state.desktopSnapshot` expõe somente o estado já disponível nessa página para apresentação. Nenhum endpoint novo, cálculo financeiro paralelo, formulário duplicado ou alteração dos valores digitados. O resumo usa `WooHost.readTotals/readCoupons/getCartThumbs`, atualiza por eventos Woo e limita chamadas concorrentes; não faz polling.
+
+Cabeçalho usa nome da loja e imagem configurada na página de obrigado, quando existente. Oferta antecipada reorganiza os próprios elementos de passkeys; o modal mantém views, inputs, ações e handlers originais. Etapas só habilitam retornos já disponíveis na conferência; o botão Voltar mantém as demais transições. O aceite e link real da política vêm de `AddressMlScreens.buildPrivacyTermsHtml` e do mecanismo de termos existente, sem substituir nem clonar o checkbox. A composição desktop elimina o footer fixo mobile no desktop; erros/processamento continuam no fluxo original.
+
+`tests/checkout-desktop.browser.qa.cjs`: renderizador AddressMlScreens e CSS reais no Edge, transporte Woo simulado. Testadas larguras1024/1280/1440 (página inteira/duas colunas) e390/768/1023 (composição mobile), link de privacidade original em outra aba, identidade e valor dos controles, foco/rascunho/checkbox preservados em AJAX, atualização do resumo/cupom, navegação pelos handlers existentes e ausência de loop/sobreposição de consultas. Screenshots locais de conferência e oferta inspecionados. Não representa compra completa na instalação WordPress/Elementor nem biometria real; validar no site/PWA após Git Updater. Rollback3.4.11 preserva banco de chaves do motor separado.

@@ -1,0 +1,57 @@
+/* A composição desktop reaproveita os mesmos campos/handlers. Abaixo de1024px, só o CSS mobile existente. */
+.ctwpml-desktop-brand,.ctwpml-desktop-steps,.ctwpml-desktop-summary{display:none}
+.ctwpml-desktop-entry-actions{display:contents}
+@media(min-width:1024px){
+ #ctwpml-address-modal-overlay.ctwpml-desktop,#ctwpml-address-modal-overlay.ctwpml-desktop *,#ctwpml-passkey-entry,#ctwpml-passkey-entry *{box-sizing:border-box}
+ #ctwpml-address-modal-overlay.ctwpml-desktop>.ctwpml-modal,#ctwpml-passkey-entry .ctwpml-passkey-dialog{font-family:system-ui,-apple-system,sans-serif!important}
+ body.ctwpml-ml-open.ctwpml-desktop-open,body.ctwpml-ml-open.ctwpml-ml-open--root.ctwpml-desktop-open{overflow:hidden!important}
+ #ctwpml-address-modal-overlay.ctwpml-desktop{position:fixed!important;inset:0!important;width:100%!important;height:100dvh!important;overflow:auto!important;background-color:#f5f7fa!important;z-index:2147483050!important}
+ #ctwpml-address-modal-overlay.ctwpml-desktop>.ctwpml-modal{display:grid!important;grid-template-columns:minmax(0,.95fr) minmax(0,1.05fr)!important;column-gap:32px;align-content:start;align-items:start;padding:22px max(26px,calc((100vw - 1180px)/2)) 40px!important;width:100%!important;max-width:none!important;height:auto!important;min-height:100dvh!important;background-color:#f5f7fa!important;color:#17242d!important;overflow:visible!important}
+ #ctwpml-address-modal-overlay.ctwpml-desktop .ctwpml-desktop-brand,#ctwpml-passkey-entry .ctwpml-desktop-brand{grid-column:1/-1;grid-row:1;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:0 0 22px;border-bottom:1px solid #dfe6ee;color:#17242d!important}
+ #ctwpml-address-modal-overlay.ctwpml-desktop .ctwpml-desktop-brand>strong,#ctwpml-passkey-entry .ctwpml-desktop-brand>strong{font-size:23px;line-height:1.2;max-width:65%;overflow-wrap:anywhere}
+ .ctwpml-desktop-brand>img{width:auto;max-width:240px;height:36px;object-fit:contain}
+ .ctwpml-desktop-brand .ctwpml-desktop-secure{color:#147746!important;font-size:12px;display:flex;align-items:center;gap:7px}
+ .ctwpml-desktop-secure::before{content:'';display:block;width:20px;height:20px;background:url('../shield-lock.svg') center/contain no-repeat}
+ #ctwpml-address-modal-overlay.ctwpml-desktop .ctwpml-desktop-steps,#ctwpml-passkey-entry .ctwpml-desktop-steps{grid-column:1/-1;grid-row:2;display:flex;gap:10px;flex-wrap:wrap;padding:18px 0}
+ .ctwpml-desktop-steps button,.ctwpml-desktop-steps button:is(:hover,:focus,:active){min-height:44px;padding:10px 16px;border:0!important;border-radius:9px;background-color:transparent!important;color:#536879!important;box-shadow:none!important;font:13px system-ui,sans-serif;opacity:1!important}
+ .ctwpml-desktop-steps button[aria-current=step]{background-color:#e9f3ff!important;color:#0063ce!important;font-weight:700}
+ .ctwpml-desktop-steps button:disabled{cursor:default}
+ #ctwpml-address-modal-overlay.ctwpml-desktop .ctwpml-desktop-summary,#ctwpml-passkey-entry .ctwpml-desktop-summary{display:grid;grid-column:1;grid-row:3/6;gap:18px;align-content:start;padding:20px 0;color:#17242d!important;font:14px/1.5 system-ui,sans-serif;min-width:0}
+ .ctwpml-desktop-summary>small{font-size:11px;letter-spacing:.1em;color:#536879!important}
+ .ctwpml-desktop-summary h2{font-size:21px!important;color:#17242d!important;line-height:1.3;margin:0!important}
+ .ctwpml-desktop-items{display:grid;gap:16px}
+ .ctwpml-desktop-item{display:flex;gap:12px;align-items:center;padding:12px 0;border-bottom:1px solid #dfe6ee;min-width:0}
+ .ctwpml-desktop-item>img{width:48px;height:56px;object-fit:contain;border-radius:8px;background-color:#fff!important;flex-shrink:0}
+ .ctwpml-desktop-item>div{min-width:0;flex:1;display:grid;gap:4px}
+ .ctwpml-desktop-item strong{font-size:13px;overflow-wrap:anywhere;color:#17242d!important}
+ .ctwpml-desktop-item small{font-size:12px;color:#536879!important}
+ .ctwpml-desktop-item>strong{white-space:nowrap}
+ .ctwpml-desktop-totals{display:grid;gap:12px}
+ .ctwpml-desktop-totals>div{display:flex;justify-content:space-between;align-items:start;gap:14px;font-size:14px}
+ .ctwpml-desktop-totals strong{color:#17242d!important;text-align:right;overflow-wrap:anywhere}
+ .ctwpml-desktop-totals [data-desktop-value=total]{border-top:1px solid #dfe6ee;padding-top:16px;font-size:22px}
+ .ctwpml-desktop-summary [hidden]{display:none!important}
+ .ctwpml-desktop-address{border-top:1px solid #dfe6ee;padding-top:16px;overflow-wrap:anywhere;font-size:13px}
+ .ctwpml-desktop-summary p{margin:0!important;color:#536879!important;font-size:12px;line-height:1.5}
+ .ctwpml-desktop-note:empty{display:none}
+ #ctwpml-address-modal-overlay.ctwpml-desktop .ctwpml-modal-header{grid-column:2;grid-row:3;position:static!important;padding:0 0 14px!important;background-color:transparent!important;color:#17242d!important;z-index:auto!important;min-width:0}
+ #ctwpml-address-modal-overlay.ctwpml-desktop .ctwpml-modal-back .ctwpml-modal-back-icon{background-color:#17242d!important}
+ #ctwpml-address-modal-overlay.ctwpml-desktop .ctwpml-modal-title{color:#17242d!important;font-size:20px;font-weight:700}
+ #ctwpml-address-modal-overlay.ctwpml-desktop .ctwpml-modal-body{grid-column:2;grid-row:4;min-width:0;min-height:0!important;max-height:none!important;height:auto!important;padding:24px!important;overflow:visible!important;background-color:#fff!important;border:1px solid #dfe6ee;border-radius:16px}
+ #ctwpml-address-modal-overlay.ctwpml-desktop .ctwpml-footer{grid-column:2;grid-row:5;position:static!important;inset:auto!important;width:100%!important;padding:16px 0 0!important;box-shadow:none!important;background-color:transparent!important;border:0!important;backdrop-filter:none!important}
+ #ctwpml-address-modal-overlay.ctwpml-desktop .ctwpml-footer::before{display:none!important}
+ #ctwpml-address-modal-overlay.ctwpml-desktop :is(.ctwpml-shipping-footer,.ctwpml-payment-footer){position:static!important;inset:auto!important;width:auto!important;padding:18px 0 0!important;margin:0!important;background-color:transparent!important;box-shadow:none!important;border-radius:0!important}
+ #ctwpml-address-modal-overlay.ctwpml-desktop :is(.ctwpml-ml-layout,.ctwpml-ml-left,.ctwpml-ml-right){display:block!important;min-height:0!important;height:auto!important;max-height:none!important;overflow:visible!important;padding:0!important}
+ #ctwpml-address-modal-overlay.ctwpml-desktop .ctwpml-review-sticky-footer{display:none!important}
+ #ctwpml-address-modal-overlay.ctwpml-desktop .ctwpml-review-screen{padding-bottom:0!important}
+ #ctwpml-address-modal-overlay.ctwpml-desktop .ctwpml-login-popup{width:100%!important;max-width:none!important;padding:0!important;background-color:transparent!important}
+ #ctwpml-address-modal-overlay.ctwpml-desktop .ctwpml-auth-grid{grid-template-columns:1fr!important}
+ #ctwpml-address-modal-overlay.ctwpml-desktop .ctwpml-passkey-card{border:0!important;padding:0!important}
+ #ctwpml-address-modal-overlay.ctwpml-desktop :focus-visible,#ctwpml-passkey-entry :focus-visible{outline:3px solid #0063ce!important;outline-offset:3px}
+ /* A mesma página em duas colunas desde a oferta de identificação. Nenhuma cópia dos campos. */
+ #ctwpml-passkey-entry{padding:22px max(26px,calc((100vw - 1180px)/2)) 40px!important;background-color:#f5f7fa!important;display:block}
+ #ctwpml-passkey-entry .ctwpml-passkey-dialog{display:grid!important;grid-template-columns:minmax(0,.95fr) minmax(0,1.05fr);column-gap:32px;align-content:start;width:100%!important;max-width:none!important;min-height:calc(100dvh - 62px);margin:0!important}
+ #ctwpml-passkey-entry .ctwpml-desktop-entry-actions{display:grid;grid-column:2;grid-row:3/6;gap:12px;padding:24px;border:1px solid #dfe6ee;border-radius:16px;background-color:#fff!important;align-content:start;align-self:start}
+ #ctwpml-passkey-entry .ctwpml-passkey-card{border:0!important;padding:0!important}
+ #ctwpml-passkey-entry .ctwpml-desktop-entry-actions>p{font-size:12px;margin:0;text-align:center;color:#536879!important}
+}
