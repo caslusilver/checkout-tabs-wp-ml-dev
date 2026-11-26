@@ -1,0 +1,22 @@
+.ctwpml-login-icon,.ctwpml-login-icon:is(:hover,:focus,:active){box-sizing:border-box!important;display:inline-flex!important;flex-direction:column!important;align-items:center!important;justify-content:center!important;gap:3px!important;min-width:44px!important;min-height:48px!important;padding:4px!important;background:transparent!important;border:0!important;box-shadow:none!important;color:var(--ctwpml-login-color,#fff)!important;opacity:1!important;text-decoration:none!important;font:500 12px/1.2 system-ui,-apple-system,sans-serif!important}
+.ctwpml-login-icon.is-logged-in,.ctwpml-login-icon.is-logged-in:is(:hover,:focus,:active){color:var(--ctwpml-login-active,#0075ff)!important}
+.ctwpml-login-icon .ctwpml-login-icon-image{display:block!important;width:var(--ctwpml-login-size,28px)!important;height:var(--ctwpml-login-size,28px)!important;background-color:currentColor!important;mask-image:var(--ctwpml-fingerprint);-webkit-mask-image:var(--ctwpml-fingerprint);mask-size:contain;-webkit-mask-size:contain;mask-repeat:no-repeat;-webkit-mask-repeat:no-repeat;mask-position:center;-webkit-mask-position:center}
+.ctwpml-login-icon [data-ctwpml-menu-label]{color:inherit!important;font:inherit!important}
+.ctwpml-login-icon:focus-visible{outline:2px solid currentColor!important;outline-offset:3px!important}
+.ctwpml-access-overlay[hidden],.ctwpml-access-overlay [hidden]{display:none!important}
+.ctwpml-access-overlay{position:fixed!important;inset:0!important;z-index:2147483200!important;display:grid!important;place-items:center!important;overflow-y:auto!important;padding:20px!important;background-color:rgba(15,23,42,.58)!important;box-sizing:border-box!important;color:#17242d!important;font:14px/1.5 system-ui,-apple-system,sans-serif!important}
+.ctwpml-access-overlay .ctwpml-access-dialog{width:100%;max-width:440px;max-height:calc(100dvh - 40px);overflow-y:auto;box-sizing:border-box;padding:22px;background-color:#fff!important;color:#17242d!important;border:1px solid #dce4ee!important;border-radius:16px!important;box-shadow:0 12px 46px #0f172a30!important;display:grid;gap:12px}
+.ctwpml-access-overlay h2{font-size:24px!important;line-height:1.2!important;letter-spacing:-.5px!important;font-weight:650!important;color:#17242d!important;margin:0 0 12px!important}
+.ctwpml-access-overlay p{color:#536879!important;font-size:14px!important;margin:0 0 12px!important}
+.ctwpml-access-overlay label{display:grid;gap:6px;margin:12px 0;color:#33495e!important;font-size:14px!important}
+.ctwpml-access-overlay input{box-sizing:border-box!important;width:100%!important;min-height:48px!important;padding:12px!important;border:1px solid #bdcddd!important;border-radius:8px!important;background-color:#fff!important;color:#17242d!important;font-size:16px!important;line-height:1.4!important}
+.ctwpml-access-overlay .ctwpml-passkey-primary,.ctwpml-access-overlay .ctwpml-passkey-primary:is(:hover,:focus,:active){display:block!important;width:100%!important;min-height:48px!important;padding:12px!important;background-color:#0075ff!important;border:1px solid #0075ff!important;border-radius:9px!important;color:#fff!important;font:600 15px/1.4 system-ui,-apple-system,sans-serif!important;box-shadow:none!important;opacity:1!important;cursor:pointer}
+.ctwpml-access-overlay .ctwpml-passkey-primary:disabled{opacity:.5!important;cursor:wait!important}
+.ctwpml-access-overlay .ctwpml-passkey-card{padding:16px!important;gap:10px!important;box-shadow:none!important}
+.ctwpml-access-overlay .ctwpml-passkey-card img{width:42px!important;height:42px!important}
+.ctwpml-early-page{background-color:#f3f6fa!important}
+.ctwpml-early-page [data-ctwpml-early-offer] img{animation:ctwpml-access-glow 2.3s ease-in-out infinite}
+.ctwpml-access-overlay :focus-visible{outline:3px solid #0063ce!important;outline-offset:3px!important}
+@keyframes ctwpml-access-glow{50%{filter:drop-shadow(0 0 5px #0075ff55);opacity:.75}}
+@media(prefers-reduced-motion:reduce){.ctwpml-early-page [data-ctwpml-early-offer] img{animation:none!important}}
+@media(max-width:380px){.ctwpml-access-overlay{padding:12px!important}.ctwpml-access-overlay .ctwpml-access-dialog{padding:17px;max-height:calc(100dvh - 24px)}}

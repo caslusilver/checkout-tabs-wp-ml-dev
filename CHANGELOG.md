@@ -2,6 +2,15 @@
 
 Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
+## [v3.4.17] - 2026-11-26
+
+- Login antecipado experimental por e-mail na aba Integrações, desligado por padrão. Ao ativar, oferece recuperar dados antes do endereço e apresenta Dados pessoais → Endereço no caminho manual; ao desligar, mantém a jornada anterior e o login/cadastro final.
+- Novo shortcode `[checkout_ml_login]` para os dois menus: fingerprint branco/Login ou azul/Logado, atualizado pela sessão real, com um diálogo compartilhado e tamanho ajustável de18–48px. Atributo `size` permite ajustar uma instância; funciona independentemente da opção experimental.
+- Recuperação “Perdeu sua senha? Clique aqui” usa o WordPress nativo em outra aba, inclusive no login final. Alternativa por senha reutiliza nonce, limite e política de reCAPTCHA do checkout, sem copiar os IDs do formulário existente.
+- Consulta por e-mail reutiliza a rota atual e emite vínculo temporário da conta/sessão para o acesso antecipado. E-mail não autentica; chave de outra conta e vínculo expirado são recusados antes do cookie. Chaves e provas permanecem no Secure Passkeys.
+- Após login antecipado, retoma o mesmo checkout, pede escolha entre vários endereços ou aplica endereço único completo antes de recalcular entrega. Endereço incompleto abre edição. Rascunhos antecipados da conta ficam separados dos visitantes; login tardio mantém a preservação anterior. Não confirma pedido ou pagamento por login.
+- Guia de instalação e rollback em `docs/login-antecipado-menu.md`; testes de servidor, DOM e Edge com autenticador virtual. Validação final de Elementor, PWA, Safari/iOS e navegador privado depende da instalação real.
+
 ## [v3.4.16] - 2026-11-26
 
 - Opção na aba Integrações para exigir/desativar reCAPTCHA no login e cadastro do checkout; preserva chaves e padrão ativo. A decisão é validada no servidor, sem desligamento por parâmetros do visitante. Nonce, POST, senha para conta existente e limite de tentativas continuam exigidos.

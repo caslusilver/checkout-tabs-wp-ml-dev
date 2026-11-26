@@ -220,6 +220,25 @@
     var CTWPML_AUTH_RESUME_KEY = 'ctwpml_auth_resume_v1';
     var CTWPML_FORM_STATE_KEY = 'ctwpml_ml_form_state_v1';
     var CTWPML_CONFIRMED_PHONE_KEY = 'ctwpml_confirmed_phone_v1';
+    // A recuperação antecipada usa rascunhos próprios da conta, preservando o rascunho visitante.
+    // Login tardio continua usando o caminho anterior; o sufixo não concede autenticação.
+    try {
+      var earlyScope = Number(state.params.early_login_enabled) === 1 ? String(state.params.early_login_scope || '') : '';
+      var earlyScopeKey = 'ctwpml_early_profile_scope';
+      if (!earlyScope) window.sessionStorage.removeItem(earlyScopeKey);
+      else {
+        var earlyScopeActive = new URL(window.location.href).searchParams.get('ctwpml_early_resume') === '1' || window.sessionStorage.getItem('ctwpml_early_profile_pending') === '1';
+        if (earlyScopeActive) { try { window.sessionStorage.setItem(earlyScopeKey, earlyScope); } catch (eScopeFull) {} }
+        window.sessionStorage.removeItem('ctwpml_early_profile_pending');
+        if (earlyScopeActive || window.sessionStorage.getItem(earlyScopeKey) === earlyScope) {
+          var earlySuffix = '_early_' + earlyScope;
+          CTWPML_MODAL_STATE_KEY += earlySuffix;
+          CTWPML_AUTH_RESUME_KEY += earlySuffix;
+          CTWPML_FORM_STATE_KEY += earlySuffix;
+          CTWPML_CONFIRMED_PHONE_KEY += earlySuffix;
+        }
+      }
+    } catch (eEarlyStorage) {}
     var CTWPML_ORDER_COMPLETED_TTL_MS = 5 * 60 * 1000;
     var CTWPML_CONFIRMED_PHONE_TTL_MS = 4 * 60 * 60 * 1000;
     var restoreStateOnOpen = null;
@@ -4556,6 +4575,15 @@
 
     function openModal(opts) {
       opts = opts || {};
+      if (!opts.skipEarlyLogin && !isLoggedIn() && window.CTWPML_EarlyLogin && window.CTWPML_EarlyLogin.offer(function (email) {
+        if (email) {
+          state.__ctwpmlEarlyEmail = email;
+          $('#billing_email, #ctwpml-input-email').val(email).trigger('change');
+          var earlyDraft = readFormSnapshot();
+          if (earlyDraft) { earlyDraft.email = email; saveFormSnapshot(earlyDraft); }
+        }
+        openModal(Object.assign({}, opts, { skipEarlyLogin: true, skipPasskeyOffer: true }));
+      })) return;
       if (!opts.skipPasskeyOffer && !isLoggedIn() && window.CTWPMLPasskeys && window.CTWPMLPasskeys.offer(function () {
         openModal(Object.assign({}, opts, { skipPasskeyOffer: true }));
       })) return;
@@ -4565,6 +4593,12 @@
       console.log('[CTWPML][DEBUG] openModal() - isLoggedIn:', isLoggedIn(), 'resumeAfterAuth:', !!resumeSnapshot);
 
       ensureModal();
+      var earlyResume = false;
+      try {
+        var earlyUrl = new URL(window.location.href);
+        earlyResume = isLoggedIn() && Number(state.params.early_login_enabled) === 1 && earlyUrl.searchParams.get('ctwpml_early_resume') === '1';
+        if (earlyResume) { earlyUrl.searchParams.delete('ctwpml_early_resume'); window.history.replaceState(window.history.state, '', earlyUrl.href); }
+      } catch (eEarly) {}
       // Garantir que o checkout Woo tenha um campo de bairro, mesmo quando o tema/plugin não renderiza.
       try { ensureWooNeighborhoodInputs(); } catch (e0) {}
       refreshFromCheckoutFields();
@@ -4714,6 +4748,18 @@
         var items = dedupeAddresses(addressesCache);
         state.log('UI        [DEBUG] openModal() - loadAddresses callback', { itemsLength: items.length, selectedAddressId: selectedAddressId }, 'UI');
         console.log('[CTWPML][DEBUG] openModal() - loadAddresses callback - items:', items.length, 'selectedAddressId:', selectedAddressId);
+
+        if (earlyResume) {
+          state.selectedShipping = null;
+          if (typeof state.checkpoint === 'function') state.checkpoint('CHK_EARLY_ADDRESSES_READY', true, { count: items.length });
+          if (items.length > 1) { selectedAddressId = null; showList(); renderAddressList(); return; }
+          if (items.length === 1) {
+            var earlyAddress = items[0]; selectedAddressId = earlyAddress.id;
+            if (!earlyAddress.address_1 || !earlyAddress.number || !earlyAddress.city || !earlyAddress.state || cepDigits(earlyAddress.cep).length !== 8) { showFormForEditAddress(selectedAddressId); return; }
+            applySelectedAddressToWooFields(selectedAddressId, 'early_login'); showShippingPlaceholder(); return;
+          }
+          showFormForNewAddress(); return;
+        }
 
         if (!items.length) {
           var restoreTarget = restoreStateOnOpen && restoreStateOnOpen.open ? String(restoreStateOnOpen.view || '') : '';
@@ -4876,6 +4922,10 @@
       // v3.2.13: Carregar CPF e WhatsApp do perfil (user_meta) para novo endereço
       initInternationalPhoneInput(); // v2.0 [2.3] (TomSelect + IMask)
       ctwpmlApplyFormSnapshot(readFormSnapshot());
+      if (state.__ctwpmlEarlyEmail && !isLoggedIn()) {
+        $('#ctwpml-input-email, #billing_email').val(state.__ctwpmlEarlyEmail).trigger('change');
+        state.__ctwpmlEarlyEmail = '';
+      }
       loadContactMeta();
       setFooterVisible(true);
       ctwpmlRestoreFormStep();
@@ -5427,16 +5477,27 @@
       return !!(status.cep && status.rua && status.numero && status.bairro && status.location && status.label);
     }
 
+    function ctwpmlFirstFormStep() {
+      return Number(state.params && state.params.early_login_enabled) === 1 ? 2 : 1;
+    }
+    function ctwpmlPersonalStepReady(status) { return !!(status.name && status.phone && status.cpf && status.email); }
+    function ctwpmlFirstStepReady(status) { return ctwpmlFirstFormStep() === 2 ? ctwpmlPersonalStepReady(status) : ctwpmlAddressStepReady(status); }
     function ctwpmlSetFormStep(step, focus) {
       currentFormStep = step === 2 ? 2 : 1;
+      var first = ctwpmlFirstFormStep(), last = first === 1 ? 2 : 1;
+      var second = currentFormStep === last;
+      var $address = $('#ctwpml-form-step-address'), $personal = $('#ctwpml-form-step-personal');
+      var $nav = $address.parent(), $line = $nav.find('.ctwpml-step-line');
+      $nav.append(first === 1 ? $address : $personal, $line, first === 1 ? $personal : $address);
       $('#ctwpml-form-address-fields').prop('hidden', currentFormStep !== 1);
       $('#ctwpml-form-personal-fields').prop('hidden', currentFormStep !== 2);
-      $('#ctwpml-form-step-address').attr('aria-current', currentFormStep === 1 ? 'step' : 'false').toggleClass('is-complete', currentFormStep === 2);
-      $('#ctwpml-form-step-personal').attr('aria-current', currentFormStep === 2 ? 'step' : 'false');
-      $('#ctwpml-form-step-address .ctwpml-step-number').text(currentFormStep === 2 ? '✓' : '1');
-      $('#ctwpml-form-step-title').text(currentFormStep === 1 ? 'Passo 1 de 2 · Seu endereço' : 'Passo 2 de 2 · Seus dados pessoais');
-      $('#ctwpml-btn-primary').text(currentFormStep === 1 ? 'Continuar para seus dados' : 'Salvar e continuar');
-      $('#ctwpml-btn-secondary').text(currentFormStep === 2 ? 'Voltar ao endereço' : 'Voltar');
+      $address.attr('aria-current', currentFormStep === 1 ? 'step' : 'false').toggleClass('is-complete', first === 1 && second);
+      $personal.attr('aria-current', currentFormStep === 2 ? 'step' : 'false').toggleClass('is-complete', first === 2 && second);
+      $address.find('.ctwpml-step-number').text(first === 1 ? (second ? '✓' : '1') : '2');
+      $personal.find('.ctwpml-step-number').text(first === 2 ? (second ? '✓' : '1') : '2');
+      $('#ctwpml-form-step-title').text('Passo ' + (second ? '2' : '1') + ' de 2 · ' + (currentFormStep === 1 ? 'Seu endereço' : 'Seus dados pessoais'));
+      $('#ctwpml-btn-primary').text(second ? 'Salvar e continuar' : first === 1 ? 'Continuar para seus dados' : 'Continuar para o endereço');
+      $('#ctwpml-btn-secondary').text(second ? first === 1 ? 'Voltar ao endereço' : 'Voltar aos seus dados' : 'Voltar');
       ctwpmlUpdateFormSaveState();
       if (focus) {
         $('.ctwpml-modal-body').scrollTop(0);
@@ -5445,24 +5506,21 @@
       }
       if (typeof state.checkpoint === 'function') state.checkpoint('CHK_FORM_STEP', true, { step: currentFormStep });
     }
-
     function ctwpmlAdvanceFormStep() {
-      var status = ctwpmlGetFormStatus();
-      if (!ctwpmlAddressStepReady(status)) {
-        ctwpmlSetFormStep(1, false);
-        var required = {cep:'#ctwpml-input-cep',rua:'#ctwpml-group-rua',numero:'#ctwpml-input-numero',bairro:'#ctwpml-group-bairro',location:'#ctwpml-input-cep',label:'#ctwpml-type-home'};
+      var status = ctwpmlGetFormStatus(), first = ctwpmlFirstFormStep();
+      if (!ctwpmlFirstStepReady(status)) {
+        ctwpmlSetFormStep(first, false);
+        var required = first === 1 ? {cep:'#ctwpml-input-cep',rua:'#ctwpml-group-rua',numero:'#ctwpml-input-numero',bairro:'#ctwpml-group-bairro',location:'#ctwpml-input-cep',label:'#ctwpml-type-home'} : {name:'#ctwpml-input-nome',phone:'#ctwpml-input-fone',cpf:'#ctwpml-input-cpf',email:'#ctwpml-input-email'};
         Object.keys(required).forEach(function (key) { if (!status[key]) setFieldError(required[key], true); });
-        showNotification('Confira seu endereço, número, bairro e tipo Casa/Trabalho. Se cidade/UF não carregaram, consulte o CEP novamente.', 'error', 5000);
+        showNotification(first === 1 ? 'Confira seu endereço, número, bairro e tipo Casa/Trabalho. Se cidade/UF não carregaram, consulte o CEP novamente.' : 'Confira nome completo, telefone, CPF e e-mail antes de continuar.', 'error', 5000);
         return false;
       }
-      ctwpmlSetFormStep(2, true);
-      return true;
+      ctwpmlSetFormStep(first === 1 ? 2 : 1, true); return true;
     }
-
     function ctwpmlRestoreFormStep() {
-      var draft = readFormSnapshot();
+      var draft = readFormSnapshot(), first = ctwpmlFirstFormStep(), last = first === 1 ? 2 : 1;
       var sameAddress = draft && String(draft.addressId || '') === String(selectedAddressId || '');
-      ctwpmlSetFormStep(sameAddress && draft.formStep === 2 && ctwpmlAddressStepReady(ctwpmlGetFormStatus()) ? 2 : 1, false);
+      ctwpmlSetFormStep(sameAddress && draft.formStep === last && ctwpmlFirstStepReady(ctwpmlGetFormStatus()) ? last : first, false);
     }
 
     function ctwpmlUpdateFormSaveState() {
@@ -7210,7 +7268,7 @@
         return;
       }
       if (currentView === 'form') {
-        if (currentFormStep === 2) { ctwpmlSetFormStep(1, true); return; }
+        if (currentFormStep !== ctwpmlFirstFormStep()) { ctwpmlSetFormStep(ctwpmlFirstFormStep(), true); return; }
         console.log('[CTWPML][DEBUG] - voltando de form para list');
         if (formDirty) {
           try {
@@ -7400,7 +7458,7 @@
       } catch (e2) {}
     });
     $(document).on('click', '#ctwpml-btn-secondary', function () {
-      if (currentView === 'form' && currentFormStep === 2) { ctwpmlSetFormStep(1, true); return; }
+      if (currentView === 'form' && currentFormStep !== ctwpmlFirstFormStep()) { ctwpmlSetFormStep(ctwpmlFirstFormStep(), true); return; }
       if ($('#ctwpml-view-form').is(':visible')) {
         if (formDirty) {
           try {
@@ -7432,13 +7490,13 @@
         showFormForNewAddress();
       }
     });
-    $(document).on('click', '#ctwpml-form-step-address', function () { ctwpmlSetFormStep(1, true); });
-    $(document).on('click', '#ctwpml-form-step-personal', function () { ctwpmlAdvanceFormStep(); });
+    $(document).on('click', '#ctwpml-form-step-address', function () { if (ctwpmlFirstFormStep() === 1) ctwpmlSetFormStep(1, true); else ctwpmlAdvanceFormStep(); });
+    $(document).on('click', '#ctwpml-form-step-personal', function () { if (ctwpmlFirstFormStep() === 2) ctwpmlSetFormStep(2, true); else ctwpmlAdvanceFormStep(); });
     $(document).on('click', '#ctwpml-btn-primary', function () {
       state.log('ACTION    Click #ctwpml-btn-primary', { isFormVisible: $('#ctwpml-view-form').is(':visible') }, 'ACTION');
       if ($('#ctwpml-view-form').is(':visible')) {
-        if (currentFormStep === 1) { ctwpmlAdvanceFormStep(); return; }
-        if (!ctwpmlAddressStepReady(ctwpmlGetFormStatus())) { ctwpmlAdvanceFormStep(); return; }
+        if (currentFormStep === ctwpmlFirstFormStep()) { ctwpmlAdvanceFormStep(); return; }
+        if (!ctwpmlFirstStepReady(ctwpmlGetFormStatus())) { ctwpmlAdvanceFormStep(); return; }
         if (!validateForm()) {
           state.log('ERROR     validateForm falhou (não salvou)', {}, 'ERROR');
           showNotification('Confira os campos destacados. Preencha seus dados novamente se estiverem vazios.', 'error', 5000);

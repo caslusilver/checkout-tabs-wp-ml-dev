@@ -193,6 +193,12 @@ function checkout_tabs_wp_ml_render_admin_page(): void {
 		echo '</td>';
 		echo '</tr>';
 		echo '<tr>';
+		echo '<th scope="row">Login antecipado (experimental)</th><td>';
+		echo '<input type="hidden" name="checkout_tabs_wp_ml_early_login_enabled" value="0" />';
+		echo '<label><input type="checkbox" name="checkout_tabs_wp_ml_early_login_enabled" value="1" '.(CTWPML_Early_Login::enabled()?'checked':'').' /> Começar pelo e-mail e oferecer recuperação dos dados salvos</label>';
+		echo '<p class="description">Desligado por padrão. Desmarque para voltar à ordem Endereço → Dados pessoais, mantendo o login final e as chaves. O shortcode dos menus funciona independentemente desta opção.</p></td></tr><tr>';
+		echo '<th scope="row">Tamanho do fingerprint</th><td><input type="range" min="18" max="48" step="1" name="checkout_tabs_wp_ml_login_icon_size" value="'.max(18,min(48,(int)get_option('checkout_tabs_wp_ml_login_icon_size',28))).'" oninput="this.nextElementSibling.value=this.value" /> <output>'.max(18,min(48,(int)get_option('checkout_tabs_wp_ml_login_icon_size',28))).'</output> px';
+		echo '<p class="description">Tamanho padrão do ícone em [checkout_ml_login]. Salve e recarregue para conferir; size="32" no shortcode ajusta uma instância.</p></td></tr><tr>';
 		echo '<th scope="row">Login com Google</th>';
 		echo '<td>';
 		echo '<label>';

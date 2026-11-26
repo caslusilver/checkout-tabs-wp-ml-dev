@@ -77,6 +77,12 @@ final class CTWPML_Passkeys {
         if (function_exists('ctwpml_migrate_guest_data_to_user')) ctwpml_migrate_guest_data_to_user((int)$user->ID);
     }
     public static function validate_checkout_identity($allowed, $user) {
+        if ($allowed && ($_POST['ctwpml_context']??'')==='checkout-early') {
+            $expected=class_exists('CTWPML_Early_Login')?CTWPML_Early_Login::ticket_user($_POST['ctwpml_early_ticket']??''):0;
+            if (!$expected) throw new \Exception('CHECKOUT_ACCOUNT_CONTEXT_MISSING');
+            if (!$user instanceof WP_User || (int)$user->ID!==$expected) throw new \Exception('CHECKOUT_ACCOUNT_MISMATCH');
+            return true;
+        }
         if (!$allowed || ($_POST['ctwpml_context'] ?? '')!=='checkout-late') return $allowed;
         $expected=function_exists('WC') && WC()->session ? (int)WC()->session->get('ctwpml_pk_expected_user',0) : 0;
         // E-mail orienta a conta esperada; somente a prova válida dessa conta pode retomar a compra.
@@ -112,7 +118,13 @@ final class CTWPML_Passkeys {
                 if ($order && (int)$order->get_customer_id()===get_current_user_id()) { $order->update_meta_data('_ctwpml_passkey_registered',$has ? 'yes' : 'no'); $order->save_meta_data(); }
             }
         }
-        wp_send_json_success(['nonce'=>wp_create_nonce(SECURE_PASSKEYS_NONCE), 'loggedIn'=>$logged, 'canRegister'=>$can, 'hasPasskeys'=>$has, 'usedPasskey'=>$logged && $session && (int)$session->get('ctwpml_pk_login_user',0)===get_current_user_id(), 'enrollmentSeen'=>$logged && $session && (int)$session->get('ctwpml_pk_enroll_user',0)===get_current_user_id()]);
+        $data=['nonce'=>wp_create_nonce(SECURE_PASSKEYS_NONCE), 'loggedIn'=>$logged, 'canRegister'=>$can, 'hasPasskeys'=>$has, 'usedPasskey'=>$logged && $session && (int)$session->get('ctwpml_pk_login_user',0)===get_current_user_id(), 'enrollmentSeen'=>$logged && $session && (int)$session->get('ctwpml_pk_enroll_user',0)===get_current_user_id()];
+        if (class_exists('CTWPML_Early_Login')) {
+            $keys=ctwpml_recaptcha_keys();
+            $data['checkEmailNonce']=wp_create_nonce('ctwpml_check_email');$data['loginNonce']=wp_create_nonce('ctwpml_login');
+            $data['recaptchaEnabled']=ctwpml_recaptcha_enabled();$data['recaptchaSiteKey']=ctwpml_recaptcha_enabled()?$keys['site_key']:'';
+        }
+        wp_send_json_success($data);
     }
     public static function handoff($result, $order_id) {
         if (!self::available() || !is_user_logged_in() || !function_exists('WC') || !WC()->session || ($result['result'] ?? '')!=='success') return $result;

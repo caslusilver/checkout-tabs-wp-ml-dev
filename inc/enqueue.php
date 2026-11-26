@@ -306,6 +306,8 @@ add_action('wp_enqueue_scripts', function () {
 		'cta_anim'   => 1,
 		'is_logged_in' => is_user_logged_in() ? 1 : 0,
 		'registration_enabled' => $registration_enabled ? 1 : 0,
+		'early_login_enabled' => CTWPML_Early_Login::enabled() ? 1 : 0,
+		'early_login_scope' => CTWPML_Early_Login::enabled() && is_user_logged_in() ? hash('sha256','ctwpml-early|'.get_current_user_id()) : '',
 		'guest_checkout_enabled' => $guest_checkout_enabled ? 1 : 0,
 		'registration_generate_password' => $registration_generate_password ? 1 : 0,
 		'registration_generate_username' => $registration_generate_username ? 1 : 0,
