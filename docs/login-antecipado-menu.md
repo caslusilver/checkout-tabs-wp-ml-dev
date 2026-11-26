@@ -1,5 +1,21 @@
 # Login antecipado por e-mail e fingerprint nos menus — v3.4.17
 
+## Computador sem histórico local — v3.4.21
+
+No PC, a conta pode ter uma chave salva somente no celular. Nesse caso, a consulta por e-mail sabe que a conta tem chave, mas não comprova que este navegador consegue usá-la. O acesso rápido entra com uma credencial existente; criar a credencial exige primeiro autenticar a conta correta.
+
+A entrada antecipada agora prioriza **Entrar e recuperar meus dados**, por senha, no dispositivo com mouse/hover sem o indicador local de uso bem-sucedido `ctwpml_passkey_used`. A mensagem explica: primeiro entre com sua senha; depois, poderá ativar o acesso rápido neste aparelho. O e-mail continua resumido, sem botão Continuar competindo. Quem já tem acesso disponível pode escolher **Já tenho acesso rápido neste aparelho** e então usar a chave. Mobile mantém a apresentação inicial anterior. Conta nova segue preenchimento/cadastro já existente.
+
+Não há detecção de guia anônima nem lista silenciosa das chaves do navegador. A ausência do indicador também pode significar armazenamento limpo/bloqueado ou outro navegador; sua presença pode estar desatualizada ou se referir a outra conta. É somente preferência visual, nunca prova, sessão ou dispensa de senha/WebAuthn. Não se afirma que é a primeira visita. Chaves sincronizadas ou em outro aparelho continuam utilizáveis pela escolha explícita do cliente; o site não determina onde o navegador salva a chave.
+
+Se o acesso rápido for cancelado, indisponível ou de outra conta, a oferta antecipada passa para senha preservando e-mail e vínculo. Vínculo ausente/expirado exige nova consulta pelo caminho existente. Senha correta → mesma página com sessão confirmada → convite já existente para ativar a chave → consentimento no aparelho → continuar compra. Senha incorreta não libera cadastro. Recuperação de senha, reCAPTCHA, limite, nonce e proprietário permanecem nos endpoints anteriores; não há associação de chave a uma conta pelo e-mail sozinho.
+
+A correção de rótulos únicos da 3.4.20 permanece: adicionar outra chave conserva os registros nativos e respeita o limite configurado. Neste teste, o usuário relatou que conseguiu salvar a chave no PC após entrar por senha; esse aceite valida esse percurso relatado, sem provar outras plataformas.
+
+Diagnóstico: `CHK_EARLY_DESKTOP_PASSWORD_FIRST`, `CHK_EARLY_KEY_SELECTED`, `CHK_EARLY_PASSWORD_FALLBACK`, além dos eventos de senha/cadastro já existentes. Sem e-mails ou provas nos logs. Validação local: preferência com/sem histórico/bloqueio, conta com chave, caminho opcional da chave, falha/conta divergente → senha, alteração de e-mail/vínculo, desktop com/sem chave na conta → senha incorreta/correta → cadastro criptográfico e regressão de duas chaves. Testar PIN/Face ID e comportamento real do gerenciador no PC após atualizar.
+
+Depois de merge/release, atualizar pelo Git Updater, develop. Teste: abrir checkout no PC sem histórico local → informar e-mail existente com chave no celular → Entrar e recuperar meus dados → senha → convite de ativação → criar acesso no PC. Confirmar que não abriu um seletor de chave antes do login por senha e que ambas as chaves continuam utilizáveis. Para escolher uma chave já acessível mesmo sem histórico local, usar a alternativa explícita. Rollback 3.4.20 restaura a apresentação anterior e preserva os cadastros nativos. A opção experimental continua podendo ser desativada nas Integrações; menu fingerprint e pagamentos não mudam.
+
 ## Cliente existente sem chave — v3.4.19
 
 Decisão do usuário: não permitir associar uma chave a uma conta apenas por digitar seu e-mail. Ele aprovou **login normal primeiro → recuperação dos dados → convite para cadastrar chave**, mantendo o preenchimento atual para cliente novo. Implementação e publicação em develop explicitamente autorizadas em26/11/2026.

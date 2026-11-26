@@ -44,6 +44,14 @@ test('unsupported browser preserves the existing checkout path',t=>{
  const c=setup(t);c.w.PublicKeyCredential=undefined;assert.equal(c.w.CTWPMLPasskeys.offer(()=>{}),false);assert.equal(c.d.querySelector('#ctwpml-passkey-entry').hidden,true);
 });
 
+test('desktop preference uses only a local presentation hint; absent/blocked history is never authentication',t=>{
+ const c=setup(t);c.w.matchMedia=()=>({matches:true});assert.equal(c.w.CTWPMLPasskeys.preferPassword(),true);
+ c.w.localStorage.setItem('ctwpml_passkey_used','1');assert.equal(c.w.CTWPMLPasskeys.preferPassword(),false);
+ c.w.localStorage.removeItem('ctwpml_passkey_used');c.w.matchMedia=()=>({matches:false});assert.equal(c.w.CTWPMLPasskeys.preferPassword(),false);
+ c.w.matchMedia=()=>({matches:true});Object.defineProperty(c.w,'localStorage',{get(){throw new Error('blocked');}});assert.equal(c.w.CTWPMLPasskeys.preferPassword(),true);
+ assert.equal(c.calls.length,0);assert.equal(c.credentials.length,0);assert.equal(c.w.ctwpmlPasskeyConfig.loggedIn,false);
+});
+
 test('anonymous browser without prior successful access goes directly to checkout without a passkey prompt', t=>{const c=setup(t);assert.equal(c.w.CTWPMLPasskeys.offer(()=>{}),false);assert.equal(c.d.querySelector('#ctwpml-passkey-entry').hidden,true);assert.equal(c.calls.length,0);});
 test('declining enrollment continues the pending checkout once and never registers a key',async t=>{
  const c=setup(t,{register:true,logged:true});let continued=0;

@@ -2,6 +2,12 @@
 
 Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
+## [v3.4.21] - 2026-11-26
+
+- Entrada antecipada no computador sem histórico local de acesso rápido prioriza senha, mesmo quando a conta tem chave cadastrada em outro aparelho. Após autenticar, mantém o convite de criar uma chave neste aparelho e a correção de múltiplos acessos da3.4.20. Não tenta criar credencial antes do login.
+- Quem já possui chave disponível pode escolher usar acesso rápido. Falha/cancelamento da chave oferece a entrada por senha, com e-mail preservado e explicação do cadastro posterior. Não detecta guia anônima nem inventaria chaves do navegador; histórico local orienta somente a interface. Mobile mantém a oferta anterior.
+- Sessão, vínculo da conta, senha/reCAPTCHA, recuperação e validações nativas preservados; sem mudança de pagamentos, dados ou configurações da loja. Guia/testes atualizados.
+
 ## [v3.4.20] - 2026-11-26
 
 - Cada cadastro de acesso rápido recebe nome único, sem dados pessoais. Corrige a colisão de “Acesso rapido” ao adicionar uma segunda chave na mesma conta; também funciona quando o motor usa nomes automáticos. Não substitui nem exclui chaves existentes.

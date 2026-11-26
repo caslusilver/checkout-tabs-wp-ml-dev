@@ -79,6 +79,8 @@
     }
     window.CTWPMLPasskeys = {
         supported,
+        // Preferência de apresentação, nunca prova da presença/ausência de uma chave ou da conta.
+        preferPassword: () => !!window.matchMedia?.('(hover: hover) and (pointer: fine)').matches && !remembered(),
         request: post,
         login: button => authenticate(button, false),
         isBusy: () => busy,
