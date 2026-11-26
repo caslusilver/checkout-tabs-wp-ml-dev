@@ -10,7 +10,7 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 - Rascunho de formulário não é sobrescrito por telas limpas no reload/login; retomada de edição restaura o endereço e seus campos, incluindo número/complemento. Cupons da sessão anterior à autenticação são reaplicados com validação do WooCommerce.
 - Rodapé mobile acompanha scroll da janela e do contêiner, oculta completamente no topo e inclui fundo opaco/área segura. Pix recebe contorno e pulso na seta, respeitando redução de movimento. Conferência bloqueada explica a verificação e oferece revisar sem ignorar validações.
 - Diagnóstico de autenticação por etapa no Debug do checkout e motivo técnico restrito em WooCommerce Logs (ctwpml-auth), sem provas, chaves ou dados pessoais. Falha específica do PC ainda exige teste real com logs; não atribuída automaticamente à guia anônima.
-- Formulário em duas etapas permanece em prévia para aceite. Rollback3.4.12 preserva motor/chaves, pedidos e configurações anteriores.
+- Formulário aprovado em dois passos com timeline numerada:1 Endereço e2 Dados pessoais, check de conclusão, retorno sem perder campos e retomada do passo por endereço. Valida endereço antes de avançar; salvamento e validação final continuam no fluxo existente. Rollback3.4.12 preserva motor/chaves, pedidos e configurações anteriores.
 
 ## [v3.4.12] - 2026-11-26
 
