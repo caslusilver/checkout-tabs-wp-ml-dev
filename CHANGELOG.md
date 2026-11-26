@@ -2,6 +2,13 @@
 
 Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
+## [v3.4.15] - 2026-11-26
+
+- Acesso rápido de outra conta, chave ausente ou desativada agora explica a recusa e libera o formulário existente de e-mail/senha, preservando o preenchimento. Cadastro de uma nova chave permanece disponível somente após autenticar a conta correta; nunca é disparado por falha no login.
+- Identificação da compra é renovada pelo endpoint de e-mail com nonce antes da tentativa tardia de passkey. Sessão WooCommerce recebe cookie e gravação explícita antes da resposta, sem autenticar por e-mail ou expor identificadores de conta. Sessão sem identificação e conta divergente têm motivos distintos no diagnóstico.
+- Voltar remove a sobreposição de autenticação antes de mostrar a etapa anterior. Diálogo prioritário inclui Voltar para conferir meus dados; navegação aguarda uma tentativa em andamento para não deixar autenticação concluir fora da tela.
+- Falhas de acesso são registradas como falhas nos checkpoints; mensagens técnicas arbitrárias do motor não são exibidas. Sem alteração no motor Secure Passkeys, credenciais, pedidos ou pagamentos. Rollback3.4.14 mantém todos os registros existentes.
+
 ## [v3.4.14] - 2026-11-26
 
 - Tentativa de passkey local no gesto do carrinho para checkout, usando Immediate UI quando a capacidade é suportada e as opções estão preparadas. Ausência, modo privado, cancelamento ou rejeição seguem ao checkout sem erro visível nem autenticação presumida; não repetem a oferta inicial nessa navegação.

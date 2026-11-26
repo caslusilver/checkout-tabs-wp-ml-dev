@@ -1235,6 +1235,9 @@
         var googleEnabled = !!(state.params && Number(state.params.google_login_enabled || 0) === 1);
         var $auth = $('#ctwpml-view-auth');
         var $popup = $auth.find('.ctwpml-login-popup').first();
+        $popup.attr('data-ctwpml-expected-email', email);
+        $popup.find('.ctwpml-passkey-message').empty();
+        $popup.find('[data-ctwpml-passkey-login]').text('Entrar com acesso rápido');
         var $form = $auth.find('#ctwpml-auth-form').first();
         var passkeyFirst = mode === 'login' && opts.authMethod === 'passkey' && !!(window.CTWPMLPasskeys && window.CTWPMLPasskeys.supported());
         $popup.toggleClass('ctwpml-passkey-first', passkeyFirst);
@@ -7148,6 +7151,7 @@
       // initial → fecha modal (ou history.back quando for fullscreen)
 
       if (currentView === 'auth') {
+        if (window.CTWPMLPasskeys && window.CTWPMLPasskeys.isBusy()) return;
         var returnView = '';
         try {
           returnView = String(state.__ctwpmlAuthReturnView || '');
@@ -7163,6 +7167,8 @@
         if (typeof state.checkpoint === 'function') {
           state.checkpoint('CHK_AUTH_BACK_RETURN', true, { returnView: returnView });
         }
+        // Não recriar/limpar os campos: remover a sobreposição antes de exibir a etapa anterior.
+        $('#ctwpml-view-auth').hide().find('.ctwpml-login-popup').removeClass('ctwpml-passkey-first').removeAttr('aria-modal');
         if (returnView === 'payment') {
           showPaymentScreen();
           return;

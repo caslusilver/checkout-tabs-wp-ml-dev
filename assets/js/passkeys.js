@@ -9,7 +9,7 @@
     function trace(event, outcome) {
         const state = window.CCCheckoutTabsState;
         const data = { event, outcome: outcome || 'ok', elapsedMs: Math.round(performance.now() - traceStart) };
-        if (state?.checkpoint) state.checkpoint('CHK_PASSKEY_' + event, outcome !== 'error', data);
+        if (state?.checkpoint) state.checkpoint('CHK_PASSKEY_' + event, !event.endsWith('_ERROR') && event !== 'HTTP_REJECTED' && outcome !== 'error', data);
         if (config.debug || window.cc_params?.debug) console.info('[CTWPML][PASSKEY]', data);
     }
     function remembered() { try { return localStorage.getItem('ctwpml_passkey_used') === '1'; } catch (_) { return false; } }
@@ -29,7 +29,12 @@
             const response = await fetch(config.ajax, { method: 'POST', credentials: 'same-origin', cache: 'no-store', body, signal: controller.signal });
             const result = await response.json();
             trace('REQUEST_RESULT', action + ':' + response.status + ':' + !!result.success);
-            if (!response.ok || !result.success) { trace('HTTP_REJECTED', String(response.status)); throw new Error('request_failed'); }
+            if (!response.ok || !result.success) {
+                trace('HTTP_REJECTED', String(response.status));
+                // Só os motivos fixos emitidos pelo adaptador são apresentados; nunca ecoar erros arbitrários.
+                const code = action === 'secure_passkeys_frontend_login' && Object.keys(config.loginErrors || {}).find(key => result.data === config.loginErrors[key]);
+                throw new Error(code || 'request_failed');
+            }
             return result.data;
         } finally { clearTimeout(timeout); }
     }
@@ -63,6 +68,7 @@
     }
     window.CTWPMLPasskeys = {
         supported,
+        isBusy: () => busy,
         beforeCheckout(next) {
             if (!config.checkout || !config.loggedIn || inviteFinished || !document.querySelector('#ctwpml-passkey-enroll')) return false;
             afterInvite = next; openInvite(); return true;
@@ -84,13 +90,22 @@
         const card = button.closest('.ctwpml-passkey-card') || button.parentElement;
         if (!supported()) { showMessage(card, 'Este navegador não oferece acesso rápido. Entre de outra forma.'); return; }
         busy = true; trace(create ? 'REGISTER_START' : 'LOGIN_START');
-        const buttons = Array.from(document.querySelectorAll('[data-ctwpml-passkey-login], [data-ctwpml-passkey-register], [data-ctwpml-passkey-skip], [data-ctwpml-passkey-dismiss], [data-ctwpml-passkey-password]'));
+        const buttons = Array.from(document.querySelectorAll('[data-ctwpml-passkey-login], [data-ctwpml-passkey-register], [data-ctwpml-passkey-skip], [data-ctwpml-passkey-dismiss], [data-ctwpml-passkey-password], [data-ctwpml-passkey-back]'));
         buttons.forEach(element => { element.disabled = true; });
         showMessage(card, 'Confirme no seu aparelho…');
+        let recoveryFocus = null;
         try {
             const context = await post('ctwpml_passkey_context');
             if (!create && context.loggedIn) { returnToPage(); return; }
             if (create && (!context.loggedIn || !context.canRegister)) throw new Error('session_changed');
+            if (!create && config.checkout && button.closest('#ctwpml-view-auth')) {
+                const email = button.closest('.ctwpml-login-popup')?.dataset.ctwpmlExpectedEmail;
+                if (!email || !config.checkEmailNonce) throw new Error('CHECKOUT_ACCOUNT_CONTEXT_MISSING');
+                // Renova a identificação pelo e-mail do checkout antes de pedir a prova, sem autenticar por e-mail.
+                const route = await post('ctwpml_check_email', { _ajax_nonce: config.checkEmailNonce, email });
+                if (!route.exists) throw new Error('CHECKOUT_ACCOUNT_CONTEXT_MISSING');
+                trace('ACCOUNT_CONTEXT_READY');
+            }
             trace('CONTEXT_READY');
             const options = await post(create ? 'secure_passkeys_frontend_get_register_options' : 'secure_passkeys_frontend_get_login_options', { nonce: context.nonce });
             const controller = new AbortController();
@@ -125,12 +140,18 @@
             }
             else returnToPage();
         } catch (error) {
-            trace(create ? 'REGISTER_ERROR' : 'LOGIN_ERROR', ['NotAllowedError','AbortError','SecurityError','InvalidStateError','NotSupportedError'].includes(error.name) ? error.name : 'request_failed');
+            const accountError = !create && config.loginErrors?.[error.message];
+            trace(create ? 'REGISTER_ERROR' : 'LOGIN_ERROR', accountError ? error.message : ['NotAllowedError','AbortError','SecurityError','InvalidStateError','NotSupportedError'].includes(error.name) ? error.name : 'request_failed');
             if (!create) { const popup = button.closest('.ctwpml-login-popup'); popup?.classList.remove('ctwpml-passkey-first'); popup?.removeAttribute('aria-modal'); }
             const cancelled = ['NotAllowedError', 'AbortError'].includes(error.name) || error.message === 'cancelled';
-            showMessage(card, cancelled ? 'Acesso cancelado ou chave indisponível. Você pode tentar novamente ou continuar de outra forma.' :
-                create ? 'Não foi possível salvar o acesso. Sua compra pode continuar normalmente.' : 'Não foi possível entrar. Tente novamente ou entre de outra forma.');
-        } finally { busy = false; buttons.forEach(element => { element.disabled = false; }); }
+            showMessage(card, accountError || (cancelled ? 'Acesso cancelado ou chave indisponível. Você pode tentar novamente ou continuar de outra forma.' :
+                create ? 'Não foi possível salvar o acesso. Sua compra pode continuar normalmente.' : 'Não foi possível entrar. Tente novamente ou entre de outra forma.'));
+            if (accountError) {
+                button.textContent = 'Usar outra chave';
+                const popup = button.closest('.ctwpml-login-popup');
+                recoveryFocus = error.message === 'CHECKOUT_ACCOUNT_CONTEXT_MISSING' ? popup?.querySelector('[data-ctwpml-passkey-back]') : popup?.querySelector('#ctwpml-login-password');
+            }
+        } finally { busy = false; buttons.forEach(element => { element.disabled = false; }); recoveryFocus?.focus(); }
     }
     document.addEventListener('click', event => {
         const login = event.target.closest('[data-ctwpml-passkey-login]');
@@ -146,6 +167,10 @@
         if (event.target.closest('[data-ctwpml-passkey-skip]')) { event.preventDefault(); closeEntry(); }
         const dismiss = event.target.closest('[data-ctwpml-passkey-dismiss]');
         if (dismiss && !busy) finishInvite(dismiss);
+        if (event.target.closest('[data-ctwpml-passkey-back]')) {
+            event.preventDefault();
+            if (!busy) document.getElementById('ctwpml-modal-back')?.click();
+        }
     });
     document.addEventListener('keydown', event => {
         const enrollment = document.getElementById('ctwpml-passkey-enroll');
