@@ -3,13 +3,13 @@ const source=readFileSync('assets/js/early-login.js','utf8');
 const php=process.env.VAULT_PHP;
 const result=spawnSync(php,['tests/early-login.test.php','--markup'],{encoding:'utf8'});assert.equal(result.status,0,result.stderr+result.stdout);
 const until=async predicate=>{for(let i=0;i<200&&!predicate();i++)await new Promise(r=>setTimeout(r,5));assert.ok(predicate());};
-function setup(t,{enabled=true,method='passkey',ticket='fixture-route',defer=false}={}){
+function setup(t,{enabled=true,method='passkey',exists=true,ticket='fixture-route',defer=false}={}){
  const dom=new JSDOM(result.stdout,{url:'https://shop.example.test/checkout/',runScripts:'outside-only',pretendToBeVisual:true});t.after(()=>dom.window.close());
  const w=dom.window,d=w.document,calls=[];let logged=false,resolver;
  w.ctwpmlEarlyLoginConfig={enabled,checkout:true,account:'/account/'};w.ctwpmlPasskeyConfig={loggedIn:false};
  w.CTWPMLPasskeys={isBusy:()=>false,supported:()=>true,request:async(action,data)=>{
   calls.push({action,data});if(action==='ctwpml_passkey_context')return {loggedIn:logged,checkEmailNonce:'fresh-email',loginNonce:'fresh-login',recaptchaEnabled:false};
-  if(action==='ctwpml_check_email'){if(defer)return new Promise(resolve=>{resolver=resolve});return {auth_method:method,ticket};}
+  if(action==='ctwpml_check_email'){if(defer)return new Promise(resolve=>{resolver=resolve});return {exists:exists?1:0,auth_method:method,ticket};}
   if(action==='ctwpml_login'){logged=true;return {ok:true};}throw new Error('unexpected action');
  }};w.eval(source);
  return {w,d,calls,logged:value=>{logged=value},resolve:value=>resolver(value)};
@@ -82,19 +82,36 @@ test('editing email removes the previous route and requires explicit Consultar b
  assert.equal(c.d.querySelector('[data-ctwpml-early-email-value]').textContent,'second@example.test');
 });
 test('no key, unavailable ticket and disabled option keep the normal purchase path',async t=>{
- for(const options of [{method:'password',ticket:''},{method:'passkey',ticket:''}]){
+ for(const options of [{method:'password',exists:false,ticket:''},{method:'passkey',ticket:''}]){
   const c=setup(t,options);let continued=false;c.w.CTWPML_EarlyLogin.offer(()=>continued=true);c.d.querySelector('#ctwpml-early-email').value='new@example.test';
   c.d.querySelector('#ctwpml-early-email-form').dispatchEvent(new c.w.Event('submit',{bubbles:true,cancelable:true}));await until(()=>continued);
   assert.equal(c.d.querySelector('[data-ctwpml-early-offer]').hidden,true);
  }
  const c=setup(t,{enabled:false});assert.equal(c.w.CTWPML_EarlyLogin.offer(()=>assert.fail()),false);
 });
+test('existing account without a key offers bound password login; lookup never authenticates or registers',async t=>{
+ const c=setup(t,{method:'password'});let continued=false;c.w.CTWPML_EarlyLogin.offer(()=>continued=true);
+ const input=c.d.querySelector('#ctwpml-early-email');input.value='fixture@example.test';
+ c.d.querySelector('#ctwpml-early-email-form').dispatchEvent(new c.w.Event('submit',{bubbles:true,cancelable:true}));
+ await until(()=>!c.d.querySelector('[data-ctwpml-early-existing]').hidden);
+ assert.equal(continued,false);assert.equal(c.d.querySelector('#ctwpml-early-email-form').hidden,true);assert.equal(c.d.querySelector('[data-ctwpml-early-offer]').hidden,true);
+ assert.ok(c.calls.every(v=>['ctwpml_passkey_context','ctwpml_check_email'].includes(v.action)));
+ c.d.querySelector('[data-ctwpml-early-existing-login]').click();await until(()=>!c.d.querySelector('#ctwpml-menu-password-form').hidden);
+ assert.equal(c.d.querySelector('#ctwpml-menu-password-form [name="email"]').value,'fixture@example.test');
+ assert.equal(c.d.querySelector('#ctwpml-menu-access .ctwpml-passkey-card').hidden,true);
+ assert.equal(c.d.activeElement,c.d.querySelector('#ctwpml-menu-password-form [name="password"]'));
+ assert.equal(c.calls.some(v=>v.action.includes('register')||v.action==='ctwpml_login'),false);
+ c.d.querySelector('[data-ctwpml-access-close]').click();assert.equal(c.d.querySelector('[data-ctwpml-early-existing]').hidden,false);
+ c.d.querySelector('[data-ctwpml-early-edit]').click();assert.equal(c.d.querySelector('[data-ctwpml-early-existing]').hidden,true);
+ assert.equal(input.value,'fixture@example.test');
+ c.d.querySelector('[data-ctwpml-early-manual]').click();assert.equal(continued,true);
+});
 test('changing email or continuing manually invalidates pending lookup; expired route requires renewal',async t=>{
  const c=setup(t,{defer:true});let continued='';c.w.CTWPML_EarlyLogin.offer(email=>continued=email);
  c.d.querySelector('#ctwpml-early-email').value='first@example.test';c.d.querySelector('#ctwpml-early-email-form').dispatchEvent(new c.w.Event('submit',{bubbles:true,cancelable:true}));
  await until(()=>c.calls.some(v=>v.action==='ctwpml_check_email'));
  c.d.querySelector('#ctwpml-early-email').value='second@example.test';c.d.querySelector('#ctwpml-early-email').dispatchEvent(new c.w.Event('input',{bubbles:true}));
- c.d.querySelector('[data-ctwpml-early-manual]').click();c.resolve({auth_method:'passkey',ticket:'stale-route'});await new Promise(r=>setTimeout(r,20));
+ c.d.querySelector('[data-ctwpml-early-manual]').click();c.resolve({exists:1,auth_method:'passkey',ticket:'stale-route'});await new Promise(r=>setTimeout(r,20));
  assert.equal(continued,'second@example.test');assert.equal(c.d.querySelector('[data-ctwpml-early-offer]').hidden,true);
  const another=setup(t);another.w.CTWPML_EarlyLogin.offer(()=>{});another.d.querySelector('#ctwpml-early-email').value='fixture@example.test';another.d.querySelector('#ctwpml-early-email-form').dispatchEvent(new another.w.Event('submit',{bubbles:true,cancelable:true}));
  await until(()=>!another.d.querySelector('[data-ctwpml-early-offer]').hidden);
