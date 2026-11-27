@@ -75,6 +75,8 @@ Toda mudança de comportamento, PHP, JavaScript, CSS, template, configuração o
 
 O CSS do plugin deve vencer conflitos do WordPress, Elementor, tema e estilos inline do site quando a interface do plugin exigir aparência estável.
 
+Regra permanente para qualquer entrega: ao definir uma cor, definir também o contraste correspondente explicitamente no componente. Não depender somente da cor herdada do contêiner. Proteger textos, labels (como Buscar/Envio/Aparelho), opções de select, placeholders, botões, seus filhos/ícones e pseudo-elementos contra as cores globais do Elementor, inclusive `-webkit-text-fill-color`. Usar o ID/classe específica do componente e `!important` nas cores críticas; cobrir normal, hover, foco, ativo, selecionado e desabilitado. Validar com CSS conflitante de Elementor/tema carregado depois do asset, antes e após AJAX, sem recolorir o restante do site.
+
 - Sempre escopar os seletores ao contêiner do plugin, como `.painel-empacotamento`, ou ao componente específico.
 - Usar especificidade suficiente e `!important` nas propriedades que precisam de prioridade absoluta, principalmente `background-color`, `color`, `border`, `opacity`, `box-shadow` e regras de pseudo-elementos.
 - Forçar também o estado `:hover`, `:focus`, `:active` e o ícone interno quando o componente puder ser sobrescrito.

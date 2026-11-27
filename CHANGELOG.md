@@ -2,6 +2,12 @@
 
 Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
+## [v3.4.23] - 2026-11-27
+
+- Contraste explícito na Recuperação para textos, labels Buscar/Envio/Aparelho, campos/opções, placeholders, botões e ícones. Seletores pelo ID do componente, cores prioritárias e estados de interação preservam a paleta diante de estilos globais do Elementor, incluindo text-fill.
+- Pagamentos Pendentes do PackPanel agora exibe o Pix formatado com botão **Copiar Pix** e o ícone de cópia já utilizado no painel. Reaproveita o handler delegado existente, preserva o payload exato e funciona após atualização AJAX; código ausente mantém botão desabilitado.
+- Regra de contraste reforçada no AGENTS.md para futuras entregas. Sem mudança na cobrança, nas permissões ou no rastreio.
+
 ## [v3.4.22] - 2026-11-27
 
 - Complemento aprovado antes do merge: Pix copia e cola sob demanda nos detalhes da recuperação e no quadro lateral do pedido WooCommerce (clássico/HPOS). Reaproveita o código preservado pelo gateway sem mudar maiúsculas/minúsculas, sem gerar cobrança e sem incluí-lo em logs. Leitor do PackPanel passa a aceitar o metadado JSON. Cópia assistida somente para pedido pendente/em espera.

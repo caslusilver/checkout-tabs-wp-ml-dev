@@ -11,3 +11,19 @@
 .ctwpml-recovery dialog{max-width:min(560px,calc(100% - 32px));max-height:85dvh;overflow:auto;border:1px solid var(--cr-line);border-radius:14px;padding:24px;color:var(--cr-ink);background:#fff;box-shadow:0 10px 40px #0003}.ctwpml-recovery dialog::backdrop{background:#0007}.ctwpml-recovery-login{max-width:500px}.ctwpml-recovery-login>a{display:block;margin-top:16px}.ctwpml-recovery [data-notice]{color:#0054b8!important;min-height:24px}
 @media(max-width:800px){.ctwpml-recovery{margin:10px auto;padding:16px;border-radius:10px}.ctwpml-recovery .cr-metrics{grid-template-columns:1fr 1fr;gap:8px}.ctwpml-recovery .cr-metrics>div{padding:12px}.ctwpml-recovery .cr-row{grid-template-columns:20px 1fr auto;gap:9px;padding:12px}.ctwpml-recovery .cr-row>div:nth-of-type(2){grid-column:2}.ctwpml-recovery .cr-row>div:nth-of-type(3){grid-column:3;grid-row:2}.ctwpml-recovery .cr-row>button{grid-column:2/-1}.ctwpml-recovery .cr-detail{grid-template-columns:1fr;gap:14px;padding:12px}.ctwpml-recovery select{max-width:100%}.ctwpml-recovery .cr-toolbar label{max-width:100%}.ctwpml-recovery .cr-toolbar input{width:100%}}
 @media(pointer:coarse){.ctwpml-recovery button,.ctwpml-recovery select,.ctwpml-recovery .cr-button,.ctwpml-recovery label{min-height:44px}.ctwpml-recovery input:not([type=checkbox]){font-size:16px!important}}
+
+/* Explicit component palette: Elementor may color each child, not only the root. */
+#ctwpml-recovery.ctwpml-recovery :where(label,legend,p,strong,span,small,h1,h2,h3,li,th,td){color:var(--cr-ink)!important;-webkit-text-fill-color:currentColor!important;opacity:1!important}
+#ctwpml-recovery.ctwpml-recovery :where(button,.cr-button,select,option,input:not([type=checkbox]),textarea){background-color:#fff!important;color:var(--cr-ink)!important;-webkit-text-fill-color:currentColor!important;border-color:var(--cr-line)!important;opacity:1!important}
+#ctwpml-recovery.ctwpml-recovery :where(button,.cr-button,select):is(:hover,:focus,:active){background-color:#eaf3ff!important;color:#0050ae!important;border-color:#0066df!important;opacity:1!important}
+#ctwpml-recovery.ctwpml-recovery :where(button,.cr-button) :where(span,.dashicons,.dashicons::before){color:inherit!important;-webkit-text-fill-color:currentColor!important;opacity:1!important}
+#ctwpml-recovery.ctwpml-recovery :where(input,textarea)::placeholder{color:var(--cr-muted)!important;-webkit-text-fill-color:currentColor!important;opacity:1!important}
+#ctwpml-recovery.ctwpml-recovery :where(.cr-muted,small,.cr-brand,.cr-brand span,.cr-metrics span){color:var(--cr-muted)!important}
+#ctwpml-recovery.ctwpml-recovery .cr-primary,#ctwpml-recovery.ctwpml-recovery .cr-primary:is(:hover,:focus,:active){background-color:#0066df!important;color:#fff!important;border-color:#0066df!important}
+#ctwpml-recovery.ctwpml-recovery .cr-primary :where(span,.dashicons,.dashicons::before){color:#fff!important}
+#ctwpml-recovery.ctwpml-recovery .cr-tabs [aria-pressed=true]{background-color:#eaf3ff!important;color:#0054b8!important;border-color:#0066df!important}
+#ctwpml-recovery.ctwpml-recovery .cr-badge{background-color:#fff2d8!important;color:#805000!important}
+#ctwpml-recovery.ctwpml-recovery .cr-done{background-color:#e6f7ee!important;color:#146341!important}
+#ctwpml-recovery.ctwpml-recovery [data-notice]{color:#0054b8!important}
+#ctwpml-recovery.ctwpml-recovery :where(button,select):disabled:is(:disabled,:hover,:focus,:active){background-color:#f0f3f7!important;color:#536476!important;border-color:#dbe3ed!important;opacity:1!important;cursor:not-allowed}
+#ctwpml-recovery.ctwpml-recovery :where(button,select):disabled:is(:disabled,:hover,:focus,:active) :where(span,.dashicons,.dashicons::before){color:#536476!important}

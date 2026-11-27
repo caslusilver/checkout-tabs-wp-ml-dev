@@ -39,7 +39,7 @@ let events=[],mutations=0;
     await route.fulfill({contentType:'application/json',body:JSON.stringify({success:true,data})});return;
    }
    if(url.pathname==='/recuperacao/'){
-    await route.fulfill({contentType:'text/html',body:'<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>button{background:transparent!important;color:pink!important;opacity:.1!important}'+css+'</style>'+markup.stdout+'<script>ctwpmlRecoveryAdmin={url:"/ajax",nonce:"fixture-admin"}</script><script>'+admin+'</script>'});return;
+    await route.fulfill({contentType:'text/html',body:'<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>'+css+'</style><style>body.elementor-kit-test .elementor-element :is(label,p,strong,span,small,h1,h2,button,input,select,option,textarea){color:white!important;-webkit-text-fill-color:white!important}body.elementor-kit-test .elementor-element :is(button,select,input,textarea){background:white!important;opacity:.1!important}body.elementor-kit-test .elementor-element input::placeholder{color:white!important;-webkit-text-fill-color:white!important}</style><body class="elementor-kit-test"><div class="elementor-element">'+markup.stdout+'</div><script>ctwpmlRecoveryAdmin={url:"/ajax",nonce:"fixture-admin"}</script><script>'+admin+'</script>'});return;
    }
    await route.fulfill({contentType:'text/html',body:'<!doctype html><meta charset="utf-8"><script>'+jquery+'</script><script>ctwpmlRecoveryCapture={url:"/ajax",nonce:"fixture-public",version:"3.4.22",checkout:'+String(url.pathname==='/checkout/')+'}</script><script>'+capture+'</script><form class="checkout"><input id="ctwpml-input-email" value="fixture@example.test"><input type="password" value="fixture-password"><button type="button" id="ctwpml-review-confirm">Confirmar</button></form>'});
   });
@@ -47,6 +47,13 @@ let events=[],mutations=0;
   for(const width of [320,390,768,1280]){
    await page.setViewportSize({width,height:900});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
    assert.equal(await page.locator('[data-refresh]').evaluate(n=>getComputedStyle(n).opacity),'1');
+   for(const selector of ['[data-search-form] label','.cr-toolbar label','select','input[data-search]']){
+    const node=page.locator(selector).first();if(await node.count())assert.equal(await node.evaluate(n=>getComputedStyle(n).color),'rgb(27, 41, 58)');
+   }
+   for(const label of await page.locator('[data-search-form] label').all()){
+    assert.equal(await label.evaluate(n=>getComputedStyle(n).color),'rgb(27, 41, 58)');
+    assert.equal(await label.evaluate(n=>getComputedStyle(n).webkitTextFillColor),'rgb(27, 41, 58)');
+   }
   }
   await page.locator('[data-view]').selectOption('kanban');await page.locator('.cr-board').waitFor();
   if(process.env.RECOVERY_SCREENSHOT)await page.screenshot({path:process.env.RECOVERY_SCREENSHOT,fullPage:true});
@@ -61,6 +68,8 @@ let events=[],mutations=0;
   await page.evaluate(()=>Object.defineProperty(navigator,'clipboard',{value:{writeText:async text=>{window.fixtureCopied=text;}}}));
   await page.locator('[data-case-id="1"]').getByRole('button',{name:'Copiar logs',exact:true}).click();await page.waitForFunction(()=>!!window.fixtureCopied);
   assert.equal((await page.evaluate(()=>fixtureCopied)).includes('fixture@example.test'),false);
+  // Earlier mutations reload the list; direct label colors must survive those AJAX updates.
+  assert.equal(await page.locator('[data-search-form] label').first().evaluate(n=>getComputedStyle(n).color),'rgb(27, 41, 58)');
   await page.locator('[data-case-id="1"]').getByRole('button',{name:'Pix copia e cola',exact:true}).click();await page.locator('dialog[open]').waitFor();
   await page.locator('dialog').getByRole('button',{name:'Copiar Pix',exact:true}).click();assert.equal(await page.evaluate(()=>fixtureCopied),'000201BR.GOV.BCB.PIXabcABC6304FFFF');
   await page.locator('dialog button[value="confirm"]').click();

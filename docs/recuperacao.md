@@ -1,5 +1,7 @@
 # Recuperação — versão 3.4.22
 
+Atualização 3.4.23: contraste protegido explicitamente nos textos/controles, mesmo com cores globais do Elementor; em **PackPanel → Pagamentos Pendentes**, o código agora tem botão **Copiar Pix** com ícone, usando o mesmo comportamento de cópia das fichas do painel. A mudança anterior disponibilizava o botão na edição WooCommerce, mas ainda não no cartão de pendentes do PackPanel. O ícone é restaurado após o feedback e o handler delegado funciona em cartões substituídos por AJAX.
+
 ## Instalar a página
 
 1. Atualize o plugin para a versão 3.4.22, após integrar o PR em `develop`.

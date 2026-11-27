@@ -504,9 +504,15 @@ if (PPWOO_Config::is_debug()) {
                                 <p><strong><?php esc_html_e('Total Frete', 'painel-empacotamento'); ?>:</strong> <?php echo wc_price($order->get_shipping_total()); ?></p>
                             </div>
 
-                            <div class="order-address">
-                                <h4><?php esc_html_e('Pix (identificador)', 'painel-empacotamento'); ?>:</h4>
-                                <p class="pix-to-copy"><?php echo esc_html($pix_identifier); ?></p>
+                            <div class="order-address ppwoo-pix-copy">
+                                <h4><?php esc_html_e('Pix copia e cola', 'painel-empacotamento'); ?></h4>
+                                <div class="ppwoo-pix-copy-row">
+                                    <p class="pix-to-copy"><?php echo esc_html($pix_identifier !== '' ? $pix_identifier : __('Pix ainda não disponível neste pedido.', 'painel-empacotamento')); ?></p>
+                                    <button type="button" class="copy-button ppwoo-copy-value ppwoo-copy-pix" data-copy-value="<?php echo esc_attr($pix_identifier); ?>" title="<?php esc_attr_e('Copiar Pix', 'painel-empacotamento'); ?>" aria-label="<?php esc_attr_e('Copiar Pix', 'painel-empacotamento'); ?>"<?php echo $pix_identifier === '' ? ' disabled' : ''; ?>>
+                                        <span class="dashicons dashicons-admin-page" aria-hidden="true"></span>
+                                        <span><?php esc_html_e('Copiar Pix', 'painel-empacotamento'); ?></span>
+                                    </button>
+                                </div>
                             </div>
 
                             <div class="order-actions">
