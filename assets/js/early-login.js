@@ -3,6 +3,8 @@
     const config=window.ctwpmlEarlyLoginConfig, api=window.CTWPMLPasskeys;
     if(!config||!api)return;
     const early=()=>document.getElementById('ctwpml-early-access'), menu=()=>document.getElementById('ctwpml-menu-access');
+    const firstPurchaseTemplate=document.getElementById('ctwpml-first-purchase-template');
+    if(menu()&&firstPurchaseTemplate&&!menu().querySelector('[data-ctwpml-first-purchase]'))menu().querySelector('[data-ctwpml-access-close]')?.before(firstPurchaseTemplate.content.cloneNode(true));
     let skip=false,next=null,previousFocus=null,previousOverflow='',active=null;
     let cached=null,cachedAt=0,contextPending=null,passwordBusy=false;
     let emailTimer=null,lookupBusy=false,lookupVersion=0,route=null,advanceRequested=false,editingEmail=false;
@@ -125,6 +127,7 @@
         // Fechar a tela antecipada só muda apresentação; a continuação manual permanece guardada.
         if(active===early())hide(early());
         show(node);menuContext=options.ticket?'checkout-early':'entry';menuTicket=options.ticket||'';
+        const first=node.querySelector('[data-ctwpml-first-purchase]');if(first){first.hidden=menuContext!=='entry';first.querySelector('[data-ctwpml-first-purchase-help]').hidden=true;}
         node.querySelector('.ctwpml-passkey-card').hidden=false;
         node.querySelector('[data-ctwpml-menu-password]').hidden=false;
         const form=node.querySelector('#ctwpml-menu-password-form');form.hidden=true;
@@ -147,6 +150,7 @@
             form.elements.password.value='';trace('PASSWORD_SUCCESS');reload(true);
         }catch(error){
             passwordMessage(error.message==='captcha_required'?'Complete a verificação de segurança.':'Não foi possível entrar. Confira o e-mail e a senha ou use “Perdeu sua senha?”.');trace('PASSWORD_ERROR',false);
+            if(menuContext==='entry'&&error.message!=='captcha_required'){const help=menu()?.querySelector('[data-ctwpml-first-purchase-help]');if(help)help.hidden=false;}
             menuCaptchaValid=false;if(menuWidget!==null)try{grecaptcha.reset(menuWidget);}catch(_){}
         }finally{passwordBusy=false;passwordButton();}
     }
@@ -164,6 +168,7 @@
         if(event.target.id==='ctwpml-menu-password-form'){event.preventDefault();passwordLogin(event.target);}
     });
     document.addEventListener('ctwpml:passkey-error',event=>{
+        if(active===menu()&&menuContext==='entry'){const help=menu()?.querySelector('[data-ctwpml-first-purchase-help]');if(help)help.hidden=false;}
         if(!event.detail?.early)return;
         if(event.detail.code!=='CHECKOUT_ACCOUNT_CONTEXT_MISSING'){
             if(route?.exists&&route.ticket){
@@ -176,6 +181,12 @@
         earlyMessage('Confirme seu e-mail novamente para renovar a tentativa de acesso.');
     });
     document.addEventListener('click',event=>{
+        if(event.target.closest('[data-ctwpml-menu-shop]')){
+            if(isBusy()||!hide(menu()))return;
+            menu().querySelector('[name="password"]').value='';trace('FIRST_PURCHASE_CONTINUE');
+            if(!config.checkout&&config.shop)location.assign(config.shop);
+            return;
+        }
         const trigger=event.target.closest('[data-ctwpml-menu-login]');
         if(trigger&&!event.ctrlKey&&!event.metaKey&&!event.shiftKey&&!event.altKey){event.preventDefault();if(cached?.loggedIn)window.open(config.account,'_blank','noopener,noreferrer');else openMenu();}
         if(event.target.closest('[data-ctwpml-menu-password]'))revealPassword();

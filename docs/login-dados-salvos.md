@@ -1,5 +1,13 @@
 # Login com dados salvos — v3.4.12
 
+## Primeira compra — camada preventiva v3.4.25
+
+O diálogo aberto pelo shortcode `[checkout_ml_login]` mantém login rápido, e-mail/senha, recuperação de senha e fechamento. Acrescenta “Primeira compra? Não precisa entrar”, explica que a conta é criada automaticamente na compra e oferece **Comprar sem fazer login**. Dentro do checkout fecha o diálogo sem apagar dados nem concluir/criar pedido; em outras páginas leva ao catálogo WooCommerce. A orientação não aparece na autenticação antecipada vinculada a uma conta já identificada.
+
+Após tentativa falha de senha/chave, há reforço condicional: “Se você ainda não tem conta, faça sua primeira compra sem login…”. Falha de senha, cancelamento da chave ou falta de uma chave local não prova inexistência de conta; não se afirma que o visitante não é cliente, não se consulta histórico de pedidos para impedir login e não se adiciona consulta de e-mails ao endpoint público. Conta existente sem pedidos continua podendo entrar. reCAPTCHA, nonces, limites, identidade e recuperação permanecem nativos. Nova conta/chave só é criada pelo fluxo já existente e pelas autorizações correspondentes.
+
+Teste: abrir o ícone deslogado, verificar a orientação, alternar para senha, tentar dados inválidos, conferir o reforço e repetir com dados válidos. Testar falha/cancelamento de acesso rápido e conferir a alternativa por senha. No checkout, clicar Comprar sem login e conferir rascunhos preservados; fora dele, conferir chegada ao catálogo. Login real no aparelho, Safari/iOS e PWA precisam de validação no site.
+
 ## Adicionar uma segunda chave — correção v3.4.20
 
 Relato: após entrar com senha e autorizar a criação no PC, o aparelho concluiu sua etapa, mas o site informou que não conseguiu salvar o acesso. O adaptador enviava sempre `security_key_name=Acesso rapido`. O Secure Passkeys 1.3.0 recusa outro cadastro com o mesmo nome na mesma conta, mesmo que a credencial seja diferente. Isso foi reproduzido localmente com as ações originais do motor. A resposta específica da tentativa real não foi capturada: limite de chaves e outras falhas também podiam aparecer como a mesma mensagem genérica. Não há evidência de que cadastrar no celular tenha substituído uma chave do PC.

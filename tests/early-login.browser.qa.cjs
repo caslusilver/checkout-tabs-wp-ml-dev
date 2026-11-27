@@ -84,7 +84,17 @@ function verify(operation,response){
   await page.locator('#ctwpml-early-email').fill('new@example.test');await page.locator('#ctwpml-early-email-form button').click();await page.waitForFunction(()=>window.fixtureManual==='new@example.test');assert.equal(logged,false);
   // Os dois gatilhos abrem o mesmo diálogo acima de headers, alternativa e reset funcionais.
   for(const index of [0,1]){await page.locator('[data-ctwpml-menu-login]').nth(index).click();await page.locator('#ctwpml-menu-access').waitFor({state:'visible'});await page.locator('[data-ctwpml-access-close]').click();}
-  await page.locator('[data-ctwpml-menu-login]').first().click();await page.locator('[data-ctwpml-menu-password]').click();await page.locator('#ctwpml-menu-password-form').waitFor({state:'visible'});
+  await page.locator('[data-ctwpml-menu-login]').first().click();
+  await page.locator('[data-ctwpml-first-purchase]').waitFor({state:'visible'});
+  await page.addStyleTag({content:'#ctwpml-menu-access p,#ctwpml-menu-access h3,#ctwpml-menu-access button{color:white!important;-webkit-text-fill-color:white!important}'});
+  assert.equal(await page.locator('[data-ctwpml-first-purchase] h3').evaluate(n=>getComputedStyle(n).color),'rgb(23, 36, 45)');
+  for(const width of [320,390,768,1280]){await page.setViewportSize({width,height:844});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);}
+  await page.locator('[data-ctwpml-menu-password]').click();await page.locator('#ctwpml-menu-password-form').waitFor({state:'visible'});
+  await page.locator('#ctwpml-menu-password-form [name="email"]').fill('fixture@example.test');await page.locator('#ctwpml-menu-password-form [name="password"]').fill('wrong-fixture');await page.locator('#ctwpml-menu-password-form [type="submit"]').click();
+  await page.locator('[data-ctwpml-first-purchase-help]').waitFor({state:'visible'});assert.match(await page.locator('[data-ctwpml-first-purchase-help]').innerText(),/Se você ainda não tem conta/);
+  await page.locator('[data-ctwpml-menu-shop]').click();await page.locator('#ctwpml-menu-access').waitFor({state:'hidden'});
+  assert.equal(await page.locator('#ctwpml-menu-password-form [name="password"]').inputValue(),'');assert.equal(logged,false);
+  await page.locator('[data-ctwpml-menu-login]').first().click();await page.locator('[data-ctwpml-menu-password]').click();
   assert.equal(await page.locator('#ctwpml-menu-access a').getAttribute('target'),'_blank');assert.match(await page.locator('#ctwpml-menu-access a').getAttribute('href'),/wp-login.php\?action=lostpassword$/);
   await page.locator('#ctwpml-menu-password-form [name="email"]').fill('fixture@example.test');await page.locator('#ctwpml-menu-password-form [name="password"]').fill('fixture-proof');await page.locator('#ctwpml-menu-password-form [type="submit"]').click();await page.waitForURL('**ctwpml_session_refresh=*');assert.equal(logged,true);
   logged=false;captchaEnabled=true;await page.goto('https://passkeys.example.test/checkout/');
@@ -128,6 +138,9 @@ function verify(operation,response){
   assert.equal(await mobilePage.evaluate(()=>CTWPMLPasskeys.preferPassword()),false);
   await mobilePage.evaluate(()=>CTWPML_EarlyLogin.offer(()=>{}));await mobilePage.locator('#ctwpml-early-email').fill('fixture@example.test');await mobilePage.locator('#ctwpml-early-email-form button').click();
   await mobilePage.locator('[data-ctwpml-early-offer]').waitFor({state:'visible'});assert.equal(logged,false);await mobile.close();
+  await page.goto('https://passkeys.example.test/');await page.evaluate(()=>{ctwpmlEarlyLoginConfig.checkout=false;ctwpmlEarlyLoginConfig.shop='https://passkeys.example.test/catalog/';});
+  await page.locator('[data-ctwpml-menu-login]').first().click();await page.locator('[data-ctwpml-first-purchase]').waitFor({state:'visible'});
+  await page.locator('[data-ctwpml-menu-shop]').click();await page.waitForURL('**/catalog/');assert.equal(logged,false);
   assert.deepEqual(errors,[]);console.log('Edge: acesso rápido com histórico, cliente novo/manual e PC sem histórico com/sem chave na conta; nenhum seletor antes da senha, senha errada bloqueia, senha válida→convite→cadastro criptográfico nativo; menus/reset/captcha e320/390/768/1280 passaram.');
  }finally{await browser.close();}
 })().catch(error=>{console.error(error);process.exitCode=1});
