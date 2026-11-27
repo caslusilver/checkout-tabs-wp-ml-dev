@@ -3,14 +3,14 @@ const source=readFileSync('assets/js/early-login.js','utf8');
 const php=process.env.VAULT_PHP;
 const result=spawnSync(php,['tests/early-login.test.php','--markup'],{encoding:'utf8'});assert.equal(result.status,0,result.stderr+result.stdout);
 const until=async predicate=>{for(let i=0;i<200&&!predicate();i++)await new Promise(r=>setTimeout(r,5));assert.ok(predicate());};
-function setup(t,{enabled=true,method='passkey',exists=true,ticket='fixture-route',defer=false,preferPassword=false}={}){
+function setup(t,{enabled=true,method='passkey',exists=true,ticket='fixture-route',defer=false,preferPassword=false,loginError=false}={}){
  const dom=new JSDOM(result.stdout,{url:'https://shop.example.test/checkout/',runScripts:'outside-only',pretendToBeVisual:true});t.after(()=>dom.window.close());
  const w=dom.window,d=w.document,calls=[];let logged=false,resolver;
  w.ctwpmlEarlyLoginConfig={enabled,checkout:true,account:'/account/'};w.ctwpmlPasskeyConfig={loggedIn:false};
  w.CTWPMLPasskeys={isBusy:()=>false,supported:()=>true,preferPassword:()=>preferPassword,request:async(action,data)=>{
   calls.push({action,data});if(action==='ctwpml_passkey_context')return {loggedIn:logged,checkEmailNonce:'fresh-email',loginNonce:'fresh-login',recaptchaEnabled:false};
   if(action==='ctwpml_check_email'){if(defer)return new Promise(resolve=>{resolver=resolve});return {exists:exists?1:0,auth_method:method,ticket};}
-  if(action==='ctwpml_login'){logged=true;return {ok:true};}throw new Error('unexpected action');
+  if(action==='ctwpml_login'){if(loginError)throw new Error('login_rejected');logged=true;return {ok:true};}throw new Error('unexpected action');
  }};w.eval(source);
  return {w,d,calls,logged:value=>{logged=value},resolve:value=>resolver(value)};
 }
@@ -25,6 +25,19 @@ test('two menus share one dialog and never show logged-in based on remembered br
  await new Promise(r=>setTimeout(r,0));c.d.querySelector('[data-ctwpml-access-close]').click();assert.equal(c.d.body.style.overflow,'');
  c.logged(true);c.w.Date.now=()=>Date.now()+10000;c.w.dispatchEvent(new c.w.Event('focus'));
  await until(()=>[...c.d.querySelectorAll('[data-ctwpml-menu-label]')].every(n=>n.textContent==='Logado'));
+});
+test('first-purchase guidance keeps login options, reinforces failures and closes checkout dialog without clearing purchase fields',async t=>{
+ const c=setup(t,{loginError:true});await until(()=>c.calls.length>0);c.d.querySelector('[data-ctwpml-menu-login]').click();await until(()=>!c.d.querySelector('#ctwpml-menu-access').hidden);
+ assert.equal(c.d.querySelectorAll('[data-ctwpml-first-purchase]').length,1);assert.equal(c.d.querySelector('[data-ctwpml-first-purchase]').hidden,false);
+ assert.ok(c.d.querySelector('[data-ctwpml-passkey-login]'));assert.ok(c.d.querySelector('a[href*="lostpassword"]'));
+ c.w.document.dispatchEvent(new c.w.CustomEvent('ctwpml:passkey-error',{detail:{early:false,code:'request_failed'}}));assert.equal(c.d.querySelector('[data-ctwpml-first-purchase-help]').hidden,false);
+ c.d.querySelector('[data-ctwpml-menu-password]').click();const form=c.d.querySelector('#ctwpml-menu-password-form');await until(()=>!form.hidden);
+ form.elements.email.value='fixture@example.test';form.elements.password.value='fixture-proof';form.dispatchEvent(new c.w.Event('submit',{bubbles:true,cancelable:true}));
+ await until(()=>c.d.querySelector('[data-ctwpml-menu-message]').textContent.includes('Não foi possível entrar'));
+ assert.equal(form.elements.email.value,'fixture@example.test');assert.equal(form.querySelector('[type=submit]').disabled,false);assert.equal(c.d.querySelector('[data-ctwpml-first-purchase-help]').hidden,false);
+ assert.equal(c.calls.some(x=>x.action==='ctwpml_check_email'),false);assert.match(c.d.querySelector('[data-ctwpml-first-purchase-help]').textContent,/Se você ainda não tem conta/);
+ const field=c.d.createElement('input');field.value='purchase-preserved';c.d.body.append(field);c.d.querySelector('[data-ctwpml-menu-shop]').click();
+ assert.equal(c.d.querySelector('#ctwpml-menu-access').hidden,true);assert.equal(field.value,'purchase-preserved');assert.equal(form.elements.password.value,'');
 });
 test('authenticated early recovery isolates drafts from guest and other accounts, including reload',t=>{
  const source=readFileSync('assets/js/address-ml-modal.js','utf8');

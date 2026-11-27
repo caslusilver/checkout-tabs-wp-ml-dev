@@ -2,6 +2,12 @@
 
 Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
+## [v3.4.25] - 2026-11-27
+
+- Camada preventiva no login do shortcode: “Primeira compra? Não precisa entrar”, explicação da conta automática e botão Comprar sem fazer login. No checkout apenas fecha o diálogo preservando os dados; fora dele leva ao catálogo.
+- Reforço condicional após falha de senha/chave, mantendo entrada e recuperação disponíveis. Não confunde senha incorreta, cancelamento ou ausência de chave com ausência de conta; não adiciona consulta pública de contas ou pedidos.
+- Acesso rápido, senha, reCAPTCHA, recuperação de senha e autenticação vinculada à compra preservados. Aviso não interfere na entrada antecipada de conta já identificada.
+
 ## [v3.4.24] - 2026-11-27
 
 - Recuperação obtém cidade/UF, bairro e CEP do snapshot e do endereço salvo do checkout, com contato criptografado separado dos logs técnicos. Lista e detalhe mostram a origem disponível.

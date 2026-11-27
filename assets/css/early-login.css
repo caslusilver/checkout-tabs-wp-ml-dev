@@ -23,3 +23,10 @@
 @keyframes ctwpml-access-glow{50%{filter:drop-shadow(0 0 5px #0075ff55);opacity:.75}}
 @media(prefers-reduced-motion:reduce){.ctwpml-early-page [data-ctwpml-early-offer] img{animation:none!important}}
 @media(max-width:380px){.ctwpml-access-overlay{padding:12px!important}.ctwpml-access-overlay .ctwpml-access-dialog{padding:17px;max-height:calc(100dvh - 24px)}}
+
+/* First-purchase guidance is additive and keeps its contrast over Elementor. */
+#ctwpml-menu-access .ctwpml-first-purchase{padding:16px!important;border:1px solid #dce4ee!important;border-radius:10px!important;background-color:#f0f6ff!important;color:#17242d!important}
+#ctwpml-menu-access .ctwpml-first-purchase h3{font:650 16px/1.4 system-ui,sans-serif!important;margin:0 0 6px!important;color:#17242d!important;-webkit-text-fill-color:currentColor!important}
+#ctwpml-menu-access .ctwpml-first-purchase p{color:#536879!important;-webkit-text-fill-color:currentColor!important;font:400 14px/1.5 system-ui,sans-serif!important;margin:0 0 12px!important}
+#ctwpml-menu-access .ctwpml-first-purchase [data-ctwpml-first-purchase-help]{color:#17242d!important;font-weight:500!important}
+#ctwpml-menu-access [data-ctwpml-menu-shop],#ctwpml-menu-access [data-ctwpml-menu-shop]:is(:hover,:focus,:active){width:100%!important;padding:11px 12px!important;min-height:44px!important;border:1px solid #0075ff!important;border-radius:8px!important;background-color:#fff!important;color:#0063ce!important;-webkit-text-fill-color:currentColor!important;opacity:1!important;box-shadow:none!important;text-decoration:none!important}
