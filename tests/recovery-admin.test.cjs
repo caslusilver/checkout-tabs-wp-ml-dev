@@ -13,6 +13,7 @@ function setup(t,{reject=false}={}){
   if(operation==='list'||operation==='board')data={rows:[row,purchased],count:2,stats:{people:2,errors:1,recovered:state.recovered,linked:0,bought:1,devices:[]},settings:{enabled:false,idle:15},board_counts:{attention:1,closed:1}};
   else if(operation==='detail')data={attempts:[{id:8,trace_id:'fixture',created_at:'2026-11-27 14:00:00',device:{type:'desktop',os:'Windows',browser:'Chrome'}}]};
   else if(operation==='update'){if(reject)return{ok:false,json:async()=>({success:false})};state.recovered++;data={updated:[1],conflicts:[]};row.state='recovered';}
+  else if(operation==='pix')data={available:true,payload:'000201BR.GOV.BCB.PIXabcABC6304FFFF',order_id:1052,pending:opts.body.get('id')==='1',message:'Saved gateway code'};
   else if(operation==='logs')data={rows:[{id:1,case_id:1,name:'RUNTIME_ERROR',detail:{status:500}}],upper:1,cursor:1,more:false};
   else data={};
   return {ok:true,json:async()=>({success:true,data})};
@@ -49,4 +50,13 @@ test('kanban shows lanes, keeps bought cards non-draggable and requests bounded 
  const c=setup(t);await until(()=>c.d.querySelector('article'));const select=c.d.querySelector('[data-view]');select.value='kanban';select.dispatchEvent(new c.w.Event('change'));
  await until(()=>c.d.querySelector('.cr-board'));assert.equal(c.d.querySelectorAll('.cr-lane').length,4);
  assert.equal(c.d.querySelector('[data-case-id="1"]').draggable,true);assert.equal(c.d.querySelector('[data-case-id="2"]').draggable,false);assert.ok(c.calls.some(x=>x.operation==='board'));
+});
+test('Pix is fetched separately, copied verbatim, and a paid order cannot be copied as a new charge',async t=>{
+ const c=setup(t);await until(()=>c.d.querySelector('article'));let copied='';Object.defineProperty(c.w.navigator,'clipboard',{value:{writeText:async v=>{copied=v;}}});
+ c.d.querySelector('[data-case-id="1"] button').click();
+ [...c.d.querySelectorAll('[data-case-id="1"] button')].find(b=>b.textContent==='Pix copia e cola').click();await until(()=>c.d.querySelector('dialog').open);
+ const copy=[...c.d.querySelectorAll('dialog button')].find(b=>b.textContent==='Copiar Pix');copy.click();await until(()=>copied!=='');assert.equal(copied,'000201BR.GOV.BCB.PIXabcABC6304FFFF');
+ c.d.querySelector('dialog').close('confirm');await new Promise(r=>setTimeout(r,5));
+ c.d.querySelector('[data-case-id="2"] button').click();[...c.d.querySelectorAll('[data-case-id="2"] button')].find(b=>b.textContent==='Pix copia e cola').click();await until(()=>c.d.querySelector('dialog').open);
+ assert.equal([...c.d.querySelectorAll('dialog button')].find(b=>b.textContent==='Copiar Pix').disabled,true);assert.equal(c.calls.filter(x=>x.operation==='pix').length,2);
 });

@@ -4,6 +4,7 @@ Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
 ## [v3.4.22] - 2026-11-27
 
+- Complemento aprovado antes do merge: Pix copia e cola sob demanda nos detalhes da recuperação e no quadro lateral do pedido WooCommerce (clássico/HPOS). Reaproveita o código preservado pelo gateway sem mudar maiúsculas/minúsculas, sem gerar cobrança e sem incluí-lo em logs. Leitor do PackPanel passa a aceitar o metadado JSON. Cópia assistida somente para pedido pendente/em espera.
 - Central administrativa de Recuperação em página própria com `[checkout_ml_recuperacao]`, login nativo Secure Passkeys e alternativa por senha. Leitura, exportação, configurações e alterações exigem capacidade administrativa e nonce no servidor.
 - Lista responsiva e Kanban desktop: atenção, em andamento, em contato e encerrados. Histórico por execução, produtos/frete do carrinho WooCommerce, contato protegido, seleção em lote, copiar/baixar diagnóstico, recuperação manual e associação opcional de pedido com e-mail correspondente. Revisões impedem sobrescrever alterações simultâneas.
 - Coleta opcional, inicialmente desativada, com execução assinada, checkpoints de autenticação/envio, duração e resultado de requisições, erros técnicos e retorno à home. Não bloqueia a compra; não registra senha, CPF, Pix, tokens nem formulários completos no diagnóstico.

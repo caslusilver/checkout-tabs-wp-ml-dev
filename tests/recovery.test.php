@@ -24,6 +24,8 @@ function wp_parse_url($s,$part=-1){return parse_url($s,$part);}
 function get_post_meta(...$a){return '';}function wp_next_scheduled(...$a){return false;}function wp_schedule_single_event(...$a){$GLOBALS['scheduled']=$a;}
 function wp_schedule_event(...$a){$GLOBALS['scheduled']=$a;}
 function wc_get_order($id){return $GLOBALS['orders'][$id]??false;}
+function wc_get_orders($args){$GLOBALS['pix_order_query']=$args;return $GLOBALS['pix_orders']??[];}
+function esc_textarea($s){return htmlspecialchars($s,ENT_QUOTES);}
 class Recovery_Product {function get_id(){return 42;}function get_name(){return '<b>Fixture product</b>';}}
 class Recovery_Cart {
     public bool $empty=false;
@@ -45,7 +47,7 @@ class Recovery_Order {
 }
 class Recovery_DB {
     public string $prefix='wp_';public int $insert_id=0;public array $current=[],$attempt=[],$target=[],$updates=[],$deleted=[];
-    public int $result=1;public bool $locked=true;
+    public int $result=1;public bool $locked=true;public array $columns=[];
     function prepare($query,...$values){foreach($values as $v){$query=preg_replace_callback('/%[sd]/',static fn($m)=>$m[0]==='%d'?(string)(int)$v:"'".str_replace("'","''",(string)$v)."'",$query,1);}return $query;}
     function get_row($sql,$type=null){
         $GLOBALS['queries'][]=$sql;
@@ -61,7 +63,7 @@ class Recovery_DB {
         return 0;
     }
     function get_results($sql,$type=null){$GLOBALS['queries'][]=$sql;return [];}
-    function get_col($sql){$GLOBALS['queries'][]=$sql;return [];}
+    function get_col($sql){$GLOBALS['queries'][]=$sql;return $this->columns;}
     function query($sql){$GLOBALS['queries'][]=$sql;return $this->result;}
     function update($table,$data,$where){$this->updates[]=[$table,$data,$where];return 1;}
     function delete($table,$where){$this->deleted[]=[$table,$where];return 1;}
@@ -69,13 +71,15 @@ class Recovery_DB {
 }
 $wpdb=new Recovery_DB();
 require dirname(__DIR__).'/inc/security/class-key-vault.php';
+require dirname(__DIR__).'/inc/admin/order-pix.php';
+require dirname(__DIR__).'/packing-panel-woo-dev/inc/core/class-utils.php';
 require dirname(__DIR__).'/inc/recovery/class-recovery.php';
 if(in_array('--markup',$argv,true)){echo CTWPML_Recovery::shortcode();exit;}
 function checkRecovery($test,$message){if(!$test)throw new LogicException($message);}
 function callRecovery($method){try{CTWPML_Recovery::$method();}catch(Recovery_JSON $r){return $r;}throw new LogicException('Missing JSON response');}
 $_SERVER=['REQUEST_METHOD'=>'POST','REMOTE_ADDR'=>'127.0.0.1'];$_POST=[];
 // No read/mutation/export without role+nonce, including a logged-in ordinary customer.
-$admin=false;foreach(['list','detail','update','logs','settings'] as $op){$_POST=['operation'=>$op];$r=callRecovery('admin');checkRecovery(!$r->ok&&$r->status===403,'Customer reached admin API');}
+$admin=false;foreach(['list','detail','update','logs','settings','pix'] as $op){$_POST=['operation'=>$op];$r=callRecovery('admin');checkRecovery(!$r->ok&&$r->status===403,'Customer reached admin API');}
 checkRecovery(!$queries,'Unauthorized request queried storage');
 $admin=true;$nonce=false;checkRecovery(callRecovery('admin')->status===403,'Missing admin nonce accepted');$nonce=true;
 // Presentation: native shortcode for guests, no CRM data; ordinary authenticated users denied.
@@ -125,6 +129,26 @@ $wpdb->current['order_id']=0;$wpdb->current['state']='attention';
 $_POST=['operation'=>'update','ids'=>[9],'state'=>'recovered','revisions'=>[9=>3]];$r=callRecovery('admin');checkRecovery($r->data['updated']===[9],'Manual recovery wrongly requires order');
 $_POST['state']='link';$_POST['order']=1052;$order->email='other@example.test';checkRecovery(!callRecovery('admin')->ok,'Wrong order linked to contact');
 $order->email='fixture@example.test';checkRecovery(callRecovery('admin')->ok,'Matching optional order rejected');
+// Saved gateway payload is read verbatim, never added to diagnostic exports.
+$pixCode='000201BR.GOV.BCB.PIXabcABC6304FFFF';
+$order->meta['__ASAAS_ORDER']=json_encode(['payload'=>$pixCode]);
+checkRecovery(ctwpml_order_pix_payload($order)===$pixCode,'JSON gateway payload changed case or bytes');
+checkRecovery(PPWOO_Utils::get_pix_identifier(['__ASAAS_ORDER'=>json_encode(['payload'=>$pixCode])])===$pixCode,'PackPanel JSON reader changed the saved Pix');
+checkRecovery(ctwpml_order_pix_payload(['__ASAAS_ORDER'=>(object)['pix_payload'=>$pixCode]])===$pixCode,'Object gateway payload unreadable');
+checkRecovery(ctwpml_order_pix_payload(['__ASAAS_ORDER'=>['payload'=>['bad'],'pixCopiaECola'=>$pixCode]])===$pixCode,'Malformed candidate prevented valid fallback');
+checkRecovery(ctwpml_order_pix_payload(['__ASAAS_ORDER'=>'invalid-json'])==='','Malformed metadata produced a charge');
+$wpdb->columns=[7];$pix_orders=[$order];$_POST=['operation'=>'pix','id'=>9];
+$r=callRecovery('admin');checkRecovery($r->ok&&$r->data['payload']===$pixCode&&$r->data['pending']===false,'Paid order payload incorrectly marked payable');
+$order->status='pending';$r=callRecovery('admin');checkRecovery($r->data['pending']===true,'Pending saved charge unavailable');
+checkRecovery($pix_order_query['meta_query'][0]['value']===[7],'HPOS query missing signed attempt binding');
+$query=CTWPML_Recovery::order_query([],['ctwpml_recovery_attempts'=>[7]]);checkRecovery($query['meta_query'][0]['value']===[7],'Classic query missing attempt binding');
+$order->meta['_ctwpml_recovery_attempt']=99;checkRecovery(callRecovery('admin')->data['available']===false,'Unrelated order revealed by ignored storage filter');
+$order->meta['_ctwpml_recovery_attempt']=7;$wpdb->columns=[];
+$wpdb->current['manual_order_id']=1052;checkRecovery(callRecovery('admin')->data['payload']===$pixCode,'Explicit matching order Pix unavailable');
+$order->email='other@example.test';checkRecovery(callRecovery('admin')->data['available']===false,'Changed order contact bypassed association check');
+$order->email='fixture@example.test';$wpdb->current['manual_order_id']=0;
+$admin=false;ob_start();ctwpml_admin_order_pix_box($order);checkRecovery(ob_get_clean()==='','Customer reached order Pix box');$admin=true;
+ob_start();ctwpml_admin_order_pix_box($order);$box=ob_get_clean();checkRecovery(str_contains($box,$pixCode)&&str_contains($box,'data-order-pix-copy'),'Order admin lacks saved Pix copy');
 // Failed request / disabled capture stays write-only and leaves shop data alone.
 $options[CTWPML_Recovery::OPTION]=['enabled'=>false];$_POST=[];checkRecovery(callRecovery('capture')->status===409,'Capture enabled by visitor');
 $options[CTWPML_Recovery::OPTION]=['enabled'=>true];$_POST=['batch'=>json_encode(['page'=>$trace,'operation'=>'append','trace'=>$trace,'proof'=>'invalid'])];
@@ -145,4 +169,5 @@ $expiry=time()+600;$base='55.'.$expiry;$_COOKIE['ctwpml_recovery_return']=$base.
 $referrer='https://shop.example.test/other/';checkRecovery(CTWPML_Recovery::login_redirect('native')==='native','Unrelated login redirected');
 $referrer='https://shop.example.test/recuperacao/';checkRecovery(CTWPML_Recovery::login_redirect('native')===get_permalink(55),'Recovery login lost return');
 $_COOKIE['ctwpml_recovery_return'].='x';checkRecovery(CTWPML_Recovery::login_redirect('native')==='native','Tampered redirect cookie accepted');
+if(in_array('--pix-markup',$argv,true)){echo $box;exit;}
 echo "Recovery: admin/nonce, privacy, encryption, signed correlation, purchase, conflicts, optional order and login return passed.\n";

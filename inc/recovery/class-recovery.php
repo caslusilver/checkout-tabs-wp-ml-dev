@@ -19,6 +19,7 @@ final class CTWPML_Recovery {
         add_action('woocommerce_order_status_processing',[__CLASS__,'order_processing']);
         add_action('ctwpml_recovery_cleanup',[__CLASS__,'cleanup']);
         add_filter('secure_passkeys_login_redirect_url',[__CLASS__,'login_redirect'],30);
+        add_filter('woocommerce_order_data_store_cpt_get_orders_query',[__CLASS__,'order_query'],10,2);
     }
     public static function settings(): array {
         $s=(array)get_option(self::OPTION,[]);
@@ -312,10 +313,40 @@ final class CTWPML_Recovery {
         foreach(['id','revision','order_id','manual_order_id','attempts','has_error']as $k)$row[$k]=(int)($row[$k]??0);
         return $row;
     }
+    /** Classic storage adapter; HPOS receives the equivalent meta_query. */
+    public static function order_query($query,$vars) {
+        if(!empty($vars['ctwpml_recovery_attempts'])){
+            $ids=array_values(array_filter(array_map('absint',(array)$vars['ctwpml_recovery_attempts'])));
+            if($ids)$query['meta_query'][]=['key'=>'_ctwpml_recovery_attempt','value'=>$ids,'compare'=>'IN','type'=>'NUMERIC'];
+        }
+        return $query;
+    }
+    private static function pix_order(array $row) {
+        global $wpdb;$a=self::table('attempts');
+        // Explicitly associated by an admin: recheck the same contact before revealing.
+        if(!empty($row['manual_order_id'])){
+            $order=wc_get_order((int)$row['manual_order_id']);$contact=self::reveal($row['contact']);
+            if($order&&is_email($contact['email']??'')&&strtolower($order->get_billing_email())===strtolower($contact['email']))return $order;
+        }
+        $attempt_ids=$wpdb->get_col($wpdb->prepare("SELECT id FROM $a WHERE case_id=%d ORDER BY id DESC LIMIT 500",(int)$row['id']));
+        $ids=array_values(array_filter(array_map('absint',$attempt_ids)));
+        if(!$ids||!function_exists('wc_get_orders'))return null;
+        $orders=wc_get_orders(['limit'=>1,'orderby'=>'date','order'=>'DESC','ctwpml_recovery_attempts'=>$ids,'meta_query'=>[['key'=>'_ctwpml_recovery_attempt','value'=>$ids,'compare'=>'IN','type'=>'NUMERIC']]]);
+        $order=$orders?reset($orders):null;
+        // Even if a storage adapter ignores the query, never return an unrelated order.
+        return $order&&in_array((int)$order->get_meta('_ctwpml_recovery_attempt'),$ids,true)?$order:null;
+    }
     public static function admin(): void {
         self::admin_guard();global $wpdb;
         if(!self::install())wp_send_json_error(['message'=>'Não foi possível preparar o armazenamento.'],503);
         $op=sanitize_key($_POST['operation']??'list');$c=self::table('cases');$a=self::table('attempts');$e=self::table('events');
+        if($op==='pix'){
+            $row=$wpdb->get_row($wpdb->prepare("SELECT * FROM $c WHERE id=%d",absint($_POST['id']??0)),ARRAY_A);
+            $order=$row?self::pix_order($row):null;
+            if(!$order)wp_send_json_success(['available'=>false,'message'=>'Nenhum pedido vinculado. Se já existe, use Associar pedido para vinculá-lo pelo mesmo e-mail.']);
+            $payload=ctwpml_order_pix_payload($order);
+            wp_send_json_success(['available'=>$payload!=='','payload'=>$payload,'order_id'=>(int)$order->get_id(),'pending'=>in_array($order->get_status(),['pending','on-hold'],true),'message'=>$payload!==''?'Código salvo no pedido. Confira valor e validade antes de enviar.':'Pix ainda não disponível nos dados deste pedido.']);
+        }
         if($op==='settings'){
             if(!function_exists('openssl_encrypt'))wp_send_json_error(['message'=>'OpenSSL indisponível.'],503);
             $settings=['enabled'=>!empty($_POST['enabled']),'idle'=>max(1,min(120,(int)($_POST['idle']??15)))];

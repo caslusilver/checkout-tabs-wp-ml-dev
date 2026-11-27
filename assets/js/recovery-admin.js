@@ -33,8 +33,9 @@
             return data.data;
         }finally{clearTimeout(timeout);}
     }
-    function dialog(title,description,field=null){
+    function dialog(title,description,field=null,confirmLabel='Confirmar'){
         const d=q('[data-dialog]');q('[data-dialog-title]').textContent=title;q('[data-dialog-description]').textContent=description;
+        d.querySelector('button[value="confirm"]').textContent=confirmLabel;
         q('[data-dialog-fields]').replaceChildren();if(field)q('[data-dialog-fields]').append(field);
         return new Promise(resolve=>{
             d.returnValue='cancel';d.addEventListener('close',()=>resolve(d.returnValue==='confirm'),{once:true});d.showModal();
@@ -117,7 +118,7 @@
         for(const key of ['active','attention','contact','recovered','lost']){const o=el('option',labels[key]);o.value=key;o.selected=row.state===key;select.append(o);}
         if(row.order_id){const o=el('option','Compra detectada');o.value='bought';o.selected=true;select.append(o);select.disabled=true;}
         select.onchange=()=>change([row.id],select.value);
-        actions.append(select,button('Associar pedido',()=>link(row)),el('span','Pedido: '+(row.manual_order_id||row.order_id||'nenhum'),'cr-muted'),button('Copiar logs',()=>exportLogs([row.id],true)),button('Baixar logs',()=>exportLogs([row.id],false)));
+        actions.append(select,button('Associar pedido',()=>link(row)),el('span','Pedido: '+(row.manual_order_id||row.order_id||'nenhum'),'cr-muted'),button('Pix copia e cola',()=>pix(row)),button('Copiar logs',()=>exportLogs([row.id],true)),button('Baixar logs',()=>exportLogs([row.id],false)));
         out.append(cart,history,actions);return out;
     }
     function render(){
@@ -168,6 +169,22 @@
         if(!await dialog('Associar um pedido','O pedido deve ter o mesmo e-mail informado no atendimento. O vínculo é administrativo e não muda seu pagamento.',label))return;
         if(!Number.isSafeInteger(Number(input.value))||Number(input.value)<1){notice('Informe um número de pedido válido.');return;}
         await change([row.id],'link',Number(input.value));
+    }
+    async function pix(row){
+        if(busy)return;controls(true);let data;
+        try{data=await request('pix',{id:row.id});}
+        catch(_){notice('Não foi possível consultar o Pix. Confira sua sessão e tente novamente.');return;}
+        finally{controls(false);}
+        const box=el('div');
+        if(data.available){
+            const field=el('textarea');field.value=data.payload;field.readOnly=true;field.rows=5;field.setAttribute('aria-label','Pix copia e cola');field.style.setProperty('text-transform','none','important');
+            const message=el('p','', 'cr-muted'),copy=button('Copiar Pix',async()=>{
+                try{await navigator.clipboard.writeText(field.value);message.textContent='Pix copiado.';}
+                catch(_){field.focus();field.select();message.textContent='Selecione o código e copie manualmente.';}
+            },'cr-primary');
+            copy.disabled=!data.pending;box.append(field,copy,message);
+        }
+        await dialog('Pix'+(data.order_id?' · pedido #'+data.order_id:''),data.pending===false?'Pedido fora de pagamento pendente. Não envie este código como nova cobrança.':data.message,box,'Fechar');
     }
     async function exportLogs(ids,copy){
         if(busy||!ids.length){notice('Selecione atendimentos para copiar ou baixar.');return;}

@@ -36,6 +36,7 @@ require_once CHECKOUT_TABS_WP_ML_DIR . 'inc/dispatch-controls.php';
 require_once CHECKOUT_TABS_WP_ML_DIR . 'inc/settings.php';
 require_once CHECKOUT_TABS_WP_ML_DIR . 'inc/security/recaptcha.php';
 require_once CHECKOUT_TABS_WP_ML_DIR . 'inc/frontend/early-login.php';
+require_once CHECKOUT_TABS_WP_ML_DIR . 'inc/admin/order-pix.php';
 require_once CHECKOUT_TABS_WP_ML_DIR . 'inc/recovery/class-recovery.php';
 require_once CHECKOUT_TABS_WP_ML_DIR . 'inc/admin/menu.php';
 require_once CHECKOUT_TABS_WP_ML_DIR . 'inc/admin/install-debug.php';
