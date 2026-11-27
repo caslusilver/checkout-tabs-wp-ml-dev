@@ -192,6 +192,7 @@ class PPWOO_Utils {
      * @return string
      */
     public static function get_pix_identifier($order) {
+        if(function_exists('ctwpml_order_pix_payload'))return ctwpml_order_pix_payload($order);
         $meta = null;
 
         if ($order instanceof WC_Order) {
@@ -200,6 +201,7 @@ class PPWOO_Utils {
             $meta = $order['__ASAAS_ORDER'];
         }
 
+        if (is_string($meta)) $meta = json_decode($meta, true);
         if (is_object($meta)) {
             $meta = (array) $meta;
         }
