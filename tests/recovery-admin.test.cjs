@@ -6,7 +6,7 @@ function setup(t,{reject=false}={}){
  const dom=new JSDOM(markup.stdout,{url:'https://shop.example.test/recuperacao/',runScripts:'outside-only',pretendToBeVisual:true});t.after(()=>dom.window.close());
  const w=dom.window,d=w.document,calls=[],state={recovered:0};w.matchMedia=()=>({matches:false});w.ctwpmlRecoveryAdmin={url:'/ajax',nonce:'admin-fixture'};
  w.HTMLDialogElement.prototype.showModal=function(){this.open=true};w.HTMLDialogElement.prototype.close=function(value){this.returnValue=value;this.open=false;this.dispatchEvent(new w.Event('close'));};
- const row={id:1,contact:{name:'<img src=x onerror=alert(1)>',email:'fixture@example.test',phone:'+5511999990000'},context:{items:[{name:'Fixture',quantity:2,subtotal:20,total:20}],total:25,freight:5,shipping:'Motoboy'},state:'attention',revision:3,attempts:2,has_error:1,order_id:0,manual_order_id:0,updated_at:'2026-11-27 14:00:00'};
+ const row={id:1,contact:{name:'<img src=x onerror=alert(1)>',email:'fixture@example.test',phone:'+5511999990000',city:'Cidade exemplo',region:'SP',neighborhood:'Bairro exemplo',postcode:'01000-000'},context:{items:[{name:'Fixture',quantity:2,subtotal:20,total:20}],total:25,freight:5,shipping:'Motoboy'},state:'attention',revision:3,attempts:2,has_error:1,order_id:0,manual_order_id:0,updated_at:'2026-11-27 14:00:00'};
  const purchased={...row,id:2,contact:{name:'Customer B'},state:'bought',order_id:1052};
  w.fetch=async(url,opts)=>{
   const operation=opts.body.get('operation');calls.push({operation,body:opts.body});let data;
@@ -23,6 +23,7 @@ function setup(t,{reject=false}={}){
 test('CRM renders untrusted text safely and keeps purchase detection protected after loading',async t=>{
  const c=setup(t);await until(()=>c.d.querySelectorAll('.cr-case').length===2);
  assert.equal(c.d.querySelectorAll('article img').length,0);assert.equal(c.d.querySelector('.cr-name').textContent,'<img src=x onerror=alert(1)>');
+ assert.match(c.d.querySelector('[data-case-id="1"] .cr-row').textContent,/Cidade exemplo · SP/);assert.match(c.d.querySelector('[data-case-id="1"] .cr-row').textContent,/Bairro exemplo · CEP 01000-000/);
  assert.equal(c.d.querySelector('[data-prev]').disabled,true);assert.equal(c.d.querySelector('[data-next]').disabled,true);
  c.d.querySelector('[data-case-id="2"] button').click();await until(()=>c.d.querySelector('[data-case-id="2"] .cr-detail'));
  assert.equal(c.d.querySelector('[data-case-id="2"] select').disabled,true);assert.equal(c.calls[0].body.get('nonce'),'admin-fixture');

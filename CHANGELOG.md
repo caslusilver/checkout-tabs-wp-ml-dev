@@ -2,6 +2,13 @@
 
 Este arquivo documenta mudanças do plugin **Checkout Tabs WP ML**.
 
+## [v3.4.24] - 2026-11-27
+
+- Recuperação obtém cidade/UF, bairro e CEP do snapshot e do endereço salvo do checkout, com contato criptografado separado dos logs técnicos. Lista e detalhe mostram a origem disponível.
+- Confirmação nativa da escolha de entrega passa a fornecer um snapshot administrativo de modalidade e custo no servidor. Coleta em outra requisição reaproveita esse resultado e usa rates da sessão como alternativa compatível, sem recalcular ou alterar a cobrança.
+- Leituras vazias preservam o último resumo válido; mudança de endereço (inclusive edição do mesmo ID) ou método invalida o frete anterior até a nova confirmação. Interface distingue informação ainda indisponível de escolha não feita. Atualização após seleção/revisão não fica adiada pelo polling de readiness.
+- Sem nova tabela/migração, alteração de permissões ou mudança na criação/baixa de pagamentos. Registros antigos incompletos precisam de nova atividade do checkout para atualização.
+
 ## [v3.4.23] - 2026-11-27
 
 - Contraste explícito na Recuperação para textos, labels Buscar/Envio/Aparelho, campos/opções, placeholders, botões e ícones. Seletores pelo ID do componente, cores prioritárias e estados de interação preservam a paleta diante de estilos globais do Elementor, incluindo text-fill.

@@ -74,8 +74,10 @@
     function card(row,board){
         const card=el('article',undefined,'cr-case');card.dataset.caseId=String(row.id);
         const line=el('div',undefined,'cr-row');line.append(check(row));
-        const who=el('div');who.append(el('strong',row.contact.name||'Pessoa não identificada','cr-name'),el('p',[row.contact.city,row.contact.region].filter(Boolean).join(' · ')||'Localização não informada','cr-muted'),el('p',date(row.updated_at),'cr-muted'));
-        const shipping=el('div');shipping.append(el('strong',row.context.shipping||'Frete não escolhido'),el('p','Frete: '+money(row.context.freight),'cr-muted'));
+        const who=el('div');who.append(el('strong',row.contact.name||'Pessoa não identificada','cr-name'),el('p',[row.contact.city,row.contact.region].filter(Boolean).join(' · ')||'Localização ainda não identificada','cr-muted'));
+        if(row.contact.neighborhood||row.contact.postcode)who.append(el('p',[row.contact.neighborhood,row.contact.postcode?'CEP '+row.contact.postcode:''].filter(Boolean).join(' · '),'cr-muted'));
+        who.append(el('p',date(row.updated_at),'cr-muted'));
+        const shipping=el('div');shipping.append(el('strong',row.context.shipping||(row.context.method_id?'Frete em confirmação':'Frete ainda não identificado')),el('p','Frete: '+money(row.context.freight),'cr-muted'));
         const state=el('div');state.append(el('strong',row.attempts+' execuções'),badge(row));
         line.append(who,shipping,state,button(expanded.has(row.id)?'Recolher':'Detalhes',()=>{
             expanded.has(row.id)?expanded.delete(row.id):expanded.add(row.id);render();
@@ -97,6 +99,7 @@
         if(!(row.context.items||[]).length)cart.append(el('p','Carrinho ainda não registrado.'));
         cart.append(el('p','Frete: '+money(row.context.freight)),el('strong','Total do carrinho: '+money(row.context.total)));
         cart.append(el('h2','Contato informado'),el('p',row.contact.email||'E-mail não informado'),el('p',row.contact.phone||'Telefone não informado'));
+        cart.append(el('h2','Local de entrega'),el('p',[row.contact.city,row.contact.region,row.contact.neighborhood,row.contact.postcode?'CEP '+row.contact.postcode:''].filter(Boolean).join(' · ')||'Localização ainda não identificada'));
         const digits=String(row.contact.phone||'').replace(/\D/g,'');
         if(digits.length>=8&&digits.length<=15){
             const a=el('a','Falar pelo WhatsApp','cr-button cr-primary');a.href='https://wa.me/'+digits;a.target='_blank';a.rel='noopener noreferrer';cart.append(a);

@@ -1300,6 +1300,8 @@ function ctwpml_handle_set_shipping_method() {
 		error_log('[CTWPML] set_shipping_method - Resposta: ' . print_r($response, true));
 	}
 
+	// Read-only observers receive the successful server selection; never hold up checkout.
+	try { do_action('ctwpml_shipping_selected', $address_id, $applied_method, $available_rates_snapshot, $response); } catch (\Throwable $error) {}
 	wp_send_json_success($response);
 }
 

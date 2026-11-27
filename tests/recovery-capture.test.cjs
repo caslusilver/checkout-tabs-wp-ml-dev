@@ -1,11 +1,12 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),{readFileSync}=require('node:fs'),{JSDOM}=require('jsdom');
 const source=readFileSync('assets/js/recovery-capture.js','utf8');
 const until=async check=>{for(let i=0;i<200&&!check();i++)await new Promise(r=>setTimeout(r,5));assert.ok(check());};
-function setup(t,{checkout=true,saved=null,offline=false,defer=false}={}){
+function setup(t,{checkout=true,saved=null,offline=false,defer=false,snapshot=null}={}){
  const dom=new JSDOM('<form class="checkout"><input id="ctwpml-input-nome" value="Fixture"><input id="ctwpml-input-email" value="fixture@example.test"><input id="ctwpml-phone-full" value="+5511999990000"><input type="password" value="private-password"><input id="billing_cpf" value="private-cpf"><button id="ctwpml-review-confirm" type="button">Confirmar</button></form>',{url:'https://shop.example.test/'+(checkout?'checkout/':''),runScripts:'outside-only',pretendToBeVisual:true});
  t.after(()=>dom.window.close());const w=dom.window,calls=[],pending=[];const nativeTimer=w.setTimeout.bind(w);w.setTimeout=(fn,ms,...a)=>nativeTimer(fn,Math.min(ms,15),...a);
  Object.defineProperty(w.navigator,'onLine',{value:!offline,configurable:true});
  w.ctwpmlRecoveryCapture={url:'/ajax',nonce:'fixture-public',version:'3.4.22',checkout};
+ if(snapshot)w.CCCheckoutTabsState={desktopSnapshot:()=>snapshot};
  if(saved)w.sessionStorage.setItem('ctwpml_recovery_v1',JSON.stringify(saved));
  w.fetch=async(url,opts)=>{
   if(opts.body?.get?.('action')==='ctwpml_recovery_capture'){
@@ -52,4 +53,13 @@ test('offline capture leaves the form usable and resumes when connection returns
  const c=setup(t,{offline:true});await new Promise(r=>setTimeout(r,25));assert.equal(c.calls.length,0);
  c.w.document.querySelector('button').click();assert.equal(c.w.document.querySelector('button').disabled,false);
  Object.defineProperty(c.w.navigator,'onLine',{value:true});c.w.dispatchEvent(new c.w.Event('online'));await until(()=>c.calls.length>0);
+});
+test('origin comes from the checkout snapshot with empty Woo fields; selected IDs carry no client-side price',async t=>{
+ const snap={address:{id:'address-a',city:'Cidade exemplo',state:'SP',neighborhood:'Bairro exemplo',cep:'01000-000'},shipping:{methodId:'flat_rate:3',label:'Motoboy',priceText:'R$ 0,01'}};
+ const c=setup(t,{snapshot:snap});await until(()=>c.calls.length>0);
+ const first=c.calls[0];assert.equal(first.contact.city,'Cidade exemplo');assert.equal(first.contact.region,'SP');assert.equal(first.contact.neighborhood,'Bairro exemplo');assert.equal(first.contact.postcode,'01000-000');
+ assert.deepEqual(first.checkout,{address_id:'address-a',method_id:'flat_rate:3'});assert.equal(JSON.stringify(first.events).includes('Cidade exemplo'),false);assert.equal(JSON.stringify(first).includes('0,01'),false);
+ snap.address={id:'address-b',city:'Outra cidade',state:'RJ',cep:'02000-000'};snap.shipping={methodId:'correios:9'};
+ c.w.CTWPMLRecovery.checkpoint('CHK_SHIPPING_SET_APPLIED');await until(()=>c.calls.some(b=>b.checkout.address_id==='address-b'));
+ const next=c.calls.find(b=>b.checkout.address_id==='address-b');assert.equal(next.contact.city,'Outra cidade');assert.equal(next.checkout.method_id,'correios:9');
 });
