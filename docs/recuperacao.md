@@ -1,5 +1,7 @@
 # Recuperação — versão 3.4.22
 
+Atualização 3.4.24: cidade/UF, bairro e CEP vêm do snapshot e do endereço salvo do checkout, guardados no contato criptografado e exibidos na lista/detalhe. A seleção nativa confirmada de frete grava um resumo administrativo na sessão WooCommerce com modalidade/custo e vínculo ao endereço/método; outra requisição pode lê-lo sem recalcular o frete. Rates em sessão atendem o caminho compatível sem snapshot. Leitura transitória vazia não apaga resumo válido; mudança de endereço, edição do mesmo ID ou mudança de método deixa o custo em confirmação até uma seleção válida. Nunca utiliza preço enviado pelo navegador para definir frete. Logs técnicos/exportações continuam sem localização pessoal. Registros antigos incompletos não são reconstruídos pelo relatório: precisam de nova atividade na versão atual, salvando endereço/selecionando frete/entrando na revisão. Sem migração nova e sem alteração de cobrança.
+
 Atualização 3.4.23: contraste protegido explicitamente nos textos/controles, mesmo com cores globais do Elementor; em **PackPanel → Pagamentos Pendentes**, o código agora tem botão **Copiar Pix** com ícone, usando o mesmo comportamento de cópia das fichas do painel. A mudança anterior disponibilizava o botão na edição WooCommerce, mas ainda não no cartão de pendentes do PackPanel. O ícone é restaurado após o feedback e o handler delegado funciona em cartões substituídos por AJAX.
 
 ## Instalar a página

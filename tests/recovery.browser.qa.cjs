@@ -5,7 +5,7 @@ const admin=readFileSync('assets/js/recovery-admin.js','utf8'),capture=readFileS
 const jquery=readFileSync(require.resolve('jquery'),'utf8');
 function form(text){const out={};for(const m of (text||'').matchAll(/name="([^"]+)"\r\n\r\n([\s\S]*?)(?=\r\n--)/g)){if(m[1].endsWith('[]'))(out[m[1]]??=[]).push(m[2]);else out[m[1]]=m[2];}return out;}
 const records=[
-{id:1,revision:1,state:'attention',has_error:1,attempts:3,order_id:0,manual_order_id:0,updated_at:'2026-11-27 13:00:00',contact:{name:'Cliente A',email:'fixture@example.test',phone:'+16500000000',city:'Cidade exemplo',region:'SP'},context:{items:[{name:'Produto exemplo',quantity:2,subtotal:20,total:18}],shipping:'Motoboy',freight:5,total:23}},
+{id:1,revision:1,state:'attention',has_error:1,attempts:3,order_id:0,manual_order_id:0,updated_at:'2026-11-27 13:00:00',contact:{name:'Cliente A',email:'fixture@example.test',phone:'+16500000000',city:'Cidade exemplo',region:'SP',neighborhood:'Bairro exemplo',postcode:'01000-000'},context:{items:[{name:'Produto exemplo',quantity:2,subtotal:20,total:18}],shipping:'Motoboy',freight:5,total:23}},
 {id:2,revision:1,state:'bought',has_error:0,attempts:1,order_id:1052,manual_order_id:0,updated_at:'2026-11-27 13:01:00',contact:{name:'Cliente B'},context:{}}
 ];
 let events=[],mutations=0;
@@ -20,6 +20,7 @@ let events=[],mutations=0;
     const body=form(route.request().postData());let data;
     if(body.action==='ctwpml_recovery_capture'){
      const batch=JSON.parse(body.batch);events.push(...batch.events);assert.equal(JSON.stringify(batch.events).includes('fixture-password'),false);
+     if(batch.contact){assert.equal(batch.contact.city,'Cidade exemplo');assert.equal(batch.contact.postcode,'01000-000');assert.equal(batch.checkout.method_id,'flat_rate:3');}
      data={trace:'12345678-1234-1234-1234-123456789abc',proof:'fixture-write-only'};
     }else if(body.action==='ctwpml_recovery_admin'){
      assert.equal(body.nonce,'fixture-admin');
@@ -41,9 +42,10 @@ let events=[],mutations=0;
    if(url.pathname==='/recuperacao/'){
     await route.fulfill({contentType:'text/html',body:'<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>'+css+'</style><style>body.elementor-kit-test .elementor-element :is(label,p,strong,span,small,h1,h2,button,input,select,option,textarea){color:white!important;-webkit-text-fill-color:white!important}body.elementor-kit-test .elementor-element :is(button,select,input,textarea){background:white!important;opacity:.1!important}body.elementor-kit-test .elementor-element input::placeholder{color:white!important;-webkit-text-fill-color:white!important}</style><body class="elementor-kit-test"><div class="elementor-element">'+markup.stdout+'</div><script>ctwpmlRecoveryAdmin={url:"/ajax",nonce:"fixture-admin"}</script><script>'+admin+'</script>'});return;
    }
-   await route.fulfill({contentType:'text/html',body:'<!doctype html><meta charset="utf-8"><script>'+jquery+'</script><script>ctwpmlRecoveryCapture={url:"/ajax",nonce:"fixture-public",version:"3.4.22",checkout:'+String(url.pathname==='/checkout/')+'}</script><script>'+capture+'</script><form class="checkout"><input id="ctwpml-input-email" value="fixture@example.test"><input type="password" value="fixture-password"><button type="button" id="ctwpml-review-confirm">Confirmar</button></form>'});
+   await route.fulfill({contentType:'text/html',body:'<!doctype html><meta charset="utf-8"><script>'+jquery+'</script><script>ctwpmlRecoveryCapture={url:"/ajax",nonce:"fixture-public",version:"3.4.24",checkout:'+String(url.pathname==='/checkout/')+'};CCCheckoutTabsState={desktopSnapshot:()=>({address:{id:"address-a",city:"Cidade exemplo",state:"SP",neighborhood:"Bairro exemplo",cep:"01000-000"},shipping:{methodId:"flat_rate:3"}})}</script><script>'+capture+'</script><form class="checkout"><input id="ctwpml-input-email" value="fixture@example.test"><input type="password" value="fixture-password"><button type="button" id="ctwpml-review-confirm">Confirmar</button></form>'});
   });
   await page.goto('https://shop.example.test/recuperacao/');await page.locator('[data-case-id="1"]').waitFor();
+  assert.match(await page.locator('[data-case-id="1"] .cr-row').innerText(),/Bairro exemplo · CEP 01000-000/);
   for(const width of [320,390,768,1280]){
    await page.setViewportSize({width,height:900});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
    assert.equal(await page.locator('[data-refresh]').evaluate(n=>getComputedStyle(n).opacity),'1');

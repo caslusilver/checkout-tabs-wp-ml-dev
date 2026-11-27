@@ -20,6 +20,7 @@ final class CTWPML_Recovery {
         add_action('ctwpml_recovery_cleanup',[__CLASS__,'cleanup']);
         add_filter('secure_passkeys_login_redirect_url',[__CLASS__,'login_redirect'],30);
         add_filter('woocommerce_order_data_store_cpt_get_orders_query',[__CLASS__,'order_query'],10,2);
+        add_action('ctwpml_shipping_selected',[__CLASS__,'remember_shipping'],10,4);
     }
     public static function settings(): array {
         $s=(array)get_option(self::OPTION,[]);
@@ -116,7 +117,38 @@ final class CTWPML_Recovery {
             'email'=>sanitize_email($plain($data['email']??'',254)),
             'phone'=>substr(preg_replace('/[^+\d]/','',$plain($data['phone']??'',40)),0,18),
             'city'=>$plain($data['city']??'',80),
-            'region'=>$plain($data['region']??'',10)];
+            'region'=>$plain($data['region']??'',10),
+            'neighborhood'=>$plain($data['neighborhood']??'',100),
+            'postcode'=>substr(preg_replace('/[^a-zA-Z0-9 -]/','',$plain($data['postcode']??'',20)),0,20)];
+    }
+    private static function selected_address(string $id=''): array {
+        $user=function_exists('get_current_user_id')?get_current_user_id():0;
+        if($user&&function_exists('ctwpml_addresses_get_all')){
+            $items=ctwpml_addresses_get_all($user);$selected=ctwpml_addresses_get_selected_id($user);
+        }elseif(function_exists('ctwpml_guest_addresses_get_all')){
+            $items=ctwpml_guest_addresses_get_all();$selected=ctwpml_guest_get_selected_id();
+        }else return [];
+        foreach($items as $item)if(is_array($item)&&(string)($item['id']??'')===($id!==''?$id:$selected))return $item;
+        return [];
+    }
+    private static function address_location(array $address): array {
+        return self::contact(['city'=>$address['city']??'','region'=>$address['state']??'','neighborhood'=>$address['neighborhood']??'','postcode'=>$address['cep']??$address['postcode']??'']);
+    }
+    private static function location_key(string $id,array $contact,array $address=[]): string {
+        $parts=[$id];foreach(['postcode','city','region','neighborhood']as $key)$parts[]=strtolower(preg_replace($key==='postcode'?'/[^a-zA-Z0-9]/':'/\s+/u','',(string)($contact[$key]??'')));
+        foreach(['address_1','number','complement']as $key)$parts[]=strtolower(trim((string)($address[$key]??'')));
+        return implode('',array_slice($parts,1))!==''?hash_hmac('sha256',implode('|',$parts),wp_salt('auth')):'';
+    }
+    /** Observes a successful native selection. Never recalculates or changes shipping. */
+    public static function remember_shipping($address_id,$method_id,$rates,$response): void {
+        try{
+            if(!self::settings()['enabled']||!function_exists('WC')||!WC()->session||!is_array($response)||(string)($response['applied_method']??'')!==(string)$method_id)return;
+            $address=self::selected_address((string)$address_id);$label='';
+            foreach((array)$rates as $rate)if((string)($rate['id']??'')===(string)$method_id){$label=sanitize_text_field((string)($rate['label']??''));break;}
+            $cost=$response['cart_shipping_total']??null;
+            if(!$address||$label===''||!is_numeric($cost)||(float)$cost<0)return;
+            WC()->session->set('ctwpml_recovery_shipping_snapshot',['address_key'=>self::location_key((string)$address_id,self::address_location($address),$address),'method_id'=>(string)$method_id,'shipping'=>$label,'freight'=>(float)$cost,'at'=>time()]);
+        }catch(Throwable $error){/* Observation cannot interrupt a purchase or log private data. */}
     }
     /** Allowlist: dados livres/PII nunca são copiados do logger para o histórico técnico. */
     public static function detail(array $data): array {
@@ -220,6 +252,10 @@ final class CTWPML_Recovery {
     private static function record(array $attempt,array $body): void {
         global $wpdb;$c=self::table('cases');$a=self::table('attempts');$e=self::table('events');
         $case=(int)$attempt['case_id'];$now=self::now();
+        $hint=(array)($body['checkout']??[]);$address=self::selected_address(is_scalar($hint['address_id']??null)?(string)$hint['address_id']:'');
+        $contact=self::contact((array)($body['contact']??[]));
+        foreach(['city','region','neighborhood','postcode']as $key)if($contact[$key]==='')$contact[$key]=self::address_location($address)[$key];
+        $body['contact']=$contact;
         if (!empty($body['contact'])&&is_array($body['contact'])) {
             $contact=self::contact($body['contact']);$identity=self::identity($contact);
             $current=$wpdb->get_row($wpdb->prepare("SELECT * FROM $c WHERE id=%d",$case),ARRAY_A);
@@ -242,7 +278,12 @@ final class CTWPML_Recovery {
                             }
                         }
                         if ($same) {
+                            // Do not carry an old neighborhood into a newly selected destination.
+                            $location_key=self::location_key(is_scalar($hint['address_id']??null)?(string)$hint['address_id']:(string)($address['id']??''),$contact,$address);
+                            if(($location_key!==''&&!empty($old['_location_key'])&&$old['_location_key']!==$location_key)||(!empty($contact['postcode'])&&!empty($old['postcode'])&&strtolower(preg_replace('/[^a-zA-Z0-9]/','',$contact['postcode']))!==strtolower(preg_replace('/[^a-zA-Z0-9]/','',$old['postcode']))))
+                                foreach(['city','region','neighborhood','postcode']as $key)$old[$key]='';
                             foreach ($contact as $k=>$v) if($v!=='')$old[$k]=$v;
+                            if($location_key!=='')$old['_location_key']=$location_key;
                             $wpdb->update($c,['identity_hash'=>$identity,'identified'=>1,'contact'=>self::protect($old),'updated_at'=>$now],['id'=>$case]);
                         }
                     } finally {$wpdb->get_var($wpdb->prepare('SELECT RELEASE_LOCK(%s)',$lock));}
@@ -250,7 +291,8 @@ final class CTWPML_Recovery {
             }
         }
         // Contexte financeiro/produtos vem do carrinho do servidor, nunca de valores enviados pelo visitante.
-        $context=self::cart_context();
+        $previous=$wpdb->get_row($wpdb->prepare("SELECT context FROM $c WHERE id=%d",$case),ARRAY_A);
+        $context=self::merge_context((array)json_decode($previous['context']??'{}',true),self::cart_context($body,$address));
         if(!empty($context['items']))$wpdb->query($wpdb->prepare("UPDATE $c SET context=%s,updated_at=%s,revision=revision+1 WHERE id=%d AND state IN ('active','attention','contact')",wp_json_encode($context),$now,$case));
         else $wpdb->query($wpdb->prepare("UPDATE $c SET updated_at=%s,revision=revision+1 WHERE id=%d AND state IN ('active','attention','contact')",$now,$case));
         $wpdb->update($a,['updated_at'=>$now],['id'=>(int)$attempt['id']]);
@@ -265,8 +307,24 @@ final class CTWPML_Recovery {
             if(!$ok)$wpdb->query($wpdb->prepare("UPDATE $c SET has_error=1,state=IF(state='active','attention',state) WHERE id=%d",$case));
         }
     }
-    private static function cart_context(): array {
-        $out=['items'=>[],'shipping'=>'','freight'=>null,'total'=>null];
+    public static function merge_context(array $old,array $fresh): array {
+        $changed=false;
+        foreach(['address_id','address_key','method_id']as $key)if(!empty($fresh[$key])&&$fresh[$key]!==($old[$key]??''))$changed=true;
+        if($changed){$old['shipping']='';$old['freight']=null;$old['shipping_source']='pending';}
+        foreach($fresh as $key=>$value){
+            if($key==='items'&&!$value)continue;
+            if(in_array($key,['shipping','address_id','address_key','method_id'],true)&&$value==='')continue;
+            if(in_array($key,['freight','total'],true)&&$value===null)continue;
+            if($key==='shipping_source'&&$value==='pending'&&!empty($old['shipping']))continue;
+            $old[$key]=$value;
+        }
+        return $old;
+    }
+    private static function cart_context(array $body=[],array $address=[]): array {
+        $hint=(array)($body['checkout']??[]);$contact=self::contact((array)($body['contact']??[]));
+        $address_id=is_scalar($hint['address_id']??null)?substr(sanitize_text_field((string)$hint['address_id']),0,100):'';
+        $requested=is_scalar($hint['method_id']??null)?substr(sanitize_text_field((string)$hint['method_id']),0,100):'';
+        $out=['items'=>[],'shipping'=>'','freight'=>null,'total'=>null,'address_id'=>$address_id?:(string)($address['id']??''),'address_key'=>self::location_key($address_id?: (string)($address['id']??''),$contact,$address),'method_id'=>$requested,'shipping_source'=>'pending'];
         if(!function_exists('WC')||!WC()->cart)return $out;
         foreach (array_slice(WC()->cart->get_cart(),0,50) as $item) {
             $product=$item['data']??null;if(!$product)continue;
@@ -274,13 +332,27 @@ final class CTWPML_Recovery {
         }
         $out['total']=(float)WC()->cart->get_total('edit');
         $chosen=WC()->session?(array)WC()->session->get('chosen_shipping_methods',[]):[];
+        $chosen=array_filter($chosen,static fn($id)=>is_string($id)&&$id!=='');
+        $method=implode(' / ',$chosen);if($out['method_id']==='')$out['method_id']=$method;
+        if($requested!==''&&$requested!==$method)return $out;
+        $snapshot=WC()->session?WC()->session->get('ctwpml_recovery_shipping_snapshot',[]):[];
+        if(is_array($snapshot)&&($snapshot['method_id']??'')===$method&&$method!==''&&($snapshot['address_key']??'')===$out['address_key']&&time()-(int)($snapshot['at']??0)<86400){
+            $totals=WC()->session->get('cart_totals',[]);
+            $cost=is_array($totals)&&isset($totals['shipping_total'])&&is_numeric($totals['shipping_total'])?(float)$totals['shipping_total']:(float)$snapshot['freight'];
+            $out['shipping']=(string)$snapshot['shipping'];$out['freight']=max(0.0,$cost);$out['shipping_source']='selection_confirmed';return $out;
+        }
+        // A known new address must wait for the native selection confirmation, not reuse old rates.
+        if($address_id!=='')return $out;
         $packages=WC()->shipping()?WC()->shipping()->get_packages():[];
         $freight=0.0;$resolved=false;
-        foreach($packages as $i=>$package) {
-            $rate=$package['rates'][$chosen[$i]??'']??null;
+        foreach($chosen as $i=>$selected) {
+            $package=$packages[$i]??[];
+            $rate=$package['rates'][$selected]??null;
+            if(!$rate&&WC()->session){$cached=WC()->session->get('shipping_for_package_'.$i,[]);$rate=is_array($cached)?($cached['rates'][$selected]??null):null;}
             if($rate){$resolved=true;$out['shipping'].=($out['shipping']?' / ':'').sanitize_text_field($rate->get_label());$freight+=(float)$rate->get_cost();}
+            else {$resolved=false;break;}
         }
-        if($resolved)$out['freight']=$freight;
+        if($resolved){$out['freight']=$freight;$out['shipping_source']='session_rates';}else $out['shipping']='';
         return $out;
     }
     public static function attach_order($order,$data=[]): void {

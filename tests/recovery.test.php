@@ -34,10 +34,13 @@ class Recovery_Cart {
     function get_total($context){return 23;}
 }
 class Recovery_Woo {
-    public $cart;public $session;
-    function __construct(){$this->cart=new Recovery_Cart();$this->session=new class {function get($key,$default=[]){return ['flat_rate:3'];}};}
-    function shipping(){return new class {function get_packages(){return [['rates'=>['flat_rate:3'=>new class{function get_label(){return 'Motoboy';}function get_cost(){return 5;}}]]];}};}
+    public $cart;public $session;public array $packages=[];
+    function __construct(){$this->cart=new Recovery_Cart();$this->session=new class {public array $data=['chosen_shipping_methods'=>['flat_rate:3']];function get($key,$default=[]){return $this->data[$key]??$default;}function set($key,$value){$this->data[$key]=$value;}};
+        $this->packages=[['rates'=>['flat_rate:3'=>new class{function get_label(){return 'Motoboy';}function get_cost(){return 5;}}]]];}
+    function shipping(){return new class($this){function __construct(private $woo){}function get_packages(){return $this->woo->packages;}};}
 }
+function ctwpml_guest_addresses_get_all(){return $GLOBALS['recovery_addresses']??[];}
+function ctwpml_guest_get_selected_id(){return $GLOBALS['recovery_address_id']??'';}
 $woo=new Recovery_Woo();function WC(){return $GLOBALS['woo'];}
 class Recovery_Order {
     public array $meta=[];public string $status='pending';public string $email='fixture@example.test';
@@ -169,5 +172,42 @@ $expiry=time()+600;$base='55.'.$expiry;$_COOKIE['ctwpml_recovery_return']=$base.
 $referrer='https://shop.example.test/other/';checkRecovery(CTWPML_Recovery::login_redirect('native')==='native','Unrelated login redirected');
 $referrer='https://shop.example.test/recuperacao/';checkRecovery(CTWPML_Recovery::login_redirect('native')===get_permalink(55),'Recovery login lost return');
 $_COOKIE['ctwpml_recovery_return'].='x';checkRecovery(CTWPML_Recovery::login_redirect('native')==='native','Tampered redirect cookie accepted');
+
+// Location and confirmed selection survive a separate admin-ajax with no in-memory rates.
+$recovery_address_id='address-a';$recovery_addresses=[['id'=>'address-a','cep'=>'01000000','city'=>'Cidade exemplo','state'=>'SP','neighborhood'=>'Bairro exemplo','address_1'=>'Rua exemplo','number'=>'10']];
+$origin=CTWPML_Recovery::contact(['city'=>'Cidade exemplo','region'=>'SP','neighborhood'=>'Bairro exemplo','postcode'=>'01000-000']);
+$contextMethod=new ReflectionMethod(CTWPML_Recovery::class,'cart_context');
+$body=['contact'=>$origin,'checkout'=>['address_id'=>'address-a','method_id'=>'flat_rate:3']];
+CTWPML_Recovery::remember_shipping('address-a','flat_rate:3',[['id'=>'flat_rate:3','label'=>'Motoboy']],['applied_method'=>'flat_rate:3','cart_shipping_total'=>'5.00']);
+$woo->packages=[];$first=$contextMethod->invoke(null,$body,$recovery_addresses[0]);
+checkRecovery($first['shipping']==='Motoboy'&&$first['freight']===5.0&&$first['shipping_source']==='selection_confirmed','Separate collection lost confirmed shipping');
+$woo->session->data['cart_totals']=['shipping_total'=>'0'];checkRecovery($contextMethod->invoke(null,$body,$recovery_addresses[0])['freight']===0.0,'Server free-shipping update ignored after selection');unset($woo->session->data['cart_totals']);
+$woo->session->data['ctwpml_recovery_shipping_snapshot']=[];$empty=$contextMethod->invoke(null,$body,$recovery_addresses[0]);
+$kept=CTWPML_Recovery::merge_context($first,$empty);checkRecovery($kept['freight']===5.0&&$kept['shipping']==='Motoboy','Transient empty read erased known shipping');
+$missing=$contextMethod->invoke(null,['checkout'=>['address_id'=>'address-a','method_id'=>'flat_rate:3']],[]);
+checkRecovery(CTWPML_Recovery::merge_context($first,$missing)['freight']===5.0,'Unavailable location erased same-address shipping');
+checkRecovery(CTWPML_Recovery::merge_context(['shipping'=>'Legacy','freight'=>99],$empty)['freight']===null,'Unbound legacy freight reused for a known address');
+$other=$body;$other['checkout']['address_id']='address-b';$other['contact']['postcode']='02000-000';
+$fresh=$contextMethod->invoke(null,$other,['id'=>'address-b']);$changed=CTWPML_Recovery::merge_context($first,$fresh);
+checkRecovery($changed['shipping']===''&&$changed['freight']===null,'New address retained old destination freight');
+$recovery_addresses[0]['number']='11';$edited=$contextMethod->invoke(null,$body,$recovery_addresses[0]);
+checkRecovery(CTWPML_Recovery::merge_context($first,$edited)['freight']===null,'Same ID edited to a new address retained old freight');$recovery_addresses[0]['number']='10';
+$other=$body;$other['checkout']['method_id']='correios:9';$fresh=$contextMethod->invoke(null,$other,$recovery_addresses[0]);
+checkRecovery(CTWPML_Recovery::merge_context($first,$fresh)['freight']===null,'Changing shipping method preserved old amount');
+$woo->session->data['chosen_shipping_methods']=['correios:9'];
+CTWPML_Recovery::remember_shipping('address-a','correios:9',[['id'=>'correios:9','label'=>'SEDEX']],['applied_method'=>'correios:9','cart_shipping_total'=>'19.90']);
+$sedex=$contextMethod->invoke(null,$other,$recovery_addresses[0]);checkRecovery($sedex['shipping']==='SEDEX'&&$sedex['freight']===19.9,'Correios selection did not replace Motoboy');
+CTWPML_Recovery::remember_shipping('address-a','correios:9',[['id'=>'correios:9','label'=>'SEDEX']],['applied_method'=>'correios:9','cart_shipping_total'=>'0']);
+checkRecovery($contextMethod->invoke(null,$other,$recovery_addresses[0])['freight']===0.0,'Confirmed free shipping treated as unknown');
+$woo->session->data['ctwpml_recovery_shipping_snapshot']=[];$woo->session->data['chosen_shipping_methods']=['flat_rate:3'];
+$woo->session->data['shipping_for_package_0']=['rates'=>['flat_rate:3'=>new class {function get_label(){return 'Motoboy';}function get_cost(){return 5;}}]];
+checkRecovery($contextMethod->invoke(null)['freight']===5.0,'Session rate fallback failed with empty runtime packages');
+// Real record path fills missing origin from the currently selected address and encrypts it.
+$wpdb->current=['id'=>9,'state'=>'attention','has_error'=>0,'contact'=>json_encode($env),'context'=>'{}'];$wpdb->target=[];$wpdb->updates=[];
+$record->invoke(null,['id'=>7,'case_id'=>9],['contact'=>$contact,'checkout'=>['address_id'=>'address-a'],'events'=>[]]);
+$contactWrites=array_values(array_filter($wpdb->updates,fn($v)=>isset($v[1]['contact'])));$envelope=json_decode(end($contactWrites)[1]['contact'],true);
+$stored=json_decode(CTWPML_Key_Vault::decrypt('recovery-contact',$envelope),true);
+checkRecovery($stored['city']==='Cidade exemplo'&&$stored['neighborhood']==='Bairro exemplo'&&$stored['postcode']==='01000000','Saved address location absent from encrypted contact');
+checkRecovery(!str_contains(json_encode(CTWPML_Recovery::detail($origin)),'Cidade exemplo'),'Location leaked into diagnostics');
 if(in_array('--pix-markup',$argv,true)){echo $box;exit;}
 echo "Recovery: admin/nonce, privacy, encryption, signed correlation, purchase, conflicts, optional order and login return passed.\n";
