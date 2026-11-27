@@ -5332,6 +5332,7 @@
     function ctwpmlConfirmCheckoutPhone(onConfirm, onEdit) {
       var phone = ctwpmlCheckoutPhoneDetails();
       if (!phone.valid) {
+        try { state.checkpoint?.('CHK_PHONE_VALIDATION_ERROR', false, { hasPhone: !!phone.national }); } catch (_) {}
         if (currentView !== 'form') ctwpmlOpenBillingCorrection(['phone']);
         else {
           ctwpmlShowPhoneError();
@@ -5420,6 +5421,7 @@
       });
       $dialog.on('close', function () {
         var confirmed = this.returnValue === 'confirm';
+        try { state.checkpoint?.(confirmed ? 'CHK_PHONE_CONFIRMED' : 'CHK_PHONE_CANCELLED', true, {}); } catch (_) {}
         $dialog.remove();
         phoneConfirmationPending = false;
         if (confirmed) {
@@ -5432,6 +5434,7 @@
         }
       }).appendTo(document.body);
       $dialog[0].showModal();
+      try { state.checkpoint?.('CHK_PHONE_CONFIRMATION_SHOWN', true, {}); } catch (_) {}
       return false;
     }
 

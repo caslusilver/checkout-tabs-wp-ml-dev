@@ -197,6 +197,7 @@
      * @param {object} data - Dados adicionais para debug
      */
     state.checkpoint = function checkpoint(name, ok, data) {
+      try { window.CTWPMLRecovery?.checkpoint(name, ok, data || {}); } catch (_) {}
       if (!debugMode) return;
       ensureDebugPanel();
 
@@ -254,6 +255,15 @@
     };
 
     state.log = function log(message, data, phase) {
+      try {
+        var recoveryCode = /openModal\(\)/.test(message) ? 'MODAL_OPEN' :
+          /CTA click: iniciando/.test(message) ? 'FINALIZATION_START' :
+          /wc-ajax=checkout iniciado/.test(message) ? 'WOO_SUBMIT_START' :
+          /checkout_error recebido/.test(message) ? 'WOO_SUBMIT_ERROR' : '';
+        if (recoveryCode) window.CTWPMLRecovery?.checkpoint(recoveryCode, recoveryCode !== 'WOO_SUBMIT_ERROR', {
+          isLoggedIn: data && data.isLoggedIn, resumeAfterAuth: data && data.resumeAfterAuth
+        });
+      } catch (_) {}
       if (!debugMode) return;
       ensureDebugPanel();
 
